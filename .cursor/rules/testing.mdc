@@ -1,0 +1,34 @@
+---
+description: 测试要求、覆盖率口径，以及改完代码该跑哪些测试
+alwaysApply: true
+---
+
+# 测试约束
+
+## 覆盖率
+
+- 核心模块行覆盖 ≥ 70%，**只卡新增代码**（diff coverage），存量不追溯。
+- 以下三处要求 100% 分支覆盖，没有例外：审计哈希链 `chain/`、配额与并发 `quota/`、审批状态机 `approval/`。
+- DTO、entity、mapper 接口、配置类排除在覆盖率统计外。**不要为了凑数给它们写测试。**
+
+## 必须有用例的场景
+
+- keel-gateway：SSE 客户端断开、上游超时、并发位释放（含异常断开路径）。
+- keel-audit：链头并发写入、断链检测、归档 detach 后仍可校验。
+- SDK：审批挂起期间进程重启后能恢复现场；上报队列满时审计不丢。
+- provisioning：任一步失败后按逆序回收资源。
+
+## 改完代码跑什么（不要每次全量）
+
+| 改了什么 | 跑什么 |
+|---|---|
+| Java | `mvn -o -pl :{模块} test`，只跑当前模块 |
+| Python | `pytest --testmon` 或 `pytest tests/{对应目录}` |
+| Vue | `vitest related {改动文件}` |
+
+全量测试、集成测试、覆盖率门禁只在 CI 跑。本地不要跑全量等结果。
+
+## 假依赖
+
+- Java 集成测试用 Testcontainers 起 PostgreSQL 和 Redis，**不要用 H2 替代 PG**（分区表、FOR UPDATE 行为不一样）。
+- Python 用假的 Langfuse / LiteLLM HTTP 服务做集成测试，不要 mock 掉整个 client 类，那样测不出协议问题。

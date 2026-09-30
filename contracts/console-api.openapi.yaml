@@ -1,0 +1,1610 @@
+openapi: 3.0.3
+
+info:
+  title: Keel 控制台 API
+  version: 1.0.0-draft
+  description: |
+    keel-console 九个页面消费的全部接口，由 keel-server 实现。
+
+    这份文件是前端、mock 数据、后端实现三方的唯一事实来源：
+    - 前端只调这里定义的接口，不直接调 Langfuse / LiteLLM / Prometheus
+    - mock 数据由这份文件生成，接口切真时前端只改 baseURL
+    - 后端 P1 按这份文件实现，字段不一致以这里为准
+
+    和 keel/v1 五份契约的关系：那五份是智能体侧协议（/v1/invoke、审计事件、
+    追踪属性、manifest、评测集），这份是控制面 REST API，两者独立演进。
+    引用到的枚举值必须和 contracts/ 下对应 schema 保持一致。
+
+servers:
+  - url: https://keel.example.com/api/v1
+    description: prod
+  - url: http://localhost:5173/api/v1
+    description: 本地 mock（MSW 拦截）
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: overview
+    description: 总览页
+  - name: agents
+    description: 智能体列表 / 详情 / 新建向导
+  - name: services
+    description: 共享服务页
+  - name: traces
+    description: 链路追踪页
+  - name: eval
+    description: 评测中心
+  - name: tools
+    description: 工具注册表
+  - name: approvals
+    description: 审批
+  - name: audit
+    description: 审计中心
+  - name: models
+    description: 模型网关
+  - name: meta
+    description: 当前用户、字典
+
+paths:
+  # ---------------------------------------------------------------- meta
+  /me:
+    get:
+      tags: [meta]
+      operationId: getCurrentUser
+      summary: 当前用户与可见范围
+      description: 前端据此控制菜单和按钮可见性；后端每个接口仍要再校验一次。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/CurrentUser" }
+
+  # ---------------------------------------------------------------- 总览
+  /insight/overview:
+    get:
+      tags: [overview]
+      operationId: getOverview
+      summary: 总览页全部数据
+      description: 一次返回页面所需的全部内容，前端不做二次聚合。
+      parameters:
+        - $ref: "#/components/parameters/Env"
+        - name: range
+          in: query
+          schema: { type: string, enum: [24h, 7d, 30d], default: 24h }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/Overview" }
+
+  # ---------------------------------------------------------------- 智能体
+  /agents:
+    get:
+      tags: [agents]
+      operationId: listAgents
+      summary: 智能体列表
+      parameters:
+        - $ref: "#/components/parameters/Env"
+        - name: category
+          in: query
+          schema: { type: string, enum: [all, biz, dev], default: all }
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/AgentStatus" }
+        - name: q
+          in: query
+          description: 按 id、名称、负责人模糊匹配
+          schema: { type: string }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: "#/components/schemas/PageMeta"
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items: { $ref: "#/components/schemas/AgentSummary" }
+    post:
+      tags: [agents]
+      operationId: registerAgent
+      summary: 注册智能体（keel register / 新建向导第四步）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "200":
+          description: 注册完成，返回自检报告
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/SelfCheckReport" }
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /agents/{name}:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+    get:
+      tags: [agents]
+      operationId: getAgent
+      summary: 智能体详情（抽屉）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/AgentDetail" }
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /agents/{name}/releases:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+    post:
+      tags: [agents]
+      operationId: releaseAgent
+      summary: 发布（必须携带已通过的 gateRunId）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [env, gateRunId, image]
+              properties:
+                env: { type: string, enum: [staging, prod] }
+                gateRunId: { type: string }
+                image: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/ReleaseRecord" }
+        "412":
+          description: 门禁未通过，发布被拒
+          $ref: "#/components/responses/Error"
+
+  /agents/{name}/retire:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+    post:
+      tags: [agents]
+      operationId: retireAgent
+      summary: 下线（吊销虚拟 Key、删 Secret、状态置 RETIRED）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [env]
+              properties:
+                env: { $ref: "#/components/schemas/EnvName" }
+                reason: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+
+  /agents/name-check:
+    get:
+      tags: [agents]
+      operationId: checkAgentName
+      summary: 新建向导第二步：名称可用性校验
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          available: { type: boolean }
+                          reason:
+                            type: string
+                            nullable: true
+                            description: 不可用时的原因，如「已被占用」「必须小写字母开头」
+
+  /agents/manifest-preview:
+    post:
+      tags: [agents]
+      operationId: previewManifest
+      summary: 新建向导第四步：由表单生成 agent.yaml 预览
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          yaml: { type: string, description: agent.yaml 全文 }
+                          warnings:
+                            type: array
+                            items: { type: string }
+
+  /catalog:
+    get:
+      tags: [agents]
+      operationId: getCatalog
+      summary: 新建向导用的字典（模板、可选工具、知识库、模型、组织）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/Catalog" }
+
+  # ---------------------------------------------------------------- 共享服务
+  /insight/services:
+    get:
+      tags: [services]
+      operationId: getSharedServices
+      summary: 共享服务页全部数据
+      description: 服务健康来自 K8s 探测，指标来自 Prometheus，知识库来自 rag-forge。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/SharedServices" }
+
+  # ---------------------------------------------------------------- 链路追踪
+  /insight/traces:
+    get:
+      tags: [traces]
+      operationId: listTraces
+      summary: trace 列表
+      description: |
+        原型里这一块是写死的五条「最近调用」，正式实现必须是真列表：
+        可按智能体筛选、可分页、可按状态过滤。
+      parameters:
+        - $ref: "#/components/parameters/Env"
+        - name: agent
+          in: query
+          description: 参与该 trace 的任一智能体，缺省为全部
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/NodeStatus" }
+        - name: minDurationMs
+          in: query
+          schema: { type: integer }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: "#/components/schemas/PageMeta"
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items: { $ref: "#/components/schemas/TraceSummary" }
+
+  /insight/traces/{traceId}:
+    parameters:
+      - name: traceId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [traces]
+      operationId: getTrace
+      summary: trace 详情
+      description: |
+        keel-server 调 Langfuse Observations API v2 取全部节点后组装，
+        再叠加 keel-audit 的审计事件和 keel-server 的审批记录。
+        协作图、泳道时间线、调用树三种视图共用这一份 nodes 数据，前端不再二次请求。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/TraceDetail" }
+        "404":
+          $ref: "#/components/responses/Error"
+
+  # ---------------------------------------------------------------- 评测中心
+  /eval/{agent}/latest:
+    parameters:
+      - name: agent
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [eval]
+      operationId: getLatestEval
+      summary: 最近一次门禁结论与分维度对比
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/EvalResult" }
+
+  /eval/{agent}/runs:
+    parameters:
+      - name: agent
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [eval]
+      operationId: runEval
+      summary: 手动运行一次回归
+      responses:
+        "202":
+          description: 已接受，异步执行
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          runId: { type: string }
+
+  /eval/runs/{runId}:
+    parameters:
+      - name: runId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [eval]
+      operationId: getEvalRun
+      summary: 回归进度
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          runId: { type: string }
+                          state: { type: string, enum: [RUNNING, DONE, FAILED] }
+                          progress: { type: number, format: float, description: 0~1 }
+                          result:
+                            type: object
+                            nullable: true
+                            allOf:
+                              - $ref: "#/components/schemas/EvalResult"
+
+  # ---------------------------------------------------------------- 工具
+  /tools:
+    get:
+      tags: [tools]
+      operationId: listTools
+      summary: 工具注册表
+      parameters:
+        - name: scope
+          in: query
+          schema: { type: string, enum: [all, PRIVATE, SHARED], default: all }
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/ToolStatus" }
+        - name: risk
+          in: query
+          schema: { $ref: "#/components/schemas/Risk" }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: "#/components/schemas/PageMeta"
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items: { $ref: "#/components/schemas/ToolSummary" }
+    post:
+      tags: [tools]
+      operationId: registerTool
+      summary: 注册 MCP 工具
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ToolRegisterRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+
+  /tools/{name}:
+    parameters:
+      - $ref: "#/components/parameters/ToolName"
+    get:
+      tags: [tools]
+      operationId: getTool
+      summary: 工具详情（抽屉）：策略、依赖方、版本历史
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/ToolDetail" }
+
+  /tools/{name}/versions:
+    parameters:
+      - $ref: "#/components/parameters/ToolName"
+    post:
+      tags: [tools]
+      operationId: publishToolVersion
+      summary: 发布新版本
+      description: |
+        描述或参数变化会触发所有依赖方回归评测。
+        破坏兼容必须用新名字（如 work_order_create.v2），不能在原名上发版。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version, schemaJson, breaking]
+              properties:
+                version: { type: string }
+                description: { type: string }
+                schemaJson: { type: object, additionalProperties: true }
+                access: { $ref: "#/components/schemas/ToolAccess" }
+                risk: { $ref: "#/components/schemas/Risk" }
+                breaking: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          triggeredRegressions:
+                            type: array
+                            description: 被触发回归评测的依赖方
+                            items: { type: string }
+        "400":
+          description: breaking=true 时必须改名
+          $ref: "#/components/responses/Error"
+
+  /tools/{name}/deprecate:
+    parameters:
+      - $ref: "#/components/parameters/ToolName"
+    post:
+      tags: [tools]
+      operationId: deprecateTool
+      summary: 废弃（必须给替代工具和截止日期）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [replacedBy, deadline]
+              properties:
+                replacedBy: { type: string }
+                deadline: { type: string, format: date }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+
+  /tools/{name}/retire:
+    parameters:
+      - $ref: "#/components/parameters/ToolName"
+    post:
+      tags: [tools]
+      operationId: retireTool
+      summary: 下线
+      description: 有 prod 依赖方时返回 409，只能先废弃。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+        "409":
+          description: 存在 prod 依赖，拒绝下线
+          $ref: "#/components/responses/Error"
+
+  /tools/{name}/dependents:
+    parameters:
+      - $ref: "#/components/parameters/ToolName"
+    get:
+      tags: [tools]
+      operationId: listToolDependents
+      summary: 依赖方（manifest 声明 + 30 天调用量）
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: "#/components/schemas/ToolDependent" }
+
+  # ---------------------------------------------------------------- 审批
+  /approvals:
+    get:
+      tags: [approvals]
+      operationId: listApprovals
+      summary: 审批单列表
+      description: 审批人只看得到分给自己的单子，由后端按当前用户过滤。
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/ApprovalStatus" }
+        - name: agent
+          in: query
+          schema: { type: string }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: "#/components/schemas/PageMeta"
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items: { $ref: "#/components/schemas/Approval" }
+
+  /approvals/{id}/decision:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [approvals]
+      operationId: decideApproval
+      summary: 批准 / 驳回
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [APPROVE, REJECT] }
+                comment: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/Approval" }
+        "409":
+          description: 单子已过期或已被处理
+          $ref: "#/components/responses/Error"
+
+  # ---------------------------------------------------------------- 审计
+  /audit/events:
+    get:
+      tags: [audit]
+      operationId: listAuditEvents
+      summary: 审计事件查询
+      parameters:
+        - $ref: "#/components/parameters/Env"
+        - name: agent
+          in: query
+          schema: { type: string }
+        - name: risk
+          in: query
+          schema: { $ref: "#/components/schemas/Risk" }
+        - name: action
+          in: query
+          schema: { $ref: "#/components/schemas/AuditAction" }
+        - name: decision
+          in: query
+          schema: { $ref: "#/components/schemas/AuditDecision" }
+        - name: traceId
+          in: query
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: "#/components/schemas/PageMeta"
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items: { $ref: "#/components/schemas/AuditEvent" }
+
+  /audit/verify:
+    post:
+      tags: [audit]
+      operationId: verifyAuditChain
+      summary: 手动触发哈希链校验
+      parameters:
+        - name: agent
+          in: query
+          schema: { type: string, description: 缺省校验全部智能体 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          checked: { type: integer, description: 校验条数 }
+                          intact: { type: boolean }
+                          brokenAt:
+                            type: string
+                            nullable: true
+                            description: 断链处的 eventId
+                          elapsedMs: { type: integer }
+
+  /audit/exports:
+    post:
+      tags: [audit]
+      operationId: requestAuditExport
+      summary: 申请导出（自动建审批单，批准后才生成脱敏文件）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filter]
+              properties:
+                filter:
+                  type: object
+                  additionalProperties: true
+                  description: 与 /audit/events 相同的筛选条件
+                reason: { type: string }
+      responses:
+        "202":
+          description: 已建审批单
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          exportId: { type: string }
+                          approvalId: { type: string }
+
+  # ---------------------------------------------------------------- 模型网关
+  /insight/costs:
+    get:
+      tags: [models]
+      operationId: getModelGateway
+      summary: 模型网关页全部数据
+      description: 模型与花费来自 LiteLLM，单次调用明细在链路追踪页看（来自 Langfuse）。
+      parameters:
+        - $ref: "#/components/parameters/Env"
+        - name: range
+          in: query
+          schema: { type: string, enum: [24h, 7d, 30d], default: 24h }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/ModelGateway" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: auth-gateway 签发，aud=keel-api
+
+  parameters:
+    Env:
+      name: env
+      in: query
+      schema: { type: string, enum: [all, dev, staging, prod], default: all }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    Size:
+      name: size
+      in: query
+      schema: { type: integer, enum: [10, 20, 50, 100], default: 10 }
+    AgentName:
+      name: name
+      in: path
+      required: true
+      schema: { type: string }
+    ToolName:
+      name: name
+      in: path
+      required: true
+      schema: { type: string }
+
+  responses:
+    Error:
+      description: 统一错误体
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+
+  schemas:
+    # ------------------------------------------------------------ 通用
+    Envelope:
+      type: object
+      required: [code, traceId]
+      properties:
+        code:
+          type: string
+          description: 成功固定为 OK，失败为 contracts/error-codes.yaml 里的错误码
+          example: OK
+        message: { type: string, nullable: true }
+        traceId: { type: string }
+        data: {}
+
+    ApiError:
+      type: object
+      required: [code, message, traceId, retryable]
+      properties:
+        code: { type: string, example: TOOL_NOT_GRANTED }
+        message: { type: string }
+        traceId: { type: string }
+        retryable: { type: boolean }
+
+    PageMeta:
+      type: object
+      required: [page, size, total]
+      properties:
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer }
+
+    EnvName:
+      type: string
+      enum: [dev, staging, prod]
+
+    Risk:
+      type: string
+      enum: [LOW, MID, HIGH]
+
+    AgentStatus:
+      type: string
+      description: |
+        DRAFT 表示 keel new 预占了名称但还没 register。
+        原型里的「门禁未过」不是独立状态，由 status=REGISTERED 且 gatePassed=false 推导。
+      enum: [DRAFT, REGISTERED, ONLINE, DEGRADED, OFFLINE, RETIRED]
+
+    NodeStatus:
+      type: string
+      description: 三档口径，来自 askdb trace.py。degraded 归入 fallback，不单列。
+      enum: [ok, fallback, failed]
+
+    ObservationType:
+      type: string
+      description: 与 langfuse.observation.type 一致
+      enum: [agent, generation, tool, retriever, guardrail, event]
+
+    ToolStatus:
+      type: string
+      enum: [REGISTERED, ONLINE, DEPRECATED, RETIRED]
+
+    ToolAccess:
+      type: string
+      enum: [READ, WRITE, EXEC]
+
+    ToolScope:
+      type: string
+      enum: [PRIVATE, SHARED]
+
+    ApprovalStatus:
+      type: string
+      enum: [PENDING, APPROVED, REJECTED, EXPIRED]
+
+    AuditAction:
+      type: string
+      description: |
+        前六项来自 contracts/audit-event.schema.json。
+        agent.register 和 release.gate 是控制台实际会展示的动作，
+        需要同步补进 audit-event.schema.json（见 P0-1 待办）。
+      enum:
+        [
+          invoke,
+          tool.call,
+          sql.execute,
+          approval,
+          config.change,
+          data.export,
+          agent.register,
+          release.gate,
+        ]
+
+    AuditDecision:
+      type: string
+      enum: [allowed, denied, pending, approved, rejected]
+
+    CurrentUser:
+      type: object
+      properties:
+        userId: { type: string, example: u_88 }
+        displayName: { type: string, example: amy }
+        org: { type: string, example: 研发效能组 }
+        platformRole: { type: string, enum: [ADMIN, OWNER, APPROVER, VIEWER] }
+        roles:
+          type: array
+          description: auth-gateway 的 roles 多值 claim（P0-5 新增）
+          items: { type: string }
+        visibleAgents:
+          type: array
+          description: 空数组表示可见全部
+          items: { type: string }
+        pendingApprovals: { type: integer }
+
+    # ------------------------------------------------------------ 总览
+    Overview:
+      type: object
+      properties:
+        kpi: { $ref: "#/components/schemas/OverviewKpi" }
+        agents:
+          type: array
+          items: { $ref: "#/components/schemas/AgentSummary" }
+        alerts:
+          type: array
+          items: { $ref: "#/components/schemas/Alert" }
+        costByAgent:
+          type: array
+          items:
+            type: object
+            properties:
+              agent: { type: string }
+              costCny: { type: number, format: float }
+              dailyBudgetCny: { type: number, format: float }
+
+    OverviewKpi:
+      type: object
+      properties:
+        onlineAgents: { type: integer, example: 7 }
+        totalAgents: { type: integer, example: 10 }
+        bizCount: { type: integer, example: 5 }
+        devCount: { type: integer, example: 5 }
+        calls: { type: integer, example: 13195 }
+        callsTrendPct: { type: number, format: float, example: 8.2 }
+        modelCostCny: { type: number, format: float, example: 101.10 }
+        avgScore: { type: number, format: float, example: 0.86 }
+        gateThreshold: { type: number, format: float, example: 0.85 }
+        pendingApprovals: { type: integer, example: 3 }
+
+    Alert:
+      type: object
+      properties:
+        at: { type: string, format: date-time }
+        level: { type: string, enum: [INFO, WARN, ERROR] }
+        agent: { type: string, nullable: true }
+        kind:
+          type: string
+          description: 对账 finding 或运行告警
+          enum:
+            [
+              OFFLINE,
+              UNREGISTERED,
+              ZOMBIE,
+              RETIRE_INCOMPLETE,
+              VERSION_MISMATCH,
+              BUDGET_WARN,
+              GATE_FAILED,
+              PROMPT_DRIFT,
+            ]
+        text: { type: string }
+        link: { type: string, nullable: true }
+
+    # ------------------------------------------------------------ 智能体
+    AgentSummary:
+      type: object
+      properties:
+        name: { type: string, example: offshore-wind }
+        displayName: { type: string, example: 风机维检 }
+        category: { type: string, enum: [biz, dev] }
+        language: { type: string, example: Python }
+        runtime: { type: string, enum: [code, dify] }
+        template: { type: string, example: graph-agent }
+        env: { $ref: "#/components/schemas/EnvName" }
+        version: { type: string, example: v0.7.2 }
+        status: { $ref: "#/components/schemas/AgentStatus" }
+        statusNote:
+          type: string
+          nullable: true
+          example: 0/1 就绪 · CrashLoop
+        gatePassed: { type: boolean, nullable: true }
+        ownerOrg: { type: string }
+        ownerUser: { type: string }
+        calls24h: { type: integer }
+        callsTotal: { type: integer }
+        p95Seconds: { type: number, format: float }
+        costCny: { type: number, format: float }
+        dailyBudgetCny: { type: number, format: float }
+        score: { type: number, format: float, nullable: true }
+        instances: { type: string, example: "2/2", description: 就绪/期望；Dify 为探活结果 }
+        multiAgent: { type: boolean }
+
+    AgentDetail:
+      allOf:
+        - $ref: "#/components/schemas/AgentSummary"
+        - type: object
+          properties:
+            manifestYaml: { type: string }
+            manifestHash: { type: string }
+            knowledgeBases:
+              type: array
+              items: { type: string }
+            tools:
+              type: array
+              items: { type: string }
+            models:
+              type: array
+              items: { type: string }
+            delegates:
+              type: array
+              items: { type: string }
+            selfCheck: { $ref: "#/components/schemas/SelfCheckReport" }
+            instanceList:
+              type: array
+              items:
+                type: object
+                properties:
+                  instanceId: { type: string }
+                  source: { type: string, enum: [k8s, heartbeat, probe] }
+                  version: { type: string }
+                  ready: { type: boolean }
+                  lastSeenAt: { type: string, format: date-time }
+            resources:
+              type: array
+              description: 替它开通的外部资源，下线时按此回收
+              items:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    enum: [litellm_key, langfuse, secret, dataset, oauth_client]
+                  externalId: { type: string }
+                  status: { type: string }
+            versions:
+              type: array
+              items: { $ref: "#/components/schemas/ReleaseRecord" }
+            findings:
+              type: array
+              description: 对账发现的问题
+              items: { $ref: "#/components/schemas/Alert" }
+
+    SelfCheckReport:
+      type: object
+      properties:
+        passed: { type: boolean }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string, example: 高风险工具绑定审批策略 }
+              passed: { type: boolean }
+              detail: { type: string, nullable: true }
+
+    ReleaseRecord:
+      type: object
+      properties:
+        version: { type: string }
+        env: { $ref: "#/components/schemas/EnvName" }
+        gatePassed: { type: boolean }
+        scoreTotal: { type: number, format: float, nullable: true }
+        scoreByTag:
+          type: object
+          additionalProperties: { type: number, format: float }
+        image: { type: string, nullable: true }
+        ciRunUrl: { type: string, nullable: true }
+        releasedBy: { type: string }
+        releasedAt: { type: string, format: date-time }
+
+    RegisterRequest:
+      type: object
+      required: [name, env]
+      description: 向导表单；后端据此生成 agent.yaml。字段与 manifest.schema.json 一一对应。
+      properties:
+        name: { type: string }
+        displayName: { type: string }
+        category: { type: string, enum: [biz, dev] }
+        ownerOrg: { type: string }
+        ownerUser: { type: string }
+        env: { $ref: "#/components/schemas/EnvName" }
+        runtime: { type: string, enum: [code, dify] }
+        language: { type: string }
+        template: { type: string }
+        endpoint: { type: string }
+        models:
+          type: object
+          properties:
+            default: { type: string }
+            fallback:
+              type: array
+              items: { type: string }
+            dailyBudgetCny: { type: number, format: float }
+            maxSteps: { type: integer }
+        knowledgeBases:
+          type: array
+          items: { type: string }
+        tools:
+          type: array
+          items: { type: string }
+        delegates:
+          type: array
+          items: { type: string }
+        approvalPolicyId: { type: string, nullable: true }
+
+    Catalog:
+      type: object
+      properties:
+        templates:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, example: graph-agent }
+              name: { type: string, example: 多步推理 }
+              description: { type: string }
+              language: { type: string }
+        tools:
+          type: array
+          items: { $ref: "#/components/schemas/ToolSummary" }
+        knowledgeBases:
+          type: array
+          items:
+            type: object
+            properties:
+              kb: { type: string }
+              owner: { type: string }
+        models:
+          type: array
+          items: { type: string }
+        orgs:
+          type: array
+          items: { type: string }
+        approvalPolicies:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              name: { type: string, example: 班组长审批 }
+
+    # ------------------------------------------------------------ 共享服务
+    SharedServices:
+      type: object
+      properties:
+        services:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string, example: rag-forge }
+              role: { type: string, example: 知识检索 }
+              instances: { type: string, example: "2/2 · worker 1" }
+              p95: { type: string, nullable: true, example: 0.78s }
+              errorRate: { type: string, example: 0.6%（429） }
+              status: { type: string, enum: [ONLINE, DEGRADED, OFFLINE] }
+        ragforge:
+          type: object
+          properties:
+            kpi:
+              type: object
+              properties:
+                searches24h: { type: integer }
+                searchTrendPct: { type: number, format: float }
+                p95Seconds: { type: number, format: float }
+                p50Seconds: { type: number, format: float }
+                throttleRate: { type: number, format: float }
+                kbCount: { type: integer }
+                staleKbCount: { type: integer }
+                modelCostCny: { type: number, format: float }
+            stageLatency:
+              type: array
+              description: P50 分段耗时，来自 Langfuse retriever 节点的子 span
+              items:
+                type: object
+                properties:
+                  stage: { type: string, enum: [rewrite, vector, keyword, rerank, other] }
+                  p50Ms: { type: integer }
+            callers:
+              type: array
+              items:
+                type: object
+                properties:
+                  agent: { type: string }
+                  calls: { type: integer }
+            knowledgeBases:
+              type: array
+              items:
+                type: object
+                properties:
+                  kb: { type: string }
+                  owner: { type: string }
+                  documents: { type: integer }
+                  updatedAt: { type: string, format: date-time }
+                  searches24h: { type: integer }
+                  zeroHitRate: { type: number, format: float }
+                  recallAt5: { type: number, format: float }
+                  stale: { type: boolean, description: 超过 30 天未更新 }
+
+    # ------------------------------------------------------------ 链路追踪
+    TraceSummary:
+      type: object
+      properties:
+        traceId: { type: string, example: tr_8a31f0c2 }
+        question: { type: string }
+        startedAt: { type: string, format: date-time }
+        sessionId: { type: string }
+        turn: { type: integer }
+        userId: { type: string }
+        userRole: { type: string, nullable: true }
+        env: { $ref: "#/components/schemas/EnvName" }
+        rootAgent: { type: string }
+        agents:
+          type: array
+          items: { type: string }
+        multiAgent: { type: boolean }
+        durationMs: { type: integer, description: 智能体耗时，不含人工等待 }
+        humanWaitMs: { type: integer, nullable: true }
+        tokens: { type: integer }
+        costCny: { type: number, format: float }
+        status: { $ref: "#/components/schemas/NodeStatus" }
+        blocked: { type: boolean, description: 被护栏或准入拦截 }
+        cached: { type: boolean }
+
+    TraceDetail:
+      type: object
+      properties:
+        summary: { $ref: "#/components/schemas/TraceSummary" }
+        langfuseUrl: { type: string, description: "深链 {langfuse}/project/{id}/traces/{traceId}" }
+        agents:
+          type: array
+          description: 参与方，决定协作图与图例的配色
+          items:
+            type: object
+            properties:
+              key: { type: string, example: wind }
+              name: { type: string, example: offshore-wind }
+              subtitle: { type: string, example: 子智能体 · 跨服务 }
+              color: { type: string, example: "#2ec4b6" }
+              kind: { type: string, enum: [platform, supervisor, sub, service, human] }
+        latencyBreakdown:
+          type: array
+          description: 关键路径构成，各项之和等于 durationMs
+          items:
+            type: object
+            properties:
+              label: { type: string, example: offshore-wind }
+              ms: { type: integer }
+              agentKey: { type: string }
+        costBreakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              agentKey: { type: string }
+              costCny: { type: number, format: float }
+        nodes:
+          type: array
+          items: { $ref: "#/components/schemas/TraceNode" }
+        edges:
+          type: array
+          description: 协作图连线；泳道视图用它画交接点
+          items:
+            type: object
+            properties:
+              from: { type: string, description: 节点 id }
+              to: { type: string }
+              label: { type: string, nullable: true, example: 委派 ① }
+              atMs: { type: integer, nullable: true }
+              parallel: { type: boolean }
+
+    TraceNode:
+      type: object
+      properties:
+        id: { type: string }
+        agentKey: { type: string }
+        type: { $ref: "#/components/schemas/ObservationType" }
+        name: { type: string, example: rag.fault-manual }
+        shortName: { type: string, nullable: true, example: 检索手册 }
+        service: { type: string, example: rag-forge }
+        startMs: { type: integer, description: 相对 trace 起点 }
+        durationMs: { type: integer }
+        humanWaitLabel: { type: string, nullable: true, example: 4m12s }
+        status: { $ref: "#/components/schemas/NodeStatus" }
+        depth: { type: integer }
+        criticalPath: { type: boolean }
+        aggregated: { type: boolean, description: agent 节点，耗时与成本含子节点 }
+        model: { type: string, nullable: true }
+        fallbackFrom: { type: string, nullable: true }
+        llmKeyAlias: { type: string, nullable: true }
+        tokensIn: { type: integer, nullable: true }
+        tokensOut: { type: integer, nullable: true }
+        tokens: { type: integer, nullable: true }
+        costCny: { type: number, format: float, nullable: true }
+        inputSummary: { type: string, description: 摘要，不含原文 }
+        outputSummary: { type: string }
+        auditIds:
+          type: array
+          items: { type: string }
+        approvalId: { type: string, nullable: true }
+        gateNote: { type: string, nullable: true, example: 评测：askdb v1.9.0 门禁 0.88 通过 }
+        deprecatedTool: { type: boolean }
+
+    # ------------------------------------------------------------ 评测
+    EvalResult:
+      type: object
+      properties:
+        agent: { type: string }
+        dataset: { type: string, example: offshore-wind/inspection }
+        caseCount: { type: integer }
+        prodVersion: { type: string }
+        candidateVersion: { type: string }
+        scoreTotal: { type: number, format: float }
+        passed: { type: boolean }
+        gate:
+          type: object
+          properties:
+            minScore: { type: number, format: float }
+            maxRegression: { type: number, format: float }
+            byTag: { type: boolean }
+        reason: { type: string, nullable: true, example: 「安全规程合规」下降 6pt }
+        ranAt: { type: string, format: date-time }
+        dimensions:
+          type: array
+          items:
+            type: object
+            properties:
+              tag: { type: string, example: 安全规程合规 }
+              cases: { type: integer }
+              prodScore: { type: number, format: float }
+              candidateScore: { type: number, format: float }
+              deltaPt: { type: number, format: float }
+              verdict: { type: string, enum: [IMPROVED, TOLERATED, EXCEEDED] }
+        newFailures:
+          type: array
+          items:
+            type: object
+            properties:
+              caseId: { type: string }
+              input: { type: string }
+              tags:
+                type: array
+                items: { type: string }
+              reason: { type: string }
+
+    # ------------------------------------------------------------ 工具
+    ToolSummary:
+      type: object
+      properties:
+        name: { type: string, example: work_order_create }
+        description: { type: string }
+        scope: { $ref: "#/components/schemas/ToolScope" }
+        ownerAgent: { type: string, nullable: true }
+        ownerOrg: { type: string, nullable: true }
+        access: { $ref: "#/components/schemas/ToolAccess" }
+        risk: { $ref: "#/components/schemas/Risk" }
+        version: { type: string }
+        status: { $ref: "#/components/schemas/ToolStatus" }
+        approvalPolicy: { type: string, nullable: true, example: 班组长审批 }
+        calls24h: { type: integer }
+        dependentCount: { type: integer }
+        replacedBy: { type: string, nullable: true }
+        deprecateDeadline: { type: string, format: date, nullable: true }
+
+    ToolDetail:
+      allOf:
+        - $ref: "#/components/schemas/ToolSummary"
+        - type: object
+          properties:
+            provider: { type: string, nullable: true, description: MCP 服务地址 }
+            schemaJson: { type: object, additionalProperties: true }
+            dependents:
+              type: array
+              items: { $ref: "#/components/schemas/ToolDependent" }
+            versions:
+              type: array
+              items:
+                type: object
+                properties:
+                  version: { type: string }
+                  change: { type: string }
+                  breaking: { type: boolean }
+                  at: { type: string, format: date-time }
+
+    ToolDependent:
+      type: object
+      properties:
+        agent: { type: string }
+        env: { $ref: "#/components/schemas/EnvName" }
+        agentStatus: { $ref: "#/components/schemas/AgentStatus" }
+        declaredInManifest: { type: boolean }
+        calls30d: { type: integer }
+
+    ToolRegisterRequest:
+      type: object
+      required: [name, scope, access, risk, provider, schemaJson]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        scope: { $ref: "#/components/schemas/ToolScope" }
+        provider: { type: string, description: MCP 服务地址 }
+        access: { $ref: "#/components/schemas/ToolAccess" }
+        risk: { $ref: "#/components/schemas/Risk" }
+        approvalPolicyId: { type: string, nullable: true }
+        schemaJson: { type: object, additionalProperties: true }
+
+    # ------------------------------------------------------------ 审批
+    Approval:
+      type: object
+      properties:
+        id: { type: string, example: ap_0912 }
+        agent: { type: string }
+        tool: { type: string }
+        risk: { $ref: "#/components/schemas/Risk" }
+        traceId: { type: string }
+        actorUser: { type: string }
+        summary:
+          type: string
+          description: 人可读的动作摘要；不含完整 payload，原文需另走审批接口
+        payloadDigest: { type: string }
+        status: { $ref: "#/components/schemas/ApprovalStatus" }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time, nullable: true }
+        decidedBy: { type: string, nullable: true }
+        decidedAt: { type: string, format: date-time, nullable: true }
+
+    # ------------------------------------------------------------ 审计
+    AuditEvent:
+      type: object
+      description: 与 contracts/audit-event.schema.json 同构，额外带 hashVerified 供列表展示
+      properties:
+        eventId: { type: string }
+        ts: { type: string, format: date-time }
+        agent: { type: string }
+        env: { $ref: "#/components/schemas/EnvName" }
+        traceId: { type: string, nullable: true }
+        actor:
+          type: object
+          properties:
+            userId: { type: string }
+            orgId: { type: string, nullable: true }
+            role: { type: string, nullable: true }
+        action: { $ref: "#/components/schemas/AuditAction" }
+        resource: { type: string }
+        risk: { $ref: "#/components/schemas/Risk" }
+        decision: { $ref: "#/components/schemas/AuditDecision" }
+        approver: { type: string, nullable: true }
+        payload:
+          type: object
+          additionalProperties: true
+          description: 只含 manifest captureFields 白名单字段，已脱敏
+        inputDigest: { type: string }
+        hashVerified: { type: boolean }
+
+    # ------------------------------------------------------------ 模型网关
+    ModelGateway:
+      type: object
+      properties:
+        models:
+          type: array
+          items:
+            type: object
+            properties:
+              model: { type: string, example: qwen-plus }
+              provider: { type: string, example: DashScope }
+              role: { type: string, example: 主力 }
+              calls: { type: integer }
+              p95: { type: string, example: 4.6s }
+              errorRate: { type: number, format: float }
+              costCny: { type: number, format: float }
+              status: { type: string, enum: [ok, warn, bad] }
+              priceConfigured:
+                type: boolean
+                description: LiteLLM model_info 是否配了单价；为 false 时成本会静默记 0
+        keys:
+          type: array
+          items:
+            type: object
+            properties:
+              alias: { type: string, example: offshore-wind-prod }
+              agent: { type: string }
+              env: { $ref: "#/components/schemas/EnvName" }
+              models:
+                type: array
+                items: { type: string }
+              dailyBudgetCny: { type: number, format: float }
+              spentCny: { type: number, format: float }
+              status: { type: string, enum: [ACTIVE, BLOCKED] }
+        routing:
+          type: array
+          description: 由各智能体 manifest 生成，写入 LiteLLM 路由配置
+          items:
+            type: object
+            properties:
+              agent: { type: string }
+              default: { type: string }
+              fallback:
+                type: array
+                items: { type: string }
+              timeoutSeconds: { type: integer }

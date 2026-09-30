@@ -1,0 +1,44 @@
+# macOS
+.DS_Store
+
+# Java / Maven
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.testmondata*
+*.egg-info/
+dist/
+build/
+
+# Node / 前端
+node_modules/
+console/dist/
+*.local
+.vite/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# 环境与密钥（厂商密钥只放 LiteLLM 的 Secret，仓库里不应出现任何 .env）
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 日志与临时产物
+*.log
+logs/
+tmp/
+.keel/

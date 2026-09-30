@@ -1,0 +1,38 @@
+---
+description: Langfuse v4 / LiteLLM / auth-gateway 的接口事实，与通用写法冲突，按记忆写一定错
+alwaysApply: true
+---
+
+# 外部组件：这几处按记忆写一定是错的
+
+来源：技术文档第 15 节「开工前核实结论」（2026-09-30 核实）。
+
+## Langfuse 必须按 v4 写
+
+- 上报端点只有 `POST /api/public/otel/v1/traces`，Basic Auth（公钥:私钥）。
+- **必须带请求头 `x-langfuse-ingestion-version: 4`**。漏了数据要 15 分钟后才可见，且不报错。
+- **只支持 OTLP/HTTP，不支持 gRPC。** Java 侧不允许用 `OtlpGrpcSpanExporter`。
+- 读接口只允许用：`/api/public/v2/observations`、`/api/public/v2/metrics`、`/api/public/v3/scores`、`/api/public/experiments`、`/api/public/experiment-items`、`/api/public/datasets`、`/api/public/dataset-items`。
+- 以下 v3 接口在 v4 一律返回 404，**禁止使用**：`/api/public/traces`、`/api/public/observations`、`/api/public/scores`、`/api/public/metrics`、`/api/public/sessions`、`/api/public/dataset-run-items`。
+- 提示词打标签：`PATCH /api/public/v2/prompts/{name}/versions/{version}`。
+- Python SDK 锁 `>= 4.7.0`，低于这个版本数据在 v4 服务端会延迟约 15 分钟。
+- generation span 只由 Keel SDK 上报一次。**LiteLLM 自带的 Langfuse 回调必须关闭**，否则一次调用记两条。
+- 在线评估器配成 observation 级（挂在根 agent 节点上）。v4 不再运行 trace 级评估器。
+
+## LiteLLM
+
+- 花费明细用 `GET /spend/logs/v2`（分页）和 `/global/spend/report`（按天汇总）。**不要用 `/spend/logs`**，它最多只返回最近 1 万行。
+- 虚拟 Key：`/key/generate`、`/key/update`、`/key/block`、`/key/unblock`。`/key/delete` 尚未确认存在，下线流程先只做 block。
+- Key 别名格式 `{agent}-{env}`，由 `litellm_settings.key_alias_pattern` 强制。
+- **预算按美元计**，manifest 里写的是人民币（`budget.dailyCny`），开通时必须按配置的汇率换算，不要直接把数字传过去。
+- 国内模型（百炼等）必须在 `model_info` 里配 `input_cost_per_token` / `output_cost_per_token`，否则成本静默记 0，只打一行 WARNING。Langfuse 的 Model Definitions 要配同样的价格。
+- 每个 Pod 固定 1 vCPU + 4Gi（requests = limits），4Gi 是下限，低于会 OOM；1 个 worker / Pod；多副本必须接 Redis。
+
+## auth-gateway
+
+- Token Exchange：`POST /oauth/token-exchange`，表单字段是 **`requested_audience`、`requested_scopes`**，不是 RFC 8693 的 `audience` / `scope`。
+- 用户 token 的 aud 统一为 `keel-api`。网关按 roles / scopes 准入后**换票**成目标智能体的 aud。不要写「检查 JWT 的 aud 是否等于目标智能体」，用户 token 不可能同时是 10 个智能体的 aud。
+- 客户端认证只接受 private_key_jwt（RS256），从客户端的 `jwks_uri` 取公钥；assertion 有效期 ≤ 10 分钟，jti 不可重放。
+- 访问 token 900 秒，换票 token 600 秒。等待人工审批超过 10 分钟的流程，批准后必须重新换票；用户会话也失效的改用 `/oauth/delegation-token`。
+- JWKS：`GET /.well-known/jwks.json`，响应缓存 1 小时。
+- 换票要求「被换 token 的 aud」和「目标 aud」都在客户端的 `allowed_audiences` 里，这张表由 keel-server 根据 manifest 自动生成。

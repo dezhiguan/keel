@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keel 智能体底座 · 技术文档</title>
+<style>
+:root{
+  --bg:#f7f6f2; --paper:#ffffff; --ink:#15202e; --ink2:#3b4758; --mute:#7a8494; --line:#e3ded3;
+  --acc:#d9480f; --teal:#0b7a75; --blue:#2f6fd6; --warn:#b7791f; --bad:#c53030; --ok:#2f855a;
+  --code:#0f1722; --code2:#162131;
+  --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --mono:"SF Mono","Menlo","JetBrains Mono","Consolas",monospace;
+  --serif:"Songti SC","STSong","Noto Serif SC",serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--bg);color:var(--ink);font-size:15px;line-height:1.75}
+a{color:var(--blue)}
+.side{position:fixed;top:0;left:0;bottom:0;width:236px;background:var(--paper);border-right:1px solid var(--line);padding:26px 18px;overflow-y:auto;z-index:10}
+.side .brand{font-family:var(--serif);font-size:22px;font-weight:700}
+.side .brand small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--mute);letter-spacing:.14em;font-weight:400}
+.side nav{margin-top:22px;display:flex;flex-direction:column;gap:1px}
+.side nav a{font-size:13px;color:var(--ink2);text-decoration:none;padding:5px 8px;border-radius:5px;display:flex;gap:8px}
+.side nav a span{font-family:var(--mono);color:var(--mute);font-size:11px;min-width:18px;padding-top:1px}
+.side nav a:hover{background:#f1ede4}
+.side nav a.on{background:var(--ink);color:#fff}
+.side nav a.on span{color:#ff9a6b}
+.side .meta{margin-top:22px;font-size:11.5px;color:var(--mute);line-height:1.7;border-top:1px solid var(--line);padding-top:14px}
+main{margin-left:236px;padding:0 0 80px}
+.wrap{max-width:1040px;margin:0 auto;padding:0 48px}
+@media(max-width:1000px){.side{display:none}main{margin-left:0}.wrap{padding:0 20px}}
+
+.hero{padding:56px 0 30px;border-bottom:1px solid var(--line);margin-bottom:10px}
+.hero .eb{font-family:var(--mono);font-size:12px;letter-spacing:.2em;color:var(--acc)}
+.hero h1{font-family:var(--serif);font-size:44px;line-height:1.2;margin:10px 0 6px}
+.hero p{color:var(--ink2);max-width:760px}
+.hero .chips{margin-top:16px;display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-family:var(--mono);font-size:11.5px;border:1px solid var(--ink);padding:2px 9px;border-radius:3px;background:var(--paper)}
+.chip.fill{background:var(--ink);color:#fff}
+.linkcard{margin-top:20px;display:flex;gap:14px;flex-wrap:wrap}
+.linkcard a{display:flex;flex-direction:column;background:var(--paper);border:1px solid var(--line);border-left:3px solid var(--acc);padding:10px 14px;border-radius:6px;text-decoration:none;color:var(--ink);min-width:260px}
+.linkcard a small{color:var(--mute);font-size:12px}
+.linkcard a:hover{border-color:var(--acc)}
+
+section{padding:42px 0 6px}
+h2{font-family:var(--serif);font-size:28px;display:flex;align-items:baseline;gap:14px;margin-bottom:6px}
+h2 .no{font-family:var(--mono);font-size:14px;color:var(--acc);font-weight:600}
+.lead{color:var(--ink2);margin-bottom:18px}
+h3{font-size:17.5px;margin:26px 0 10px;display:flex;align-items:center;gap:8px}
+h3::before{content:"";width:4px;height:16px;background:var(--acc);border-radius:2px}
+h4{font-size:15px;margin:16px 0 6px}
+p{margin:6px 0}
+ul.dot{margin:6px 0 6px 20px}
+ul.dot li{margin:3px 0}
+code{font-family:var(--mono);font-size:12.5px;background:#efebe2;padding:1px 5px;border-radius:3px;color:#8a2c0a}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:16px 18px;margin:12px 0}
+.note{background:#fff8ef;border:1px solid #f1d7b7;border-left:3px solid var(--acc);border-radius:6px;padding:10px 14px;margin:12px 0;font-size:14px;color:var(--ink2)}
+.note.info{background:#eef5ff;border-color:#c8dafa;border-left-color:var(--blue)}
+.note.ok{background:#eef8f2;border-color:#c5e3d1;border-left-color:var(--ok)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
+
+table{width:100%;border-collapse:collapse;background:var(--paper);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:10px 0;font-size:13.5px}
+th{background:#f3efe6;text-align:left;font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid #efebe2;vertical-align:top}
+tr:last-child td{border-bottom:none}
+td code{overflow-wrap:anywhere}
+.tag{display:inline-block;font-size:11.5px;padding:0 7px;border-radius:10px;border:1px solid;white-space:nowrap;line-height:1.7}
+.t-new{color:var(--acc);border-color:#f3b89c;background:#fff4ee}
+.t-oss{color:var(--blue);border-color:#b8cdf3;background:#f0f5ff}
+.t-reuse{color:var(--teal);border-color:#a9d6d3;background:#effaf9}
+.t-mod{color:var(--warn);border-color:#ecd29f;background:#fffaf0}
+.t-del{color:var(--bad);border-color:#f0b7b7;background:#fff3f3}
+.t-keep{color:var(--mute);border-color:#d6d2c8;background:#faf9f6}
+
+pre{font-family:var(--mono);font-size:12.5px;line-height:1.65;background:var(--code);color:#d5deea;border-radius:8px;padding:14px 16px;overflow-x:auto;margin:10px 0;position:relative}
+pre .c{color:#6d7f98}
+pre .k{color:#ff9a6b}
+pre .s{color:#8fd1a6}
+pre .d{color:#8fb8ff}
+pre .f{color:#e8c07d}
+.copy{position:absolute;top:8px;right:8px;background:#233246;color:#b9c6d8;border:none;border-radius:4px;font-size:11px;padding:2px 8px;cursor:pointer;font-family:var(--sans)}
+.copy:hover{background:#2e425c;color:#fff}
+
+.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-top:12px}
+.tabs button{border:none;background:none;padding:7px 12px;font-size:13px;cursor:pointer;color:var(--ink2);border-bottom:2px solid transparent;font-family:var(--sans)}
+.tabs button.on{color:var(--acc);border-bottom-color:var(--acc);font-weight:600}
+.pane{display:none}.pane.on{display:block}
+.twocol{display:grid;grid-template-columns:1.25fr 1fr;gap:14px;align-items:start}
+.twocol aside{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-size:13.5px}
+.twocol aside h5{font-size:13.5px;margin-bottom:6px}
+.twocol aside li{margin:3px 0 3px 16px}
+@media(max-width:900px){.twocol{grid-template-columns:1fr}}
+
+.arch{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:16px}
+.arow{display:grid;grid-template-columns:116px 1fr;gap:12px;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line)}
+.arow:last-child{border-bottom:none}
+.arow .ln{font-size:12.5px;font-weight:600;color:var(--ink2)}
+.arow .ln small{display:block;font-family:var(--mono);font-size:10px;color:var(--mute);font-weight:400}
+.bx{display:flex;flex-wrap:wrap;gap:6px}
+.b{border:1px solid var(--line);border-radius:6px;padding:4px 9px;font-size:12.5px;background:#fbfaf7}
+.b small{display:block;font-size:10.5px;color:var(--mute)}
+.b.new{border-color:var(--acc);background:#fff5ef}
+.b.oss{border-color:#8fb0ea;background:#f2f6ff}
+.b.reuse{border-color:#8cc9c4;background:#f0faf9}
+.b.ag{background:var(--ink);color:#fff;border-color:var(--ink)}
+.b.ag small{color:#9fb0c6}
+
+.steps{counter-reset:s;display:flex;flex-direction:column;gap:10px;margin:12px 0}
+.step{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px 16px 12px 56px;position:relative}
+.step::before{counter-increment:s;content:counter(s);position:absolute;left:16px;top:12px;width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;font-family:var(--mono);font-size:13px;display:flex;align-items:center;justify-content:center}
+.step h4{margin:0 0 4px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.step h4 .time{font-family:var(--mono);font-size:11.5px;color:var(--acc);font-weight:400}
+.step .auto{font-size:13px;color:var(--ink2);margin-top:6px;background:#f7f5ef;border-radius:6px;padding:6px 10px}
+.step .auto b{color:var(--teal)}
+
+.seq{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:6px 0;margin:10px 0}
+.seq div{display:grid;grid-template-columns:34px 190px 1fr;gap:10px;padding:6px 14px;font-size:13.5px;border-bottom:1px solid #f1ede5}
+.seq div:last-child{border-bottom:none}
+.seq i{font-style:normal;font-family:var(--mono);color:var(--acc)}
+.seq b{font-weight:600;color:var(--ink2);font-size:13px}
+footer{margin-top:60px;padding-top:16px;border-top:1px solid var(--line);font-size:12px;color:var(--mute);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+</style>
+</head>
+<body>
+
+<aside class="side">
+  <div class="brand">Keel 技术文档<small>IMPLEMENTATION SPEC</small></div>
+  <nav id="toc">
+    <a href="#t1"><span>01</span>目标与范围</a>
+    <a href="#t2"><span>02</span>总体技术架构</a>
+    <a href="#t3"><span>03</span>技术栈</a>
+    <a href="#t4"><span>04</span>服务清单（是否新建）</a>
+    <a href="#t5"><span>05</span>仓库与包结构</a>
+    <a href="#t6"><span>06</span>数据库设计</a>
+    <a href="#t7"><span>07</span>接口设计</a>
+    <a href="#t8"><span>08</span>关键流程实现</a>
+    <a href="#t9"><span>09</span>旧智能体接入</a>
+    <a href="#t10"><span>10</span>新智能体创建流程</a>
+    <a href="#t11"><span>11</span>前端工程</a>
+    <a href="#t12"><span>12</span>部署与环境</a>
+    <a href="#t13"><span>13</span>开发规范</a>
+    <a href="#t14"><span>14</span>里程碑与任务拆分</a>
+    <a href="#t15"><span>15</span>开工前核实结论</a>
+  </nav>
+  <div class="meta">版本 v1.1 · 2026-09-30<br>对应设计文档 v0.3<br>作者 amy</div>
+</aside>
+
+<main><div class="wrap">
+
+<header class="hero">
+  <div class="eb">TECHNICAL SPEC · KEEL AGENT PLATFORM</div>
+  <h1>Keel 智能体底座 · 技术文档</h1>
+  <p>本文是《Keel 智能体底座设计》的落地版本：定技术栈、定要新建哪些服务、定每个服务的包结构、定数据表和接口，并写清楚现有智能体怎么迁移、新智能体怎么创建。开发时以本文为准，设计上的取舍原因见设计文档。</p>
+  <div class="chips"><span class="chip fill">Java 21 · Spring Boot 3.5.15</span><span class="chip fill">Python 3.11+</span><span class="chip fill">Vue 3 · Element Plus</span><span class="chip">LiteLLM</span><span class="chip">Langfuse（自建）</span><span class="chip">PostgreSQL · Redis · RocketMQ</span><span class="chip">k3s</span></div>
+  <div class="linkcard">
+    <a href="Keel-控制台前端.html">Keel-控制台前端.html<small>控制台前端交互原型（同目录，单独文件）</small></a>
+    <a href="Keel-智能体底座设计.html">Keel-智能体底座设计.html<small>设计文档：为什么这样设计</small></a>
+  </div>
+</header>
+
+<!-- 01 -->
+<section id="t1">
+  <h2><span class="no">01</span>目标与范围</h2>
+  <p class="lead">一句话目标：<b>新智能体只写业务逻辑、填一份 agent.yaml，一天内接入底座；旧智能体逐个迁移，删掉各自重复的追踪、审计、评测、质量代码。</b></p>
+  <div class="grid2">
+    <div class="card"><h4>本期要交付</h4><ul class="dot">
+      <li>4 个新服务：<code>keel-gateway</code>、<code>keel-server</code>、<code>keel-audit</code>、<code>keel-console</code></li>
+      <li>2 套 SDK：Python <code>keel-sdk</code>（含 CLI、keel-lite、keel-gate），Java <code>keel-spring-boot-starter</code></li>
+      <li>部署两个开源组件：LiteLLM（模型网关）、Langfuse（追踪、评测、质量、提示词）</li>
+      <li>5 份契约 keel/v1：manifest、调用协议、追踪属性、审计事件、评测集</li>
+      <li>5 个脚手架模板：chat-rag、tool-agent、graph-agent、supervisor、java-spring</li>
+      <li>现有智能体迁移：askdb、offshore-wind、careermate，rag-forge 作为共享服务接入</li>
+    </ul></div>
+    <div class="card"><h4>本期不做</h4><ul class="dot">
+      <li>keel-gateway 完整版的协议适配、流式脱敏、灰度（放 P3）</li>
+      <li>Dify 部署和智能客服上线（放 P3）</li>
+      <li>多租户计费、对外 SaaS 化</li>
+      <li>自研追踪存储、自研评测平台：直接用 Langfuse</li>
+      <li>自研模型网关：直接用 LiteLLM</li>
+    </ul></div>
+  </div>
+  <h3>十个智能体</h3>
+  <table>
+    <thead><tr><th>智能体 ID</th><th>名称</th><th>类型</th><th>技术</th><th>来源</th><th>接入方式</th></tr></thead>
+    <tbody>
+      <tr><td><code>careermate</code></td><td>求职助手</td><td>业务</td><td>Java</td><td>现有项目</td><td>迁移：引入 starter</td></tr>
+      <tr><td><code>askdb</code></td><td>自然语言问数</td><td>业务</td><td>Python · LangGraph</td><td>现有项目</td><td>迁移：引入 SDK</td></tr>
+      <tr><td><code>offshore-wind</code></td><td>风机维检</td><td>业务</td><td>Python</td><td>现有项目</td><td>迁移：引入 SDK</td></tr>
+      <tr><td><code>cs-bot</code></td><td>智能客服</td><td>业务</td><td>Dify</td><td>新建</td><td>P3：控制台接入 Dify 应用</td></tr>
+      <tr><td><code>ops-copilot</code></td><td>运维总控</td><td>业务 · 多智能体</td><td>Python</td><td>新建</td><td><code>keel new --template supervisor</code></td></tr>
+      <tr><td><code>prd-agent</code></td><td>需求分析</td><td>研发</td><td>Java</td><td>从 ai-multi-agent-dev-platform 拆出</td><td>迁移：引入 starter</td></tr>
+      <tr><td><code>code-review</code></td><td>代码评审</td><td>研发</td><td>Python</td><td>新建</td><td><code>keel new --template tool-agent</code></td></tr>
+      <tr><td><code>test-gen</code></td><td>测试生成</td><td>研发</td><td>Java</td><td>从 ai-multi-agent-dev-platform 拆出</td><td>迁移：引入 starter</td></tr>
+      <tr><td><code>ci-doctor</code></td><td>CI 诊断</td><td>研发</td><td>Python</td><td>新建</td><td><code>keel new --template tool-agent</code></td></tr>
+      <tr><td><code>dev-copilot</code></td><td>研发总控</td><td>研发 · 多智能体</td><td>Java</td><td>ai-multi-agent-dev-platform 的 AgentSupervisor</td><td>迁移：引入 starter</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 02 -->
+<section id="t2">
+  <h2><span class="no">02</span>总体技术架构</h2>
+  <p class="lead">图例：<span class="tag t-new">新建</span> <span class="tag t-oss">开源部署</span> <span class="tag t-reuse">复用现有</span>，深色为业务智能体。</p>
+  <div class="arch">
+    <div class="arow"><div class="ln">渠道<small>CHANNEL</small></div><div class="bx"><div class="b">Web / App</div><div class="b">企业微信 / 钉钉</div><div class="b">开放 API</div><div class="b">GitLab / GitHub Webhook<small>触发研发智能体</small></div><div class="b">keel-console<small>控制台前端</small></div></div></div>
+    <div class="arow"><div class="ln">接入<small>EDGE</small></div><div class="bx"><div class="b">Nginx / SLB<small>TLS · WAF</small></div><div class="b reuse">auth-gateway<small>签发 JWT · JWKS · Token Exchange</small></div><div class="b new">keel-gateway<small>路由 · 准入 · 配额 · SSE · 根 span · 审计埋点</small></div></div></div>
+    <div class="arow"><div class="ln">业务智能体<small>AGENTS</small></div><div class="bx"><div class="b ag">careermate<small>Java · starter</small></div><div class="b ag">askdb<small>Python · SDK</small></div><div class="b ag">offshore-wind<small>Python · SDK</small></div><div class="b ag">cs-bot<small>Dify</small></div><div class="b ag">ops-copilot<small>supervisor</small></div></div></div>
+    <div class="arow"><div class="ln">研发智能体<small>DEV AGENTS</small></div><div class="bx"><div class="b ag">prd-agent<small>Java</small></div><div class="b ag">code-review<small>Python</small></div><div class="b ag">test-gen<small>Java</small></div><div class="b ag">ci-doctor<small>Python</small></div><div class="b ag">dev-copilot<small>Java · supervisor</small></div></div></div>
+    <div class="arow"><div class="ln">运行时<small>RUNTIME</small></div><div class="bx"><div class="b oss">LiteLLM<small>模型网关 · 虚拟 Key · 预算 · 降级</small></div><div class="b reuse">rag-forge<small>知识检索 · MCP · 共享服务</small></div><div class="b">MCP 工具服务<small>工单、Git、CI 等</small></div></div></div>
+    <div class="arow"><div class="ln">治理<small>GOVERNANCE</small></div><div class="bx"><div class="b new">keel-server<small>注册中心 · 工具与审批 · 发布记录 · 对账 · 控制台 API</small></div><div class="b new">keel-audit<small>审计：只追加 · 哈希链</small></div><div class="b oss">Langfuse<small>追踪 · 数据集 · 实验 · 分数 · 提示词</small></div><div class="b new">keel-gate<small>CI 中运行的门禁脚本</small></div></div></div>
+    <div class="arow"><div class="ln">数据<small>DATA</small></div><div class="bx"><div class="b reuse">PostgreSQL 16<small>keel · keel_audit · litellm · langfuse 四个库</small></div><div class="b reuse">Redis 7<small>配额 · 并发 · 路由缓存</small></div><div class="b reuse">RocketMQ 5<small>审计异步 · 事件</small></div><div class="b oss">ClickHouse<small>Langfuse 追踪存储</small></div><div class="b">阿里云 OSS<small>Langfuse 事件 · 审计归档</small></div></div></div>
+  </div>
+
+  <h3>一次调用经过哪些组件</h3>
+  <p>以"运维总控把任务委派给 askdb 和 offshore-wind"为例：</p>
+  <div class="seq">
+    <div><i>1</i><b>前端 → keel-gateway</b><span><code>POST /agents/ops-copilot/v1/invoke</code>，带 auth-gateway 签发的 JWT</span></div>
+    <div><i>2</i><b>keel-gateway</b><span>JWKS 验签（用户 token 的 aud 是 <code>keel-api</code>）→ 按 roles / scopes 判断能否调用 ops-copilot → Redis 扣配额、占并发位 → 生成根 <code>traceparent</code> → <b>Token Exchange 换成 aud=ops-copilot 的 token</b> → 转发</span></div>
+    <div><i>3</i><b>ops-copilot（SDK）</b><span>轻量校验 JWT → 入口护栏 → 业务代码 <code>ctx.llm</code> 调 LiteLLM 做规划</span></div>
+    <div><i>4</i><b>ops-copilot → 子智能体</b><span><code>ctx.delegate</code>：Token Exchange 换票，注入 <code>traceparent</code>，K8s 内网直连 askdb、offshore-wind 的 <code>/v1/invoke</code>（不经网关）</span></div>
+    <div><i>5</i><b>子智能体</b><span>调 rag-forge 检索、调 LiteLLM 生成；各自的 span 通过 OTLP/HTTP 异步上报 Langfuse</span></div>
+    <div><i>6</i><b>高风险工具</b><span>SDK 调 keel-server 创建审批单并挂起 → 审批人批准 → 继续执行；同步写 keel-audit</span></div>
+    <div><i>7</i><b>keel-gateway</b><span>SSE 透传回前端；结束后释放并发位，经 RocketMQ 写一条 invoke 审计事件</span></div>
+    <div><i>8</i><b>keel-console</b><span>追踪页调 keel-server，keel-server 调 Langfuse API 组装协作图，叠加审计和审批信息</span></div>
+  </div>
+</section>
+
+<!-- 03 -->
+<section id="t3">
+  <h2><span class="no">03</span>技术栈</h2>
+  <p class="lead">原则：和 careermate、auth-gateway、rag-forge 保持一致，不引入团队没用过的新框架。版本以开工时的最新补丁版本为准。</p>
+  <table>
+    <thead><tr><th>分层</th><th>选型</th><th>版本</th><th>用在哪里 · 为什么</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="7"><b>Java 服务</b></td><td>Java</td><td>21</td><td>所有 Java 服务和 starter；与现有项目一致</td></tr>
+      <tr><td>Spring Boot</td><td>3.5.15</td><td>keel-server、keel-audit、starter；与 careermate / rag-forge 同版本</td></tr>
+      <tr><td>Spring Cloud Gateway（WebFlux）</td><td>Spring Cloud 2025.0.x</td><td>keel-gateway；响应式，SSE、Redis 限流、JWT 资源服务器都有现成支持</td></tr>
+      <tr><td>Spring Security OAuth2 Resource Server</td><td>随 Boot</td><td>用 auth-gateway 的 JWKS 验签，不自己解析 token</td></tr>
+      <tr><td>MyBatis-Plus + Flyway</td><td>与 rag-forge 一致</td><td>数据访问和数据库迁移脚本</td></tr>
+      <tr><td>fabric8 kubernetes-client</td><td>7.x</td><td>keel-server 监听智能体 Pod、写 K8s Secret</td></tr>
+      <tr><td>Micrometer Tracing + OTel bridge + OTLP/HTTP</td><td>随 Boot</td><td>Java 侧追踪上报 Langfuse；careermate 已在用 <code>micrometer-tracing-bridge-otel</code></td></tr>
+      <tr><td rowspan="5"><b>Python SDK</b></td><td>Python</td><td>3.11+</td><td>keel-sdk、CLI、keel-gate；askdb 要求 ≥3.10，SDK 定 3.11 起步</td></tr>
+      <tr><td>Starlette / FastAPI 兼容</td><td>FastAPI ≥0.110</td><td><code>agent.asgi()</code> 返回 ASGI 应用，也能挂进现有 FastAPI（askdb、offshore-wind 都是 FastAPI）</td></tr>
+      <tr><td>httpx · pydantic v2</td><td>httpx ≥0.27</td><td>HTTP 客户端、manifest 和事件模型</td></tr>
+      <tr><td>OpenTelemetry SDK + OTLP HTTP exporter · Langfuse Python SDK</td><td>Langfuse SDK ≥ 4.7.0</td><td>追踪上报；Langfuse SDK 基于 OTel，其 LangChain CallbackHandler 用于 LangGraph；低于 4.7.0 的数据在 v4 服务端会延迟约 15 分钟才可见</td></tr>
+      <tr><td>openai SDK · typer</td><td>—</td><td><code>ctx.llm</code> 以 OpenAI 兼容方式调 LiteLLM；typer 做 <code>keel</code> CLI</td></tr>
+      <tr><td rowspan="2"><b>前端</b></td><td>Vue 3 + Vite + TypeScript</td><td>Vue 3.4+ · Vite 5</td><td>keel-console；与 careermate 前端一致</td></tr>
+      <tr><td>Element Plus · Pinia · Vue Router · ECharts</td><td>Element Plus 2.x</td><td>组件库、状态、路由、图表；追踪协作图用 SVG 自绘</td></tr>
+      <tr><td rowspan="2"><b>开源组件</b></td><td>LiteLLM Proxy</td><td>官方镜像，锁定小版本</td><td>模型网关：虚拟 Key、预算、路由降级、花费日志</td></tr>
+      <tr><td>Langfuse（自建）</td><td><b>v4</b>；ClickHouse ≥25.12（推荐 26.4）、PostgreSQL ≥15、Redis ≥7.0</td><td>追踪、数据集与实验、分数、标注队列、提示词管理；新部署直接用 v4 默认写入模式，不走 v3 迁移</td></tr>
+      <tr><td rowspan="4"><b>中间件</b></td><td>PostgreSQL</td><td>16</td><td>复用现有节点，新建 <code>keel</code>、<code>keel_audit</code>、<code>litellm</code>、<code>langfuse</code> 四个库</td></tr>
+      <tr><td>Redis</td><td>7</td><td>配额、并发计数、路由缓存、LiteLLM 限流</td></tr>
+      <tr><td>RocketMQ</td><td>5（复用 rag-forge 集群）</td><td>审计异步入库、注册变更事件</td></tr>
+      <tr><td>阿里云 OSS</td><td>—</td><td>Langfuse 事件存储、审计归档、评测产物</td></tr>
+      <tr><td rowspan="3"><b>运维</b></td><td>k3s + Docker</td><td>现有集群</td><td>所有 Keel 服务和智能体；Langfuse 单独放观测节点（ECS 8C32G）</td></tr>
+      <tr><td>GitHub Actions / GitLab CI</td><td>—</td><td>统一 CI 模板：单测 → keel gate → 构建镜像 → keel release</td></tr>
+      <tr><td>Prometheus + Grafana</td><td>现有</td><td>服务指标；控制台"共享服务"页从 Prometheus 取数</td></tr>
+    </tbody>
+  </table>
+  <div class="note info"><b>为什么 keel-gateway 用 WebFlux，其他服务用 Spring MVC：</b>网关要长时间持有大量 SSE 长连接，响应式模型更省线程；keel-server、keel-audit 是普通的增删改查，用 Spring MVC + 虚拟线程（Java 21）即可，和现有项目写法一致。</div>
+</section>
+
+<!-- 04 -->
+<section id="t4">
+  <h2><span class="no">04</span>服务清单：哪些要新建</h2>
+  <p class="lead">结论：<b>新建 4 个服务 + 2 套 SDK</b>，部署 2 个开源组件，复用 3 个现有服务。控制面采用"模块化单体"，先合在 keel-server 一个服务里，包边界按模块划清，以后需要时再拆。</p>
+  <table>
+    <thead><tr><th>组件</th><th>结论</th><th>形态</th><th>职责</th><th>为什么这样定</th></tr></thead>
+    <tbody>
+      <tr><td><b>keel-gateway</b></td><td><span class="tag t-new">新建</span></td><td>Java 服务 ×2</td><td>外部流量入口：动态路由、JWT 准入、配额与并发、换票（aud=keel-api → 目标智能体）、SSE 透传、根 span、调用级审计</td><td>高并发、长连接、要独立扩缩容，必须单独部署</td></tr>
+      <tr><td><b>keel-server</b></td><td><span class="tag t-new">新建</span></td><td>Java 服务 ×2</td><td>注册中心、资源开通、在线探测与对账、工具注册与生命周期、审批流、发布记录、控制台 API（聚合 Langfuse / LiteLLM / Prometheus）</td><td>这些模块数据互相关联、流量小，合成一个服务最省运维；按包隔离，后续可把审批或对账拆出去</td></tr>
+      <tr><td><b>keel-audit</b></td><td><span class="tag t-new">新建</span></td><td>Java 服务 ×2</td><td>审计写入（同步 + MQ 异步）、哈希链、查询、导出、归档</td><td>安全要求不同：独立数据库账号、只追加；高风险动作要同步写入，不能被控制台的故障拖累</td></tr>
+      <tr><td><b>keel-console</b></td><td><span class="tag t-new">新建</span></td><td>Vue 静态站点 + Nginx</td><td>控制台页面</td><td>前后端分离，API 全部走 keel-server</td></tr>
+      <tr><td><b>keel-sdk（Python）</b></td><td><span class="tag t-new">新建</span></td><td>pip 包 <code>keel-sdk</code></td><td>智能体运行时 + <code>keel</code> CLI + keel-lite + keel-gate</td><td>一个包装好就全有，开发者只装一次</td></tr>
+      <tr><td><b>keel-spring-boot-starter</b></td><td><span class="tag t-new">新建</span></td><td>Maven 依赖</td><td>Java 智能体运行时</td><td>careermate、研发智能体都是 Spring Boot</td></tr>
+      <tr><td><b>LiteLLM</b></td><td><span class="tag t-oss">开源部署</span></td><td>官方镜像 ×2</td><td>模型网关</td><td>虚拟 Key、预算、降级开箱即用</td></tr>
+      <tr><td><b>Langfuse</b></td><td><span class="tag t-oss">开源部署</span></td><td>自建，观测节点</td><td>追踪、评测、质量、提示词</td><td>功能完整，数据在自己服务器</td></tr>
+      <tr><td><b>auth-gateway</b></td><td><span class="tag t-reuse">复用</span></td><td>现有</td><td>签发 JWT、JWKS、Token Exchange、委托授权（consent）</td><td><span class="tag t-mod">需改造 4 处</span> 客户端注册 API、按 aud 配置 scopes、业务角色 claim、智能体密钥托管，见 <a href="#t15">第 15 节</a></td></tr>
+      <tr><td><b>rag-forge</b></td><td><span class="tag t-mod">少量改造</span></td><td>现有</td><td>知识检索，作为共享服务接入</td><td>加 OTel Agent、指标标签、模型调用走 LiteLLM、审计同步（见第 09 节）</td></tr>
+      <tr><td><b>ai-multi-agent-dev-platform</b></td><td><span class="tag t-mod">改造</span></td><td>现有</td><td>拆成 prd-agent、test-gen、dev-copilot</td><td>升级 Boot 3.2→3.5、Java 17→21，引入 starter</td></tr>
+    </tbody>
+  </table>
+  <div class="note"><b>keel-gate 不是服务：</b>它是 Python SDK 里的一个命令（<code>keel gate</code>），在 CI 流水线里运行，跑完把结论回写 keel-server，不常驻。keel-lite 也不是服务：它是本地开发时 <code>keel dev</code> 起的单进程替身，用 SQLite 模拟审计和审批。</div>
+</section>
+
+<!-- 05 -->
+<section id="t5">
+  <h2><span class="no">05</span>仓库与包结构</h2>
+  <p class="lead">Keel 用一个 monorepo 管理所有平台代码；智能体各自一个仓库。Java 根包统一为 <code>com.keel</code>，包按<b>业务模块优先</b>划分，模块内再分 controller / service / mapper / model，和 careermate、rag-forge 的写法一致。</p>
+<pre><button class="copy">复制</button>keel/
+├── pom.xml                        <span class="c"># Maven 父工程，统一管理 Java 模块版本</span>
+├── contracts/                     <span class="c"># keel/v1 契约：跨语言唯一事实来源</span>
+│   ├── manifest.schema.json       <span class="c"># agent.yaml 的 JSON Schema</span>
+│   ├── invoke.openapi.yaml        <span class="c"># /v1/invoke、/v1/health、/v1/manifest、/v1/feedback</span>
+│   ├── sse-events.schema.json     <span class="c"># step / tool / token / final / error</span>
+│   ├── audit-event.schema.json
+│   ├── trace-attributes.md        <span class="c"># keel.* 与 langfuse.* 属性约定</span>
+│   └── error-codes.yaml           <span class="c"># 全平台错误码</span>
+├── keel-common/                   <span class="c"># Java：契约模型、错误码、工具类（由 contracts 生成 + 手写）</span>
+├── keel-gateway/                  <span class="c"># 入口网关</span>
+├── keel-server/                   <span class="c"># 控制面</span>
+├── keel-audit/                    <span class="c"># 审计</span>
+├── keel-spring-boot-starter/      <span class="c"># Java 智能体 SDK</span>
+├── sdk-python/                    <span class="c"># Python 智能体 SDK + CLI + keel-lite + keel-gate</span>
+├── console/                       <span class="c"># Vue 3 控制台</span>
+├── templates/                     <span class="c"># keel new 模板：chat-rag / tool-agent / graph-agent / supervisor / java-spring</span>
+├── deploy/
+│   ├── k3s/                       <span class="c"># 各服务的 Deployment、Service、NetworkPolicy、RBAC</span>
+│   ├── litellm/                   <span class="c"># config.yaml（模型、价格、路由）</span>
+│   └── langfuse/                  <span class="c"># 观测节点的 docker-compose.yml、备份脚本</span>
+├── ci/                            <span class="c"># 智能体通用 CI 模板（GitHub Actions / GitLab CI）</span>
+└── docs/</pre>
+
+  <h3>各服务包结构</h3>
+  <div class="tabs" data-tabs="pkg"><button class="on">keel-server</button><button>keel-gateway</button><button>keel-audit</button><button>Java starter</button><button>Python SDK</button><button>console</button><button>智能体项目</button></div>
+
+  <div class="pane on" data-pane="pkg"><div class="twocol">
+<pre><button class="copy">复制</button>keel-server/src/main/java/com/keel/server/
+├── KeelServerApplication.java
+├── config/                    <span class="c"># Security（JWT 资源服务器）、MyBatis-Plus、Redis、RocketMQ、虚拟线程</span>
+├── common/                    <span class="c"># 统一返回 R&lt;T&gt;、全局异常、分页、@Audited 注解（配置变更自动写审计）</span>
+├── registry/                  <span class="c"># 注册中心</span>
+│   ├── controller/            <span class="c"># AgentController、SharedServiceController、RouteController</span>
+│   ├── service/               <span class="c"># AgentRegistryService、ManifestValidator、SelfCheckService、LifecycleService</span>
+│   ├── mapper/                <span class="c"># AgentMapper、AgentVersionMapper、AgentInstanceMapper</span>
+│   └── model/                 <span class="c"># entity/ dto/ enums/AgentStatus（REGISTERED/ONLINE/DEGRADED/OFFLINE/RETIRED）</span>
+├── provisioning/              <span class="c"># 注册、下线时替智能体开通 / 回收外部资源</span>
+│   ├── ProvisioningService    <span class="c"># 编排：生成密钥 → 注册 OAuth 客户端 → 建虚拟 Key → 写 Secret → 导入数据集；任一步失败则补偿回滚</span>
+│   ├── AuthClientProvisioner  <span class="c"># 生成 RSA 密钥对；调 auth-gateway 新增的客户端注册 API（aud、scopes、token-exchange 授权）</span>
+│   ├── AgentJwksController    <span class="c"># GET /agents/{name}/jwks.json：托管智能体公钥，作为 auth-gateway 里的 jwks_uri</span>
+│   ├── LiteLlmProvisioner     <span class="c"># 虚拟 Key、预算、路由规则</span>
+│   ├── LangfuseProvisioner    <span class="c"># 数据集导入、提示词标签</span>
+│   └── SecretWriter           <span class="c"># 写 keel-{agent} Secret（fabric8）</span>
+├── discovery/                 <span class="c"># 在线探测与对账</span>
+│   ├── K8sAgentWatcher        <span class="c"># Informer 监听标签 keel.io/agent、keel.io/service</span>
+│   ├── HeartbeatController    <span class="c"># 非 K8s 实例的心跳续约</span>
+│   ├── DifyProber
+│   ├── ManifestVersionChecker <span class="c"># 调 /v1/manifest 核对运行版本</span>
+│   └── ReconcileJob           <span class="c"># 每 5 分钟对账，产出 reconcile_finding</span>
+├── tool/                      <span class="c"># 工具注册与生命周期</span>
+│   ├── controller/ service/   <span class="c"># ToolRegistryService、ToolVersionService、ToolDependencyService、ToolDeprecationJob</span>
+│   ├── mapper/ model/
+├── approval/                  <span class="c"># 审批流</span>
+│   ├── controller/ service/   <span class="c"># ApprovalService、ApprovalPolicyEngine、ApprovalNotifier（企业微信 / 钉钉 / 站内）</span>
+│   ├── mapper/ model/
+├── release/                   <span class="c"># 发布记录、门禁结果回写、提示词标签漂移检查</span>
+│   ├── ReleaseService
+│   ├── GateResultController   <span class="c"># keel gate 在 CI 里回写结论</span>
+│   └── PromptDriftJob         <span class="c"># production 标签 ≠ 最近通过门禁的版本 → 告警 + 审计</span>
+├── insight/                   <span class="c"># 控制台只读 API（聚合外部数据）</span>
+│   ├── OverviewService        <span class="c"># 总览 KPI</span>
+│   ├── TraceQueryService      <span class="c"># 调 Langfuse Observations API v2（按 traceId 取全部节点），组装协作图 / 泳道 / 调用树 + 叠加审计、审批</span>
+│   ├── CostService            <span class="c"># LiteLLM 花费日志 → 按智能体 / 模型</span>
+│   ├── QualityService         <span class="c"># Langfuse scores → 解决率、点踩率</span>
+│   └── SharedServiceMonitor   <span class="c"># Prometheus → rag-forge 等共享服务指标</span>
+└── integration/               <span class="c"># 外部系统客户端，只放调用封装，不放业务</span>
+    ├── langfuse/  litellm/  prometheus/  authgw/  k8s/  audit/（调 keel-audit）</pre>
+    <aside><h5>模块边界规则</h5><ul>
+      <li>模块之间只能调用对方的 <code>service</code> 接口，不能直接用对方的 <code>mapper</code></li>
+      <li>外部系统只能通过 <code>integration</code> 访问，方便测试时替换</li>
+      <li><code>insight</code> 只读，不写任何业务表</li>
+      <li>以后要拆服务，按顶层包拆：<code>approval</code>、<code>discovery</code> 最可能先拆</li>
+      <li>所有改配置的接口加 <code>@Audited</code>，由切面写 <code>config.change</code> 审计事件</li>
+    </ul></aside>
+  </div></div>
+
+  <div class="pane" data-pane="pkg"><div class="twocol">
+<pre><button class="copy">复制</button>keel-gateway/src/main/java/com/keel/gateway/
+├── KeelGatewayApplication.java
+├── config/                    <span class="c"># 超时、Netty、Redis、RocketMQ、OTel</span>
+├── route/
+│   ├── RegistryRouteLocator   <span class="c"># 实现 RouteLocator，路由来自 keel-server</span>
+│   ├── RouteCache             <span class="c"># 本地缓存 + 版本号，keel-server 不可用时继续用旧路由</span>
+│   └── RouteSyncClient        <span class="c"># 启动全量拉取；长轮询 /api/v1/routes/watch 拿增量</span>
+├── auth/
+│   ├── JwtAuthFilter          <span class="c"># ReactiveJwtDecoder（JWKS 缓存），要求 aud=keel-api</span>
+│   ├── AgentAccessFilter      <span class="c"># roles / scopes 对照 manifest 的 auth.roles</span>
+│   └── TokenExchangeClient    <span class="c"># 以 keel-gateway 客户端身份换成 aud=智能体 的 token，按 (用户, 智能体) 缓存到过期前 60s</span>
+├── quota/
+│   ├── QuotaFilter            <span class="c"># 用户 / 组织 / 智能体三维令牌桶（Redis Lua）</span>
+│   └── ConcurrencyLimiter     <span class="c"># 并发会话计数，连接结束（含异常断开）必须释放</span>
+├── stream/
+│   ├── SsePassthroughFilter   <span class="c"># 关缓冲、心跳注释帧、长超时</span>
+│   └── CancelOnDisconnect     <span class="c"># 客户端断开 → 取消上游请求</span>
+├── trace/RootSpanFilter       <span class="c"># 生成 traceparent，上报根 span</span>
+├── audit/InvokeAuditFilter    <span class="c"># 请求结束后发 MQ：invoke 事件（含被拦截的请求）</span>
+└── error/GatewayErrorHandler  <span class="c"># 统一错误体 {code, message, trace_id}</span></pre>
+    <aside><h5>过滤器顺序（数字越小越先执行）</h5><ul>
+      <li><code>-200</code> RootSpanFilter：最先执行，保证被拦截的请求也有 trace</li>
+      <li><code>-100</code> JwtAuthFilter → <code>-90</code> AgentAccessFilter</li>
+      <li><code>-80</code> QuotaFilter → <code>-70</code> ConcurrencyLimiter</li>
+      <li><code>-60</code> TokenExchangeClient（放在配额之后，被限流的请求不换票）</li>
+      <li><code>0</code> 路由转发 + SsePassthroughFilter</li>
+      <li>InvokeAuditFilter 在 <code>doFinally</code> 里发事件，成功、失败、取消都会记</li>
+    </ul><h5 style="margin-top:10px">轻量版不做</h5><ul><li>协议适配、流式脱敏、灰度、熔断（P3）</li></ul></aside>
+  </div></div>
+
+  <div class="pane" data-pane="pkg"><div class="twocol">
+<pre><button class="copy">复制</button>keel-audit/src/main/java/com/keel/audit/
+├── KeelAuditApplication.java
+├── config/
+├── ingest/
+│   ├── AuditIngestController  <span class="c"># POST /api/v1/audit/events：同步写，高风险动作用</span>
+│   └── AuditMqConsumer        <span class="c"># 消费 topic keel-audit-events：异步写，其他动作用</span>
+├── masking/
+│   ├── FieldWhitelistFilter   <span class="c"># 按 manifest 的 captureFields 裁剪 payload</span>
+│   └── PiiMasker              <span class="c"># 手机号、身份证、银行卡兜底脱敏</span>
+├── chain/
+│   ├── HashChainService       <span class="c"># 每个智能体一条链：锁链头 → 算 hash → 插入 → 更新链头</span>
+│   └── ChainVerifyJob         <span class="c"># 每天全量校验，断链告警</span>
+├── store/
+│   ├── AuditEventMapper       <span class="c"># 只有 insert 和 select</span>
+│   └── ArchiveJob             <span class="c"># 超过保留期的分区导出到 OSS 后再 detach</span>
+├── query/
+│   ├── AuditQueryController   <span class="c"># 条件查询、按 trace_id 查</span>
+│   └── ExportService          <span class="c"># 导出先调 keel-server 建审批单，批准后生成脱敏文件</span>
+└── model/</pre>
+    <aside><h5>防篡改怎么落地</h5><ul>
+      <li>应用用独立数据库账号 <code>keel_audit_app</code>，只授予 INSERT、SELECT，<b>REVOKE UPDATE, DELETE</b></li>
+      <li><code>audit_event</code> 按月分区，归档只 detach 分区，不删行</li>
+      <li>hash = sha256(prev_hash + 规范化 JSON)；链头行 <code>SELECT … FOR UPDATE</code> 串行化同一智能体的写入</li>
+      <li>MQ 消费按 agent 做顺序消息（MessageQueueSelector 按 agent 哈希），保证链顺序</li>
+    </ul></aside>
+  </div></div>
+
+  <div class="pane" data-pane="pkg"><div class="twocol">
+<pre><button class="copy">复制</button>keel-spring-boot-starter/src/main/java/com/keel/starter/
+├── autoconfigure/
+│   ├── KeelAutoConfiguration  <span class="c"># 条件装配：有 agent.yaml 才启用</span>
+│   └── KeelProperties         <span class="c"># keel.* 配置，默认从 Secret 注入的环境变量读取</span>
+├── annotation/                <span class="c"># @KeelAgent @KeelEntry @KeelTool</span>
+├── manifest/                  <span class="c"># ManifestLoader、AgentManifest（由 contracts 生成）</span>
+├── web/                       <span class="c"># InvokeController（SSE）、HealthController、ManifestController、FeedbackController</span>
+├── context/
+│   ├── KeelContext            <span class="c"># 业务代码拿到的唯一入口</span>
+│   ├── LlmClient              <span class="c"># OpenAI 兼容 → LiteLLM；记录 generation span</span>
+│   ├── KnowledgeClient        <span class="c"># → rag-forge（吸收 careermate 的 RagForgeClient）</span>
+│   ├── ToolInvoker            <span class="c"># 权限检查 → 风险判断 → 审批挂起 → 执行 → 审计</span>
+│   ├── Delegator              <span class="c"># ctx.delegate：Token Exchange + traceparent + 预算传递</span>
+│   └── ClientAssertionSigner  <span class="c"># 用本智能体私钥签 private_key_jwt（RS256，exp ≤ 10 分钟，jti 一次性）</span>
+├── security/JwtVerifier       <span class="c"># 轻量校验（网关之后的双保险）</span>
+├── tracing/                   <span class="c"># OTel 配置、GenAiSpans；吸收 careermate 的 TracingMdcFilter、AgentTracing</span>
+├── audit/AuditReporter        <span class="c"># 高风险同步 HTTP，其余走 RocketMQ</span>
+├── guard/                     <span class="c"># InputGuard、OutputGuard、GroundingGuard</span>
+└── heartbeat/HeartbeatReporter <span class="c"># 仅当 keel.liveness=heartbeat 时启用</span></pre>
+    <aside><h5>一个进程多个智能体</h5><ul>
+      <li>starter 允许一个 Spring Boot 应用里有多个 <code>@KeelAgent</code>，每个有自己的 manifest，路径前缀为 <code>/{agent}/v1/invoke</code></li>
+      <li>dev-copilot、prd-agent、test-gen 起步可以放在同一个进程，以后要独立发布再拆开</li>
+      <li>同进程委派时 <code>ctx.delegate</code> 走本地调用，但照样生成 agent 类型的 span 和审计，追踪上看不出区别</li>
+    </ul></aside>
+  </div></div>
+
+  <div class="pane" data-pane="pkg"><div class="twocol">
+<pre><button class="copy">复制</button>sdk-python/
+├── pyproject.toml             <span class="c"># 包名 keel-sdk；入口命令 keel</span>
+└── keel/
+    ├── __init__.py            <span class="c"># 导出 Agent、Context</span>
+    ├── agent.py               <span class="c"># Agent.from_manifest、@agent.tool、@agent.entry</span>
+    ├── manifest.py            <span class="c"># pydantic 模型 + JSON Schema 校验</span>
+    ├── asgi.py                <span class="c"># Starlette 应用；mount_to(fastapi_app) 挂进现有应用</span>
+    ├── context.py             <span class="c"># step / llm / knowledge / tools / delegate / gather / final</span>
+    ├── protocol/              <span class="c"># sse.py、events.py、errors.py</span>
+    ├── auth/                  <span class="c"># jwks.py（缓存）、token_exchange.py、client_assertion.py（private_key_jwt）、delegation.py（长流程用委托 token）</span>
+    ├── quota.py               <span class="c"># 网关上线前的入口配额（Redis）</span>
+    ├── llm/                   <span class="c"># client.py：openai SDK → LiteLLM，带 metadata</span>
+    ├── knowledge.py           <span class="c"># rag-forge 客户端</span>
+    ├── tools/                 <span class="c"># registry.py、invoker.py、approval.py</span>
+    ├── tracing/
+    │   ├── otel.py            <span class="c"># TracerProvider + OTLP/HTTP → Langfuse</span>
+    │   ├── attrs.py           <span class="c"># keel.* / langfuse.* 属性常量</span>
+    │   ├── buffer.py          <span class="c"># 上报失败写本地 jsonl，后台重放</span>
+    │   └── langgraph.py       <span class="c"># LangGraph 回调适配（askdb 用）</span>
+    ├── audit/                 <span class="c"># reporter.py、masking.py</span>
+    ├── guard/                 <span class="c"># injection.py、grounding.py（off/shadow/enforce）、pii.py</span>
+    ├── heartbeat.py
+    ├── eval/                  <span class="c"># @scorer、Score、dataset 导入、experiment 运行</span>
+    ├── gate/                  <span class="c"># keel gate：runner.py、compare.py（按 tags 逐维度）、report.py</span>
+    ├── lite/                  <span class="c"># keel-lite：SQLite 版审计、审批，keel dev 使用</span>
+    └── cli/                   <span class="c"># new、dev、eval、register、release、retire、gate</span></pre>
+    <aside><h5>设计要点</h5><ul>
+      <li>SDK 只依赖契约，不依赖 Langfuse 专有接口做运行时上报（追踪走标准 OTel），降低以后换组件的成本</li>
+      <li>Langfuse SDK 只在 <code>eval/</code>、<code>gate/</code> 里用（跑实验、读分数）</li>
+      <li>所有上报都是异步、有界队列，队列满了丢弃追踪、<b>不丢审计</b>（审计转本地文件）</li>
+      <li>CLI 和运行时同一个包，版本号一致，避免 CLI 和 SDK 不匹配</li>
+    </ul></aside>
+  </div></div>
+
+  <div class="pane" data-pane="pkg"><div class="twocol">
+<pre><button class="copy">复制</button>console/
+├── package.json · vite.config.ts · tsconfig.json
+└── src/
+    ├── main.ts · App.vue
+    ├── api/                   <span class="c"># http.ts（axios 实例、JWT、trace_id 透传）+ 按模块的接口</span>
+    │   ├── agents.ts  services.ts  traces.ts  quality.ts  eval.ts
+    │   └── audit.ts   tools.ts     approvals.ts  models.ts
+    ├── stores/                <span class="c"># Pinia：user、env（dev/staging/prod）、approvals（待办数）</span>
+    ├── router/index.ts        <span class="c"># 按角色控制菜单</span>
+    ├── layouts/ConsoleLayout.vue
+    ├── views/
+    │   ├── overview/          <span class="c"># OverviewView</span>
+    │   ├── agents/            <span class="c"># AgentList、AgentDetail、AgentCreateWizard</span>
+    │   ├── services/          <span class="c"># SharedServices</span>
+    │   ├── trace/             <span class="c"># TraceList、TraceDetail（Graph / Lanes / Tree 三个子组件）</span>
+    │   ├── quality/  eval/  audit/
+    │   ├── tools/             <span class="c"># ToolRegistry、ToolDetail、ApprovalInbox</span>
+    │   └── models/            <span class="c"># ModelGateway</span>
+    ├── components/            <span class="c"># StatusPill、KpiCard、ManifestPreview、JsonViewer …</span>
+    └── utils/                 <span class="c"># 格式化、权限判断</span></pre>
+    <aside><h5>说明</h5><ul><li>页面原型见桌面 <a href="Keel-控制台前端.html">Keel-控制台前端.html</a>，开发时按原型拆成上面的 views</li><li>所有数据来自 keel-server，前端不直接调 Langfuse、LiteLLM</li><li>跳转 Langfuse 用深链：<code>{langfuse}/project/{id}/traces/{traceId}</code></li></ul></aside>
+  </div></div>
+
+  <div class="pane" data-pane="pkg"><div class="twocol">
+<pre><button class="copy">复制</button><span class="c"># Python 智能体（keel new 生成）</span>
+wind-inspection/
+├── agent.yaml                 <span class="c"># 唯一需要认真写的配置</span>
+├── app.py                     <span class="c"># 入口：@agent.entry</span>
+├── tools/                     <span class="c"># @agent.tool 业务工具</span>
+├── prompts/                   <span class="c"># 提示词兜底副本，正式版本在 Langfuse</span>
+├── evals/
+│   ├── seed.jsonl             <span class="c"># 初始用例，注册时导入 Langfuse 数据集</span>
+│   └── scorers.py             <span class="c"># 领域评分函数</span>
+├── tests/
+├── Dockerfile                 <span class="c"># FROM keel/python-runtime</span>
+└── .github/workflows/keel.yml
+
+<span class="c"># Java 智能体（--template java-spring）</span>
+prd-agent/
+├── agent.yaml · pom.xml       <span class="c"># 依赖 keel-spring-boot-starter</span>
+└── src/main/java/com/{org}/prdagent/
+    ├── PrdAgentApplication.java
+    ├── agent/PrdAgent.java    <span class="c"># @KeelAgent + @KeelEntry</span>
+    ├── tool/                  <span class="c"># @KeelTool</span>
+    ├── domain/                <span class="c"># 业务逻辑</span>
+    └── eval/                  <span class="c"># 领域评分函数（HTTP 暴露给 keel gate 调用）</span></pre>
+    <aside><h5>智能体仓库里不再出现</h5><ul><li><code>trace.py</code>、<code>tracestore.py</code>、<code>TracingMdcFilter</code></li><li><code>audit.py</code>、<code>auditstore.py</code>、<code>AuditService</code></li><li><code>evalstore.py</code>、<code>evalview.py</code>、<code>/admin</code> 质量页面</li><li>厂商 API Key</li></ul></aside>
+  </div></div>
+</section>
+
+<!-- 06 -->
+<section id="t6">
+  <h2><span class="no">06</span>数据库设计</h2>
+  <p class="lead">PostgreSQL 一个实例、四个库：<code>keel</code>（keel-server）、<code>keel_audit</code>（keel-audit）、<code>litellm</code>、<code>langfuse</code>（后两个由组件自己建表）。Keel 的表用 Flyway 管理，脚本放各服务 <code>src/main/resources/db/migration</code>。</p>
+  <div class="tabs" data-tabs="db"><button class="on">keel 库</button><button>keel_audit 库</button></div>
+  <div class="pane on" data-pane="db">
+  <table>
+    <thead><tr><th>表</th><th>关键字段</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>agent</code></td><td>name(uk)、display_name、kind(AGENT/SERVICE)、runtime(code/dify)、language、owner_org、owner_user、status、liveness</td><td>智能体和共享服务的户口本</td></tr>
+      <tr><td><code>agent_version</code></td><td>agent_name、version、env、manifest_json、manifest_hash、image、gate_run_id、released_by、released_at</td><td>每次 register / release 一条，manifest 全文快照</td></tr>
+      <tr><td><code>agent_instance</code></td><td>agent_name、env、instance_id、source(k8s/heartbeat/probe)、version、ready、last_seen_at</td><td>运行实例，探测和心跳更新</td></tr>
+      <tr><td><code>agent_resource</code></td><td>agent_name、env、type(litellm_key/langfuse/secret/dataset)、external_id、status</td><td>替智能体开通的外部资源，下线时按此回收</td></tr>
+      <tr><td><code>reconcile_finding</code></td><td>agent_name、env、kind(OFFLINE/UNREGISTERED/ZOMBIE/RETIRE_INCOMPLETE/VERSION_MISMATCH)、detail、first_seen、resolved_at</td><td>对账发现的问题</td></tr>
+      <tr><td><code>tool</code></td><td>name(uk)、scope(PRIVATE/SHARED)、owner_agent、owner_org、provider(mcp url)、status(REGISTERED/ONLINE/DEPRECATED/RETIRED)、replaced_by、deprecate_deadline</td><td>工具主表</td></tr>
+      <tr><td><code>tool_version</code></td><td>tool_name、version、schema_json、description、access(READ/WRITE/EXEC)、risk(LOW/MID/HIGH)、approval_policy_id、breaking</td><td>描述和参数的每次变更都是新版本</td></tr>
+      <tr><td><code>agent_tool_grant</code></td><td>agent_name、tool_name、version_range、granted_by、status</td><td>谁能用哪个共享工具（私有工具由 manifest 自动授予）</td></tr>
+      <tr><td><code>approval_policy</code></td><td>id、name、approver_type(ROLE/USER/OWNER)、approver_ref、condition_expr、timeout_minutes、cooldown_hours</td><td>审批策略，如"班组长审批"、"敏感表需审批"</td></tr>
+      <tr><td><code>approval_request</code></td><td>id、agent_name、tool_name、trace_id、actor_user、payload_digest、summary、status(PENDING/APPROVED/REJECTED/EXPIRED)、decided_by、decided_at</td><td>审批单；SDK 挂起时创建</td></tr>
+      <tr><td><code>release_record</code></td><td>agent_name、version、env、gate_passed、score_total、score_by_tag_json、prompt_versions_json、ci_run_url</td><td>发布和门禁结论</td></tr>
+      <tr><td><code>route_snapshot</code></td><td>version(自增)、changed_agent、created_at</td><td>路由变更版本号，keel-gateway 长轮询用</td></tr>
+    </tbody>
+  </table></div>
+  <div class="pane" data-pane="db">
+  <table>
+    <thead><tr><th>表</th><th>关键字段</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>audit_event</code>（按月分区）</td><td>event_id(pk)、ts、agent、env、trace_id、actor_json、action、resource、risk、decision、approver、payload_json、input_digest、prev_hash、hash</td><td>只追加；应用账号无 UPDATE / DELETE 权限</td></tr>
+      <tr><td><code>audit_chain_head</code></td><td>agent(pk)、last_event_id、last_hash、count</td><td>每个智能体一条链的链头</td></tr>
+      <tr><td><code>audit_archive</code></td><td>partition、oss_path、row_count、sha256、archived_at</td><td>归档记录，可用于举证</td></tr>
+      <tr><td><code>audit_export</code></td><td>id、requested_by、filter_json、approval_id、status、file_path</td><td>导出申请，必须关联审批单</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- 07 -->
+<section id="t7">
+  <h2><span class="no">07</span>接口设计</h2>
+  <div class="tabs" data-tabs="api"><button class="on">智能体协议（每个智能体实现）</button><button>keel-server</button><button>keel-audit</button><button>外部组件调用</button></div>
+  <div class="pane on" data-pane="api">
+<pre><button class="copy">复制</button><span class="k">POST</span> /v1/invoke            <span class="c"># SSE：step / tool / token / final / error</span>
+<span class="k">GET</span>  /v1/health            <span class="c"># K8s 就绪探针、注册自检</span>
+<span class="k">GET</span>  /v1/manifest          <span class="c"># 当前生效的 agent.yaml + 版本 + SDK 版本</span>
+<span class="k">POST</span> /v1/feedback          <span class="c"># 点赞点踩 → Langfuse score</span>
+
+<span class="c"># 经网关访问时的外部路径</span>
+<span class="k">POST</span> /agents/{name}/v1/invoke
+
+<span class="c"># 请求头</span>
+Authorization: Bearer &lt;JWT&gt;
+traceparent:   00-&lt;trace_id&gt;-&lt;span_id&gt;-01
+X-Keel-Env:    prod
+X-Keel-Budget: {"cny":0.5,"steps":6}      <span class="c"># 委派时由上游传入剩余预算</span>
+X-Keel-Eval-Run: &lt;run_id&gt;                 <span class="c"># 评测流量标记，不计入线上指标</span></pre>
+  </div>
+  <div class="pane" data-pane="api">
+  <table>
+    <thead><tr><th>接口</th><th>调用方</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>POST /api/v1/agents</code></td><td>keel register</td><td>注册：校验 manifest → 自检 → 开通资源，返回自检报告</td></tr>
+      <tr><td><code>POST /api/v1/agents/{name}/releases</code></td><td>keel release</td><td>发布：要求携带通过的 gate_run_id；更新提示词标签；写发布记录</td></tr>
+      <tr><td><code>POST /api/v1/agents/{name}/retire</code></td><td>keel retire</td><td>下线：吊销 Key、删 Secret、状态置 RETIRED</td></tr>
+      <tr><td><code>GET /api/v1/agents</code> · <code>/{name}</code></td><td>控制台</td><td>列表、详情（含实例、资源、版本、对账问题）</td></tr>
+      <tr><td><code>POST /api/v1/instances/heartbeat</code></td><td>SDK</td><td>非 K8s 实例心跳</td></tr>
+      <tr><td><code>GET /api/v1/routes?since={ver}</code></td><td>keel-gateway</td><td>长轮询：有变更立即返回，否则 30s 超时</td></tr>
+      <tr><td><code>POST /api/v1/gate-results</code></td><td>keel gate</td><td>回写门禁结论</td></tr>
+      <tr><td><code>GET/POST /api/v1/tools</code> · <code>/{name}/versions</code></td><td>控制台 · keel register</td><td>工具注册、发新版本（描述或参数变化时触发调用方回归评测）</td></tr>
+      <tr><td><code>POST /api/v1/tools/{name}/deprecate</code> · <code>/retire</code></td><td>控制台</td><td>废弃（需替代工具和截止日期）、下线（有 prod 依赖时拒绝）</td></tr>
+      <tr><td><code>GET /api/v1/tools/{name}/dependents</code></td><td>控制台</td><td>依赖方：manifest 声明 + 30 天调用量</td></tr>
+      <tr><td><code>POST /api/v1/approvals</code></td><td>SDK</td><td>创建审批单，返回 approval_id；SDK 轮询或订阅结果</td></tr>
+      <tr><td><code>POST /api/v1/approvals/{id}/decision</code></td><td>控制台 · 企业微信回调</td><td>批准 / 驳回</td></tr>
+      <tr><td><code>GET /api/v1/insight/overview</code> · <code>/traces/{id}</code> · <code>/costs</code> · <code>/quality</code> · <code>/services</code></td><td>控制台</td><td>只读聚合接口</td></tr>
+    </tbody>
+  </table></div>
+  <div class="pane" data-pane="api">
+  <table>
+    <thead><tr><th>接口 / 消息</th><th>调用方</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>POST /api/v1/audit/events</code></td><td>SDK · starter · keel-server</td><td>同步写入，高风险动作使用；写失败则调用方拒绝执行</td></tr>
+      <tr><td>MQ topic <code>keel-audit-events</code></td><td>keel-gateway · SDK</td><td>异步写入；按 agent 顺序消息</td></tr>
+      <tr><td><code>GET /api/v1/audit/events</code></td><td>控制台</td><td>按智能体、动作、风险、时间、trace_id 查询</td></tr>
+      <tr><td><code>POST /api/v1/audit/exports</code></td><td>控制台</td><td>导出申请，自动建审批单</td></tr>
+      <tr><td><code>GET /api/v1/audit/verify?agent=</code></td><td>控制台</td><td>手动触发哈希链校验</td></tr>
+    </tbody>
+  </table></div>
+  <div class="pane" data-pane="api">
+  <table>
+    <thead><tr><th>组件</th><th>Keel 调用的接口</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="4">LiteLLM</td><td><code>POST /key/generate</code> · <code>/key/update</code></td><td>注册时建虚拟 Key（models、max_budget、budget_duration=1d、key_alias、metadata.agent）；配 <code>litellm_settings.key_alias_pattern</code> 强制别名格式 <code>{agent}-{env}</code></td></tr>
+      <tr><td><code>POST /key/block</code> · <code>/key/unblock</code> · <code>/key/delete</code></td><td>下线先 block（可恢复），确认无流量后 delete</td></tr>
+      <tr><td><code>GET /key/info</code> · <code>/spend/logs/v2</code> · <code>/global/spend/report</code></td><td>预算用量、分页明细、按天汇总。<b>不用旧的 <code>/spend/logs</code></b>：它最多只返回最近 1 万行</td></tr>
+      <tr><td><code>config.yaml</code> 的 model_list、router_settings</td><td>模型、价格、降级规则；由 manifest 生成后提交到 deploy/litellm</td></tr>
+      <tr><td rowspan="5">Langfuse v4</td><td><code>POST /api/public/otel/v1/traces</code></td><td>OTLP/HTTP 上报；Basic Auth（公钥:私钥）；<b>必须带请求头 <code>x-langfuse-ingestion-version: 4</code></b>，否则数据约 15 分钟后才可见</td></tr>
+      <tr><td><code>GET /api/public/v2/observations</code> · <code>/v2/metrics</code> · <code>/v3/scores</code></td><td>控制台追踪、总览、质量。旧的 <code>/api/public/traces</code>、<code>/observations</code>、<code>/scores</code>、<code>/metrics</code> 在 v4 返回 404</td></tr>
+      <tr><td><code>GET /api/public/experiments</code> · <code>/experiment-items</code></td><td>读实验结果（门禁对比）；写实验用 Python SDK 的实验运行器，<b>不用</b>已废弃的 <code>dataset-run-items</code></td></tr>
+      <tr><td><code>/api/public/datasets</code> · <code>/dataset-items</code></td><td>注册时导入用例、坏案例回流</td></tr>
+      <tr><td><code>PATCH /api/public/v2/prompts/{name}/versions/{version}</code></td><td>发布时给提示词版本打 production 标签</td></tr>
+      <tr><td rowspan="3">auth-gateway</td><td><code>GET /.well-known/jwks.json</code></td><td>验签；响应缓存 1 小时</td></tr>
+      <tr><td><code>POST /oauth/token-exchange</code>（表单）</td><td>换票。字段是 <code>requested_audience</code>、<code>requested_scopes</code>（不是 RFC 8693 的 audience / scope）；客户端用 private_key_jwt 认证</td></tr>
+      <tr><td><code>POST /oauth/consents</code> · <code>/oauth/delegation-token</code></td><td>长流程智能体用：用户授权一次，智能体凭委托 token 异步执行</td></tr>
+      <tr><td>Prometheus</td><td><code>/api/v1/query</code></td><td>共享服务指标</td></tr>
+    </tbody>
+  </table>
+  <div class="note"><b>两个坑：</b>① LiteLLM 预算按美元计，Keel 在 manifest 里写人民币，开通时按配置的汇率换算；百炼等国内模型要在 LiteLLM 的 model_info 里配 <code>input_cost_per_token</code> / <code>output_cost_per_token</code>，否则成本为 0。② Langfuse 的 Model Definitions 也要配同样的价格，两边口径才一致。</div>
+  </div>
+</section>
+
+<!-- 08 -->
+<section id="t8">
+  <h2><span class="no">08</span>关键流程实现</h2>
+  <div class="tabs" data-tabs="flow"><button class="on">注册 keel register</button><button>高风险工具审批</button><button>发布与门禁</button><button>工具变更与下线</button><button>对账</button></div>
+  <div class="pane on" data-pane="flow">
+  <div class="seq">
+    <div><i>1</i><b>CLI</b><span>本地校验 agent.yaml（JSON Schema），打包 manifest + evals/seed.jsonl 发给 keel-server</span></div>
+    <div><i>2</i><b>keel-server · registry</b><span>校验名称唯一、owner 存在、声明的工具和知识库都存在且有权限；写 <code>agent</code>、<code>agent_version</code></span></div>
+    <div><i>3</i><b>provisioning</b><span>生成 RSA 密钥对，公钥挂到 <code>/agents/{name}/jwks.json</code> → 在 auth-gateway 注册 OAuth 客户端（client_id=智能体名、allowed_audiences、token-exchange 授权、scopes）→ LiteLLM 建虚拟 Key → 写 K8s Secret <code>keel-{name}</code>（KEEL_CLIENT_PRIVATE_KEY、KEEL_LLM_KEY、KEEL_LLM_BASE_URL、LANGFUSE_PUBLIC_KEY、LANGFUSE_SECRET_KEY、LANGFUSE_HOST）→ 导入 Langfuse 数据集；每步写 <code>agent_resource</code>，失败按逆序回收</span></div>
+    <div><i>4</i><b>自检</b><span>等 Pod 就绪 → 调 <code>/v1/health</code>、<code>/v1/manifest</code> → 发 5 条协议自检请求（带评测标记）→ 查 Langfuse 是否收到 span → 查高风险工具是否绑定审批策略</span></div>
+    <div><i>5</i><b>完成</b><span>状态 REGISTERED；写 <code>route_snapshot</code>（网关此时只对 staging 开放）；写 <code>config.change</code> 审计；返回自检报告</span></div>
+  </div></div>
+  <div class="pane" data-pane="flow">
+  <div class="seq">
+    <div><i>1</i><b>SDK · ToolInvoker</b><span>检查工具在 manifest 中声明且授权 → 读风险等级和审批策略</span></div>
+    <div><i>2</i><b>SDK → keel-server</b><span><code>POST /api/v1/approvals</code>，payload 只传摘要和 digest；SSE 推 <code>step {name:"approval", status:"pending"}</code></span></div>
+    <div><i>3</i><b>keel-server</b><span>按策略找审批人，推送企业微信 / 控制台待办；同步写 <code>approval · pending</code> 审计</span></div>
+    <div><i>4</i><b>SDK 等待</b><span>长轮询审批结果；等待期间计为"人工等待"，不计入智能体耗时；超时则置 EXPIRED 并告知用户。换票 token 只有 600 秒有效期：等待超过 10 分钟的，批准后由 SDK 重新换票；用户会话也已失效的，改用该用户事先授予的委托 token（<code>/oauth/delegation-token</code>）继续执行，没有授权就提示用户重新发起</span></div>
+    <div><i>5</i><b>批准后</b><span>SDK 执行工具 → <b>同步</b>写 <code>tool.call · approved</code> 审计（写失败则不执行）→ 继续流程</span></div>
+  </div>
+  <div class="note info">智能体进程重启时，挂起中的审批不会丢：审批单在 keel-server，SDK 用 LangGraph checkpoint（askdb 已有）或 starter 的任务表恢复现场。</div></div>
+  <div class="pane" data-pane="flow">
+  <div class="seq">
+    <div><i>1</i><b>CI</b><span>单测通过后运行 <code>keel gate --env prod</code></span></div>
+    <div><i>2</i><b>keel gate</b><span>用 Langfuse SDK 对数据集跑实验：逐条调用候选版本的 <code>/v1/invoke</code>（带 X-Keel-Eval-Run）→ 大模型裁判 + 代码评分器打分</span></div>
+    <div><i>3</i><b>对比</b><span>读当前 prod 版本最近一次实验分数，按用例 tags 逐维度对比：总分 &lt; minScore 或任一维度退步 &gt; maxRegression → 失败</span></div>
+    <div><i>4</i><b>回写</b><span><code>POST /api/v1/gate-results</code>，CI 按退出码决定是否继续</span></div>
+    <div><i>5</i><b>keel release</b><span>keel-server 校验 gate_run_id 已通过 → 提示词打 production 标签 → 更新 agent_version、路由 → 审计</span></div>
+  </div></div>
+  <div class="pane" data-pane="flow">
+  <table>
+    <thead><tr><th>变更</th><th>系统动作</th></tr></thead>
+    <tbody>
+      <tr><td>只改实现</td><td>不发新版本；监控成功率、延迟</td></tr>
+      <tr><td>改描述 / 参数说明 / 新增可选参数</td><td>发小版本 → keel-server 找出所有依赖方 → 对每个依赖方触发一次 keel gate（CI API）→ 有不通过的，新版本停在 REGISTERED，不上线</td></tr>
+      <tr><td>破坏兼容</td><td>必须新名字（如 <code>work_order_create.v2</code>）；旧版置 DEPRECATED，填 replaced_by 和截止日期</td></tr>
+      <tr><td>风险调高</td><td>立即生效，通知依赖方</td></tr>
+      <tr><td>风险调低 / 取消审批</td><td>本身要走审批，写审计</td></tr>
+      <tr><td>下线</td><td>查依赖：有 prod 依赖 → 拒绝，只能先废弃；废弃期内调用照常但 span 打 <code>keel.tool.deprecated=true</code>；过期后 keel gate 拒绝仍声明它的发布；无依赖 → RETIRED，调用返回 <code>TOOL_RETIRED</code></td></tr>
+    </tbody>
+  </table></div>
+  <div class="pane" data-pane="flow">
+  <table>
+    <thead><tr><th>登记</th><th>运行</th><th>流量</th><th>结论</th><th>动作</th></tr></thead>
+    <tbody>
+      <tr><td>ONLINE</td><td>就绪</td><td>有</td><td>正常</td><td>—</td></tr>
+      <tr><td>ONLINE</td><td>无就绪实例 / 心跳超 45s</td><td>—</td><td>OFFLINE</td><td>告警负责人，保留资源</td></tr>
+      <tr><td>ONLINE</td><td>就绪</td><td>7 天无</td><td>ZOMBIE</td><td>提示是否下线</td></tr>
+      <tr><td>未登记</td><td>有带 keel 标签的 Pod</td><td>—</td><td>UNREGISTERED</td><td>告警（它拿不到 Key）</td></tr>
+      <tr><td>RETIRED</td><td>仍在运行</td><td>—</td><td>RETIRE_INCOMPLETE</td><td>告警，确认 Key 已吊销</td></tr>
+      <tr><td>任意</td><td>/v1/manifest 版本 ≠ 登记版本</td><td>—</td><td>VERSION_MISMATCH</td><td>告警（可能绕过门禁改了镜像）</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:13px;color:var(--mute)">流量数据：Langfuse 按 <code>keel.agent</code> 统计 trace 数，LiteLLM 按 key_alias 统计调用数，两者取并集。</p></div>
+</section>
+
+<!-- 09 -->
+<section id="t9">
+  <h2><span class="no">09</span>旧智能体如何接入</h2>
+  <p class="lead">通用步骤都一样，差别在"每个项目里哪些文件要删、哪些迁进 SDK、哪些保留"。每个项目迁移完的验收标准相同：<b>链路进 Langfuse、审计进 keel-audit、评测进 Langfuse 数据集、仓库里不再有重复的底座代码。</b></p>
+  <h3>通用步骤</h3>
+  <div class="steps">
+    <div class="step"><h4>引入 SDK 并写 agent.yaml<span class="time">半天</span></h4><p>Python：<code>pip install keel-sdk</code>；Java：加 <code>keel-spring-boot-starter</code> 依赖。在仓库根目录写 <code>agent.yaml</code>，把现有的模型、知识库、工具、风险等级、审计字段白名单搬进去。</p></div>
+    <div class="step"><h4>挂载标准协议<span class="time">半天</span></h4><p>Python 用 <code>keel.asgi.mount_to(app)</code> 挂进现有 FastAPI，<b>原有接口先保留</b>，前端逐步切到 <code>/v1/invoke</code>；Java 由 starter 自动注册控制器。</p></div>
+    <div class="step"><h4>替换底座代码<span class="time">1～3 天</span></h4><p>追踪、审计、配额、审批、模型调用逐项改用 SDK。每替换一项跑一次原有测试。</p></div>
+    <div class="step"><h4>迁移评测<span class="time">1 天</span></h4><p>用 <code>keel eval import</code> 把现有用例导入 Langfuse 数据集，打好 tags；领域评分逻辑改写成 <code>@scorer</code>。</p></div>
+    <div class="step"><h4>注册并影子运行<span class="time">1 周观察</span></h4><p><code>keel register --env staging</code>；新旧两套上报并行一周，对比链路数、审计条数、评测分数一致后，删除旧代码。</p></div>
+    <div class="step"><h4>过门禁发布<span class="time">自动</span></h4><p>CI 换成统一模板，<code>keel release --env prod</code>。</p></div>
+  </div>
+
+  <h3>逐个项目的迁移清单</h3>
+  <div class="tabs" data-tabs="mig"><button class="on">askdb</button><button>offshore-wind</button><button>careermate</button><button>rag-forge（共享服务）</button><button>ai-multi-agent-dev-platform</button></div>
+
+  <div class="pane on" data-pane="mig">
+  <p>Python · LangGraph · FastAPI。askdb 的追踪状态口径、审计白名单是 SDK 的原型，迁移阻力最小，<b>作为第一个接入的智能体</b>。</p>
+  <table>
+    <thead><tr><th>现有文件</th><th>处理</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>askdb/trace.py</code> · <code>observe.py</code></td><td><span class="tag t-del">删除</span></td><td>逻辑已抽进 <code>keel.tracing</code>；OK_STATUSES / SOFT_STATUSES 映射到 <code>keel.status</code> 三档</td></tr>
+      <tr><td><code>askdb/audit.py</code> · <code>auditstore.py</code></td><td><span class="tag t-del">删除</span></td><td>SUMMARY_FIELDS 搬到 manifest 的 <code>audit.captureFields</code>；历史审计数据导出归档</td></tr>
+      <tr><td><code>askdb/quota.py</code></td><td><span class="tag t-del">删除</span></td><td>网关上线前用 <code>keel.quota</code>，之后由 keel-gateway 负责</td></tr>
+      <tr><td><code>askdb/approvals.py</code></td><td><span class="tag t-del">删除</span></td><td>审批规则搬进 keel-server 的 approval_policy（"敏感表需审批"）</td></tr>
+      <tr><td><code>askdb/llm.py</code></td><td><span class="tag t-mod">改造</span></td><td>base_url 指向 LiteLLM，Key 从环境变量读；或整体换成 <code>ctx.llm</code></td></tr>
+      <tr><td><code>askdb/identity.py</code> · <code>auth.py</code></td><td><span class="tag t-mod">改造</span></td><td>身份改用 auth-gateway JWT，保留数据源行级权限逻辑</td></tr>
+      <tr><td><code>askdb/evalstore.py</code> · <code>evalrun.py</code> · <code>evalrunstore.py</code> · <code>evals/</code></td><td><span class="tag t-del">删除</span></td><td>用例导入 Langfuse 数据集 <code>askdb/nl2sql</code>；SQL 结果比对写成 <code>@scorer("sql_result_match")</code>；门禁口径迁到 manifest</td></tr>
+      <tr><td><code>agentgraph.py</code> · <code>multiagent/</code> · <code>planner.py</code> 等</td><td><span class="tag t-keep">保留</span></td><td>业务核心。内部子智能体（router、verifier、synthesizer）不单独注册，作为 askdb 内部的 agent 类型 span 出现在追踪里</td></tr>
+      <tr><td><code>mcp_server.py</code></td><td><span class="tag t-mod">改造</span></td><td>作为共享工具在 keel-server 注册（如 <code>askdb.query</code>），供其他智能体调用</td></tr>
+      <tr><td><code>server.py</code></td><td><span class="tag t-mod">改造</span></td><td>加 <code>mount_to(app)</code>；LangGraph 接 <code>keel.tracing.langgraph</code> 回调</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="pane" data-pane="mig">
+  <p>Python · FastAPI。有自己的追踪存储、评测和质量中心页面，<b>删的最多</b>。</p>
+  <table>
+    <thead><tr><th>现有文件</th><th>处理</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>agent/tracestore.py</code> · <code>agent/tracing.py</code></td><td><span class="tag t-del">删除</span></td><td>内存态追踪，重启即丢；改用 SDK 上报 Langfuse</td></tr>
+      <tr><td><code>agent/evalview.py</code> · <code>admin.py</code> · <code>static/admin.html</code></td><td><span class="tag t-del">删除</span></td><td>质量中心和评测页面由 Keel 控制台替代</td></tr>
+      <tr><td><code>eval/cases.yaml</code> · <code>boundary.yaml</code> · <code>pressure.yaml</code> · <code>probes.yaml</code></td><td><span class="tag t-mod">迁移</span></td><td>导入数据集 <code>offshore-wind/inspection</code>，文件名作为 tag（边界、压力、探针）</td></tr>
+      <tr><td><code>eval/verdict.py</code> · <code>prompt_injection.py</code></td><td><span class="tag t-mod">迁移</span></td><td>改写为 <code>@scorer("fault_type_match")</code>、<code>@scorer("procedure_compliance")</code>；注入用例进数据集</td></tr>
+      <tr><td><code>eval/run.py</code></td><td><span class="tag t-del">删除</span></td><td>由 <code>keel eval run</code> / <code>keel gate</code> 替代</td></tr>
+      <tr><td><code>agent/grounding.py</code></td><td><span class="tag t-mod">改造</span></td><td>GROUNDING_MODE 的 off / shadow / enforce 设计是 SDK <code>guard.grounding</code> 的原型；领域规则保留为插件</td></tr>
+      <tr><td><code>agent/tools_spec.py</code> · <code>tools/</code></td><td><span class="tag t-mod">改造</span></td><td>改成 <code>@agent.tool</code>，风险等级写进 manifest；<code>work_order_create</code> 绑定"班组长审批"</td></tr>
+      <tr><td><code>data/*.md</code>（故障手册、安全规程）</td><td><span class="tag t-mod">迁移</span></td><td>导入 rag-forge 知识库 <code>fault-manual</code>、<code>safety-procedures</code>，本地检索下线</td></tr>
+      <tr><td><code>agent/loop.py</code> · <code>composer.py</code> · <code>checklist.py</code> · <code>prompts.py</code></td><td><span class="tag t-keep">保留</span></td><td>业务核心；提示词迁到 Langfuse，本地 prompts.py 作兜底</td></tr>
+      <tr><td><code>tests/test_budget.py</code> 等</td><td><span class="tag t-keep">保留</span></td><td>预算逻辑改为读 manifest 的 budget，测试跟着改</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="pane" data-pane="mig">
+  <p>Java 21 · Spring Boot 3.5.15。已接入 auth-gateway 和 rag-forge，是目标形态，<b>主要是把 observability 和 audit 抽进 starter</b>。</p>
+  <table>
+    <thead><tr><th>现有代码</th><th>处理</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>com.careermate.observability.*</code>（TracingMdcFilter、AgentTracing、TracingLlmClient、LlmTracingSupport、CareerMateTracingProperties）</td><td><span class="tag t-del">迁入 starter</span></td><td>作为 starter 的默认实现（<code>com.keel.starter.tracing</code>），careermate 删掉本地副本；导出目标从 SkyWalking 增加 Langfuse（OTLP/HTTP）</td></tr>
+      <tr><td><code>com.careermate.audit.service.AuditService</code></td><td><span class="tag t-mod">改造</span></td><td>实现改为调用 starter 的 AuditReporter 上报 keel-audit；本地审计表保留一个版本周期作缓冲，之后删除</td></tr>
+      <tr><td><code>com.careermate.mcp.McpToolService</code> · tool_execution_log</td><td><span class="tag t-mod">改造</span></td><td>风险等级声明迁到 manifest；执行日志由 starter 的 ToolInvoker 统一记录；<code>resume.delete</code> 绑定"确认 + 24h 冷却"</td></tr>
+      <tr><td><code>com.careermate.ragforge.RagForgeClient</code></td><td><span class="tag t-del">迁入 starter</span></td><td>成为 starter 的 KnowledgeClient；careermate 改用 <code>ctx.knowledge()</code></td></tr>
+      <tr><td><code>com.careermate.llm.*</code></td><td><span class="tag t-mod">改造</span></td><td>Provider 抽象保留，底层地址改为 LiteLLM；面试评分的 temperature=0、固定 seed 写进 manifest</td></tr>
+      <tr><td><code>com.careermate.prompt.*</code></td><td><span class="tag t-mod">改造</span></td><td>提示词迁 Langfuse，按 production 标签拉取，本地作兜底</td></tr>
+      <tr><td><code>agent</code> · <code>interview</code> · <code>resume</code> · <code>jobmatch</code> 等业务包</td><td><span class="tag t-keep">保留</span></td><td>业务不动；入口方法加 <code>@KeelEntry</code></td></tr>
+      <tr><td>评测</td><td><span class="tag t-new">新增</span></td><td>careermate 目前没有评测集，从真实对话挑 50 条起步，建数据集 <code>careermate/resume-review</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="pane" data-pane="mig">
+  <p>Java 21 · Spring Boot 3.5.15。按 <code>kind: Service</code> 登记，<b>不走评测门禁</b>，检索评测台保留在 rag-forge。</p>
+  <table>
+    <thead><tr><th>方面</th><th>改动</th></tr></thead>
+    <tbody>
+      <tr><td>登记</td><td>仓库根目录加 <code>service.yaml</code>（kind: Service）；Deployment 加标签 <code>keel.io/service: rag-forge</code>；就绪探针用已有的 <code>/actuator/health</code></td></tr>
+      <tr><td>追踪</td><td>已有 micrometer-tracing，加 OTLP/HTTP exporter 指向 Langfuse；检索入口读 traceparent；RetrievalService 的分段耗时（rewrite / vector / keyword / rerank）写成子 span，span 类型 retriever，属性带 kb、top_k、scores</td></tr>
+      <tr><td>指标</td><td>Micrometer 指标加 <code>caller_agent</code>（从 JWT 的 azp 或请求头取）、<code>kb</code> 两个标签</td></tr>
+      <tr><td>模型</td><td><code>modelcenter</code> 里改写、应答、向量化、judge 的调用地址改为 LiteLLM，用 rag-forge 自己的虚拟 Key；自部署 reranker 不经过 LiteLLM；<code>model_usage_daily</code> 保留做组织分摊</td></tr>
+      <tr><td>审计</td><td>知识库增删、文档导入、破玻璃提权、API Key 变更 → <code>config.change</code> 事件经 RocketMQ 发 keel-audit；本地审计表保留</td></tr>
+      <tr><td>评测</td><td>新增只读接口 <code>GET /api/v1/eval/summary?kb=</code>，返回 recall@5、零结果率、最近评测时间，供控制台展示</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="pane" data-pane="mig">
+  <p>Java 17 · Spring Boot 3.2。现在 7 个 Agent 是同一进程里的 Bean，由 <code>AgentSupervisor</code> 顺序调用、共享 <code>state</code>。<b>先升级，再拆出三个智能体，起步仍放在同一个进程。</b></p>
+  <table>
+    <thead><tr><th>现有代码</th><th>去向</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>pom.xml</td><td><span class="tag t-mod">升级</span></td><td>Spring Boot 3.2 → 3.5.15，Java 17 → 21，与平台一致</td></tr>
+      <tr><td><code>workflow/AgentSupervisor</code></td><td><span class="tag t-mod">→ dev-copilot</span></td><td>顺序调用改为 <code>ctx.delegate</code>；共享 state 改为持久化任务表（长流程、可恢复、可人工确认）</td></tr>
+      <tr><td><code>agents/PrdAgent</code></td><td><span class="tag t-mod">→ prd-agent</span></td><td>独立 manifest；产出 PRD 后挂起等人工确认</td></tr>
+      <tr><td><code>agents/TestAgent</code> · <code>CodeFixAgent</code></td><td><span class="tag t-mod">→ test-gen</span></td><td>合并为测试生成 + 自动修复；<code>maven.test.run</code> 注册为执行类工具，在沙箱容器里跑</td></tr>
+      <tr><td><code>BackendCodeAgent</code> · <code>FrontendCodeAgent</code> · <code>RuntimeAgent</code></td><td><span class="tag t-keep">留在 dev-copilot 内部</span></td><td>暂不单独注册，作为 dev-copilot 内部步骤；需要复用时再拆</td></tr>
+      <tr><td><code>RagAgent</code> · <code>rag/</code></td><td><span class="tag t-del">删除</span></td><td>改用 rag-forge（知识库 <code>dev-standards</code>：编码规范、接口规范）</td></tr>
+      <tr><td><code>persistence/</code>（执行记录、Prompt 版本、模型返回）</td><td><span class="tag t-del">删除</span></td><td>执行记录进 Langfuse 追踪，Prompt 版本进 Langfuse 提示词管理</td></tr>
+      <tr><td><code>llm/</code></td><td><span class="tag t-mod">改造</span></td><td>改用 starter 的 LlmClient → LiteLLM</td></tr>
+    </tbody>
+  </table>
+  <div class="note info">code-review、ci-doctor 是新智能体，用 <code>keel new --template tool-agent</code> 创建（Python），不从这个项目迁移。它们要被 Git Webhook 单独触发，所以一开始就独立部署。</div></div>
+
+  <h3>迁移顺序</h3>
+  <table>
+    <thead><tr><th>顺序</th><th>对象</th><th>阶段</th><th>理由</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>askdb</td><td>P1</td><td>SDK 从它抽出来，改动最小，用来验证 SDK</td></tr>
+      <tr><td>2</td><td>rag-forge（共享服务）</td><td>P1</td><td>被多个智能体调用，先接入追踪，后面的链路才完整</td></tr>
+      <tr><td>3</td><td>offshore-wind</td><td>P1～P2</td><td>删除最多，验证评测迁移和门禁</td></tr>
+      <tr><td>4</td><td>careermate</td><td>P2</td><td>验证 Java starter</td></tr>
+      <tr><td>5</td><td>ops-copilot（新建）</td><td>P2</td><td>验证多智能体委派，askdb、offshore-wind 已就位</td></tr>
+      <tr><td>6</td><td>dev-copilot、prd-agent、test-gen</td><td>P3</td><td>需要先升级版本</td></tr>
+      <tr><td>7</td><td>code-review、ci-doctor（新建）· cs-bot（Dify）</td><td>P3</td><td>新建，按新智能体流程</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 10 -->
+<section id="t10">
+  <h2><span class="no">10</span>新智能体创建流程</h2>
+  <p class="lead">两条路：<b>代码开发</b>（复杂推理、对接内部系统）和<b>低代码 Dify</b>（客服、FAQ）。下面以代码开发的"代码评审 code-review"为例。控制台里也有同样流程的向导，见前端原型的"新建智能体"。</p>
+  <div class="steps">
+    <div class="step"><h4>生成项目<span class="time">5 分钟</span></h4>
+<pre><button class="copy">复制</button>keel new code-review --lang python --template tool-agent --owner 研发效能组</pre>
+      <div class="auto"><b>自动完成：</b>生成项目骨架、agent.yaml 草稿、10 条冒烟评测用例、Dockerfile、CI 模板；在 keel-server 预占名称。</div></div>
+    <div class="step"><h4>填写 agent.yaml<span class="time">半小时</span></h4>
+<pre><button class="copy">复制</button><span class="k">apiVersion</span>: keel/v1
+<span class="k">kind</span>: Agent
+<span class="k">metadata</span>: { <span class="k">name</span>: code-review, <span class="k">displayName</span>: 代码评审, <span class="k">owner</span>: 研发效能组 / amy }
+<span class="k">spec</span>:
+  <span class="k">runtime</span>:  { <span class="k">type</span>: code, <span class="k">language</span>: python, <span class="k">endpoint</span>: http://code-review.agents.svc:8000, <span class="k">liveness</span>: k8s }
+  <span class="k">auth</span>:     { <span class="k">audience</span>: code-review, <span class="k">roles</span>: [developer, ci_bot] }
+  <span class="k">models</span>:   { <span class="k">default</span>: qwen-plus, <span class="k">fallback</span>: [deepseek-v3], <span class="k">budget</span>: { <span class="k">dailyCny</span>: 30, <span class="k">maxSteps</span>: 8 } }
+  <span class="k">knowledge</span>: [ { <span class="k">kb</span>: dev-standards } ]            <span class="c"># 编码规范，rag-forge</span>
+  <span class="k">tools</span>:
+    - { <span class="k">name</span>: git.pr.diff,    <span class="k">access</span>: read,  <span class="k">risk</span>: low }            <span class="c"># 共享工具，需授权</span>
+    - { <span class="k">name</span>: git.pr.comment, <span class="k">access</span>: write, <span class="k">risk</span>: mid }
+  <span class="k">guardrails</span>: { <span class="k">inputInjection</span>: enforce, <span class="k">pii</span>: mask }
+  <span class="k">audit</span>:    { <span class="k">retentionDays</span>: 180, <span class="k">captureFields</span>: [pr_url, findings_count] }
+  <span class="k">eval</span>:
+    <span class="k">dataset</span>: code-review/findings
+    <span class="k">evaluators</span>: [llm_judge, code:finding_precision]
+    <span class="k">gate</span>: { <span class="k">minScore</span>: 0.80, <span class="k">maxRegression</span>: 0.02, <span class="k">byTag</span>: true }</pre></div>
+    <div class="step"><h4>写业务逻辑<span class="time">核心工作</span></h4>
+<pre><button class="copy">复制</button><span class="k">from</span> keel <span class="k">import</span> Agent, Context
+agent = Agent.from_manifest(<span class="s">"agent.yaml"</span>)
+
+<span class="d">@agent.entry</span>
+<span class="k">async def</span> <span class="f">handle</span>(req, ctx: Context):
+    diff  = <span class="k">await</span> ctx.tools.call(<span class="s">"git.pr.diff"</span>, pr_url=req.input[<span class="s">"pr_url"</span>])
+    rules = <span class="k">await</span> ctx.knowledge.search(<span class="s">"dev-standards"</span>, diff.summary, top_k=8)
+    review = <span class="k">await</span> ctx.llm.chat(messages=review_prompt(diff, rules))
+    <span class="k">await</span> ctx.tools.call(<span class="s">"git.pr.comment"</span>, pr_url=req.input[<span class="s">"pr_url"</span>], body=review.text)
+    <span class="k">return</span> ctx.final(review, citations=rules.citations)
+
+app = agent.asgi()</pre></div>
+    <div class="step"><h4>准备评测集<span class="time">半天</span></h4><p>从历史 PR 里挑 50 条以上：真实问题、误报、该放过的，写进 <code>evals/seed.jsonl</code> 并打 tags（安全、规范、性能、误报）。领域评分函数写在 <code>evals/scorers.py</code>。</p></div>
+    <div class="step"><h4>本地联调<span class="time">即时</span></h4>
+<pre><button class="copy">复制</button>keel dev                                    <span class="c"># 热重载；追踪进 Langfuse dev 项目；审计、审批走本地 keel-lite</span>
+keel eval run --dataset code-review/findings <span class="c"># 和 CI 同一套评分器</span></pre></div>
+    <div class="step"><h4>申请共享工具和知识库权限<span class="time">视审批</span></h4><p>在控制台对 <code>git.pr.diff</code>、<code>git.pr.comment</code>、<code>dev-standards</code> 发起授权申请，工具所有者批准后写入 <code>agent_tool_grant</code>。没有授权，注册自检会失败。</p></div>
+    <div class="step"><h4>注册到 staging<span class="time">10 分钟</span></h4>
+<pre><button class="copy">复制</button>keel register --env staging</pre>
+      <div class="auto"><b>自动完成：</b>校验 manifest → 建 LiteLLM 虚拟 Key（2 个模型、日预算 ¥30）→ 写 Secret <code>keel-code-review</code> → 导入评测用例 → 部署后自检（健康、协议、追踪、审批绑定）→ 状态 REGISTERED，网关对 staging 开放路由。</div></div>
+    <div class="step"><h4>过门禁发布 prod<span class="time">自动</span></h4>
+<pre><button class="copy">复制</button><span class="c"># .github/workflows/keel.yml（模板生成，一般不用改）</span>
+<span class="k">jobs</span>:
+  <span class="k">release</span>:
+    <span class="k">steps</span>:
+      - <span class="k">run</span>: pytest
+      - <span class="k">run</span>: keel gate --env prod                <span class="c"># 不达标则失败</span>
+      - <span class="k">run</span>: docker build -t $IMAGE . && docker push $IMAGE
+      - <span class="k">run</span>: keel release --env prod --image $IMAGE</pre>
+      <div class="auto"><b>自动完成：</b>跑实验、逐维度对比、回写门禁结论 → 提示词打 production 标签 → 更新路由 → 写审计。上线当天就有追踪、审计、质量看板、成本管控。</div></div>
+    <div class="step"><h4>接入触发方式<span class="time">按需</span></h4><p>用户在界面调用走 keel-gateway；code-review 还要被 Git Webhook 触发：在 keel-gateway 配一条 Webhook 路由（验签后转成 <code>/v1/invoke</code>，身份用服务账号 <code>ci_bot</code>）。</p></div>
+  </div>
+
+  <h3>Dify 路径（P3）</h3>
+  <div class="card"><ol style="margin-left:20px">
+    <li>在 Dify 里配好应用，模型提供方选 OpenAI 兼容，地址填 LiteLLM，Key 暂时留空</li>
+    <li>控制台 → 新建智能体 → 低代码 Dify，填 Dify 应用 Key 和负责人</li>
+    <li>平台自动生成 manifest，建虚拟 Key 回填给 Dify，keel-gateway 开启 Dify 协议适配路由</li>
+    <li>在 Dify 应用设置里填 Langfuse 的 Key，节点级追踪进同一个 Langfuse 项目</li>
+    <li>导入 FAQ 评测集，门禁规则同代码智能体</li>
+  </ol></div>
+
+  <h3>接入检查清单</h3>
+  <table>
+    <thead><tr><th>检查项</th><th>谁检查</th><th>不通过的后果</th></tr></thead>
+    <tbody>
+      <tr><td>manifest 通过 Schema 校验，除 name / endpoint 外缺省项有默认值</td><td>CLI + keel-server</td><td>无法注册</td></tr>
+      <tr><td>声明的共享工具、知识库都已授权</td><td>keel-server</td><td>无法注册</td></tr>
+      <tr><td>高风险工具都绑定审批策略</td><td>keel-server 自检</td><td>无法注册</td></tr>
+      <tr><td>代码里没有直接 import 厂商 SDK、没有硬编码 Key</td><td>keel gate 静态扫描</td><td>无法发布</td></tr>
+      <tr><td>/v1/health、协议自检、追踪上报正常</td><td>keel-server 自检</td><td>停在 REGISTERED</td></tr>
+      <tr><td>评测集 ≥ 50 条，覆盖 manifest 里的所有 tags</td><td>keel gate</td><td>无法发布 prod（staging 不限制）</td></tr>
+      <tr><td>门禁分数达标</td><td>keel gate</td><td>无法发布 prod</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 11 -->
+<section id="t11">
+  <h2><span class="no">11</span>前端工程</h2>
+  <p class="lead">控制台前端单独成一个文件：<a href="Keel-控制台前端.html"><b>Keel-控制台前端.html</b></a>（桌面同目录，双击打开，可交互）。它是开发 <code>console/</code> 工程的页面原型。</p>
+  <table>
+    <thead><tr><th>页面</th><th>路由</th><th>主要交互</th><th>数据接口</th></tr></thead>
+    <tbody>
+      <tr><td>总览</td><td><code>/overview</code></td><td>KPI、10 个智能体健康表、告警、成本，点智能体进详情</td><td><code>insight/overview</code></td></tr>
+      <tr><td>智能体</td><td><code>/agents</code> · <code>/agents/:name</code></td><td>按业务 / 研发、状态、关键字筛选；详情抽屉：manifest、自检、实例、资源、版本</td><td><code>agents</code></td></tr>
+      <tr><td>新建智能体</td><td><code>/agents/new</code></td><td>四步向导：方式 → 基本信息 → 模板与资源 → 预览 agent.yaml 并模拟注册</td><td><code>POST agents</code></td></tr>
+      <tr><td>共享服务</td><td><code>/services</code></td><td>服务健康、rag-forge 分段耗时、知识库</td><td><code>insight/services</code></td></tr>
+      <tr><td>链路追踪</td><td><code>/traces/:id</code></td><td>瀑布图，点 span 看详情，跳 Langfuse</td><td><code>insight/traces</code></td></tr>
+      <tr><td>工具与审批</td><td><code>/tools</code> · <code>/approvals</code></td><td>工具注册表（版本、状态、依赖方）、废弃工具弹窗、审批批准 / 驳回</td><td><code>tools</code> · <code>approvals</code></td></tr>
+      <tr><td>审计中心</td><td><code>/audit</code></td><td>筛选、详情抽屉、哈希链校验</td><td><code>audit/events</code></td></tr>
+      <tr><td>模型网关</td><td><code>/models</code></td><td>模型、虚拟 Key 与预算</td><td><code>insight/costs</code></td></tr>
+      <tr><td>评测中心</td><td><code>/eval</code></td><td>门禁结论、分维度对比</td><td><code>release</code> · Langfuse</td></tr>
+    </tbody>
+  </table>
+  <div class="note info">权限：平台管理员看全部；智能体负责人只能看和操作自己组织的智能体；审批人只看到分给自己的审批单。菜单和按钮都按角色控制，后端再校验一次。</div>
+</section>
+
+<!-- 12 -->
+<section id="t12">
+  <h2><span class="no">12</span>部署与环境</h2>
+  <h3>命名空间与资源（起步估算，压测后调整）</h3>
+  <table>
+    <thead><tr><th>命名空间</th><th>工作负载</th><th>副本</th><th>单副本资源</th><th>备注</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="5"><code>keel-system</code></td><td>keel-gateway</td><td>2</td><td>0.5～1 核 · 1G</td><td>HPA 按连接数扩容</td></tr>
+      <tr><td>keel-server</td><td>2</td><td>0.5 核 · 1G</td><td>ServiceAccount 有 agents 命名空间的 Secret 写权限、Pod 读权限</td></tr>
+      <tr><td>keel-audit</td><td>2</td><td>0.5 核 · 768M</td><td>独立数据库账号</td></tr>
+      <tr><td>keel-console</td><td>1</td><td>0.1 核 · 128M</td><td>Nginx 静态站点</td></tr>
+      <tr><td>litellm</td><td>2</td><td><b>1 核 · 4Gi</b>（requests = limits）</td><td>官方下限：低于 4Gi 会被 OOM；每个 Pod 只跑 1 个 worker，按 CPU 60% 扩容；多副本必须接 Redis；关闭其自带的 Langfuse 回调</td></tr>
+      <tr><td><code>shared</code></td><td>auth-gateway、rag-forge、reranker</td><td>现有</td><td>现有</td><td>rag-forge 加 OTel</td></tr>
+      <tr><td><code>agents</code></td><td>10 个智能体</td><td>1～2</td><td>按智能体</td><td>NetworkPolicy：只接受 keel-gateway 和其他智能体的流量</td></tr>
+      <tr><td>观测节点（ECS 8C32G）</td><td>langfuse-web、worker、ClickHouse、Redis</td><td>1</td><td>—</td><td>同 VPC；内网访问；每天备份到 OSS</td></tr>
+    </tbody>
+  </table>
+  <h3>三套环境</h3>
+  <table>
+    <thead><tr><th>环境</th><th>Langfuse</th><th>LiteLLM Key</th><th>审计</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td>dev（本机）</td><td>dev 项目</td><td>开发者个人 Key，低预算</td><td>keel-lite（SQLite）</td><td><code>keel dev</code></td></tr>
+      <tr><td>staging</td><td>staging 项目</td><td>{agent}-staging</td><td>keel-audit（staging 分区）</td><td>注册自检、联调、评测</td></tr>
+      <tr><td>prod</td><td>prod 项目</td><td>{agent}-prod</td><td>keel-audit</td><td>线上</td></tr>
+    </tbody>
+  </table>
+  <h3>配置与密钥</h3>
+  <ul class="dot">
+    <li>厂商 API Key 只存在 LiteLLM 的 Secret 里，智能体、Keel 服务都拿不到</li>
+    <li>每个智能体一个 Secret <code>keel-{agent}</code>，由 keel-server 创建和回收，智能体 Deployment 用 <code>envFrom</code> 引用</li>
+    <li>Keel 服务自身的配置走 ConfigMap；数据库密码走 Secret</li>
+    <li>Langfuse 界面只在内网 / VPN 访问；LiteLLM 管理界面不对外</li>
+  </ul>
+</section>
+
+<!-- 13 -->
+<section id="t13">
+  <h2><span class="no">13</span>开发规范</h2>
+  <div class="grid2">
+    <div class="card"><h4>契约</h4><ul class="dot">
+      <li>改契约先改 <code>contracts/</code>，Java 模型和 Python pydantic 模型由它生成</li>
+      <li>契约带版本 keel/v1；新增字段必须可选；删除字段要升 v2，平台同时兼容两个小版本</li>
+      <li>契约测试：SDK 和 starter 都要跑同一套 <code>contracts/tests</code> 用例</li>
+    </ul></div>
+    <div class="card"><h4>错误码</h4><ul class="dot">
+      <li>格式 <code>{模块}_{原因}</code>，如 <code>GW_QUOTA_EXCEEDED</code>、<code>TOOL_NOT_GRANTED</code>、<code>TOOL_RETIRED</code>、<code>APPROVAL_REJECTED</code></li>
+      <li>错误体统一 <code>{code, message, trace_id, retryable}</code></li>
+      <li>SSE 中出错发 <code>event: error</code>，不直接断连</li>
+    </ul></div>
+    <div class="card"><h4>日志与追踪</h4><ul class="dot">
+      <li>所有日志带 <code>trace_id</code>、<code>agent</code></li>
+      <li>span 属性不放原文，原文只按审计白名单记录</li>
+      <li>Keel 服务自身的服务级追踪进 SkyWalking，智能体语义追踪进 Langfuse</li>
+    </ul></div>
+    <div class="card"><h4>测试</h4><ul class="dot">
+      <li>Java：JUnit 5 + Testcontainers（PG、Redis）；网关 SSE 断开、超时、并发释放必须有用例</li>
+      <li>Python：pytest；SDK 用假的 Langfuse / LiteLLM 服务做集成测试</li>
+      <li>核心模块单测覆盖率 ≥ 70%；审计哈希链、配额、审批状态机要求 100% 分支覆盖</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- 14 -->
+<section id="t14">
+  <h2><span class="no">14</span>里程碑与任务拆分</h2>
+  <table>
+    <thead><tr><th>阶段</th><th>时间</th><th>交付</th><th>验收</th></tr></thead>
+    <tbody>
+      <tr><td><b>P0 契约与 SDK</b></td><td>第 1–2 周</td><td>contracts/ keel/v1；auth-gateway 四处改造；Python SDK（运行时、追踪、审计上报、<code>ctx.llm</code>、keel-lite、CLI new/dev）；Java starter 骨架；keel-common</td><td><code>keel new hello-agent</code> 后 30 分钟内本地看到追踪和审计</td></tr>
+      <tr><td><b>P1 平台核心</b></td><td>第 3–5 周</td><td>自建 Langfuse、部署 LiteLLM；keel-server（registry、provisioning、discovery、insight 基础）；keel-audit；控制台总览、智能体、追踪、审计、模型网关页；askdb、rag-forge 接入；offshore-wind 开始迁移</td><td>三个服务的链路在同一个 trace 里；智能体代码里没有厂商 Key</td></tr>
+      <tr><td><b>P2 门禁 + 网关</b></td><td>第 6–8 周</td><td>keel gate + CI 模板；评测迁移；keel-gateway 轻量版；tool、release 模块；共享服务页；careermate 迁移；ops-copilot 上线</td><td>offshore-wind 评测不达标时发布被自动阻止；外部流量全部经过网关</td></tr>
+      <tr><td><b>P3 审批 · 研发智能体 · Dify</b></td><td>第 9–12 周</td><td>approval 模块和企业微信通知；工具生命周期；keel-gateway 完整版；ai-multi-agent-dev-platform 升级拆分；code-review、ci-doctor；Dify 与 cs-bot</td><td>10 个智能体在同一个控制台管理</td></tr>
+    </tbody>
+  </table>
+  <h3>P0～P1 任务拆分（可直接建任务）</h3>
+  <table>
+    <thead><tr><th>模块</th><th>任务</th><th>估时</th><th>依赖</th></tr></thead>
+    <tbody>
+      <tr><td>contracts</td><td>manifest / invoke / sse / audit 四份 Schema + 错误码</td><td>3 天</td><td>—</td></tr>
+      <tr><td>auth-gateway</td><td>客户端注册内部 API；scopes 表驱动（<code>audience_scopes</code>）；<code>roles</code> claim（<code>user_roles</code>）；注册 <code>keel-api</code> 受众和 keel-gateway 客户端</td><td>4 天</td><td>—</td></tr>
+      <tr><td>sdk-python</td><td>agent / context / asgi / protocol</td><td>3 天</td><td>contracts</td></tr>
+      <tr><td>sdk-python</td><td>tracing（OTel + 缓冲 + LangGraph 适配）</td><td>2 天</td><td>Langfuse dev 项目</td></tr>
+      <tr><td>sdk-python</td><td>llm（→ LiteLLM）、knowledge、audit reporter、lite、cli new/dev</td><td>4 天</td><td>—</td></tr>
+      <tr><td>starter</td><td>自动装配、InvokeController、tracing（迁入 careermate 代码）</td><td>4 天</td><td>contracts</td></tr>
+      <tr><td>部署</td><td>观测节点 + Langfuse v4（无界面初始化 dev / staging / prod 三个项目）；LiteLLM + 价格配置 + Redis</td><td>2 天</td><td>ECS</td></tr>
+      <tr><td>keel-server</td><td>registry + 自检 + provisioning（LiteLLM、Secret、Langfuse 数据集）</td><td>5 天</td><td>LiteLLM、Langfuse</td></tr>
+      <tr><td>keel-server</td><td>discovery（K8s watcher、心跳、对账）</td><td>3 天</td><td>registry</td></tr>
+      <tr><td>keel-audit</td><td>写入（同步 + MQ）、哈希链、查询</td><td>4 天</td><td>contracts</td></tr>
+      <tr><td>keel-server</td><td>insight：总览、追踪组装、成本</td><td>4 天</td><td>Langfuse、LiteLLM</td></tr>
+      <tr><td>console</td><td>工程骨架 + 总览、智能体、追踪、审计、模型网关五页</td><td>6 天</td><td>insight API</td></tr>
+      <tr><td>迁移</td><td>askdb 接入（影子运行 1 周）</td><td>3 天</td><td>SDK</td></tr>
+      <tr><td>迁移</td><td>rag-forge 加 OTel、指标标签、登记</td><td>2 天</td><td>Langfuse</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 15 -->
+<section id="t15">
+  <h2><span class="no">15</span>开工前核实结论</h2>
+  <p class="lead">2026-09-30 核实：auth-gateway 查的是本地源码，LiteLLM、Langfuse 查的是官方文档。正文里受影响的地方都已按下面的结论改过。</p>
+  <table>
+    <thead><tr><th>核实项</th><th>原来的写法</th><th>核实结果</th><th>结论</th></tr></thead>
+    <tbody>
+      <tr><td>auth-gateway JWKS</td><td>用 JWKS 验签</td><td><code>GET /.well-known/jwks.json</code>，缓存 1 小时；issuer 默认 <code>https://auth.careermate.cn</code></td><td><span class="tag t-reuse">可直接用</span></td></tr>
+      <tr><td>auth-gateway Token Exchange</td><td>委派时换票</td><td>已实现 <code>POST /oauth/token-exchange</code>；换出的 token 保留用户身份，加 <code>azp</code>、<code>act</code>，有效期 600 秒；可以链式再换（总控 → 子智能体）</td><td><span class="tag t-reuse">可用</span>，但有 4 处缺口，见下表</td></tr>
+      <tr><td>网关"按 aud 准入"</td><td>网关检查 JWT 的 aud 是否等于目标智能体</td><td>用户 token 只有一个 aud（登录时指定），不可能同时是 10 个智能体</td><td><span class="tag t-mod">已改设计</span> 用户 token 的 aud 统一为 <code>keel-api</code>，网关按 roles / scopes 准入后<b>换票</b>成目标智能体的 aud。换票从网关完整版提前到轻量版</td></tr>
+      <tr><td>Langfuse 用 auth-gateway 单点登录</td><td>auth-gateway 能当 OIDC 提供方就接上</td><td>auth-gateway 没有授权端点和 <code>/.well-known/openid-configuration</code>，不是 OIDC 提供方</td><td><span class="tag t-mod">先不做</span> Langfuse 用邮箱密码 + <code>AUTH_DISABLE_SIGNUP=true</code>，管理员用无界面初始化创建；以后 auth-gateway 补 OIDC 再接</td></tr>
+      <tr><td>Langfuse 版本与接口</td><td>v3；读 <code>/api/public/traces</code> 等</td><td>当前是 v4：旧的 traces、observations、sessions、scores、metrics、dataset runs 读接口全部返回 404；替代为 Observations API v2、Metrics API v2、Scores API v3、experiments API；trace 级在线评估器在 v4 不再运行</td><td><span class="tag t-mod">已改</span> 直接部署 v4；在线评估器配成 observation 级（挂在根 agent 节点上）</td></tr>
+      <tr><td>Langfuse OTLP</td><td>OTLP/HTTP 上报</td><td>端点 <code>/api/public/otel/v1/traces</code>，Basic Auth，只支持 HTTP（JSON / protobuf），不支持 gRPC；要带 <code>x-langfuse-ingestion-version: 4</code></td><td><span class="tag t-mod">已补请求头</span></td></tr>
+      <tr><td>Langfuse 提示词标签</td><td>发布时更新标签</td><td><code>PATCH /api/public/v2/prompts/{name}/versions/{version}</code> 存在</td><td><span class="tag t-reuse">可用</span></td></tr>
+      <tr><td>Langfuse 观测节点规格</td><td>ECS 8 核 32G · 200G</td><td>官方 Docker Compose 建议至少 4 核 16GiB、100GiB；Compose 方式没有高可用、没有内置备份</td><td><span class="tag t-reuse">够用</span>，余量约 2 倍；备份按设计文档第 09 节的做法自己配</td></tr>
+      <tr><td>Langfuse 自动开通</td><td>Keel 替智能体开通 Langfuse</td><td>支持无界面初始化（预建组织、项目、API Key、首个用户）；项目管理 API 属于企业版</td><td><span class="tag t-mod">已调整</span> 每个环境一个项目，用无界面初始化建好；智能体共用项目 Key，按 <code>keel.agent</code> 区分</td></tr>
+      <tr><td>LiteLLM 虚拟 Key</td><td>generate / update / delete</td><td><code>/key/generate</code> 支持 models、max_budget、budget_duration、key_alias、metadata；另有 <code>/key/block</code>、<code>/key/unblock</code>；可配 <code>key_alias_pattern</code> 强制命名</td><td><span class="tag t-reuse">可用</span>；<code>/key/delete</code> 在开工时于 Swagger（<code>/docs</code>）再确认一次</td></tr>
+      <tr><td>LiteLLM 花费明细</td><td><code>/spend/logs</code></td><td>旧接口最多返回最近 1 万行；推荐分页的 <code>/spend/logs/v2</code>，汇总用 <code>/global/spend/report</code></td><td><span class="tag t-mod">已改</span></td></tr>
+      <tr><td>LiteLLM 资源</td><td>每副本 1～2 核、2～4G</td><td>官方：每个 Pod 1 vCPU + 4Gi（requests = limits），4Gi 是下限，低于会 OOM；1 个 worker / Pod，按 CPU 60% 扩容；多副本需要 Redis</td><td><span class="tag t-mod">已改</span> 2 副本共 2 核 8Gi，比原估算多约 4G 内存</td></tr>
+      <tr><td>LiteLLM 国内模型价格</td><td>需在 model_info 配价格</td><td>缺价格时只打一行 WARNING，成本记 0</td><td><span class="tag t-reuse">确认</span>，上线前逐个模型检查</td></tr>
+      <tr><td>keel-gateway / keel-server / keel-audit 资源</td><td>0.5～1 核、1G 左右</td><td>无官方数据可核，属于自研服务</td><td><span class="tag t-keep">仍是估算</span> P2 压测后定</td></tr>
+    </tbody>
+  </table>
+
+  <h3>auth-gateway 需要的改造（P0，接入前完成）</h3>
+  <table>
+    <thead><tr><th>#</th><th>缺口</th><th>源码位置</th><th>影响</th><th>改法</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><b>没有客户端注册 API</b></td><td><code>db/migration/V2__seed_oauth_clients.sql</code>：客户端靠 Flyway 脚本插入</td><td>keel register 无法自动给智能体开通 OAuth 客户端</td><td>加内部接口 <code>POST/PATCH /internal/oauth-clients</code>（仅 keel-server 的客户端可调，写审计）</td></tr>
+      <tr><td>2</td><td><b>scopes 写死在代码里</b></td><td><code>TokenIssuer.scopesFor()</code>：只有 careermate-api、ragforge-admin-api 有 scopes，其他 aud 一律为空</td><td>Token Exchange 要求请求的 scopes 非空且用户持有，<b>aud=keel-api 的用户 token 换票必然失败</b></td><td>改为表驱动：新表 <code>audience_scopes</code>，给 keel-api 配 <code>agent:invoke</code>、<code>rag:search</code> 等</td></tr>
+      <tr><td>3</td><td><b>没有业务角色</b></td><td>token 只有单值 <code>platform_role</code>（ADMIN / KB_EDITOR / KB_VIEWER / USER）</td><td>manifest 里的 <code>auth.roles: [ops_engineer]</code> 无从判断</td><td>加 <code>roles</code> 多值 claim（来自新表 <code>user_roles</code>）；过渡期先用 scopes <code>agent:{name}:invoke</code> 控制</td></tr>
+      <tr><td>4</td><td><b>客户端必须有自己的密钥</b></td><td><code>ClientAuthenticator</code>：只接受 private_key_jwt（RS256），从客户端的 <code>jwks_uri</code> 取公钥；assertion 10 分钟内有效、jti 不可重放</td><td>每个智能体、keel-gateway 都要一对密钥和可访问的 jwks_uri</td><td>不改 auth-gateway：keel-server 注册时生成密钥，私钥进 Secret，公钥托管在 <code>/agents/{name}/jwks.json</code></td></tr>
+    </tbody>
+  </table>
+  <div class="note"><b>另外两点，不阻塞开工：</b>① token 有效期：访问 token 900 秒、换票 token 600 秒。研发总控这类跑几十分钟、要等人工审批的流程，不能一直拿着用户 token，改用 auth-gateway 已有的<b>委托授权</b>（用户授权一次 → <code>/oauth/delegation-token</code> 签发 principal_type=agent 的 token）；普通调用由 SDK 在 token 过期前 60 秒自动重新换票。② 换票 token 的 <code>act</code> 是字符串，多级委派时会被覆盖，看不到完整链路。Keel 的委派链靠追踪（<code>keel.parent_agent</code>）和审计记录，不依赖 <code>act</code>；以后可以改成 RFC 8693 的嵌套 act。</div>
+  <div class="note info"><b>换票规则落到客户端配置上：</b>auth-gateway 要求"被换的 token 的 aud"和"要换成的 aud"都在客户端的 <code>allowed_audiences</code> 里。所以 keel-gateway 客户端要允许 <code>keel-api</code> + 全部智能体；ops-copilot 客户端要允许 <code>ops-copilot</code> + manifest 里 <code>delegates</code> 的 askdb、offshore-wind + <code>ragforge-api</code>。这张表由 keel-server 根据 manifest 自动生成，注册、改 delegates 时同步给 auth-gateway。</div>
+
+  <h3>核实依据</h3>
+  <table>
+    <thead><tr><th>对象</th><th>依据</th><th>看了什么</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="6">auth-gateway</td><td><code>web/JwksController.java</code></td><td>JWKS 路径与缓存时间</td></tr>
+      <tr><td><code>web/OAuthTokenExchangeController.java</code> · <code>oauth/TokenExchangeService.java</code></td><td>换票接口、字段名、aud 与 scopes 校验规则</td></tr>
+      <tr><td><code>auth/TokenIssuer.java</code></td><td>token 里的 claims、<code>scopesFor()</code> 写死的 scopes、换票 token 的 azp / act</td></tr>
+      <tr><td><code>auth/TokenStatusService.java</code> · <code>oauth/ClientAuthenticator.java</code></td><td>只接受 principal_type=user 的会话 token；客户端 private_key_jwt 规则</td></tr>
+      <tr><td><code>db/migration/V1~V3</code> · <code>application.yml</code></td><td>oauth_clients 表结构与种子数据；issuer、token 有效期</td></tr>
+      <tr><td><code>web/OAuthConsentController.java</code> · <code>oauth/ConsentService.java</code></td><td>委托授权与委托 token</td></tr>
+      <tr><td rowspan="3">Langfuse</td><td><a href="https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4" target="_blank">v3 → v4 升级指南</a></td><td>下线的旧接口、替代接口、最低基础设施版本、SDK 版本要求</td></tr>
+      <tr><td><a href="https://langfuse.com/integrations/native/opentelemetry" target="_blank">OpenTelemetry 接入</a></td><td>OTLP 端点、认证、请求头、属性映射、不支持 gRPC</td></tr>
+      <tr><td><a href="https://langfuse.com/self-hosting/deployment/docker-compose" target="_blank">Docker Compose 部署</a> · <a href="https://langfuse.com/self-hosting/security/authentication-and-sso" target="_blank">认证与 SSO</a></td><td>机器规格、无界面初始化、SSO 对提供方的要求</td></tr>
+      <tr><td rowspan="3">LiteLLM</td><td><a href="https://docs.litellm.ai/docs/proxy/virtual_keys" target="_blank">虚拟 Key</a></td><td>Key 接口与参数、block / unblock、别名规则</td></tr>
+      <tr><td><a href="https://docs.litellm.ai/docs/proxy/prod" target="_blank">生产部署</a></td><td>每 Pod 1 vCPU + 4Gi、worker 策略、扩容阈值、Redis</td></tr>
+      <tr><td><a href="https://docs.litellm.ai/docs/proxy/cost_tracking" target="_blank">成本统计</a></td><td><code>/spend/logs</code> 1 万行上限、<code>/spend/logs/v2</code>、<code>/global/spend/report</code>、缺价格时的行为</td></tr>
+    </tbody>
+  </table>
+
+  <h3>还没确认的事项</h3>
+  <table>
+    <thead><tr><th>事项</th><th>为什么现在确认不了</th><th>什么时候确认</th><th>怎么确认</th></tr></thead>
+    <tbody>
+      <tr><td>LiteLLM <code>/key/delete</code></td><td>读到的文档页没出现这个接口</td><td>P1 部署 LiteLLM 当天</td><td>打开 LiteLLM 的 <code>/docs</code>（Swagger）查接口；没有就下线只做 block</td></tr>
+      <tr><td>keel-gateway / keel-server / keel-audit 资源</td><td>自研服务，没有官方数据</td><td>P2 网关轻量版完成后</td><td>压测：100 个并发 SSE 会话、每秒 50 次调用，看 CPU、内存、P95</td></tr>
+      <tr><td>Langfuse v4 固定版本号</td><td>要以部署当天的最新稳定版为准</td><td>P1 部署观测节点时</td><td>锁定镜像版本；Python SDK 同步锁到 ≥ 4.7.0 的对应版本</td></tr>
+      <tr><td>auth-gateway 改造方案评审</td><td>涉及现有 careermate、rag-forge 的登录链路</td><td>P0 第 1 周</td><td>改造后跑 auth-gateway 现有测试，careermate、rag-forge 登录和换票回归一遍</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer><span>Keel 智能体底座 · 技术文档 v1.1（已完成开工前核实）</span><span>2026-09-30 · 基于 careermate / askdb / offshore-wind-agent / rag-forge / auth-gateway / ai-multi-agent-dev-platform 现状</span></footer>
+</div></main>
+
+<script>
+document.querySelectorAll('.tabs').forEach(tabs=>{
+  const key=tabs.dataset.tabs;
+  const panes=[...document.querySelectorAll('.pane[data-pane="'+key+'"]')];
+  [...tabs.children].forEach((b,i)=>b.onclick=()=>{
+    [...tabs.children].forEach(x=>x.classList.toggle('on',x===b));
+    panes.forEach((p,j)=>p.classList.toggle('on',j===i));
+  });
+});
+document.querySelectorAll('pre .copy').forEach(btn=>btn.onclick=()=>{
+  const pre=btn.parentElement.cloneNode(true);pre.querySelector('.copy').remove();
+  navigator.clipboard.writeText(pre.innerText.trim()).then(()=>{btn.textContent='已复制';setTimeout(()=>btn.textContent='复制',1200)});
+});
+const links=[...document.querySelectorAll('#toc a')];
+const secs=links.map(a=>document.querySelector(a.getAttribute('href')));
+const spy=()=>{let cur=0;secs.forEach((s,i)=>{if(s.getBoundingClientRect().top<140)cur=i});links.forEach((a,i)=>a.classList.toggle('on',i===cur))};
+addEventListener('scroll',spy,{passive:true});spy();
+</script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+---
+description: Keel Java 服务的分层、包结构与框架选择约束
+globs: **/*.java
+alwaysApply: false
+---
+
+# Java 服务约束
+
+Java 21 · Spring Boot 3.5.15 · MyBatis-Plus + Flyway · 根包统一 `com.keel`。
+
+## 包结构：业务模块优先
+
+顶层按业务模块划分，模块内再分 `controller / service / mapper / model`：
+
+```
+keel-server/src/main/java/com/keel/server/
+├── config/ common/
+├── registry/    { controller, service, mapper, model }
+├── provisioning/ discovery/ tool/ approval/ release/ insight/
+└── integration/ { langfuse, litellm, prometheus, authgw, k8s, audit }
+```
+
+不要按技术层建顶层包。出现顶层的 `controller/`、`service/`、`dao/` 就是错的。
+
+## 依赖方向（ArchUnit 测试会拦）
+
+- 模块之间只能调用对方的 `service` 接口，**禁止跨模块使用对方的 `mapper`**。
+- 外部系统只能通过 `integration` 包访问。业务模块里不允许直接 new HTTP 客户端或 SDK 客户端。
+- `insight` 包只读，不允许写任何业务表。
+- `controller` 里不允许出现 SQL、事务注解和业务判断，只做参数校验和调用 service。
+
+## 框架选择
+
+- keel-gateway 用 **WebFlux**（要持有大量 SSE 长连接）；keel-server、keel-audit 用 **Spring MVC + 虚拟线程**。不要混。
+- JWT 验签用 Spring Security OAuth2 Resource Server + auth-gateway 的 JWKS，不要自己解析 token。
+- 数据库变更一律写 Flyway 脚本放 `src/main/resources/db/migration`，不要用 JPA/MyBatis 自动建表。
+- 统一返回 `R<T>`，全局异常处理放 `common/`。
+- 所有会改配置的接口加 `@Audited`，由切面写 `config.change` 审计事件。
+
+## 网关过滤器顺序（不要改）
+
+`-200` RootSpanFilter → `-100` JwtAuthFilter → `-90` AgentAccessFilter → `-80` QuotaFilter → `-70` ConcurrencyLimiter → `-60` TokenExchange → `0` 路由转发。
+RootSpanFilter 必须最先，保证被拦截的请求也有 trace；TokenExchange 必须在配额之后，被限流的请求不换票。
+InvokeAuditFilter 在 `doFinally` 里发事件，成功、失败、取消都要记。

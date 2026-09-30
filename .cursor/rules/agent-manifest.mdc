@@ -1,0 +1,38 @@
+---
+description: agent.yaml（manifest）与智能体项目结构约束
+globs: **/agent.yaml
+alwaysApply: false
+---
+
+# agent.yaml 约束
+
+`apiVersion: keel/v1`，Schema 是 `contracts/manifest.schema.json`。除 `metadata.name` 和 `spec.runtime.endpoint` 外所有字段都有默认值。
+
+## 不允许出现的内容
+
+- 厂商 API Key、厂商模型的真实名称。`models.default` / `fallback` 填的是 **LiteLLM 里的模型别名**。
+- `budget.dailyCny` 是人民币，不要写美元。
+- 未在 keel-server 注册的工具名、未授权的知识库。注册自检会直接失败。
+
+## 必须成立的约束
+
+- `risk: high` 的工具必须带 `approval: required`，否则注册自检不通过。
+- `audit.captureFields` 是白名单，只写真正需要留痕的字段。写了敏感字段等于把它写进审计库。
+- `eval.gate.minScore` 和 `maxRegression` 是 CI 门禁的阈值，改这两个数字等于放宽发布标准，要在 spec 里说明理由。
+- `delegates` 里列的智能体必须已注册。keel-server 会据此生成 auth-gateway 的 `allowed_audiences`。
+
+## 智能体项目结构
+
+```
+{agent}/
+├── agent.yaml          # 唯一需要认真写的配置
+├── app.py              # @agent.entry
+├── tools/              # @agent.tool
+├── prompts/            # 兜底副本，正式版本在 Langfuse
+├── evals/{seed.jsonl, scorers.py}
+├── tests/
+└── Dockerfile · .github/workflows/keel.yml
+```
+
+项目里**不允许再出现**：`trace.py`、`tracestore.py`、`TracingMdcFilter`、`audit.py`、`auditstore.py`、`AuditService`、`evalstore.py`、`evalview.py`、`/admin` 质量页面、任何厂商 API Key。
+迁移存量项目时，这些文件要删，不是保留两份。

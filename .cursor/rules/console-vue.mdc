@@ -1,0 +1,34 @@
+---
+description: keel-console（Vue 3 控制台）前端约束
+globs: console/**
+alwaysApply: false
+---
+
+# 控制台前端约束
+
+Vue 3.4+ · Vite 5 · TypeScript · Element Plus · Pinia · Vue Router · ECharts。
+
+## 和原型的关系
+
+页面原型是 `Keel-控制台前端.html`，按它拆成 `src/views/` 下的组件。
+**原型里的写死数据只是布局参考**，实现时全部换成接口数据。原型里下面这些是没做的，正式工程必须真正实现：
+
+- 链路追踪只有一条写死的 trace（`RECENT` 数组、`N_M` 节点数组），要改成从 `insight/traces` 拉列表 + 详情
+- 「全部智能体」下拉框没绑事件，要真正筛选
+- 点击非首条最近调用只弹 toast，要真正切换 trace
+
+## 数据来源
+
+- **前端只调 keel-server**，不允许直接调 Langfuse、LiteLLM、Prometheus。
+- 跳 Langfuse 只用深链：`{langfuse}/project/{id}/traces/{traceId}`。
+- 所有请求走 `api/http.ts` 统一 axios 实例（带 JWT、trace_id 透传）。不要在组件里直接 new axios。
+
+## 渲染
+
+- 链路追踪的协作图用 SVG 自绘，不引图形库。协作图、泳道时间线、调用树是**同一份节点数据的三种渲染**，不要各查一次接口。
+- 状态色、状态点口径统一走 `components/StatusPill.vue`，三档：ok / 降级 / 失败。
+
+## 权限
+
+菜单和按钮按角色控制可见性，但不能只靠前端，后端必须再校验一次。
+平台管理员看全部；智能体负责人只看本组织；审批人只看分给自己的审批单。

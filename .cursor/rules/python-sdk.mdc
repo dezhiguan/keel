@@ -1,0 +1,40 @@
+---
+description: keel-sdk（Python）的设计约束
+globs: sdk-python/**/*.py
+alwaysApply: false
+---
+
+# Python SDK 约束
+
+Python 3.11+ · pydantic v2 · httpx · OpenTelemetry SDK。包名 `keel-sdk`，CLI 入口命令 `keel`。
+
+## 依赖边界
+
+- **运行时上报只依赖标准 OTel**。`keel/tracing/`、`keel/agent.py`、`keel/context.py` 里不允许 import langfuse。
+- Langfuse SDK 只允许出现在 `keel/eval/` 和 `keel/gate/`（跑实验、读分数）。
+  理由：以后换观测组件时，运行时不用动。
+
+## 上报
+
+- 所有上报异步、有界队列。队列满时丢追踪，**审计转写本地 jsonl 后台重放，不允许丢**。
+- 高风险审计走同步 HTTP，写失败就让业务调用失败。其余走 RocketMQ。
+
+## 协议与挂载
+
+- `asgi.py` 必须同时支持两种用法：`agent.asgi()` 返回独立 ASGI 应用，`mount_to(fastapi_app)` 挂进现有 FastAPI。
+  askdb 和 offshore-wind 都是存量 FastAPI 项目，迁移时要求原有接口先保留。
+- manifest 校验以 `contracts/manifest.schema.json` 为准，pydantic 模型由它生成，不要手写第二份。
+
+## 业务代码里看不到底座
+
+`@agent.entry`、`@agent.tool`、`ctx.*` 内部完成追踪、审计、护栏、配额、换票。业务代码里出现任何上报调用都是设计错误。
+
+## ctx.delegate
+
+必须自动传递：`traceparent`、换票后的 JWT、`X-Keel-Budget` 剩余预算、`X-Keel-Eval-Run`。
+manifest 的 `delegates` 里没声明的智能体不允许委派。
+同进程内委派也要生成 `agent` 类型的 span 和审计，追踪上看不出和跨服务的区别。
+
+## 打包
+
+CLI、运行时、keel-lite、keel-gate 同一个包、同一个版本号，不要拆包。
