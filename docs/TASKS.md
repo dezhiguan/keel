@@ -31,6 +31,7 @@
 | ID | 任务 | 依赖 | 执行者 | 完成标准 |
 |---|---|---|---|---|
 | P0-1 | `contracts/` 五份 Schema（manifest、invoke、sse-events、audit-event、trace-attributes）+ `error-codes.yaml` | — | **Cursor** | 五份文件冻结为 keel/v1，评审通过 |
+| P0-1a | 运行生命周期契约：`run_id`、`suspend` 事件、`resume` 接口、`agent_run` 表定义 | — | **Cursor** | 与 P0-1 同批冻结；三种 suspend reason 的枚举一次写全 |
 | P0-2 | 契约代码生成：keel-common 的 Java 模型 + Python pydantic 模型由 schema 生成 | P0-1 | Codex | 改 schema 重新生成，两边模型一致 |
 | P0-3 | `contracts/tests` 跨语言一致性用例 | P0-1 | Codex | SDK 和 starter 跑同一套用例都通过 |
 | P0-4 | monorepo 骨架：父 pom、各模块空工程、ArchUnit 分层规则、CI 模板 | — | Codex | `mvn -q test` 通过，ArchUnit 能拦住跨模块用 mapper |
@@ -54,7 +55,7 @@
 |---|---|---|---|---|
 | P1-1 | 观测节点 + Langfuse v4 自建，无界面初始化 dev/staging/prod 三个项目，配备份和磁盘监控 | ECS | 人工 + Cursor | 内网可访问，镜像版本已锁定 |
 | P1-2 | LiteLLM 部署 + `config.yaml`（模型、价格、路由降级）+ Redis；**关闭自带 Langfuse 回调** | P1-1 | Codex | 国内模型成本不为 0，两边价格口径一致 |
-| P1-3 | keel-server 工程骨架 + `keel` 库全部 Flyway 脚本（11 张表） | P0-4 | Codex | Testcontainers 起 PG 迁移通过 |
+| P1-3 | keel-server 工程骨架 + `keel` 库全部 Flyway 脚本（12 张表，含 P0-1a 的 `agent_run`） | P0-4 | Codex | Testcontainers 起 PG 迁移通过 |
 | P1-4 | registry：agent / agent_version / agent_instance CRUD + 控制台查询接口 | P1-3 | Codex | 接口按 OpenAPI 对齐 |
 | P1-5 | ManifestValidator + SelfCheckService（健康、协议、追踪、审批绑定四项自检） | P1-4 | **Cursor** | 缺授权、缺审批策略时注册被拒 |
 | P1-6 | provisioning 编排 + 失败逆序回滚 + `agent_resource` 记录 | P1-4 | **Cursor** | 任一步失败后外部资源被完整回收 |
@@ -69,7 +70,7 @@
 | P1-15 | console 工程骨架 + 总览、智能体、审计、模型网关四页 | P1-14 | Codex | 按原型实现，数据全部走接口 |
 | P1-16 | console 链路追踪页：**trace 列表**（原型缺这块）+ 三视图详情 + 按智能体筛选 | P1-13 P1-15 | **Cursor** | 列表可筛选可分页，点行进详情 |
 | P1-17 | askdb 接入：删 trace/audit/quota/approvals/evalstore，影子运行一周 | P0-6~8 | **Cursor** | 新旧链路数、审计条数、评测分数一致后删旧代码 |
-| P1-18 | rag-forge：OTel exporter、检索分段子 span、`caller_agent`/`kb` 指标标签、`service.yaml` 登记 | P1-1 | Codex | 检索作为 retriever 节点进调用方的 trace |
+| P1-18 | rag-forge：OTel exporter、检索分段子 span、`caller_agent`/`kb` 指标标签、`service.yaml` 登记、模型调用改走 LiteLLM | P1-1 P0-1 | Codex | 检索作为 retriever 节点进调用方的 trace；embedding 无 fallback，向量空间不变 |
 
 ---
 
@@ -86,7 +87,7 @@
 | P2-5 | offshore-wind 迁移：删 tracestore/evalview/admin，用例导入数据集并打 tag | P2-4 | **Cursor** | 四类用例按 tag 可逐维度对比 |
 | P2-6 | keel-gateway：过滤器链骨架 + RootSpanFilter + JwtAuthFilter + AgentAccessFilter | P0-5 | **Cursor** | 被拦截的请求也有 trace |
 | P2-7 | keel-gateway：QuotaFilter（Redis Lua 三维令牌桶）+ ConcurrencyLimiter | P2-6 | **Cursor** | 异常断开也释放并发位，**100% 分支覆盖** |
-| P2-8 | keel-gateway：SSE 透传 + 断开取消上游 + InvokeAuditFilter | P2-6 | **Cursor** | 成功、失败、取消都有审计 |
+| P2-8 | keel-gateway：SSE 透传 + 断开取消上游 + InvokeAuditFilter + 转发 `suspend` 时释放并发位 | P2-6 | **Cursor** | 成功、失败、取消都有审计；挂起期间不占并发位 |
 | P2-9 | keel-gateway：RegistryRouteLocator + RouteCache + 长轮询同步 | P2-6 P1-4 | Codex | keel-server 挂掉时继续用旧路由 |
 | P2-10 | tool 模块：注册表、版本、依赖方查询、废弃任务 | P1-3 | Codex | 有 prod 依赖时下线被拒 |
 | P2-11 | release 模块：发布记录、门禁结论回写、PromptDriftJob | P2-1 | Codex | production 标签漂移能告警 |
@@ -102,9 +103,9 @@
 
 | ID | 任务 | 依赖 | 执行者 |
 |---|---|---|---|
-| P3-1 | approval 状态机 + 超时/冷却 + 等待超 10 分钟后重新换票、委托 token 兜底 | P1-11 | **Cursor** |
+| P3-1 | approval 状态机 + 超时/冷却 + 等待超 10 分钟后重新换票、委托 token 兜底；`agent_run` 的挂起与恢复（按 P0-1a） | P1-11 | **Cursor** |
 | P3-2 | ApprovalNotifier（企业微信 / 钉钉 / 站内）+ 回调接口 | P3-1 | Codex |
-| P3-3 | console：工具与审批页 | P3-1 | Codex |
+| P3-3 | console：「工具」页 +「审批中心」（按 subject_type 分四组：工具 / 智能体 / 数据导出 / 人工介入） | P3-1 | Codex |
 | P3-4 | 工具生命周期：破坏兼容强制改名、依赖方回归触发、下线拦截 | P2-10 | **Cursor** |
 | P3-5 | keel-gateway 完整版：协议适配、流式脱敏、灰度、熔断 | P2-8 | **Cursor** |
 | P3-6 | ai-multi-agent-dev-platform 升级（Boot 3.2→3.5、Java 17→21）并拆出 prd-agent / test-gen / dev-copilot | P2-13 | **Cursor** |

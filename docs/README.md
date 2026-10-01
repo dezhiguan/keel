@@ -8,7 +8,7 @@
 |---|---|---|
 | `design/` | 底座总体设计 | [智能体底座设计](design/Keel-智能体底座设计.html) |
 | `architecture/` | 全平台实现 | [技术文档](architecture/Keel-技术文档.html) |
-| `specs/` | 任务 spec | [模板](specs/_TEMPLATE.md) · [P0-1 契约](specs/P0-1-contracts-v1.md) |
+| `specs/` | 任务 spec | [模板](specs/_TEMPLATE.md) · [P0-1 契约](specs/P0-1-contracts-v1.md) · [P0-1a 运行生命周期](specs/P0-1a-run-lifecycle.md) |
 | `TASKS.md` | 任务拆解 | [TASKS](TASKS.md) |
 
 ## 按包

@@ -428,7 +428,7 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
       <div class="eyebrow">Design Doc · Agent Platform Base</div>
       <h1>Keel <em>龙骨</em></h1>
       <div class="sub">智能体平台底座：只建一次，所有智能体复用</div>
-      <p class="lead">龙骨是船底那根纵梁。船上装什么货各不相同，但每条船都靠它承重。Keel 对智能体也是这个角色：鉴权、模型调用、知识检索、链路追踪、审计、评测、质量监控、工具审批都由底座承担，每个智能体只写自己的业务逻辑。</p>
+      <p class="lead">龙骨是船底那根纵梁。船上装什么货各不相同，但每条船都靠它承重。Keel 对智能体也是这个角色：鉴权、模型调用、知识检索、链路追踪、审计、评测、质量监控、工具审批、人工介入与恢复都由底座承担，每个智能体只写自己的业务逻辑。</p>
       <div class="meta">
         <span class="tag fill">careermate</span><span class="tag fill">askdb</span><span class="tag fill">offshore-wind-agent</span><span class="tag">智能客服（Dify）</span><span class="tag">后续所有新智能体</span>
       </div>
@@ -447,7 +447,7 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
         <path d="M30 140 L490 140 L470 176 Q260 214 50 176 Z" stroke-width="2" fill="#fbf9f4"/>
         <path d="M232 196 L288 196 L276 262 L244 262 Z" fill="#d9480f" stroke="#d9480f"/>
         <line x1="40" y1="158" x2="480" y2="158" stroke="#7b8190" stroke-dasharray="3 3"/>
-        <text x="260" y="164" text-anchor="middle" font-family="PingFang SC, sans-serif" font-size="11" fill="#3a4557" stroke="none" style="paint-order:stroke" >鉴权 · 模型 · 知识 · 追踪 · 审计 · 评测 · 质量 · 工具审批</text>
+        <text x="260" y="164" text-anchor="middle" font-family="PingFang SC, sans-serif" font-size="11" fill="#3a4557" stroke="none" style="paint-order:stroke" >鉴权 · 模型 · 知识 · 追踪 · 审计 · 评测 · 质量 · 审批 · 人工介入</text>
         <line x1="290" y1="232" x2="360" y2="252"/><line x1="360" y1="252" x2="500" y2="252"/>
         <line x1="20" y1="92" x2="20" y2="136"/><line x1="16" y1="92" x2="24" y2="92"/><line x1="16" y1="136" x2="24" y2="136"/>
         <g font-family="PingFang SC, sans-serif" stroke="none">
@@ -529,7 +529,7 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
         <div class="grp">治理</div>
         <button data-v="eval"><i>✓</i>评测中心<span class="cnt">1</span></button>
         <button data-v="audit"><i>▤</i>审计中心</button>
-        <button data-v="tools"><i>⚙</i>工具与审批<span class="cnt" id="apprcnt">3</span></button>
+        <button data-v="tools"><i>⚙</i>审批中心<span class="cnt" id="apprcnt">5</span></button>
         <button data-v="models"><i>⇄</i>模型网关</button>
         <div class="env">环境 <b>● prod</b><br>能源数字化部<br>amy · 平台管理员</div>
       </div>
@@ -543,7 +543,7 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
             <div class="kpi"><div class="l">调用次数</div><div class="v">12,480</div><div class="d up">▲ 8.2%</div><svg viewBox="0 0 78 26"><polyline fill="none" stroke="#34c38f" stroke-width="1.6" points="0,20 10,18 20,19 30,14 40,15 50,11 60,12 70,7 78,5"/></svg></div>
             <div class="kpi"><div class="l">模型成本</div><div class="v">¥86.40</div><div class="d down">▲ 4.1%</div><svg viewBox="0 0 78 26"><polyline fill="none" stroke="#ff7a45" stroke-width="1.6" points="0,18 10,17 20,15 30,16 40,12 50,13 60,10 70,11 78,8"/></svg></div>
             <div class="kpi"><div class="l">平均评测分</div><div class="v">0.88</div><div class="d mut">门禁 0.85</div><svg viewBox="0 0 78 26"><polyline fill="none" stroke="#2ec4b6" stroke-width="1.6" points="0,14 10,12 20,13 30,10 40,11 50,9 60,10 70,9 78,11"/></svg></div>
-            <div class="kpi"><div class="l">待审批操作</div><div class="v" style="color:var(--warn)" id="apprkpi">3</div><div class="d mut">最早 18 分钟前</div></div>
+            <div class="kpi"><div class="l">待办审批</div><div class="v" style="color:var(--warn)" id="apprkpi">5</div><div class="d mut">最早 26 分钟前</div></div>
           </div>
           <div class="card">
             <h4>智能体<small>代码开发和低代码两种创建方式，统一管理</small></h4>
@@ -671,7 +671,7 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
           </div>
           <div class="card tsum">
             <div class="q">WT-07 最近一周告警频繁，查一下同批次风机的故障率，给出检修建议，需要的话直接建工单</div>
-            <div class="metas"><span>trace <b>tr_8a31f0c2</b></span><span>会话 <b>s_7f21 · 第 3 轮</b></span><span>用户 <b>u_88 运维工程师</b></span><span>参与智能体 <b>3</b></span><span>智能体耗时 <b>11.2s</b></span><span>人工等待 <b>4m12s</b></span><span>tokens <b>10,578</b></span><span>成本 <b>¥0.0214</b></span></div>
+            <div class="metas"><span>trace <b>tr_8a31f0c2</b></span><span>run <b>r_41c8 · 挂起 1 次</b></span><span>会话 <b>s_7f21 · 第 3 轮</b></span><span>用户 <b>u_88 运维工程师</b></span><span>参与智能体 <b>3</b></span><span>智能体耗时 <b>11.2s</b></span><span>人工等待 <b>4m12s</b></span><span>tokens <b>10,578</b></span><span>成本 <b>¥0.0214</b></span></div>
             <div class="contrib">
               <div><div class="lb"><span>耗时构成（关键路径）</span><span class="mono">11.2s</span></div><div class="stack"><i style="width:13%;background:#ff7a45"></i><i style="width:44%;background:#2ec4b6"></i><i style="width:30%;background:#ffb08f"></i><i style="width:5%;background:#f1b44c"></i><i style="width:8%;background:#8a97ab"></i></div><div class="keys"><span><i style="background:#ff7a45"></i>总控规划 1.4s</span><span><i style="background:#2ec4b6"></i>offshore-wind 4.9s</span><span><i style="background:#ffb08f"></i>总控汇总 3.4s</span><span><i style="background:#f1b44c"></i>建工单 0.6s</span><span><i style="background:#8a97ab"></i>平台与输出 0.9s</span></div></div>
               <div><div class="lb"><span>成本构成（按智能体）</span><span class="mono">¥0.0214</span></div><div class="stack"><i style="width:32%;background:#ff7a45"></i><i style="width:17%;background:#5b9cf6"></i><i style="width:49%;background:#2ec4b6"></i><i style="width:2%;background:#8a97ab"></i></div><div class="keys"><span><i style="background:#ff7a45"></i>运维总控 ¥0.0069</span><span><i style="background:#5b9cf6"></i>askdb ¥0.0036</span><span><i style="background:#2ec4b6"></i>offshore-wind ¥0.0105</span><span><i style="background:#8a97ab"></i>护栏 ¥0.0004</span></div></div>
@@ -817,7 +817,7 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
         </div>
 
         <div class="view" id="v-tools">
-          <div class="vh"><h3>工具与审批</h3><span class="crumb">工具统一注册，声明读写属性和风险等级，高风险调用必须审批</span><span class="sp"></span><button class="btn pri">+ 注册 MCP 工具</button></div>
+          <div class="vh"><h3>审批中心</h3><span class="crumb">所有需要人点一下的事都在这里，按类型分组：工具 · 智能体 · 数据导出 · 人工介入</span><span class="sp"></span><button class="btn pri">+ 注册 MCP 工具</button></div>
           <div class="row2">
             <div class="card">
               <h4>工具注册表</h4>
@@ -834,11 +834,13 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
               </table>
             </div>
             <div class="card">
-              <h4>待审批<span class="sp"></span><span class="pill p-warn" id="apprpill">3</span></h4>
+              <h4>待办<span class="sp"></span><span class="pill p-warn" id="apprpill">5</span></h4>
               <div id="apprs">
-                <div class="appr"><div class="top"><span class="pill p-bad">高</span><b>work_order_create</b><small>18 分钟前</small></div><p>offshore-wind 代 <b>张工</b> 创建工单：WT-07 变桨系统 F203，优先级 P1，24h 内登机检查。</p><div class="act"><button class="btn pri ok">批准</button><button class="btn no">驳回</button></div></div>
-                <div class="appr"><div class="top"><span class="pill p-warn">中</span><b>sql.execute · hr.salary</b><small>9 分钟前</small></div><p>askdb 代 <b>analyst@org_7</b> 查询部门平均薪资（聚合查询，不含个人明细）。</p><div class="act"><button class="btn pri ok">批准</button><button class="btn no">驳回</button></div></div>
-                <div class="appr"><div class="top"><span class="pill p-warn">中</span><b>data.export</b><small>2 分钟前</small></div><p>客服主管申请导出 cs-bot 近 7 天对话记录用于质检，导出前自动脱敏。</p><div class="act"><button class="btn pri ok">批准</button><button class="btn no">驳回</button></div></div>
+                <div class="appr"><div class="top"><span class="pill p-warn">工具调用</span><span class="pill p-bad">高</span><b>work_order_create</b><small>18 分钟前</small></div><p>offshore-wind 代 <b>张工</b> 创建工单：WT-07 变桨系统 F203，优先级 P1，24h 内登机检查。<small>run r_41c8 正挂起等待</small></p><div class="act"><button class="btn pri ok">批准</button><button class="btn no">驳回</button></div></div>
+                <div class="appr"><div class="top"><span class="pill p-warn">工具调用</span><span class="pill p-warn">中</span><b>sql.execute · hr.salary</b><small>9 分钟前</small></div><p>askdb 代 <b>analyst@org_7</b> 查询部门平均薪资（聚合查询，不含个人明细）。</p><div class="act"><button class="btn pri ok">批准</button><button class="btn no">驳回</button></div></div>
+                <div class="appr"><div class="top"><span class="pill p-acc">智能体配置</span><span class="pill p-bad">高</span><b>offshore-wind</b><small>26 分钟前</small></div><p>申请把接地校验从 <code>enforce</code> 改为 <code>shadow</code>（误拦率偏高，先观察两周）。<b>护栏降级要审批</b>，批准后写 config.change 审计。</p><div class="act"><button class="btn pri ok">批准</button><button class="btn no">驳回</button></div></div>
+                <div class="appr"><div class="top"><span class="pill p-bad">数据导出</span><span class="pill p-bad">高</span><b>audit_export · 7d</b><small>2 分钟前</small></div><p>客服主管申请导出 cs-bot 近 7 天对话记录用于质检，导出前自动脱敏。<small>由人发起，没有执行在等</small></p><div class="act"><button class="btn pri ok">批准</button><button class="btn no">驳回</button></div></div>
+                <div class="appr"><div class="top"><span class="pill p-soft">人工介入</span><span class="pill p-ok">低</span><b>等用户回答</b><small>3 分钟前</small></div><p>WT-07 和 WT-11 停机窗口冲突，请指定先检修哪一台。<b>这类没有审批单</b>，是 run 挂起等人回话，回完从断点继续。<small>run r_7b4a 正挂起等待</small></p><div class="act"><button class="btn pri ok">提交回复</button><button class="btn no">终止</button></div></div>
               </div>
             </div>
           </div>
@@ -959,7 +961,8 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
     <div class="cap"><div class="ix">C06</div><div><h4>评测与发布门禁<small>Langfuse 数据集 + keel-gate</small></h4><p>评测交给 Langfuse，Keel 只做"不达标就不许发布"这一件事。</p><ul><li>Langfuse：数据集（评测用例）、实验（跑一版、对比两版）、大模型裁判和代码评分器</li><li>keel-gate：CI 里跑实验、读分数、按用例标签和上一版逐维度对比，不达标让流水线失败</li><li>领域评分函数（故障类型、SQL 结果比对）由智能体提供，作为代码评分器注册到实验里</li></ul><div class="src">来源：Langfuse（采用）+ askdb evalstore.py 的门禁口径；offshore eval/、evalview.py 下线</div></div></div>
     <div class="cap"><div class="ix">C07</div><div><h4>质量监控与提示词<small>Langfuse</small></h4><p>上线后的持续质量监控和提示词版本管理，都直接用 Langfuse。</p><ul><li>用户点赞点踩写成分数；在线评估器按 5% 采样给线上对话打分；标注队列做人工抽检</li><li>坏案例从链路一键加入数据集，下次发布前自动回归</li><li>提示词版本化，用 production / staging 标签区分线上和测试版本，每条链路记录用的是哪一版</li><li>Keel 总览页调 Langfuse API，把解决率、转人工率、点踩率按智能体汇总</li></ul><div class="src">来源：Langfuse（采用）；offshore /admin 质量中心页面下线</div></div></div>
     <div class="cap"><div class="ix">C08</div><div><h4>护栏策略<small>guardrails</small></h4><p>作为策略配置，不写进业务代码。</p><ul><li>输入：提示词注入检测、敏感词</li><li>输出：接地校验 off / shadow / enforce 三种模式，PII 脱敏</li><li>先用 shadow 只做标注，确认效果后再切到 enforce</li></ul><div class="src">来源：offshore GROUNDING_MODE 设计</div></div></div>
-    <div class="cap"><div class="ix">C09</div><div><h4>工具注册与审批<small>keel-tools</small></h4><p>工具统一声明读写属性和风险等级。</p><ul><li>支持 MCP 工具注册，可跨智能体共享（如 rag.search）</li><li>高风险工具强制走审批，审批结果写入审计</li><li>工具执行日志统一记录</li></ul><div class="src">来源：careermate McpToolService / tool_execution_log + askdb approvals.py</div></div></div>
+    <div class="cap"><div class="ix">C09</div><div><h4>工具注册与生命周期<small>keel-tools</small></h4><p>工具统一声明读写属性和风险等级。</p><ul><li>支持 MCP 工具注册，可跨智能体共享（如 rag.search）</li><li>高风险工具强制走审批，审批结果写入审计</li><li>描述或参数变更触发依赖方回归评测；破坏兼容必须改名；有 prod 依赖不能直接下线</li><li>工具执行日志统一记录</li></ul><div class="src">来源：careermate McpToolService / tool_execution_log + askdb approvals.py</div></div></div>
+    <div class="cap"><div class="ix">C10</div><div><h4>审批中心与人工介入<small>approval · run lifecycle</small></h4><p>所有需要人点一下的事集中到一处，智能体不用各自建后台。</p><ul><li><b>四类审批共用一张表</b>（<code>subject_type</code>）：工具调用、工具变更（风险调低也要批）、智能体配置与下线、数据导出。不是只有工具调用要审批</li><li><b>人工介入</b>是另一回事：执行挂起等人回话（<code>input_required</code>）或转人工（<code>handoff</code>），没有审批单，处理完从断点继续</li><li>挂起时 SSE 流正常关闭，网关借此释放并发位；恢复时重新换票（原票 600 秒必然已过期）</li><li><b>边界：底座管账，智能体管现场。</b>底座存 run 状态、谁有权决定、截止时间、恢复入口；现场只存一个 <code>checkpoint_ref</code>，内容不碰。底座永远不决定下一步做什么——那是工作流引擎，不是 Keel</li><li>v1 不提供现场存储实现，askdb 继续用自带的 LangGraph checkpointer</li></ul><div class="src">来源：askdb approvals.py + LangGraph checkpoint；详见 docs/specs/P0-1a-run-lifecycle.md</div></div></div>
     <div class="cap"><div class="ix">C10</div><div><h4>注册中心与控制台<small>keel-console</small></h4><p>智能体的"户口本"和统一看板。</p><ul><li>存 manifest、版本、环境、负责人、绑定资源</li><li>注册时自动自检，并发放 LiteLLM 和 Langfuse 的 Key：不注册就调不了模型</li><li>通过 K8s watch、SDK 心跳、Dify 探活感知在线；定时对账，发现离线、未登记、下线不彻底就告警</li><li>第 03 节演示的所有页面</li></ul><div class="src">来源：新建（Vue 3，与 careermate 前端一致）</div></div></div>
   </div>
 
@@ -1087,6 +1090,7 @@ Headers:
 Body:
 {
   "session_id": "s_7f21",
+  "idempotency_key": "req_19ab7e",       # 可选，重复提交返回原 run
   "input":   { "text": "3号风机齿轮箱油温告警，下一步怎么处理？" },
   "context": { "user_id": "u_88", "org_id": "wind_ops", "channel": "web" },
   "options": { "stream": true, "eval_run_id": null }
@@ -1096,12 +1100,21 @@ Body:
 event: step    {"name": "route", "status": "ok"}
 event: tool    {"name": "alarm_query", "status": "ok"}
 event: token   {"text": "建议先…"}
-event: final   {"answer": "…", "citations": [], "meta": {}, "trace_id": "tr_5c1e9a4f"}
-event: error   {"code": "TOOL_TIMEOUT", "retryable": true}
+event: final   {"answer": "…", "citations": [], "meta": {}, "run_id": "r_41c8", "trace_id": "tr_5c1e9a4f"}
+event: error   {"code": "TOOL_TIMEOUT", "retryable": true, "run_id": "r_41c8"}
 
+# 需要人介入时发 suspend，然后流<b>正常关闭</b>（不是挂着等，否则占满网关并发位）
+event: suspend {"run_id": "r_41c8", "reason": "approval",
+                "ref": "ap_0912", "prompt": "代张工创建工单 WT-07 / P1",
+                "deadline": "2026-09-29T12:49:30Z", "resume_token": "rt_…"}
+
+POST /v1/runs/{run_id}/resume   # 人做完决定后恢复，返回新的 SSE 流（事件集同上）
+  { "resume_token": "rt_…", "decision": "approve", "input": null, "patch": {} }
+
+GET  /v1/runs/{run_id}   # 查 run 状态，不返回现场内容
 GET  /v1/health      # K8s 就绪探针、注册自检、发布流程使用
 GET  /v1/manifest    # 返回当前生效的 agent.yaml 和版本，注册中心对账时核对
-POST /v1/feedback    # SDK 自动挂载，点赞点踩写成 Langfuse 分数</pre><aside><h5>为什么统一调用协议</h5><ul><li>前端和渠道只对接<b>一种</b>协议，新智能体上线不用改前端</li><li>评测实验用同一个 <code>/v1/invoke</code> 跑任何智能体的数据集</li><li><code>eval_run_id</code> 不为空时标记为评测流量，不计入线上指标</li><li>Dify 应用由 keel-gateway 的协议适配转换成这套协议，对外表现一致</li></ul></aside></div>
+POST /v1/feedback    # SDK 自动挂载，点赞点踩写成 Langfuse 分数</pre><aside><h5>为什么统一调用协议</h5><ul><li>前端和渠道只对接<b>一种</b>协议，新智能体上线不用改前端</li><li>评测实验用同一个 <code>/v1/invoke</code> 跑任何智能体的数据集</li><li><code>eval_run_id</code> 不为空时标记为评测流量，不计入线上指标</li><li>Dify 应用由 keel-gateway 的协议适配转换成这套协议，对外表现一致</li></ul><h5>为什么把"等人"写进协议</h5><ul><li><code>suspend.reason</code> 三种：<code>approval</code> 等批准、<code>input_required</code> 等用户回答、<code>handoff</code> 转人工。审批只是其中一种</li><li>不这样写，每个智能体都得自己建待办后台、接通知渠道、管超时、记审计</li><li>换票 token 只有 600 秒，恢复时必然过期要重新换；并发位也只有协议层说了"挂起"网关才可能放掉。这两件事智能体自己做不到</li><li><b>底座管账，智能体管现场</b>：底座存 run 状态、谁有权决定、截止时间、审计和恢复入口；现场怎么序列化由智能体自己定，底座只存一个 <code>checkpoint_ref</code>，不碰内容。底座永远不决定下一步做什么</li></ul></aside></div>
     <div class="pane"><pre data-lang="json">// offshore-wind 作为子智能体上报的一个节点（OTLP / HTTP → Langfuse /api/public/otel）
 {
   "traceId":      "8a31f0c2…",          // 与运维总控同一个 trace：SDK 在委派时注入 traceparent
