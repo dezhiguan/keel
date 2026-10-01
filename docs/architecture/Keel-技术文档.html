@@ -156,8 +156,8 @@ footer{margin-top:60px;padding-top:16px;border-top:1px solid var(--line);font-si
   <p>本文是《Keel 智能体底座设计》的落地版本：定技术栈、定要新建哪些服务、定每个服务的包结构、定数据表和接口，并写清楚现有智能体怎么迁移、新智能体怎么创建。开发时以本文为准，设计上的取舍原因见设计文档。</p>
   <div class="chips"><span class="chip fill">Java 21 · Spring Boot 3.5.15</span><span class="chip fill">Python 3.11+</span><span class="chip fill">Vue 3 · Element Plus</span><span class="chip">LiteLLM</span><span class="chip">Langfuse（自建）</span><span class="chip">PostgreSQL · Redis · RocketMQ</span><span class="chip">k3s</span></div>
   <div class="linkcard">
-    <a href="Keel-控制台前端.html">Keel-控制台前端.html<small>控制台前端交互原型（同目录，单独文件）</small></a>
-    <a href="Keel-智能体底座设计.html">Keel-智能体底座设计.html<small>设计文档：为什么这样设计</small></a>
+    <a href="../console/Keel-控制台前端.html">Keel-控制台前端.html<small>控制台前端交互原型</small></a>
+    <a href="../design/Keel-智能体底座设计.html">Keel-智能体底座设计.html<small>设计文档：为什么这样设计</small></a>
   </div>
 </header>
 
@@ -509,7 +509,7 @@ footer{margin-top:60px;padding-top:16px;border-top:1px solid var(--line);font-si
     │   └── models/            <span class="c"># ModelGateway</span>
     ├── components/            <span class="c"># StatusPill、KpiCard、ManifestPreview、JsonViewer …</span>
     └── utils/                 <span class="c"># 格式化、权限判断</span></pre>
-    <aside><h5>说明</h5><ul><li>页面原型见桌面 <a href="Keel-控制台前端.html">Keel-控制台前端.html</a>，开发时按原型拆成上面的 views</li><li>所有数据来自 keel-server，前端不直接调 Langfuse、LiteLLM</li><li>跳转 Langfuse 用深链：<code>{langfuse}/project/{id}/traces/{traceId}</code></li></ul></aside>
+    <aside><h5>说明</h5><ul><li>页面原型见 <a href="../console/Keel-控制台前端.html">docs/console/Keel-控制台前端.html</a>，开发时按原型拆成上面的 views</li><li>所有数据来自 keel-server，前端不直接调 Langfuse、LiteLLM</li><li>跳转 Langfuse 用深链：<code>{langfuse}/project/{id}/traces/{traceId}</code></li></ul></aside>
   </div></div>
 
   <div class="pane" data-pane="pkg"><div class="twocol">
@@ -905,7 +905,7 @@ keel eval run --dataset code-review/findings <span class="c"># 和 CI 同一套�
 <!-- 11 -->
 <section id="t11">
   <h2><span class="no">11</span>前端工程</h2>
-  <p class="lead">控制台前端单独成一个文件：<a href="Keel-控制台前端.html"><b>Keel-控制台前端.html</b></a>（桌面同目录，双击打开，可交互）。它是开发 <code>console/</code> 工程的页面原型。</p>
+  <p class="lead">控制台前端单独成一个文件：<a href="../console/Keel-控制台前端.html"><b>docs/console/Keel-控制台前端.html</b></a>（双击打开，可交互）。它是开发 <code>console/</code> 工程的页面原型。</p>
   <table>
     <thead><tr><th>页面</th><th>路由</th><th>主要交互</th><th>数据接口</th></tr></thead>
     <tbody>

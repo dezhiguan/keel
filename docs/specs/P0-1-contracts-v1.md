@@ -106,7 +106,7 @@ npx @redocly/cli lint contracts/invoke.openapi.yaml
 ```
 
 - [ ] 六个文件全部通过各自的语法校验
-- [ ] 用 `Keel-智能体底座设计.html` 第 05 节里的 offshore-wind 完整示例作为 manifest 正例，能通过 schema
+- [ ] 用 `docs/design/Keel-智能体底座设计.html` 第 05 节里的 offshore-wind 完整示例作为 manifest 正例，能通过 schema
 - [ ] 构造至少 5 个反例（缺 name、risk=high 但无 approval、未知枚举值等），全部被拒
 - [ ] 技术负责人评审通过并打 tag `contracts/v1.0.0`
 

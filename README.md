@@ -6,11 +6,13 @@ Keel 对智能体是同一个角色：鉴权、模型调用、知识检索、链
 
 ## 文档
 
+文档在 `docs/` 下按包分类，索引见 [docs/README.md](docs/README.md)。
+
 | 文件 | 内容 |
 |---|---|
-| `Keel-技术文档.html` | 实现细节，最权威。包结构、数据库、接口、关键流程、开工前核实结论 |
-| `Keel-智能体底座设计.html` | 为什么这样设计，五份接入契约的原文 |
-| `Keel-控制台前端.html` | 控制台九个页面的交互原型，双击即可打开 |
+| `docs/architecture/Keel-技术文档.html` | 实现细节，最权威。包结构、数据库、接口、关键流程、开工前核实结论 |
+| `docs/design/Keel-智能体底座设计.html` | 为什么这样设计，五份接入契约的原文 |
+| `docs/console/Keel-控制台前端.html` | 控制台九个页面的交互原型，双击即可打开 |
 | `docs/TASKS.md` | 任务拆解，标注每条派给 Cursor 还是 Codex |
 | `docs/specs/` | 每条任务一份 spec，动手前先读 |
 
