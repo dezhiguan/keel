@@ -1,0 +1,9 @@
+# 反例：缺 spec.runtime.endpoint。
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  name: no-endpoint-agent
+spec:
+  runtime:
+    type: code
+    language: python

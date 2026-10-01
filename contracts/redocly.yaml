@@ -1,0 +1,8 @@
+# contracts/ 下 OpenAPI 文件的 lint 配置。
+# 只关掉对内部契约不适用的规则，其余保持 recommended，不要为了让 lint 变绿随手加例外。
+extends:
+  - recommended
+
+rules:
+  # 内部契约，不对外发布，没有 license 一说
+  info-license: off

@@ -1,0 +1,16 @@
+# 反例：Service 给向量化模型配了 fallback。
+# 一旦降级切到别的 embedding 模型，新算的向量和库里的存量向量不在同一个空间，
+# 检索会静默变烂——不报错，只是召回率掉下去。必须在 schema 层面拦死。
+apiVersion: keel/v1
+kind: Service
+metadata:
+  name: rag-forge-bad
+spec:
+  runtime:
+    endpoint: http://rag-forge.shared.svc:8080
+  models:
+    byPurpose:
+      embedding:
+        default: text-embedding-v3
+        fallback: [text-embedding-v2]
+    budget: { dailyCny: 200 }

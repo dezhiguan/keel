@@ -1,0 +1,73 @@
+[
+  {
+    "why": "suspend 缺 run_id：没有 run_id 就无从恢复",
+    "frame": {
+      "event": "suspend",
+      "data": {
+        "reason": "approval",
+        "ref": "ap_0912",
+        "resume_token": "rt_9f2a",
+        "trace_id": "tr_8a31f0c2"
+      }
+    }
+  },
+  {
+    "why": "suspend.reason 是未知值：枚举必须一次写全，不允许后补",
+    "frame": {
+      "event": "suspend",
+      "data": {
+        "run_id": "r_41c8",
+        "reason": "waiting_for_something_else",
+        "resume_token": "rt_9f2a",
+        "trace_id": "tr_8a31f0c2"
+      }
+    }
+  },
+  {
+    "why": "suspend 缺 resume_token：恢复时无从校验调用方看到过这次挂起",
+    "frame": {
+      "event": "suspend",
+      "data": { "run_id": "r_41c8", "reason": "approval", "trace_id": "tr_8a31f0c2" }
+    }
+  },
+  {
+    "why": "final 缺 run_id",
+    "frame": {
+      "event": "final",
+      "data": { "answer": "…", "trace_id": "tr_8a31f0c2" }
+    }
+  },
+  {
+    "why": "error 缺 run_id",
+    "frame": {
+      "event": "error",
+      "data": {
+        "code": "TOOL_TIMEOUT",
+        "message": "超时",
+        "trace_id": "tr_8a31f0c2",
+        "retryable": true
+      }
+    }
+  },
+  {
+    "why": "error 的 code 不符合 {模块}_{原因} 格式",
+    "frame": {
+      "event": "error",
+      "data": {
+        "code": "something went wrong",
+        "message": "…",
+        "trace_id": "tr_8a31f0c2",
+        "run_id": "r_41c8",
+        "retryable": false
+      }
+    }
+  },
+  {
+    "why": "step.status 不是三档之一",
+    "frame": { "event": "step", "data": { "name": "route", "status": "success" } }
+  },
+  {
+    "why": "未知事件类型",
+    "frame": { "event": "heartbeat", "data": {} }
+  }
+]

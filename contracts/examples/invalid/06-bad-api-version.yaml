@@ -1,0 +1,9 @@
+# 反例：apiVersion 不是 keel/v1。
+# v2 还不存在；真要升 v2 时平台会同时兼容两个小版本，但那是另一份 schema。
+apiVersion: keel/v2
+kind: Agent
+metadata:
+  name: future-agent
+spec:
+  runtime:
+    endpoint: http://future.agents.svc:8000

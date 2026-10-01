@@ -1,0 +1,12 @@
+# 反例：未知枚举值。
+# 未知「字段」必须被接受（平台要兼容两个小版本），但未知「枚举值」必须被拒——
+# 旧消费方遇到没见过的取值不知道怎么办。
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  name: bad-enum-agent
+spec:
+  runtime:
+    endpoint: http://bad-enum.agents.svc:8000
+  guardrails:
+    grounding: strict          # 合法取值只有 off / shadow / enforce

@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keel.io/contracts/v1/audit-event.schema.json",
+  "title": "Keel 审计事件",
+  "description": "只追加。应用数据库账号只有 INSERT / SELECT，代码里不允许出现 UPDATE / DELETE audit_event。payload 只允许 manifest audit.captureFields 白名单里的字段，其余一律丢弃。",
+  "type": "object",
+  "required": ["event_id", "ts", "agent", "env", "action", "risk", "decision", "hash"],
+  "properties": {
+    "event_id": { "type": "string", "minLength": 1 },
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 且必须以 Z 结尾。+00:00 写法与 Z 的规范化 JSON 不同，会导致哈希链跨语言验不过"
+    },
+    "agent": { "type": "string", "minLength": 1 },
+    "env": { "enum": ["dev", "staging", "prod"] },
+    "trace_id": { "type": "string" },
+    "run_id": { "type": "string", "description": "有执行在等时非空；由人直接发起的审批、导出为空" },
+    "actor": {
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string" },
+        "org_id": { "type": "string" },
+        "role": { "type": "string" }
+      }
+    },
+    "action": {
+      "enum": [
+        "invoke",
+        "tool.call",
+        "sql.execute",
+        "approval",
+        "config.change",
+        "data.export",
+        "run.suspend",
+        "run.resume"
+      ],
+      "description": "八个取值一次写全。run.suspend / run.resume 记的是执行挂起与恢复，和 approval 不是一回事——等用户回答、转人工都没有审批单"
+    },
+    "resource": { "type": "string" },
+    "risk": {
+      "enum": ["low", "mid", "high"],
+      "description": "high 必须同步写入，写失败则调用方拒绝执行业务，不允许降级成异步"
+    },
+    "decision": { "enum": ["allowed", "denied", "pending", "approved", "rejected"] },
+    "approver": { "type": "string" },
+    "payload": {
+      "type": "object",
+      "description": "只含白名单字段且已脱敏。白名单语义是「未列出的字段一律丢弃」，不是「列出的字段脱敏」"
+    },
+    "input_digest": { "type": "string", "description": "原文摘要，不是原文" },
+    "prev_hash": { "type": "string", "description": "链上一条的 hash；本智能体的第一条为空串" },
+    "hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "sha256(prev_hash + 规范化 JSON)。规范化规则见 contracts/tests/README.md，Java 与 Python 必须完全一致"
+    }
+  },
+  "allOf": [
+    {
+      "$comment": "高风险动作必须留下决策痕迹，不允许只有 allowed 而没有 approver 或 decision 的组合",
+      "if": {
+        "properties": { "risk": { "const": "high" }, "decision": { "const": "approved" } },
+        "required": ["risk", "decision"]
+      },
+      "then": { "required": ["approver"] }
+    }
+  ]
+}

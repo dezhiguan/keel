@@ -1,0 +1,91 @@
+[
+  {
+    "why": "普通步骤",
+    "frame": { "event": "step", "data": { "name": "route", "status": "ok" } }
+  },
+  {
+    "why": "工具调用降级",
+    "frame": { "event": "tool", "data": { "name": "alarm_query", "status": "fallback" } }
+  },
+  {
+    "why": "流式 token",
+    "frame": { "event": "token", "data": { "text": "建议先…" } }
+  },
+  {
+    "why": "正常结束，必须带 run_id 和 trace_id",
+    "frame": {
+      "event": "final",
+      "data": {
+        "answer": "建议 24h 内登机检查变桨系统。",
+        "citations": [{ "kb": "fault-manual", "doc": "F203" }],
+        "meta": {},
+        "trace_id": "tr_8a31f0c2",
+        "run_id": "r_41c8"
+      }
+    }
+  },
+  {
+    "why": "出错发 error 事件，不直接断连",
+    "frame": {
+      "event": "error",
+      "data": {
+        "code": "TOOL_TIMEOUT",
+        "message": "工具调用超时",
+        "trace_id": "tr_8a31f0c2",
+        "run_id": "r_41c8",
+        "retryable": true
+      }
+    }
+  },
+  {
+    "why": "suspend reason=approval：等批准，ref 是 approval_id",
+    "frame": {
+      "event": "suspend",
+      "data": {
+        "run_id": "r_41c8",
+        "reason": "approval",
+        "ref": "ap_0912",
+        "prompt": "代张工创建工单 WT-07 / P1",
+        "deadline": "2026-09-29T12:49:30Z",
+        "resume_token": "rt_9f2a",
+        "trace_id": "tr_8a31f0c2"
+      }
+    }
+  },
+  {
+    "why": "suspend reason=input_required：等用户回答，没有审批单所以没有 ref",
+    "frame": {
+      "event": "suspend",
+      "data": {
+        "run_id": "r_7b4a",
+        "reason": "input_required",
+        "prompt": "WT-07 和 WT-11 停机窗口冲突，先检修哪一台？",
+        "deadline": "2026-09-29T13:10:00Z",
+        "resume_token": "rt_1c83",
+        "trace_id": "tr_5c1e9a4f"
+      }
+    }
+  },
+  {
+    "why": "suspend reason=handoff：转人工，ref 是工单或会话 id。枚举值这次写进契约，落地不在本期",
+    "frame": {
+      "event": "suspend",
+      "data": {
+        "run_id": "r_9d02",
+        "reason": "handoff",
+        "ref": "cs_session_7781",
+        "prompt": "用户三次未解决，转人工坐席",
+        "deadline": "2026-09-29T13:30:00Z",
+        "resume_token": "rt_44be",
+        "trace_id": "tr_c20f5a11"
+      }
+    }
+  },
+  {
+    "why": "带未知字段：新版本智能体发来的多余字段必须被接受",
+    "frame": {
+      "event": "step",
+      "data": { "name": "route", "status": "ok", "someFutureField": 1 }
+    }
+  }
+]
