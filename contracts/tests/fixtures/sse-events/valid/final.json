@@ -1,0 +1,15 @@
+{
+  "event": "final",
+  "data": {
+    "answer": "建议 24h 内登机检查变桨系统。",
+    "citations": [
+      {
+        "kb": "fault-manual",
+        "doc": "F203"
+      }
+    ],
+    "meta": {},
+    "trace_id": "tr_8a31f0c2",
+    "run_id": "r_41c8"
+  }
+}

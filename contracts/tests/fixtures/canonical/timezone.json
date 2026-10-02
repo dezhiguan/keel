@@ -1,0 +1,11 @@
+{
+  "event_id": "e1",
+  "ts": "2026-09-29T20:49:30+08:00",
+  "agent": "agent-a",
+  "env": "prod",
+  "action": "tool.call",
+  "risk": "low",
+  "decision": "allowed",
+  "prev_hash": "abc123",
+  "hash": "0000000000000000000000000000000000000000000000000000000000000000"
+}

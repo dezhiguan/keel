@@ -1,0 +1,7 @@
+apiVersion: keel/v1
+metadata:
+  name: caller-agent
+spec:
+  runtime:
+    endpoint: https://caller.example.test
+  delegates: [missing-agent]

@@ -1,0 +1,7 @@
+{
+  "event": "step",
+  "data": {
+    "name": "route",
+    "status": "ok"
+  }
+}

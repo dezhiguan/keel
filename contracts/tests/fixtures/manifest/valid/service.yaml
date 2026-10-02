@@ -1,0 +1,35 @@
+# kind: Service 的正例。共享服务（rag-forge）不走评测门禁，检索评测台保留在它自己那边，
+# 但模型调用要收进 LiteLLM，所以必须有 models 和 budget。
+apiVersion: keel/v1
+kind: Service
+metadata:
+  name: rag-forge
+  displayName: 知识检索服务
+  owner: 平台组 / amy
+spec:
+  runtime:
+    type: code
+    language: java
+    endpoint: http://rag-forge.shared.svc:8080
+    liveness: k8s
+  auth:
+    audience: rag-forge
+    roles: []
+  models:
+    byPurpose:
+      rewrite:
+        default: qwen-flash
+        fallback: [qwen-plus]
+      judge:
+        default: qwen-plus
+        fallback: [deepseek-v3]
+      answer:
+        default: qwen-plus
+        fallback: [deepseek-v3]
+      embedding:
+        default: text-embedding-v3
+        fallback: []                # 必须为空：换 embedding 模型等于整库向量失效
+    budget: { dailyCny: 200 }
+  audit:
+    retentionDays: 365
+    captureFields: [kb, query_digest, top_k]

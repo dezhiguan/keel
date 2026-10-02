@@ -1,0 +1,12 @@
+{
+  "event": "suspend",
+  "data": {
+    "run_id": "r_41c8",
+    "reason": "approval",
+    "ref": "ap_0912",
+    "prompt": "代张工创建工单 WT-07 / P1",
+    "deadline": "2026-09-29T12:49:30Z",
+    "resume_token": "rt_9f2a",
+    "trace_id": "tr_8a31f0c2"
+  }
+}

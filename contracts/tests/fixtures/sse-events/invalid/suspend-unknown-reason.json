@@ -1,0 +1,9 @@
+{
+  "event": "suspend",
+  "data": {
+    "run_id": "r_41c8",
+    "reason": "waiting_for_something_else",
+    "resume_token": "rt_9f2a",
+    "trace_id": "tr_8a31f0c2"
+  }
+}

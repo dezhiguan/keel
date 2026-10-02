@@ -24,8 +24,8 @@ jobs:
           test -z "$(git ls-files --others --exclude-standard keel-common/src/main/java/com/keel/common/model sdk-python/keel/_generated)"
       - name: Python generated model tests
         run: |
-          python -m pip install -e ./sdk-python pytest
-          cd sdk-python && pytest tests/test_generated.py -q
+          python -m pip install -e ./sdk-python pytest jsonschema PyYAML
+          cd sdk-python && pytest tests/test_generated.py tests/contract -q
       - name: Gateway must stay WebFlux-only
         run: |
           mvn -q -pl :keel-gateway dependency:tree -Dincludes=org.springframework.boot:spring-boot-starter-web,org.springframework:spring-webmvc -DoutputFile=../ci/gateway-dependencies.txt

@@ -1,0 +1,10 @@
+{
+  "event": "error",
+  "data": {
+    "code": "TOOL_TIMEOUT",
+    "message": "工具调用超时",
+    "trace_id": "tr_8a31f0c2",
+    "run_id": "r_41c8",
+    "retryable": true
+  }
+}

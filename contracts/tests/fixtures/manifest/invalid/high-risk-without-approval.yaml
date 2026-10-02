@@ -1,0 +1,14 @@
+# 反例：risk: high 的工具没有 approval: required。
+# 这条是铁律，注册自检也会拦，但 schema 要先拦住，不能等到注册才发现。
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  name: risky-agent
+spec:
+  runtime:
+    endpoint: http://risky.agents.svc:8000
+  tools:
+    - name: work_order_create
+      access: write
+      risk: high
+      # 缺 approval: required

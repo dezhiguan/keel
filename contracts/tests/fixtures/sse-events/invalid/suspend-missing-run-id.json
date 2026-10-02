@@ -1,0 +1,9 @@
+{
+  "event": "suspend",
+  "data": {
+    "reason": "approval",
+    "ref": "ap_0912",
+    "resume_token": "rt_9f2a",
+    "trace_id": "tr_8a31f0c2"
+  }
+}

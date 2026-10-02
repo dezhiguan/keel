@@ -1,0 +1,13 @@
+# 正例：带一个 schema 里没有的字段。
+# 平台要同时兼容两个小版本，新版智能体发来的多余字段是正常情况，必须能解析。
+# 这个例子存在的意义是防止有人为了「严格」给 schema 加 additionalProperties: false。
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  name: forward-compatible-agent
+spec:
+  runtime:
+    endpoint: http://fwd.agents.svc:8000
+  someFieldFromV1_1: 这个字段现在还不存在，但不应该导致校验失败
+  models:
+    default: qwen-plus

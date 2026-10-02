@@ -1,0 +1,7 @@
+{
+  "event": "tool",
+  "data": {
+    "name": "alarm_query",
+    "status": "fallback"
+  }
+}

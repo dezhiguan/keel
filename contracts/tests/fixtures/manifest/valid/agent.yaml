@@ -1,0 +1,51 @@
+# kind: Agent 的完整正例。来自设计文档第 05 节。
+# 这份文件是 manifest.schema.json 的活样例：schema 改了它必须还能通过。
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  name: offshore-wind
+  displayName: 海上风机维检助手
+  owner: 电力运维组 / zhang.gong
+spec:
+  runtime:
+    type: code
+    language: python
+    endpoint: http://offshore-wind.agents.svc:8000
+    liveness: k8s
+  auth:
+    audience: offshore-wind
+    roles: [ops_engineer, ops_admin]
+  models:
+    default: qwen-plus              # LiteLLM 里的模型别名，不是厂商密钥
+    fallback: [deepseek-v3]
+    budget: { dailyCny: 50, maxSteps: 6 }
+  knowledge:
+    - kb: fault-manual
+    - kb: safety-procedures
+  tools:
+    - name: alarm_query
+      access: read
+      risk: low
+    - name: work_order_create
+      access: write
+      risk: high
+      approval: required            # risk: high 必须有这一行
+  delegates: []
+  guardrails:
+    inputInjection: enforce
+    grounding: shadow
+    pii: mask
+  audit:
+    retentionDays: 180
+    captureFields: [question, tools, citations]
+  prompts:
+    source: langfuse
+    label: production
+  eval:
+    dataset: offshore-wind/inspection
+    evaluators: [llm_judge, citation_grounded, refusal_check, code:fault_type_match]
+    gate: { minScore: 0.85, maxRegression: 0.02, byTag: true }
+  quality:
+    onlineEvalSampling: 0.05
+    feedback: true
+    annotationQueue: 电力运维组-抽检

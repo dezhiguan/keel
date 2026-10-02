@@ -1,0 +1,8 @@
+# 反例：缺 metadata.name。name 和 runtime.endpoint 是仅有的两个必填项。
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  displayName: 没有名字的智能体
+spec:
+  runtime:
+    endpoint: http://nameless.agents.svc:8000
