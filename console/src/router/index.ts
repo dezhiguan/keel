@@ -1,15 +1,7 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import ConsoleLayout from '@/layouts/ConsoleLayout.vue'
-import PagePlaceholder from '@/components/PagePlaceholder.vue'
 
-const placeholder = (path: string, title: string, task: string): RouteRecordRaw => ({
-  path,
-  component: PagePlaceholder,
-  props: { title, task },
-  meta: { title },
-})
-
-// TODO(P1-15): menu visibility by platformRole; the backend must re-check every call.
+// TODO(P1-15): menu visibility by platformRole (utils/permission.ts); the backend must re-check every call.
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
@@ -18,13 +10,18 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: 'overview', component: () => import('@/views/overview/OverviewView.vue'), meta: { title: '总览' } },
       { path: 'agents', component: () => import('@/views/agents/AgentList.vue'), meta: { title: '智能体' } },
-      placeholder('services', '共享服务', 'P2-12'),
-      placeholder('traces', '链路追踪', 'P1-16'),
-      placeholder('eval', '评测中心', 'P2-12'),
-      placeholder('tools', '工具', 'P3-3'),
-      placeholder('approvals', '审批中心', 'P3-3'),
-      placeholder('audit', '审计中心', 'P1-15'),
-      placeholder('models', '模型网关', 'P1-15'),
+      { path: 'agents/new', component: () => import('@/views/agents/AgentCreateWizard.vue'), meta: { title: '新建智能体' } },
+      { path: 'agents/:name', component: () => import('@/views/agents/AgentDetail.vue'), meta: { title: '智能体详情' } },
+      { path: 'services', component: () => import('@/views/services/SharedServices.vue'), meta: { title: '共享服务' } },
+      { path: 'traces', component: () => import('@/views/trace/TraceList.vue'), meta: { title: '链路追踪' } },
+      { path: 'traces/:id', component: () => import('@/views/trace/TraceDetail.vue'), meta: { title: '链路详情' } },
+      { path: 'quality', component: () => import('@/views/quality/QualityView.vue'), meta: { title: '质量中心' } },
+      { path: 'eval', component: () => import('@/views/eval/EvalView.vue'), meta: { title: '评测中心' } },
+      { path: 'tools', component: () => import('@/views/tools/ToolRegistry.vue'), meta: { title: '工具' } },
+      { path: 'tools/:name', component: () => import('@/views/tools/ToolDetail.vue'), meta: { title: '工具详情' } },
+      { path: 'approvals', component: () => import('@/views/tools/ApprovalInbox.vue'), meta: { title: '审批中心' } },
+      { path: 'audit', component: () => import('@/views/audit/AuditView.vue'), meta: { title: '审计中心' } },
+      { path: 'models', component: () => import('@/views/models/ModelGateway.vue'), meta: { title: '模型网关' } },
     ],
   },
   { path: '/:pathMatch(.*)*', redirect: '/overview' },
