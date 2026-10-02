@@ -1,0 +1,20 @@
+name: Keel CI
+on:
+  push:
+  pull_request:
+jobs:
+  java:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Compile, unit tests and ArchUnit
+        run: mvn -q test
+      - name: Gateway must stay WebFlux-only
+        run: |
+          mvn -q -pl :keel-gateway dependency:tree -Dincludes=org.springframework.boot:spring-boot-starter-web,org.springframework:spring-webmvc -DoutputFile=ci/gateway-dependencies.txt
+          if grep -Eq 'spring-boot-starter-web|spring-webmvc' ci/gateway-dependencies.txt; then exit 1; fi
