@@ -16,5 +16,6 @@ jobs:
         run: mvn -q test
       - name: Gateway must stay WebFlux-only
         run: |
-          mvn -q -pl :keel-gateway dependency:tree -Dincludes=org.springframework.boot:spring-boot-starter-web,org.springframework:spring-webmvc -DoutputFile=ci/gateway-dependencies.txt
-          if grep -Eq 'spring-boot-starter-web|spring-webmvc' ci/gateway-dependencies.txt; then exit 1; fi
+          mvn -q -pl :keel-gateway dependency:tree -Dincludes=org.springframework.boot:spring-boot-starter-web,org.springframework:spring-webmvc -DoutputFile=../ci/gateway-dependencies.txt
+          test -f ci/gateway-dependencies.txt
+          if grep -Eq 'org\.springframework\.boot:spring-boot-starter-web:|org\.springframework:spring-webmvc:' ci/gateway-dependencies.txt; then exit 1; fi
