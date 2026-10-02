@@ -21,7 +21,10 @@ keel-spring-boot-starter/src/main/java/com/keel/starter/
 └── context/{KeelContext.java,...}     # 这一期只建接口和桩
 keel-spring-boot-starter/src/main/resources/META-INF/spring/*.imports
 keel-spring-boot-starter/src/test/java/**
+keel-spring-boot-starter/pom.xml
 ```
+
+现状：上面这些类已作为空占位存在（注解是空 `@interface`，其余是空 class），在原文件上实现。`pom.xml` 目前只依赖 `spring-boot-autoconfigure`，要补 `spring-boot-starter-web`（MVC）和测试依赖；不要引 WebFlux。
 
 ## 接口契约
 

@@ -33,9 +33,11 @@
         "config.change",
         "data.export",
         "run.suspend",
-        "run.resume"
+        "run.resume",
+        "agent.register",
+        "release.gate"
       ],
-      "description": "八个取值一次写全。run.suspend / run.resume 记的是执行挂起与恢复，和 approval 不是一回事——等用户回答、转人工都没有审批单"
+      "description": "十个取值一次写全，与 console-api.openapi.yaml 的 AuditAction 一致。run.suspend / run.resume 记的是执行挂起与恢复，和 approval 不是一回事——等用户回答、转人工都没有审批单。agent.register 由 keel-server 注册时写，release.gate 由 keel gate 回写门禁结论时写"
     },
     "resource": { "type": "string" },
     "risk": {

@@ -616,12 +616,10 @@ export interface components {
         /** @enum {string} */
         ApprovalStatus: "PENDING" | "APPROVED" | "REJECTED" | "EXPIRED";
         /**
-         * @description 前六项来自 contracts/audit-event.schema.json。
-         *     agent.register 和 release.gate 是控制台实际会展示的动作，
-         *     需要同步补进 audit-event.schema.json（见 P0-1 待办）。
+         * @description 与 contracts/audit-event.schema.json 的 action 枚举完全一致，两边必须同时改。
          * @enum {string}
          */
-        AuditAction: "invoke" | "tool.call" | "sql.execute" | "approval" | "config.change" | "data.export" | "agent.register" | "release.gate";
+        AuditAction: "invoke" | "tool.call" | "sql.execute" | "approval" | "config.change" | "data.export" | "run.suspend" | "run.resume" | "agent.register" | "release.gate";
         /** @enum {string} */
         AuditDecision: "allowed" | "denied" | "pending" | "approved" | "rejected";
         CurrentUser: {

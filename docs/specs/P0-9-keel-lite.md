@@ -28,6 +28,8 @@ POST /api/v1/approvals/{id}/decision
 GET  /api/v1/approvals           # 本地待办列表，keel dev 的终端 UI 用
 ```
 
+`GET /api/v1/approvals` 的响应形状**直接用 `contracts/console-api.openapi.yaml` 的 `Envelope + PageMeta + Approval`**（含 `subjectType`、`subjectRef`、`runId`），不要另定一套字段。这样以后控制台连 keel-lite 也能看到本地待办，不会出现两套审批单形状。
+
 SQLite 三张表，字段对齐 PostgreSQL 版但只保留必要列：
 
 ```

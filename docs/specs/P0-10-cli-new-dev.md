@@ -13,8 +13,8 @@
 ## 改哪些文件
 
 ```
-sdk-python/keel/cli/{__init__.py,main.py,new.py,dev.py}
-sdk-python/pyproject.toml          # console_scripts 入口 keel
+sdk-python/keel/cli/{__init__.py,new.py,dev.py}
+sdk-python/pyproject.toml          # 入口已是 keel = "keel.cli:main"，main() 在 cli/__init__.py
 sdk-python/tests/cli/**
 ```
 
@@ -55,7 +55,7 @@ keel dev [--port 8000] [--no-trace]
 
 - **`keel new` 不要联网**。模板随包发布，离线可用。
 
-- 这一期只做 `new` 和 `dev` 两个子命令。`eval` / `register` / `release` / `retire` / `gate` 的入口可以先注册但执行时提示"尚未实现"，不要留空指针。
+- 这一期只做 `new` 和 `dev` 两个子命令。`eval` / `register` / `release` / `retire` / `gate` 的入口可以先注册但执行时提示"尚未实现"，不要留空指针。这五个子命令的模块文件（`cli/eval.py` 等）已作为占位存在，接到 `main()` 的分发里即可。
 
 ## 验收标准
 

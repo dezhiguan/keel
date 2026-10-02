@@ -17,6 +17,7 @@
 pom.xml                                   # 只加 pluginManagement
 keel-common/pom.xml
 keel-common/src/main/java/com/keel/common/**   # 手写部分：错误码常量、工具类
+keel-server/src/main/java/com/keel/server/common/**   # 仅当 ErrorCode 的包路径变化时改 import
 sdk-python/pyproject.toml
 sdk-python/keel/_generated/**
 scripts/codegen.sh
@@ -48,6 +49,10 @@ scripts/codegen.sh
 - **时间字段统一 RFC 3339 带时区**（`2026-09-29T12:49:30Z`）。Java 用 `Instant` 不要用 `LocalDateTime`（丢时区），Python 用 `datetime` 并确认序列化带 `Z` 而不是 `+00:00`——审计哈希链算的是规范化 JSON 的 sha256，这两种写法哈希不同，会直接导致 Java 写入的链在 Python 侧验不过。
 
 - `error-codes.yaml` 的 `retryable` 要生成成代码里可直接读的属性，不要让 SDK 和网关各自判断（`AGENTS.md` 的要求）。
+
+- **已有一份手写的 `com.keel.common.error.ErrorCode`**（P1-0 留下，只含 `SERVER_*` 三个，带 `TODO(P0-2)`），keel-server 的 `common/` 在用它的 `name()`、`retryable()`、`http()`、`message()`。生成的枚举**沿用这个全限定名和这四个访问方法**，直接覆盖手写版；做不到就同步改 keel-server 的 import 和调用，并保证 `mvn -o -pl :keel-server test` 仍通过。不要两份 `ErrorCode` 并存。
+
+- Python 侧 `keel/protocol/{events.py,errors.py}` 和 `keel/manifest.py` 现在是只有 docstring 的占位，生成产物放 `keel/_generated/`，这几个文件只做 re-export，不复制字段。
 
 ## 验收标准
 

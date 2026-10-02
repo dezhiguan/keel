@@ -88,7 +88,7 @@ suspend { run_id, reason, ref, prompt, deadline, resume_token, trace_id }   # �
 event_id, ts, agent, env, trace_id,
 actor:    { user_id, org_id, role },
 action:   invoke | tool.call | sql.execute | approval | config.change | data.export
-          | run.suspend | run.resume,
+          | run.suspend | run.resume | agent.register | release.gate,
 resource, risk: low|mid|high,
 decision: allowed | denied | pending | approved | rejected,
 approver, payload（白名单字段，已脱敏）, input_digest, prev_hash, hash
@@ -105,6 +105,17 @@ approver, payload（白名单字段，已脱敏）, input_digest, prev_hash, has
 ### error-codes.yaml
 
 格式 `{模块}_{原因}`。起步至少覆盖：`GW_QUOTA_EXCEEDED`、`GW_CONCURRENCY_LIMIT`、`GW_AGENT_OFFLINE`、`TOOL_NOT_GRANTED`、`TOOL_RETIRED`、`TOOL_TIMEOUT`、`APPROVAL_REJECTED`、`APPROVAL_EXPIRED`、`AUDIT_WRITE_FAILED`、`GUARD_INJECTION_BLOCKED`、`DELEGATE_NOT_DECLARED`，以及 P0-1a 的 `RUN_NOT_FOUND`、`RUN_NOT_RESUMABLE`、`RUN_EXPIRED`、`RUN_RESUME_DENIED`。
+
+P1-0 / P1-15a 已追加（随本次一起评审）：`SERVER_INVALID_PARAM`、`SERVER_NOT_FOUND`、`SERVER_INTERNAL_ERROR`、`TOOL_HAS_PROD_DEPENDENTS`。
+
+## 当前状态（2026-10-03）
+
+六个文件已起草，`bash scripts/validate-contracts.sh` 全部通过，**尚未评审、未打 tag**。冻结前还要过一遍：
+
+- [x] `audit-event.schema.json` 的 `action` 与 `console-api.openapi.yaml` 的 `AuditAction` 统一为同一组十个值（原先两边各缺两个）
+- [ ] 评审 P1-0 / P1-15a 追加的四个错误码
+- [ ] 评审 `console-api.openapi.yaml` 里 `Approval.subjectType` 等字段和 `/runs` 接口（草案，控制台契约，不属于 keel/v1，但取值必须与 P0-1a 的 `subject_type` / `suspend.reason` 一致）
+- [ ] 打 tag `contracts/v1.0.0`，之后 P0-2 / P0-3 / P0-6 / P0-9 / P0-11 才能开工
 
 ## 实现要点
 

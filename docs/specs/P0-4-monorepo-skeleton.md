@@ -1,5 +1,10 @@
 # P0-4 monorepo 骨架
 
+> **状态：已完成**（提交 `3cc4e9e` ~ `f024eb4`）。之后的变化：
+> - 父 pom 的 `maven-compiler-plugin` 加了 `<parameters>true</parameters>`（父 pom 不是 `spring-boot-starter-parent`，不加则 `@RequestParam` 拿不到参数名）
+> - `sdk-python/`、`console/` 已初始化（分别是 P0-6 前的占位结构和 P1-0），本 spec「明确不做」里那条不再成立
+> - keel-server 的 `@SpringBootTest` 改为 Testcontainers 起 PG，本机无 Docker 时自动跳过，CI 照常执行
+
 ## 目标
 
 `mvn -q test` 在仓库根目录跑通，五个 Java 模块是能编译的空工程，ArchUnit 规则能真正拦住违规依赖，CI 模板能跑。

@@ -23,6 +23,8 @@ sdk-python/keel/protocol/{sse.py,events.py,errors.py}
 sdk-python/tests/**
 ```
 
+现状：`pyproject.toml`（包名 `keel-sdk`、入口 `keel = "keel.cli:main"`、`dependencies = []`）和 `keel/` 下全部模块的占位已存在。本任务在现有文件上补依赖和实现，不要重建目录结构。
+
 ## 接口契约
 
 业务代码看到的形状（技术文档第 10 节）：
@@ -85,7 +87,7 @@ cd sdk-python && pytest tests -q
 ## 明确不做
 
 - 不接 LiteLLM、rag-forge、Langfuse、keel-audit，全部留桩（P0-7、P0-8）
-- 不做换票、配额、护栏（`auth/`、`quota.py`、`guard/` 这一期不建）
+- 不做换票、配额、护栏。`auth/`、`quota.py`、`guard/` 已按技术文档第 05 节放了只有 docstring 的占位，这一期**不实现、不删除**
 - 不做 `ctx.delegate` 的真实实现，只留接口
 - 不做 `idempotency_key` 的去重存储（P3-1）
 - 不做 CLI（P0-10）

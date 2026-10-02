@@ -58,7 +58,7 @@ sdk-python/tests/templates/test_all_templates.py
 
 - **`evals/seed.jsonl` 不要凑数**。注册时它会被导入 Langfuse 数据集，门禁按 tags 逐维度对比。模板里给 3～5 条**带 tags 的真实形状**的例子，并在注释里写明「正式接入要 ≥ 50 条，覆盖 manifest 里所有 tags」——不要给 50 条假数据让人以为够了。
 
-- **`Dockerfile` 基于 `keel/python-runtime`**（技术文档第 05 节）。这个基础镜像这一期可能还不存在，**待确认**：是先建基础镜像还是模板里先用官方 python 镜像加注释。确认后写回这里。
+- **`Dockerfile` 基于 `keel/python-runtime`**（技术文档第 05 节）。这个基础镜像这一期可能还不存在，**待确认**：是先建基础镜像还是模板里先用官方 python 镜像加注释。**开工前必须先由技术负责人定下来并写回这里**，不要由执行者自己选——五个模板都会被复制到十个智能体里，事后改要改十处。
 
 - **`.github/workflows/keel.yml` 这一期只放占位**。正式的 CI 模板是 P2-3，内容是 `pytest → keel gate → build → keel release`。现在 `keel gate` 和 `keel release` 都没有，模板里先只放 `pytest` 并注释说明后续会补。
 

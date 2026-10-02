@@ -3,6 +3,30 @@
 来源：`docs/architecture/Keel-技术文档.html` 第 14 节里程碑 + 第 4/5/8/9 节的服务与流程拆开到可执行粒度。
 每条任务对应 `docs/specs/` 下一份 spec。动手前先写 spec，不要拿着这张表直接改代码。
 
+## 当前进度（2026-10-03）
+
+| 状态 | 任务 |
+|---|---|
+| 已完成 | P0-4 monorepo 骨架；P1-0 底座最小可运行（keel-server 三个控制台接口 + console 骨架）；P1-15a 控制台七个页面按原型落地（MSW mock） |
+| 已起草待冻结 | P0-1、P0-1a 契约：校验全部通过，**未评审、未打 tag `contracts/v1.0.0`**，冻结前清单见 P0-1 spec「当前状态」 |
+| 可以立刻开工 | P0-5（auth-gateway，独立仓库） |
+| 等契约冻结 | P0-2 → 然后 P0-3 / P0-6 / P0-9 / P0-11 并行 → P0-7 / P0-8 / P0-10 / P0-12 → P0-13 |
+
+已提前落地、后续任务**接着做不要重做**的部分：
+
+- P1-3：`keel-server/src/main/resources/db/migration/V1__registry.sql` 已建 `agent`、`agent_version`、`agent_instance` 三张表。其余九张表从 `V2__` 往后加，**不要改 V1**。本地演示数据在 `db/seed-local/R__seed_agents.sql`，只在 local profile 加载
+- P1-4：`GET /api/v1/agents` 已实现（列表、状态 / 关键字筛选、分页）；env、category 筛选留了 TODO
+- P1-15：控制台外壳、九个菜单、总览、智能体列表已接真接口；共享服务、链路追踪、评测、工具、审批、审计、模型网关七页数据来自 `console/src/mocks/`（MSW），keel-server 实现对应接口后用 `VITE_API_MOCK=off` 切真
+- 控制台契约 `console-api.openapi.yaml` 新增了 `Approval.subjectType` 等字段和 `/runs`（草案，P3-1 定稿）
+
+## 交给其他智能体前必读：本机环境
+
+- **本机不起 Docker**（内存受限）。依赖 Testcontainers 的测试本地自动跳过（`@Testcontainers(disabledWithoutDocker = true)`），CI 照常跑。不要为了让测试在本地跑而改用 H2（`testing.mdc` 禁止）
+- 本地数据库是 Postgres.app（5432），库 `keel`、账号 `keel` / `keel` 已建。keel-server 用 `--spring.profiles.active=local` 启动
+- `mvn -o` 是离线模式，**新增依赖后第一次要去掉 `-o` 联网下载**
+- 跑 keel-server 用打好的 jar + `-Xmx384m`，不要常驻 `mvn spring-boot:run`
+- 本地启动步骤见根目录 `README.md`「本地运行控制台」
+
 ## 派给谁：判断标准
 
 **交给 Cursor**（你要在场、随时能打断）
@@ -55,7 +79,8 @@
 |---|---|---|---|---|
 | P1-1 | 观测节点 + Langfuse v4 自建，无界面初始化 dev/staging/prod 三个项目，配备份和磁盘监控 | ECS | 人工 + Cursor | 内网可访问，镜像版本已锁定 |
 | P1-2 | LiteLLM 部署 + `config.yaml`（模型、价格、路由降级）+ Redis；**关闭自带 Langfuse 回调** | P1-1 | Codex | 国内模型成本不为 0，两边价格口径一致 |
-| P1-3 | keel-server 工程骨架 + `keel` 库全部 Flyway 脚本（12 张表，含 P0-1a 的 `agent_run`） | P0-4 | Codex | Testcontainers 起 PG 迁移通过 |
+| P1-0 | 底座最小可运行：keel-server 骨架 + registry 三张表 + `/me` `/insight/overview` `/agents` + console 骨架（**已完成**，见 `specs/P1-0-runnable-baseline.md`） | P0-4 | Cursor | 本地页面可访问 |
+| P1-3 | keel-server 工程骨架 + `keel` 库全部 Flyway 脚本（12 张表，含 P0-1a 的 `agent_run`）。**骨架和三张 registry 表已在 P1-0 完成，只补其余九张，从 V2 开始** | P0-4 | Codex | Testcontainers 起 PG 迁移通过 |
 | P1-4 | registry：agent / agent_version / agent_instance CRUD + 控制台查询接口 | P1-3 | Codex | 接口按 OpenAPI 对齐 |
 | P1-5 | ManifestValidator + SelfCheckService（健康、协议、追踪、审批绑定四项自检） | P1-4 | **Cursor** | 缺授权、缺审批策略时注册被拒 |
 | P1-6 | provisioning 编排 + 失败逆序回滚 + `agent_resource` 记录 | P1-4 | **Cursor** | 任一步失败后外部资源被完整回收 |
@@ -67,7 +92,8 @@
 | P1-12 | keel-audit：字段白名单 + PII 脱敏 + 查询 + 导出（挂审批）+ 按月分区归档 | P1-11 | Codex | 应用账号无 UPDATE/DELETE 仍能正常工作 |
 | P1-13 | insight：TraceQueryService，按 traceId 取 Observations v2，组装协作图/泳道/调用树并叠加审计审批 | P1-1 P1-11 | **Cursor** | 多智能体 trace 的协作图与原型一致 |
 | P1-14 | insight：OverviewService / CostService / QualityService / SharedServiceMonitor | P1-13 | Codex | 成本按智能体拆分与 LiteLLM 对得上 |
-| P1-15 | console 工程骨架 + 总览、智能体、审计、模型网关四页 | P1-14 | Codex | 按原型实现，数据全部走接口 |
+| P1-15 | console 工程骨架 + 总览、智能体、审计、模型网关四页。**页面已在 P1-0 / P1-15a 完成，剩下的是去掉 mock、接 keel-server 真接口** | P1-14 | Codex | 按原型实现，数据全部走接口 |
+| P1-15a | 控制台七个页面按原型落地，数据走 MSW mock（**已完成**，见 `specs/P1-15a-console-prototype-mock.md`） | P1-0 | Cursor | `vitest run` 通过，七页可用 |
 | P1-16 | console 链路追踪页：**trace 列表**（原型缺这块）+ 三视图详情 + 按智能体筛选 | P1-13 P1-15 | **Cursor** | 列表可筛选可分页，点行进详情 |
 | P1-17 | askdb 接入：删 trace/audit/quota/approvals/evalstore，影子运行一周 | P0-6~8 | **Cursor** | 新旧链路数、审计条数、评测分数一致后删旧代码 |
 | P1-18 | rag-forge：OTel exporter、检索分段子 span、`caller_agent`/`kb` 指标标签、`service.yaml` 登记、模型调用改走 LiteLLM | P1-1 P0-1 | Codex | 检索作为 retriever 节点进调用方的 trace；embedding 无 fallback，向量空间不变 |

@@ -29,13 +29,15 @@
 
 P0 这一期的 14 条任务全部有 spec，可以直接开工。P1 之后的 spec 在对应任务动手前再写——提前写会因为前面的实际形状变化而返工。
 
+已提前完成的 P1 子任务：[P1-0 底座最小可运行](specs/P1-0-runnable-baseline.md)、[P1-15a 控制台七页按原型落地](specs/P1-15a-console-prototype-mock.md)。当前进度和本机环境限制见 [TASKS](TASKS.md) 开头。
+
 | 任务 | spec | 执行者 | 前置 |
 |---|---|---|---|
 | P0-1 | [契约 keel/v1 冻结](specs/P0-1-contracts-v1.md) | Cursor | — |
 | P0-1a | [运行生命周期：中断与恢复](specs/P0-1a-run-lifecycle.md) | Cursor | — |
 | P0-2 | [契约代码生成](specs/P0-2-contract-codegen.md) | Codex | P0-1 P0-4 |
 | P0-3 | [契约跨语言一致性用例](specs/P0-3-contract-tests.md) | Codex | P0-1 P0-2 |
-| P0-4 | [monorepo 骨架](specs/P0-4-monorepo-skeleton.md) | Codex | — |
+| P0-4 | [monorepo 骨架](specs/P0-4-monorepo-skeleton.md)（已完成） | Codex | — |
 | P0-5 | [auth-gateway 四处改造](specs/P0-5-auth-gateway.md) | Cursor | — |
 | P0-6 | [sdk-python 骨架](specs/P0-6-sdk-python-skeleton.md) | Cursor | P0-1 P0-2 |
 | P0-7 | [sdk-python 追踪](specs/P0-7-sdk-python-tracing.md) | Cursor | P0-6 |
