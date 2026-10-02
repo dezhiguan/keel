@@ -1,0 +1,47 @@
+/* Palette taken from docs/console/Keel-控制台前端.html. */
+:root {
+  --bg: #0a101a;
+  --panel: #101826;
+  --panel2: #141e2f;
+  --panel3: #18243a;
+  --line: #1f2b3f;
+  --line2: #2a3a55;
+  --text: #cdd6e4;
+  --white: #eef3fa;
+  --mute: #6b7990;
+  --acc: #ff7a45;
+  --teal: #2ec4b6;
+  --ok: #34c38f;
+  --warn: #f1b44c;
+  --bad: #f46a6a;
+  --soft: #5b9cf6;
+  --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --el-color-primary: var(--acc);
+  --el-bg-color: var(--panel);
+  --el-bg-color-overlay: var(--panel2);
+  --el-fill-color-blank: var(--panel);
+  --el-border-color: var(--line2);
+  --el-border-color-lighter: var(--line);
+  --el-text-color-primary: var(--white);
+  --el-text-color-regular: var(--text);
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
+  font-size: 14px;
+}
+
+.el-table {
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: var(--panel2);
+  --el-table-row-hover-bg-color: var(--panel2);
+  --el-table-border-color: var(--line);
+}

@@ -10,6 +10,22 @@
 version: keel/v1
 
 codes:
+  # ── keel-server 通用 ────────────────────────────────────────────
+  SERVER_INVALID_PARAM:
+    message: 请求参数不合法
+    retryable: false
+    http: 400
+
+  SERVER_NOT_FOUND:
+    message: 资源不存在
+    retryable: false
+    http: 404
+
+  SERVER_INTERNAL_ERROR:
+    message: 服务内部错误
+    retryable: true
+    http: 500
+
   # ── keel-gateway ────────────────────────────────────────────────
   GW_QUOTA_EXCEEDED:
     message: 配额已用完

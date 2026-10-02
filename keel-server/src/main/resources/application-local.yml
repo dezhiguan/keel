@@ -1,0 +1,8 @@
+# 本机开发：连本机 PostgreSQL（库 keel、账号 keel），额外加载 db/seed-local 下的演示数据。
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/keel
+    username: keel
+    password: keel
+  flyway:
+    locations: classpath:db/migration,classpath:db/seed-local

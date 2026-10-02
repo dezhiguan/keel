@@ -1,0 +1,24 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: keel-server
+  threads:
+    virtual:
+      # Blocking IO inside synchronized can pin virtual threads; assess JDBC/MyBatis under P1 load tests.
+      enabled: true
+  datasource:
+    url: ${KEEL_DB_URL}
+    username: ${KEEL_DB_USERNAME}
+    password: ${KEEL_DB_PASSWORD}
+  flyway:
+    locations: classpath:db/migration
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+
+logging:
+  pattern:
+    level: "%5p [trace_id=%X{trace_id:-} agent=%X{agent:-}]"

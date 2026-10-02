@@ -1,4 +1,8 @@
 package com.keel.server.registry.mapper;
 
-/** Package-layout placeholder; behavior is added by its feature task. */
-public class AgentMapper {}
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.keel.server.registry.model.entity.Agent;
+import org.apache.ibatis.annotations.Mapper;
+
+@Mapper
+public interface AgentMapper extends BaseMapper<Agent> {}

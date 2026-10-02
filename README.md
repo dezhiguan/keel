@@ -38,6 +38,24 @@ npx @redocly/cli lint contracts/console-api.openapi.yaml
 npx openapi-typescript contracts/console-api.openapi.yaml -o console/src/api/schema.d.ts
 ```
 
+## 本地运行控制台
+
+不需要 Docker。前提：JDK 21、Maven 3.9、Node 20+，本机 PostgreSQL 监听 5432。范围见 [P1-0 spec](docs/specs/P1-0-runnable-baseline.md)。
+
+```bash
+# 1. 建库（只需一次）
+psql -h localhost -d postgres -c "CREATE ROLE keel LOGIN PASSWORD 'keel'" -c "CREATE DATABASE keel OWNER keel"
+
+# 2. keel-server（local profile 会自动建表并灌演示数据）
+mvn -pl :keel-server -am package -DskipTests
+java -Xmx384m -jar keel-server/target/keel-server-0.1.0-SNAPSHOT.jar --spring.profiles.active=local
+
+# 3. console（/api 代理到 localhost:8080）
+cd console && npm install && npm run dev    # 打开 http://localhost:5173
+```
+
+本地没有 Docker 时，依赖 Testcontainers 的接口测试会自动跳过，CI 上照常执行。
+
 ## 当前进度
 
-处于 P0 起步阶段，尚无可运行代码。按 `docs/TASKS.md` 推进。
+P0 进行中。控制台外壳、总览、智能体列表已可本地运行（P1-0），其余页面为占位。按 `docs/TASKS.md` 推进。
