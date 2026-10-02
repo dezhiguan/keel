@@ -1,1 +1,6 @@
-"""SSE 事件模型，由 contracts/sse-events.schema.json 生成。TODO(P0-2)"""
+"""Public SSE event models generated from the keel/v1 contract."""
+
+from keel._generated.events import (ErrorEvent, FinalEvent, StepEvent,
+                                    SuspendEvent, TokenEvent, ToolEvent)
+
+__all__ = ["StepEvent", "ToolEvent", "TokenEvent", "FinalEvent", "ErrorEvent", "SuspendEvent"]

@@ -38,6 +38,10 @@ scripts/codegen.sh
 
 ## 实现要点
 
+### 生成器选型记录（2026-10-03）
+
+按本节要求先试跑三个候选。`jsonschema2pojo` 和 `openapi-generator` Maven 插件均未在本机缓存，离线调用失败；`datamodel-code-generator` 未安装，pip 包索引在当前环境无法解析，试跑失败。因此没有把未经实际验证的外部工具写进构建。采用仓库内 `scripts/codegen.py`（由 `codegen.sh` 调用）直接读取冻结 JSON Schema 和错误码 YAML 的简单映射，确定性产出两种语言模型。生成器对未知 schema 类型直接报错；加入字段后重跑即可同时更新两边。将来能联网时可重新试跑三个候选，再以本节验收项比较替换。
+
 - **生成产物进不进 git，两边要一致，并且现在就定死**。建议都进 git（Java 放 `keel-common/src/main/java/com/keel/common/model/`，Python 放 `keel/_generated/`），理由是 Python SDK 要发 pip 包，用户 `pip install` 时不会执行代码生成；Java 侧如果放 `target/generated-sources` 而 Python 放源码目录，两边就会不同步。进 git 的代价是必须有 CI 检查：**跑一遍生成，`git diff --exit-code` 必须干净**，否则有人手改了生成代码也发现不了。这条检查是本任务的核心验收项。
 
 - **枚举值带点号，Java 枚举装不下**。契约里有 `tool.call`、`agent.config`、`run.suspend`、`data.export` 这类值，Java 标识符不允许点号。生成器通常会转成 `TOOL_CALL`，序列化回去就变成了 `TOOL_CALL` 而不是 `tool.call`，**跨语言就对不上了**。必须确认生成器能产出 `@JsonValue` 注解保留原始字面量；做不到就在 `keel-common` 里手写这几个枚举，不要让生成器糊弄过去。这是最容易悄悄出错的地方。
