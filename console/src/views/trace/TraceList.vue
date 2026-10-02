@@ -2,6 +2,7 @@
 import { reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import { listTraces, type ListTracesQuery, type TracePage } from '@/api/traces'
 import { toKeelError } from '@/api/http'
@@ -53,9 +54,10 @@ watch(() => [filter.page, filter.size], load, { immediate: true })
       <span class="sub">数据来自 Langfuse，叠加 Keel 的审计、审批、门禁信息</span>
     </div>
     <div class="toolbar">
-      <el-select v-model="filter.agent" placeholder="全部智能体" clearable style="width: 180px" @change="search">
-        <el-option v-for="a in AGENTS" :key="a" :label="a" :value="a" />
-      </el-select>
+      <select v-model="filter.agent" class="inp" @change="search">
+        <option :value="undefined">全部智能体</option>
+        <option v-for="a in AGENTS" :key="a" :value="a">{{ a }}</option>
+      </select>
       <div class="chipsel">
         <button :class="{ on: !filter.status }" @click="setStatus(undefined)">全部状态</button>
         <button :class="{ on: filter.status === 'ok' }" @click="setStatus('ok')">ok</button>
@@ -95,14 +97,7 @@ watch(() => [filter.page, filter.size], load, { immediate: true })
           <tr v-if="!result?.items?.length && !loading"><td colspan="7" class="empty">没有符合条件的链路</td></tr>
         </tbody>
       </table>
-      <el-pagination
-        v-model:current-page="filter.page"
-        v-model:page-size="filter.size"
-        class="pager"
-        layout="total, sizes, prev, pager, next"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="result?.total ?? 0"
-      />
+      <Pager v-model:page="filter.page" v-model:size="filter.size" :total="result?.total ?? 0" />
     </div>
   </div>
 </template>

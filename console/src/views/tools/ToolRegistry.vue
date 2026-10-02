@@ -2,6 +2,7 @@
 import { reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import Pager from '@/components/Pager.vue'
 import ToolStatusPill from './ToolStatusPill.vue'
 import { listTools, type ListToolsQuery, type ToolPage } from '@/api/tools'
 import { toKeelError } from '@/api/http'
@@ -79,14 +80,7 @@ watch(() => [filter.page, filter.size], load, { immediate: true })
           </tr>
         </tbody>
       </table>
-      <el-pagination
-        v-model:current-page="filter.page"
-        v-model:page-size="filter.size"
-        class="pager"
-        layout="total, sizes, prev, pager, next"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="result?.total ?? 0"
-      />
+      <Pager v-model:page="filter.page" v-model:size="filter.size" :total="result?.total ?? 0" />
     </div>
   </div>
 </template>

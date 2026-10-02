@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import KpiCard from '@/components/KpiCard.vue'
 import StatusPill from '@/components/StatusPill.vue'
@@ -8,6 +9,7 @@ import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { agentStatus, orDash } from '@/utils/format'
 
+const router = useRouter()
 const envStore = useEnvStore()
 const overview = ref<Overview | null>(null)
 const loading = ref(false)
@@ -41,22 +43,18 @@ watch(() => envStore.env, load, { immediate: true })
 
     <section class="panel">
       <h3>智能体健康</h3>
-      <el-table :data="overview?.agents ?? []" size="small">
-        <el-table-column prop="name" label="智能体" min-width="140" />
-        <el-table-column prop="displayName" label="名称" min-width="120" />
-        <el-table-column label="状态" width="110">
-          <template #default="{ row }">
-            <StatusPill v-bind="agentStatus(row.status)" />
-          </template>
-        </el-table-column>
-        <el-table-column prop="ownerOrg" label="负责组织" min-width="120" />
-        <el-table-column label="24h 调用" width="100">
-          <template #default="{ row }">{{ orDash(row.calls24h) }}</template>
-        </el-table-column>
-        <el-table-column label="评分" width="80">
-          <template #default="{ row }">{{ orDash(row.score) }}</template>
-        </el-table-column>
-      </el-table>
+      <table class="t">
+        <thead><tr><th>智能体</th><th>状态</th><th>负责组织</th><th>24h 调用</th><th>评分</th></tr></thead>
+        <tbody>
+          <tr v-for="a in overview?.agents ?? []" :key="a.name" class="click" @click="router.push(`/agents/${a.name}`)">
+            <td class="nm"><b>{{ a.displayName }}</b><small class="mono">{{ a.name }}</small></td>
+            <td><StatusPill v-bind="agentStatus(a.status)" /></td>
+            <td>{{ a.ownerOrg }}</td>
+            <td class="mono">{{ orDash(a.calls24h) }}</td>
+            <td class="mono">{{ orDash(a.score) }}</td>
+          </tr>
+        </tbody>
+      </table>
     </section>
 
     <section class="panel">

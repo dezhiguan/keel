@@ -75,9 +75,9 @@ watch(agent, load, { immediate: true })
       <h2>评测中心</h2>
       <span class="sub">Langfuse 数据集 {{ result?.dataset ?? '—' }} · 门禁由 keel-gate 判定</span>
       <span class="sp" />
-      <el-select v-model="agent" style="width: 180px">
-        <el-option v-for="a in agentOptions" :key="a" :label="a" :value="a" />
-      </el-select>
+      <select v-model="agent" class="inp">
+        <option v-for="a in agentOptions" :key="a" :value="a">{{ a }}</option>
+      </select>
       <button class="btn pri" :disabled="progress !== null" @click="run">▶ 运行回归</button>
     </div>
 

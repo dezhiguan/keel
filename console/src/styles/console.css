@@ -78,7 +78,32 @@ table.t { width: 100%; border-collapse: collapse; font-size: 12.8px; }
 .appr p { margin: 6px 0 10px; font-size: 12.8px; }
 .appr .act { display: flex; gap: 8px; align-items: center; }
 
-.pager { margin-top: 12px; justify-content: flex-end; }
+.inp { background: var(--bg); border: 1px solid var(--line2); border-radius: 7px; color: var(--white); padding: 6px 10px; font-size: 13px; outline: none; transition: 0.15s; font-family: inherit; }
+.inp:focus { border-color: var(--acc); }
+select.inp {
+  appearance: none;
+  padding: 5px 28px 5px 10px;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--mute) 50%), linear-gradient(135deg, var(--mute) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 52%, calc(100% - 10px) 52%;
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
+}
+
+.agrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 12px; }
+.acard { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; cursor: pointer; transition: 0.15s; }
+.acard:hover { border-color: #3d5070; transform: translateY(-2px); }
+.acard .hd { display: flex; align-items: flex-start; gap: 10px; }
+.acard .ttl b { color: var(--white); display: block; font-size: 14px; }
+.acard .ttl small { color: var(--mute); font-family: var(--mono); font-size: 11.5px; }
+.acard .meta { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+.acard .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; border-top: 1px solid var(--line); padding-top: 10px; }
+.acard .stats div { font-size: 11px; color: var(--mute); }
+.acard .stats b { display: block; color: var(--white); font-family: var(--mono); font-size: 13px; font-weight: 500; }
+.acard.new { border-style: dashed; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 6px; color: var(--mute); min-height: 150px; }
+.acard.new b { font-size: 26px; color: var(--acc); font-weight: 400; }
+.av { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex: none; }
+
 .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; display: inline-block; }
 
 @media (max-width: 1100px) {

@@ -2,6 +2,7 @@
 import { reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import JsonViewer from '@/components/JsonViewer.vue'
+import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import { listAuditEvents, requestAuditExport, verifyAuditChain, type AuditEvent, type AuditPage, type ListAuditQuery } from '@/api/audit'
 import { toKeelError } from '@/api/http'
@@ -95,9 +96,10 @@ watch(() => [filter.page, filter.size], load, { immediate: true })
       <button class="btn" @click="exportAudit">导出（需审批）</button>
     </div>
     <div class="toolbar">
-      <el-select v-model="filter.agent" placeholder="全部智能体" clearable style="width: 180px" @change="search">
-        <el-option v-for="a in AGENTS" :key="a" :label="a" :value="a" />
-      </el-select>
+      <select v-model="filter.agent" class="inp" @change="search">
+        <option :value="undefined">全部智能体</option>
+        <option v-for="a in AGENTS" :key="a" :value="a">{{ a }}</option>
+      </select>
       <div class="chipsel">
         <button :class="{ on: !filter.risk }" @click="setRisk(undefined)">全部风险</button>
         <button v-for="r in (['HIGH', 'MID', 'LOW'] as const)" :key="r" :class="{ on: filter.risk === r }" @click="setRisk(r)">{{ RISK[r].label }}</button>
@@ -121,14 +123,7 @@ watch(() => [filter.page, filter.size], load, { immediate: true })
           <tr v-if="!result?.items?.length && !loading"><td colspan="7" class="empty">没有符合条件的记录</td></tr>
         </tbody>
       </table>
-      <el-pagination
-        v-model:current-page="filter.page"
-        v-model:page-size="filter.size"
-        class="pager"
-        layout="total, sizes, prev, pager, next"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="result?.total ?? 0"
-      />
+      <Pager v-model:page="filter.page" v-model:size="filter.size" :total="result?.total ?? 0" />
     </div>
 
     <el-drawer :model-value="!!selected" :title="selected?.eventId" size="520px" @close="selected = null">
