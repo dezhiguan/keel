@@ -108,14 +108,14 @@ approver, payload（白名单字段，已脱敏）, input_digest, prev_hash, has
 
 P1-0 / P1-15a 已追加（随本次一起评审）：`SERVER_INVALID_PARAM`、`SERVER_NOT_FOUND`、`SERVER_INTERNAL_ERROR`、`TOOL_HAS_PROD_DEPENDENTS`。
 
-## 当前状态（2026-10-03）
+## 当前状态（2026-10-03）：已冻结
 
-六个文件已起草，`bash scripts/validate-contracts.sh` 全部通过，**尚未评审、未打 tag**。冻结前还要过一遍：
+六个文件 `bash scripts/validate-contracts.sh` 全部通过，技术负责人评审通过，已打 tag `contracts/v1.0.0`。之后对这六个文件的任何修改都按「版本策略」执行：新增字段可选，加枚举值或删字段升 v2。
 
 - [x] `audit-event.schema.json` 的 `action` 与 `console-api.openapi.yaml` 的 `AuditAction` 统一为同一组十个值（原先两边各缺两个）
-- [ ] 评审 P1-0 / P1-15a 追加的四个错误码
-- [ ] 评审 `console-api.openapi.yaml` 里 `Approval.subjectType` 等字段和 `/runs` 接口（草案，控制台契约，不属于 keel/v1，但取值必须与 P0-1a 的 `subject_type` / `suspend.reason` 一致）
-- [ ] 打 tag `contracts/v1.0.0`，之后 P0-2 / P0-3 / P0-6 / P0-9 / P0-11 才能开工
+- [x] 评审 P1-0 / P1-15a 追加的四个错误码
+- [x] 评审 `console-api.openapi.yaml` 里 `Approval.subjectType` 等字段和 `/runs` 接口（草案，控制台契约，不属于 keel/v1，不随本 tag 冻结；取值与 P0-1a 的 `subject_type` / `suspend.reason` 一致）
+- [x] 打 tag `contracts/v1.0.0`。P0-2 / P0-3 / P0-6 / P0-9 / P0-11 可以开工
 
 ## 实现要点
 
