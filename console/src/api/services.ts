@@ -1,2 +1,8 @@
-// TODO(P2-12): GET /insight/services
-export {}
+import { get } from './http'
+import type { components } from './schema'
+
+export type SharedServices = components['schemas']['SharedServices']
+
+export function getSharedServices() {
+  return get<SharedServices>('/insight/services')
+}

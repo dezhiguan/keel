@@ -1,7 +1,108 @@
 <script setup lang="ts">
-import PagePlaceholder from '@/components/PagePlaceholder.vue'
+import { reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import StatusPill from '@/components/StatusPill.vue'
+import { listTraces, type ListTracesQuery, type TracePage } from '@/api/traces'
+import { toKeelError } from '@/api/http'
+import { useEnvStore } from '@/stores/env'
+import { ago, fmtCny, fmtMs, fmtN, nodeStatus } from '@/utils/format'
+
+const AGENTS = ['ops-copilot', 'careermate', 'askdb', 'offshore-wind', 'cs-bot', 'prd-agent', 'code-review', 'test-gen']
+
+const router = useRouter()
+const envStore = useEnvStore()
+const result = ref<TracePage | null>(null)
+const loading = ref(false)
+const filter = reactive<{ agent?: string; status?: ListTracesQuery['status']; page: number; size: NonNullable<ListTracesQuery['size']> }>({
+  agent: undefined,
+  status: undefined,
+  page: 1,
+  size: 10,
+})
+
+async function load() {
+  loading.value = true
+  try {
+    result.value = await listTraces({ env: envStore.env, agent: filter.agent, status: filter.status, page: filter.page, size: filter.size })
+  } catch (error) {
+    ElMessage.error(`加载链路失败：${toKeelError(error).message}`)
+  } finally {
+    loading.value = false
+  }
+}
+
+function search() {
+  filter.page = 1
+  load()
+}
+
+function setStatus(status?: ListTracesQuery['status']) {
+  filter.status = status
+  search()
+}
+
+watch(() => envStore.env, search)
+watch(() => [filter.page, filter.size], load, { immediate: true })
 </script>
 
 <template>
-  <PagePlaceholder title="链路追踪" task="P1-16" />
+  <div>
+    <div class="vh">
+      <h2>链路追踪</h2>
+      <span class="sub">数据来自 Langfuse，叠加 Keel 的审计、审批、门禁信息</span>
+    </div>
+    <div class="toolbar">
+      <el-select v-model="filter.agent" placeholder="全部智能体" clearable style="width: 180px" @change="search">
+        <el-option v-for="a in AGENTS" :key="a" :label="a" :value="a" />
+      </el-select>
+      <div class="chipsel">
+        <button :class="{ on: !filter.status }" @click="setStatus(undefined)">全部状态</button>
+        <button :class="{ on: filter.status === 'ok' }" @click="setStatus('ok')">ok</button>
+        <button :class="{ on: filter.status === 'fallback' }" @click="setStatus('fallback')">降级</button>
+        <button :class="{ on: filter.status === 'failed' }" @click="setStatus('failed')">失败</button>
+      </div>
+    </div>
+
+    <div v-loading="loading" class="card">
+      <table class="t">
+        <thead><tr><th>问题</th><th>智能体</th><th>开始</th><th>耗时</th><th>tokens</th><th>成本</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr v-for="t in result?.items ?? []" :key="t.traceId" class="click" @click="router.push(`/traces/${t.traceId}`)">
+            <td class="nm" style="max-width: 420px">
+              <b style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ t.question }}</b>
+              <small class="mono">{{ t.traceId }}</small>
+            </td>
+            <td>
+              <span v-if="t.multiAgent" class="pill nd p-acc">多智能体 · {{ t.agents?.length }}</span>
+              <span v-else>{{ t.rootAgent }}</span>
+            </td>
+            <td class="mono">{{ ago(t.startedAt) }}</td>
+            <td class="mono">
+              {{ fmtMs(t.durationMs) }}
+              <span v-if="t.humanWaitMs" class="mut"> + 人工 {{ Math.round(t.humanWaitMs / 1000) }}s</span>
+            </td>
+            <td class="mono">{{ fmtN(t.tokens) }}</td>
+            <td class="mono">{{ fmtCny(t.costCny) }}</td>
+            <td>
+              <span v-if="t.blocked" class="pill p-bad">已拦截</span>
+              <template v-else>
+                <StatusPill v-bind="nodeStatus(t.status)" />
+                <span v-if="t.cached" class="pill nd p-soft" style="margin-left: 4px">缓存</span>
+              </template>
+            </td>
+          </tr>
+          <tr v-if="!result?.items?.length && !loading"><td colspan="7" class="empty">没有符合条件的链路</td></tr>
+        </tbody>
+      </table>
+      <el-pagination
+        v-model:current-page="filter.page"
+        v-model:page-size="filter.size"
+        class="pager"
+        layout="total, sizes, prev, pager, next"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="result?.total ?? 0"
+      />
+    </div>
+  </div>
 </template>

@@ -56,6 +56,8 @@ cd console && npm install && npm run dev    # 打开 http://localhost:5173
 
 本地没有 Docker 时，依赖 Testcontainers 的接口测试会自动跳过，CI 上照常执行。
 
+keel-server 还没实现的接口（共享服务、链路追踪、评测、工具、审批、审计、模型网关）在开发模式下由 MSW 返回 mock 数据（`console/src/mocks/`），形状按 `contracts/console-api.openapi.yaml`。用 `VITE_API_MOCK=off npm run dev` 关掉 mock、全部走真接口。
+
 ## 当前进度
 
 P0 进行中。控制台外壳、总览、智能体列表已可本地运行（P1-0），其余页面为占位。按 `docs/TASKS.md` 推进。

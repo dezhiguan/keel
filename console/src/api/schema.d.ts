@@ -451,6 +451,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 挂起等人回话的执行（草案，P3-1 定稿）
+         * @description 只返回 status=SUSPENDED 且 reason 为 input_required / handoff 的 run；reason=approval 的在 /approvals 里。
+         */
+        get: operations["listSuspendedRuns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/runs/{runId}/input": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 回复挂起的执行（草案，P3-1 定稿），keel-server 据此调智能体的 /v1/runs/{id}/resume */
+        post: operations["answerSuspendedRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/audit/events": {
         parameters: {
             query?: never;
@@ -1057,7 +1096,19 @@ export interface components {
         Approval: {
             /** @example ap_0912 */
             id?: string;
+            /**
+             * @description 草案（P3-1 定稿）。与 approval_request.subject_type 一致，见 docs/specs/P0-1a-run-lifecycle.md
+             * @enum {string}
+             */
+            subjectType?: "tool.call" | "tool.config" | "agent.config" | "agent.retire" | "data.export";
+            /** @description 工具名 / 智能体名 / 导出申请 id */
+            subjectRef?: string;
+            /** @description 非空表示有一次执行正挂起等这张单 */
+            runId?: string | null;
+            /** @example 班组长审批 */
+            policyName?: string | null;
             agent?: string;
+            /** @description 仅 subjectType=tool.* 时有值；新代码用 subjectRef */
             tool?: string;
             risk?: components["schemas"]["Risk"];
             traceId?: string;
@@ -1073,6 +1124,23 @@ export interface components {
             decidedBy?: string | null;
             /** Format: date-time */
             decidedAt?: string | null;
+        };
+        /** @description 草案（P3-1 定稿）。挂起等人回话的执行，没有审批单；审批中心「人工介入」一组的数据来源 */
+        SuspendedRun: {
+            /** @example r_7b4a */
+            runId?: string;
+            agent?: string;
+            env?: components["schemas"]["EnvName"];
+            traceId?: string;
+            /** @enum {string} */
+            reason?: "input_required" | "handoff";
+            /** @description 要问用户的话 / 交接说明 */
+            prompt?: string;
+            actorUser?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            deadline?: string | null;
         };
         /** @description 与 contracts/audit-event.schema.json 同构，额外带 hashVerified 供列表展示 */
         AuditEvent: {
@@ -1863,6 +1931,64 @@ export interface operations {
                 };
             };
             /** @description 单子已过期或已被处理 */
+            409: components["responses"]["Error"];
+        };
+    };
+    listSuspendedRuns: {
+        parameters: {
+            query?: {
+                agent?: string;
+                page?: components["parameters"]["Page"];
+                size?: components["parameters"]["Size"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["PageMeta"] & {
+                            items?: components["schemas"]["SuspendedRun"][];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    answerSuspendedRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description 执行已不处于可恢复状态（RUN_NOT_RESUMABLE / RUN_EXPIRED） */
             409: components["responses"]["Error"];
         };
     };

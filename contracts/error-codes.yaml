@@ -63,6 +63,12 @@ codes:
     retryable: true
     http: 504
 
+  TOOL_HAS_PROD_DEPENDENTS:
+    message: 工具仍有 prod 依赖方，不能直接下线
+    retryable: false
+    http: 409
+    note: 只能先废弃（给替代工具和截止日期），依赖方迁走后再下线
+
   # ── 审批 ────────────────────────────────────────────────────────
   APPROVAL_REJECTED:
     message: 审批被驳回

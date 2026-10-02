@@ -1,8 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { listApprovals, listSuspendedRuns } from '@/api/approvals'
 
-// TODO(P3-3): load the pending count from GET /approvals and refresh it after each decision.
 export const useApprovalsStore = defineStore('approvals', () => {
   const pending = ref(0)
-  return { pending }
+
+  async function refresh() {
+    const [approvals, runs] = await Promise.all([listApprovals({ status: 'PENDING', size: 10 }), listSuspendedRuns({ size: 10 })])
+    pending.value = (approvals.total ?? 0) + (runs.total ?? 0)
+  }
+
+  return { pending, refresh }
 })

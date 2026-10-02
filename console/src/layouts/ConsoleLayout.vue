@@ -5,11 +5,13 @@ import { ElMessage } from 'element-plus'
 import { NAV } from '@/router/nav'
 import { useUserStore } from '@/stores/user'
 import { ENV_OPTIONS, useEnvStore } from '@/stores/env'
+import { useApprovalsStore } from '@/stores/approvals'
 import { toKeelError } from '@/api/http'
 
 const route = useRoute()
 const userStore = useUserStore()
 const envStore = useEnvStore()
+const approvalsStore = useApprovalsStore()
 
 const groups = computed(() => {
   const byGroup = new Map<string, typeof NAV>()
@@ -20,6 +22,7 @@ const groups = computed(() => {
 const title = computed(() => String(route.meta.title ?? ''))
 
 onMounted(async () => {
+  approvalsStore.refresh().catch(() => undefined)
   try {
     await userStore.load()
   } catch (error) {
@@ -44,9 +47,7 @@ onMounted(async () => {
           <div class="grp">{{ group }}</div>
           <RouterLink v-for="item in items" :key="item.path" :to="item.path">
             <i>{{ item.icon }}</i>{{ item.title }}
-            <span v-if="item.path === '/approvals' && userStore.user?.pendingApprovals" class="cnt">
-              {{ userStore.user.pendingApprovals }}
-            </span>
+            <span v-if="item.path === '/approvals' && approvalsStore.pending" class="cnt">{{ approvalsStore.pending }}</span>
           </RouterLink>
         </template>
       </nav>

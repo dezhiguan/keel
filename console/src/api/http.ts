@@ -57,3 +57,12 @@ export async function get<T>(url: string, config?: AxiosRequestConfig): Promise<
     throw toKeelError(error)
   }
 }
+
+export async function post<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
+  try {
+    const response = await instance.post(url, body, config)
+    return unwrap<T>(response.data)
+  } catch (error) {
+    throw toKeelError(error)
+  }
+}

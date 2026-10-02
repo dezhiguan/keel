@@ -1,0 +1,73 @@
+import { setupServer } from 'msw/node'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { handlers } from './handlers'
+
+const server = setupServer(...handlers)
+const BASE = 'http://localhost/api/v1'
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+afterAll(() => server.close())
+
+async function call(method: 'GET' | 'POST', path: string, body?: unknown) {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: { 'content-type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  return { status: res.status, json: await res.json() }
+}
+
+describe('mock handlers', () => {
+  it('pages trace list and filters by agent', async () => {
+    const all = await call('GET', '/insight/traces?page=1&size=10')
+    expect(all.json.data.items).toHaveLength(10)
+    const ops = await call('GET', '/insight/traces?agent=ops-copilot')
+    expect(ops.json.data.total).toBe(1)
+  })
+
+  it('returns the contract error body for an unknown trace', async () => {
+    const res = await call('GET', '/insight/traces/tr_missing')
+    expect(res.status).toBe(404)
+    expect(res.json).toMatchObject({ code: 'SERVER_NOT_FOUND', retryable: false })
+  })
+
+  it('refuses to retire a tool that still has prod dependents', async () => {
+    const res = await call('POST', '/tools/rag.search/retire')
+    expect(res.status).toBe(409)
+    expect(res.json.code).toBe('TOOL_HAS_PROD_DEPENDENTS')
+  })
+
+  it('retires a tool without prod dependents', async () => {
+    const res = await call('POST', '/tools/sql.legacy_export/retire')
+    expect(res.status).toBe(200)
+    const tool = await call('GET', '/tools/sql.legacy_export')
+    expect(tool.json.data.status).toBe('RETIRED')
+  })
+
+  it('decides an approval once, then rejects a second decision', async () => {
+    const first = await call('POST', '/approvals/ap_0915/decision', { decision: 'APPROVE' })
+    expect(first.json.data.status).toBe('APPROVED')
+    const again = await call('POST', '/approvals/ap_0915/decision', { decision: 'REJECT' })
+    expect(again.status).toBe(409)
+    const pending = await call('GET', '/approvals?status=PENDING&size=100')
+    expect(pending.json.data.items.map((a: { id: string }) => a.id)).not.toContain('ap_0915')
+  })
+
+  it('resumes a suspended run only once', async () => {
+    expect((await call('POST', '/runs/r_7b4a/input', { text: '先修 WT-07' })).status).toBe(200)
+    expect((await call('POST', '/runs/r_7b4a/input', { text: 'again' })).json.code).toBe('RUN_NOT_RESUMABLE')
+  })
+
+  it('starts an eval run and reports progress', async () => {
+    const started = await call('POST', '/eval/offshore-wind/runs')
+    expect(started.status).toBe(202)
+    const run = await call('GET', `/eval/runs/${started.json.data.runId}`)
+    expect(run.json.data.state).toBe('RUNNING')
+    expect(run.json.data.progress).toBeGreaterThanOrEqual(0)
+  })
+
+  it('filters audit events by risk', async () => {
+    const res = await call('GET', '/audit/events?risk=HIGH&size=100')
+    expect(res.json.data.items.every((e: { risk: string }) => e.risk === 'HIGH')).toBe(true)
+  })
+})

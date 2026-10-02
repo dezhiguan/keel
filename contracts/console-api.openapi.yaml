@@ -727,6 +727,66 @@ paths:
           description: 单子已过期或已被处理
           $ref: "#/components/responses/Error"
 
+  /runs:
+    get:
+      tags: [approvals]
+      operationId: listSuspendedRuns
+      summary: 挂起等人回话的执行（草案，P3-1 定稿）
+      description: 只返回 status=SUSPENDED 且 reason 为 input_required / handoff 的 run；reason=approval 的在 /approvals 里。
+      parameters:
+        - name: agent
+          in: query
+          schema: { type: string }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: "#/components/schemas/PageMeta"
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items: { $ref: "#/components/schemas/SuspendedRun" }
+
+  /runs/{runId}/input:
+    parameters:
+      - name: runId
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [approvals]
+      operationId: answerSuspendedRun
+      summary: 回复挂起的执行（草案，P3-1 定稿），keel-server 据此调智能体的 /v1/runs/{id}/resume
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+        "409":
+          description: 执行已不处于可恢复状态（RUN_NOT_RESUMABLE / RUN_EXPIRED）
+          $ref: "#/components/responses/Error"
+
   # ---------------------------------------------------------------- 审计
   /audit/events:
     get:
@@ -1519,8 +1579,15 @@ components:
       type: object
       properties:
         id: { type: string, example: ap_0912 }
+        subjectType:
+          type: string
+          description: 草案（P3-1 定稿）。与 approval_request.subject_type 一致，见 docs/specs/P0-1a-run-lifecycle.md
+          enum: [tool.call, tool.config, agent.config, agent.retire, data.export]
+        subjectRef: { type: string, description: 工具名 / 智能体名 / 导出申请 id }
+        runId: { type: string, nullable: true, description: 非空表示有一次执行正挂起等这张单 }
+        policyName: { type: string, nullable: true, example: 班组长审批 }
         agent: { type: string }
-        tool: { type: string }
+        tool: { type: string, description: 仅 subjectType=tool.* 时有值；新代码用 subjectRef }
         risk: { $ref: "#/components/schemas/Risk" }
         traceId: { type: string }
         actorUser: { type: string }
@@ -1533,6 +1600,20 @@ components:
         expiresAt: { type: string, format: date-time, nullable: true }
         decidedBy: { type: string, nullable: true }
         decidedAt: { type: string, format: date-time, nullable: true }
+
+    SuspendedRun:
+      type: object
+      description: 草案（P3-1 定稿）。挂起等人回话的执行，没有审批单；审批中心「人工介入」一组的数据来源
+      properties:
+        runId: { type: string, example: r_7b4a }
+        agent: { type: string }
+        env: { $ref: "#/components/schemas/EnvName" }
+        traceId: { type: string }
+        reason: { type: string, enum: [input_required, handoff] }
+        prompt: { type: string, description: 要问用户的话 / 交接说明 }
+        actorUser: { type: string }
+        createdAt: { type: string, format: date-time }
+        deadline: { type: string, format: date-time, nullable: true }
 
     # ------------------------------------------------------------ 审计
     AuditEvent:
