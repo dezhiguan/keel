@@ -69,6 +69,12 @@ curl -sf "$LANGFUSE_HOST/api/public/health"
 - [ ] `GET /api/public/traces` 返回 404，`GET /api/public/v2/observations` 不是 404
 - [ ] 备份脚本能跑完一次，磁盘监控有告警规则
 
+## 锁定版本（2026-10-03）
+
+从 Langfuse 仓库 tag `v4.27.0` 的 compose 改编。应用镜像钉为 `4.27.0`，Redis `7.4.7`，Postgres `17.6`，ClickHouse `25.12`。MinIO 官方 compose 没有 tag，仓库里保持原样，没有另猜版本。
+
+官方 `LANGFUSE_INIT_*` 一次只能创建一个项目。`.env.example` 只放 `keel-dev`。staging、prod 不在 git 里放 Key。详见 `deploy/langfuse/README.md`。
+
 ## 明确不做
 
 - 不部署 LiteLLM（P1-2）

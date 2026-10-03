@@ -26,6 +26,16 @@ codes:
     retryable: true
     http: 500
 
+  AGENT_MANIFEST_INVALID:
+    message: manifest 未通过校验
+    retryable: false
+    http: 400
+
+  AGENT_SELF_CHECK_FAILED:
+    message: 注册自检未通过
+    retryable: false
+    http: 409
+
   # ── keel-gateway ────────────────────────────────────────────────
   GW_QUOTA_EXCEEDED:
     message: 配额已用完

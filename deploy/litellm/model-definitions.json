@@ -1,0 +1,8 @@
+{
+  "unit": "USD per token",
+  "note": "与 config.yaml 的 model_info 相同。2026-10-03 没有连到厂商价目页复核，部署前按当天价目改这两处，缺价格时成本会记成 0。",
+  "models": [
+    {"model": "qwen-plus", "input_cost_per_token": 0.000000111, "output_cost_per_token": 0.000000278},
+    {"model": "deepseek-v3", "input_cost_per_token": 0.000000038, "output_cost_per_token": 0.00000015}
+  ]
+}

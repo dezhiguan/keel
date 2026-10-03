@@ -5,6 +5,8 @@ class ErrorCode(str, Enum):
     SERVER_INVALID_PARAM = 'SERVER_INVALID_PARAM'
     SERVER_NOT_FOUND = 'SERVER_NOT_FOUND'
     SERVER_INTERNAL_ERROR = 'SERVER_INTERNAL_ERROR'
+    AGENT_MANIFEST_INVALID = 'AGENT_MANIFEST_INVALID'
+    AGENT_SELF_CHECK_FAILED = 'AGENT_SELF_CHECK_FAILED'
     GW_QUOTA_EXCEEDED = 'GW_QUOTA_EXCEEDED'
     GW_CONCURRENCY_LIMIT = 'GW_CONCURRENCY_LIMIT'
     GW_AGENT_OFFLINE = 'GW_AGENT_OFFLINE'
@@ -38,6 +40,8 @@ _DETAILS = {
     ErrorCode.SERVER_INVALID_PARAM: ('请求参数不合法', False, 400),
     ErrorCode.SERVER_NOT_FOUND: ('资源不存在', False, 404),
     ErrorCode.SERVER_INTERNAL_ERROR: ('服务内部错误', True, 500),
+    ErrorCode.AGENT_MANIFEST_INVALID: ('manifest 未通过校验', False, 400),
+    ErrorCode.AGENT_SELF_CHECK_FAILED: ('注册自检未通过', False, 409),
     ErrorCode.GW_QUOTA_EXCEEDED: ('配额已用完', True, 429),
     ErrorCode.GW_CONCURRENCY_LIMIT: ('并发连接数达到上限', True, 429),
     ErrorCode.GW_AGENT_OFFLINE: ('智能体当前不可用', True, 503),

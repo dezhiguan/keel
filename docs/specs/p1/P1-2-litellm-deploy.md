@@ -62,6 +62,12 @@ curl -s "$LITELLM_HOST/global/spend/report" | jq .
 - [ ] 别名不符合 `{agent}-{env}` 的 `/key/generate` 被拒绝
 - [ ] `/key/delete` 的核实结论写回本文件
 
+## 核实记录（2026-10-03）
+
+镜像使用 LiteLLM 生产文档中的钉版本示例 `docker.litellm.ai/berriai/litellm:v1.98.0`。本机没有运行中的 LiteLLM，`/docs` 没打开，`/key/delete` 仍未确认。下线只做 `/key/block`。
+
+`model_info` 里的四个单价还没有对照厂商当天价目。它们不是 0，部署前要改，并同步 `deploy/litellm/model-definitions.json`。
+
 ## 明确不做
 
 - 不实现 `LiteLlmProvisioner`（P1-8）

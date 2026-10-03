@@ -1,0 +1,50 @@
+# LiteLLM 代理配置（P1-2）。厂商 Key 只从环境变量读，不写在这个文件里。
+# 成功回调留空：generation span 只由 Keel SDK 上报，这里再打开 Langfuse 会记成两条。
+
+model_list:
+  - model_name: qwen-plus
+    litellm_params:
+      model: dashscope/qwen-plus
+      api_key: os.environ/DASHSCOPE_API_KEY
+      timeout: 30
+    model_info:
+      input_cost_per_token: 0.000000111
+      output_cost_per_token: 0.000000278
+  - model_name: deepseek-v3
+    litellm_params:
+      model: deepseek/deepseek-chat
+      api_key: os.environ/DEEPSEEK_API_KEY
+      timeout: 30
+    model_info:
+      input_cost_per_token: 0.000000038
+      output_cost_per_token: 0.00000015
+
+litellm_settings:
+  success_callback: []
+  failure_callback: []
+  callbacks: []
+  # {agent}-{env}。agent 段与 manifest 的 name 规则一致。
+  key_alias_pattern: "^[a-z][a-z0-9-]{1,38}[a-z0-9]-(dev|staging|prod)$"
+  cache: true
+  cache_params:
+    type: redis
+    host: os.environ/REDIS_HOST
+    port: os.environ/REDIS_PORT
+    password: os.environ/REDIS_PASSWORD
+  drop_params: true
+  request_timeout: 60
+
+router_settings:
+  redis_host: os.environ/REDIS_HOST
+  redis_port: os.environ/REDIS_PORT
+  redis_password: os.environ/REDIS_PASSWORD
+  num_retries: 1
+  allowed_fails: 3
+  cooldown_time: 60
+  fallbacks:
+    - qwen-plus: ["deepseek-v3"]
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
+  store_prompts_in_spend_logs: false

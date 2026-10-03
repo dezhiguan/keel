@@ -33,8 +33,13 @@ public record AgentSummary(
      * TODO(P1-14): calls / p95 / cost / score come from insight (Langfuse, LiteLLM).
      */
     public static AgentSummary of(Agent agent) {
+        return of(agent, null, null);
+    }
+
+    /** calls、成本、评分留给 P1-14。category 没有落库字段，保持 null。 */
+    public static AgentSummary of(Agent agent, String version, String instances) {
         return new AgentSummary(agent.getName(), agent.getDisplayName(), null, agent.getLanguage(),
-                agent.getRuntime(), null, null, null, agent.getStatus(), null, null,
-                agent.getOwnerOrg(), agent.getOwnerUser(), null, null, null, null, null, null, null, null);
+                agent.getRuntime(), null, null, version, agent.getStatus(), null, null,
+                agent.getOwnerOrg(), agent.getOwnerUser(), null, null, null, null, null, null, instances, null);
     }
 }
