@@ -10,6 +10,10 @@ import com.keel.common.model.SuspendEvent;
 import com.keel.starter.context.KeelContext;
 import com.keel.starter.manifest.AgentBinding;
 import com.keel.starter.manifest.AgentRegistry;
+import com.keel.starter.tracing.MdcContext;
+import com.keel.starter.tracing.SpanAttributes;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.context.Context;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -54,7 +58,9 @@ public class InvokeController {
         emitter.onCompletion(end);
         emitter.onTimeout(end);
         emitter.onError(error -> end.run());
-        Thread.ofVirtual().start(() -> produce(emitter, binding, body, traceId, runId));
+        // Virtual threads do not inherit MDC. Copy it, and the current span, before the request thread returns.
+        Runnable task = MdcContext.wrap(() -> produce(emitter, binding, body, traceId, runId));
+        Thread.ofVirtual().start(Context.current().wrap(task));
         return emitter;
     }
 
@@ -66,9 +72,14 @@ public class InvokeController {
 
     private void produce(SseEmitter emitter, AgentBinding binding, Map<String, Object> body,
                          String traceId, String runId) {
+        Span span = Span.current();
+        span.setAttribute(SpanAttributes.RUN_ID, runId);
+        span.setAttribute(SpanAttributes.AGENT, binding.name());
         KeelContext context = new KeelContext(binding.name(), runId, traceId, (name, event) -> send(emitter, name, event));
         try {
             Object result = binding.invoke(body, context);
+            if (result instanceof SuspendEvent) span.setAttribute(SpanAttributes.RUN_SUSPENDED, true);
+            if (result instanceof ErrorEvent) span.setAttribute(SpanAttributes.STATUS, "failed");
             if (result instanceof FinalEvent || result instanceof SuspendEvent || result instanceof ErrorEvent) {
                 send(emitter, eventName(result), result);
             } else {
@@ -78,9 +89,11 @@ public class InvokeController {
         } catch (UncheckedIOException ex) {
             log.error("SSE client disconnected trace_id={} agent={}", traceId, binding.name());
         } catch (KeelException ex) {
+            span.setAttribute(SpanAttributes.STATUS, "failed");
             log.error("agent invocation rejected trace_id={} agent={}", traceId, binding.name());
             sendQuietly(emitter, "error", errorEvent(ex.code(), traceId, runId));
         } catch (Throwable ex) {
+            span.setAttribute(SpanAttributes.STATUS, "failed");
             log.error("agent invocation failed trace_id={} agent={}", traceId, binding.name());
             sendQuietly(emitter, "error", errorEvent(ErrorCode.SERVER_INTERNAL_ERROR, traceId, runId));
         } finally {

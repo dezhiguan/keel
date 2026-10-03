@@ -1,1 +1,2 @@
 com.keel.starter.autoconfigure.KeelAutoConfiguration
+com.keel.starter.tracing.KeelTracingAutoConfiguration

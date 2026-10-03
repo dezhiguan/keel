@@ -31,7 +31,7 @@ careermate 仓库的删除动作在 P2-13，本任务**不碰 careermate**，只
 
 - **先确认 careermate 的现有行为，再决定搬什么**。`TracingMdcFilter` 和 `AgentTracing` 是现成的、在生产跑着的代码。搬之前要读懂它现在往 MDC 里放什么、span 怎么命名、有没有业务依赖这些字段。**不要照着文档重写一遍**——重写出来的东西和现有行为有差异，P2-13 迁移时才会发现。这是本任务最大的风险点。
 
-- **careermate 用的是 micrometer-tracing 还是直接 OTel，要先看**。如果是 micrometer-tracing，加 OTLP exporter 的方式和纯 OTel 不同，桥接层的 span 属性映射也要验证。**待确认**，看完写回这里。
+- **已确认（2026-10-03，读 careermate `com.careermate.observability`）**：运行时是 **micrometer-tracing-bridge-otel**，不是业务代码直接用 OTel API。`AgentTracing`、`LlmTracingSupport`、`TraceHeaderPropagator` 都注入 `io.micrometer.tracing.Tracer`。`TraceIdResolver` 先读 SkyWalking `TraceContext.traceId()`（忽略 `N/A` 和 `Ignored_Trace`），没有再用 Micrometer 当前 span。MDC 键是 `traceId`、`requestId`、`sessionId`、`userId`、`spanId`、`service`；响应头是 `X-Trace-Id`、`X-Request-Id`；会话头是 `X-CareerMate-Session-Id`。流式请求（`Accept: text/event-stream` 或路径以 `/messages/stream` 结尾）不套 `ContentCachingResponseWrapper`。span 名是调用方传入的，流式入口固定 `agent.stream`，模型调用固定 `llm.chat`。SkyWalking 仍由 careermate 自己的 agent 负责，starter **不引入** SkyWalking 依赖；Langfuse 导出用 OTel HTTP exporter 直接发，避免 Micrometer 默认走到 gRPC。
 
 - **MDC 里必须有 `trace_id` 和 `agent`**（铁律：所有日志必须带这两个）。虚拟线程下 MDC 的传播行为和平台线程不同——`InheritableThreadLocal` 在虚拟线程上不工作。starter 走 MVC + 虚拟线程（P0-11），这一条必须有用例：虚拟线程里打的日志带不带 trace_id。
 
