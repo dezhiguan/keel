@@ -7,6 +7,8 @@ import com.keel.server.registry.model.dto.AgentDetail;
 import com.keel.server.registry.model.dto.AgentSummary;
 import com.keel.server.registry.model.enums.AgentStatus;
 import com.keel.server.registry.service.AgentRegistryService;
+import com.keel.server.registry.service.LifecycleService;
+import com.keel.server.registry.service.SelfCheckService;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,9 +23,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/agents")
 public class AgentController {
     private final AgentRegistryService agentRegistryService;
+    private final LifecycleService lifecycleService;
 
-    public AgentController(AgentRegistryService agentRegistryService) {
+    public AgentController(AgentRegistryService agentRegistryService, LifecycleService lifecycleService) {
         this.agentRegistryService = agentRegistryService;
+        this.lifecycleService = lifecycleService;
     }
 
     @GetMapping
@@ -35,6 +39,11 @@ public class AgentController {
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "10") @Pattern(regexp = "10|20|50|100") String size) {
         return R.ok(agentRegistryService.page(env, category, status, q, page, Integer.parseInt(size)));
+    }
+
+    @PostMapping
+    public R<SelfCheckService.Report> register(@RequestBody JsonNode body) {
+        return R.ok(lifecycleService.register(body));
     }
 
     @GetMapping("/name-check")

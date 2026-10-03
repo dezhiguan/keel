@@ -1,4 +1,114 @@
 package com.keel.server.registry.service;
 
-/** Package-layout placeholder; behavior is added by its feature task. */
-public class LifecycleService {}
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.keel.common.error.ErrorCode;
+import com.keel.server.common.KeelException;
+import com.keel.server.provisioning.ProvisioningService;
+import com.keel.server.provisioning.ResourceLedger;
+import com.keel.server.registry.mapper.AgentMapper;
+import com.keel.server.registry.model.entity.Agent;
+import com.keel.server.registry.model.enums.AgentStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
+
+@Service
+public class LifecycleService {
+    private final AgentMapper agents;
+    private final ProvisioningService provisioning;
+    private final ResourceLedger ledger;
+    private final JdbcTemplate jdbc;
+    private final ManifestValidator validator;
+    private final ObjectMapper json;
+
+    public LifecycleService(AgentMapper agents, ProvisioningService provisioning, ResourceLedger ledger,
+                            JdbcTemplate jdbc, ManifestValidator validator, ObjectMapper json) {
+        this.agents = agents;
+        this.provisioning = provisioning;
+        this.ledger = ledger;
+        this.jdbc = jdbc;
+        this.validator = validator;
+        this.json = json;
+    }
+
+    public SelfCheckService.Report register(JsonNode body) {
+        var manifest = manifest(body);
+        validator.validate(manifest, java.util.Set.of());
+        var name = manifest.path("metadata").path("name").asText();
+        var env = body.path("env").asText("dev");
+        if (!env.equals("dev") && !env.equals("staging") && !env.equals("prod")) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, ErrorCode.SERVER_INVALID_PARAM.message());
+        }
+        var existing = agents.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Agent>()
+                .eq(Agent::getName, name));
+        if (existing != null && ledger.hasActive(name, env)) {
+            throw new KeelException(ErrorCode.AGENT_NAME_TAKEN, ErrorCode.AGENT_NAME_TAKEN.message());
+        }
+        if (existing == null) {
+            insertAgent(manifest);
+        }
+        var text = manifest.toString();
+        jdbc.update("""
+                INSERT INTO agent_version (agent_name, version, env, manifest_json, manifest_hash, released_by)
+                VALUES (?, 'v0', ?, ?::jsonb, ?, 'keel')
+                ON CONFLICT (agent_name, env, version) DO UPDATE SET manifest_json = EXCLUDED.manifest_json,
+                    manifest_hash = EXCLUDED.manifest_hash, released_at = now()
+                """, name, env, text, sha256(text));
+        var endpoint = manifest.path("spec").path("runtime").path("endpoint").asText();
+        var report = provisioning.register(name, env, endpoint, manifest);
+        if (report.passed()) {
+            jdbc.update("INSERT INTO route_snapshot (changed_agent) VALUES (?)", name);
+        }
+        return report;
+    }
+
+    private void insertAgent(JsonNode manifest) {
+        var runtime = manifest.path("spec").path("runtime");
+        var agent = new Agent();
+        agent.setName(manifest.path("metadata").path("name").asText());
+        agent.setDisplayName(manifest.path("metadata").path("displayName").asText(agent.getName()));
+        agent.setKind(Agent.KIND_AGENT);
+        agent.setRuntime(runtime.path("type").asText("code"));
+        agent.setLanguage(runtime.path("language").asText("python"));
+        var owner = manifest.path("metadata").path("owner").asText(" / ");
+        var parts = owner.split(" / ", 2);
+        agent.setOwnerOrg(parts[0].isBlank() ? "unknown" : parts[0]);
+        agent.setOwnerUser(parts.length > 1 && !parts[1].isBlank() ? parts[1] : "unknown");
+        agent.setStatus(AgentStatus.REGISTERED);
+        agent.setLiveness(runtime.path("liveness").asText("k8s"));
+        agents.insert(agent);
+    }
+
+    private JsonNode manifest(JsonNode body) {
+        if (body.has("apiVersion")) {
+            return body;
+        }
+        ObjectNode manifest = json.createObjectNode();
+        manifest.put("apiVersion", "keel/v1");
+        manifest.put("kind", "Agent");
+        var metadata = manifest.putObject("metadata");
+        metadata.put("name", body.path("name").asText());
+        metadata.put("displayName", body.path("displayName").asText(body.path("name").asText()));
+        metadata.put("owner", body.path("ownerOrg").asText("") + " / " + body.path("ownerUser").asText(""));
+        var runtime = manifest.putObject("spec").putObject("runtime");
+        runtime.put("type", body.path("runtime").asText("code"));
+        runtime.put("language", body.path("language").asText("python").toLowerCase());
+        runtime.put("endpoint", body.path("endpoint").asText("http://" + body.path("name").asText() + ".agents.svc:8000"));
+        runtime.put("liveness", "dify".equals(body.path("runtime").asText()) ? "probe" : "k8s");
+        return manifest;
+    }
+
+    private static String sha256(String text) {
+        try {
+            var digest = MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+}

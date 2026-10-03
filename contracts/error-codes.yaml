@@ -36,6 +36,11 @@ codes:
     retryable: false
     http: 409
 
+  AGENT_NAME_TAKEN:
+    message: 名称已被占用
+    retryable: false
+    http: 409
+
   # ── keel-gateway ────────────────────────────────────────────────
   GW_QUOTA_EXCEEDED:
     message: 配额已用完
