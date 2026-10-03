@@ -7,15 +7,19 @@ name = "keel-sdk"
 version = "0.1.0"
 description = "Keel 智能体 SDK：运行时、CLI、keel-lite、keel-gate 同一个包"
 requires-python = ">=3.11"
-# P0-6 adds runtime HTTP and tracing dependencies.
-dependencies = ["pydantic>=2,<3"]
+dependencies = ["pydantic>=2,<3", "starlette>=0.40", "PyYAML>=6", "jsonschema>=4"]
 
 [project.optional-dependencies]
 # Langfuse SDK is only allowed in keel/eval and keel/gate.
 eval = ["langfuse>=4.7.0"]
+test = ["pytest>=8", "httpx>=0.27", "fastapi>=0.115"]
 
 [project.scripts]
 keel = "keel.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["keel"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"../contracts/manifest.schema.json" = "keel/_schemas/manifest.schema.json"
+"../contracts/invoke.openapi.yaml" = "keel/_schemas/invoke.openapi.yaml"
