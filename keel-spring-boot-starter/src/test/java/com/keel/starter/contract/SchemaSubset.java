@@ -11,7 +11,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /** The subset of JSON Schema 2020-12 used by keel/v1, evaluated from the contract files. */
-final class SchemaSubset {
+public final class SchemaSubset {
     private static final Set<String> SUPPORTED = Set.of(
             "$schema", "$id", "$defs", "$comment", "$ref", "title", "description", "default",
             "type", "required", "properties", "items", "additionalProperties", "enum", "const",
@@ -20,7 +20,7 @@ final class SchemaSubset {
 
     private SchemaSubset() {}
 
-    static void assertSupported(JsonNode schema) {
+    public static void assertSupported(JsonNode schema) {
         for (Iterator<Map.Entry<String, JsonNode>> it = schema.fields(); it.hasNext();) {
             Map.Entry<String, JsonNode> field = it.next();
             String keyword = field.getKey();
@@ -46,7 +46,7 @@ final class SchemaSubset {
         }
     }
 
-    static List<String> errors(JsonNode root, JsonNode schema, JsonNode value) {
+    public static List<String> errors(JsonNode root, JsonNode schema, JsonNode value) {
         List<String> errors = new ArrayList<>();
         validate(root, schema, value, "", errors);
         return errors;
