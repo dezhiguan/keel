@@ -5,10 +5,13 @@ import inspect
 import json
 import logging
 import uuid
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
 import jsonschema
 import yaml
+from opentelemetry import trace
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
@@ -19,6 +22,8 @@ from keel.manifest import _contract_file
 from keel.protocol.errors import ErrorCode
 from keel.protocol.events import ErrorEvent, FinalEvent, SuspendEvent
 from keel.protocol.sse import encode_event
+from keel.tracing import attrs
+from keel.tracing.otel import configure_from_env
 
 logger = logging.getLogger(__name__)
 _END = object()
@@ -39,6 +44,8 @@ def _trace_id(request: Request) -> str:
 
 def create_app(agent) -> Starlette:
     agent.validate_config()
+    provider = configure_from_env()
+    tracer = provider.get_tracer("keel.agent") if provider else trace.get_tracer("keel.agent")
 
     async def invoke(request: Request):
         trace_id = _trace_id(request)
@@ -55,38 +62,56 @@ def create_app(agent) -> Starlette:
 
         # TODO(P3-1): persist idempotency_key and return the original run on retries.
         run_id = uuid.uuid4().hex
+        parent = TraceContextTextMapPropagator().extract(dict(request.headers))
+        root = tracer.start_span("agent.run", context=parent, attributes={
+            attrs.OBSERVATION_TYPE: "agent", attrs.AGENT: agent.name,
+            attrs.RUN_ID: run_id, attrs.STATUS: "ok",
+        })
+        if root.get_span_context().is_valid:
+            trace_id = f"{root.get_span_context().trace_id:032x}"
         events: asyncio.Queue = asyncio.Queue()
-        context = Context(agent.name, run_id, trace_id, events)
+        context = Context(agent.name, run_id, trace_id, events, tracer)
         entry_request = SimpleNamespace(**data)
 
         async def execute():
             try:
-                result = agent._entry(entry_request, context)
-                if inspect.isasyncgen(result):
-                    terminal = False
-                    async for event in result:
-                        events.put_nowait(event)
-                        if isinstance(event, (FinalEvent, SuspendEvent, ErrorEvent)):
-                            terminal = True
-                            break
-                    if not terminal:
-                        raise ValueError("entry stream ended without a terminal event")
-                    return
-                if inspect.isawaitable(result):
-                    result = await result
-                if isinstance(result, (FinalEvent, SuspendEvent, ErrorEvent)):
-                    events.put_nowait(result)
-                elif result is not None:
-                    events.put_nowait(context.final(str(result)))
-                else:
-                    raise ValueError("entry returned no final or suspend event")
+                with trace.use_span(root, end_on_exit=False):
+                    result = agent._entry(entry_request, context)
+                    if inspect.isasyncgen(result):
+                        terminal = False
+                        async for event in result:
+                            events.put_nowait(event)
+                            if isinstance(event, (FinalEvent, SuspendEvent, ErrorEvent)):
+                                if isinstance(event, SuspendEvent):
+                                    root.set_attribute(attrs.RUN_SUSPENDED, True)
+                                if isinstance(event, ErrorEvent):
+                                    root.set_attribute(attrs.STATUS, "failed")
+                                terminal = True
+                                break
+                        if not terminal:
+                            raise ValueError("entry stream ended without a terminal event")
+                        return
+                    if inspect.isawaitable(result):
+                        result = await result
+                    if isinstance(result, (FinalEvent, SuspendEvent, ErrorEvent)):
+                        if isinstance(result, SuspendEvent):
+                            root.set_attribute(attrs.RUN_SUSPENDED, True)
+                        if isinstance(result, ErrorEvent):
+                            root.set_attribute(attrs.STATUS, "failed")
+                        events.put_nowait(result)
+                    elif result is not None:
+                        events.put_nowait(context.final(str(result)))
+                    else:
+                        raise ValueError("entry returned no final or suspend event")
             except asyncio.CancelledError:
                 raise
             except Exception:
+                root.set_attribute(attrs.STATUS, "failed")
                 logger.error("agent invocation failed trace_id=%s agent=%s", trace_id, agent.name)
                 code = ErrorCode.SERVER_INTERNAL_ERROR
                 events.put_nowait(ErrorEvent(**_error(code, trace_id, run_id)))
             finally:
+                root.end()
                 events.put_nowait(_END)
 
         async def stream():
@@ -144,6 +169,14 @@ def create_app(agent) -> Starlette:
         code = ErrorCode.RUN_NOT_FOUND
         return JSONResponse(_error(code), status_code=code.http)
 
+    @asynccontextmanager
+    async def lifespan(app):
+        try:
+            yield
+        finally:
+            if provider:
+                provider.shutdown()
+
     return Starlette(routes=[
         Route("/v1/invoke", invoke, methods=["POST"]),
         Route("/v1/health", health, methods=["GET"]),
@@ -151,7 +184,7 @@ def create_app(agent) -> Starlette:
         Route("/v1/feedback", feedback, methods=["POST"]),
         Route("/v1/runs/{run_id}/resume", run_not_found, methods=["POST"]),
         Route("/v1/runs/{run_id}", run_not_found, methods=["GET"]),
-    ])
+    ], lifespan=lifespan)
 
 
 def mount_to(app, agent=None):

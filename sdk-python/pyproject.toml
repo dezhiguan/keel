@@ -7,7 +7,9 @@ name = "keel-sdk"
 version = "0.1.0"
 description = "Keel 智能体 SDK：运行时、CLI、keel-lite、keel-gate 同一个包"
 requires-python = ">=3.11"
-dependencies = ["pydantic>=2,<3", "starlette>=0.40", "PyYAML>=6", "jsonschema>=4"]
+dependencies = ["pydantic>=2,<3", "starlette>=0.40", "PyYAML>=6", "jsonschema>=4",
+                "httpx>=0.27", "opentelemetry-api>=1.30", "opentelemetry-sdk>=1.30",
+                "opentelemetry-proto>=1.30", "opentelemetry-exporter-otlp-proto-common>=1.30"]
 
 [project.optional-dependencies]
 # Langfuse SDK is only allowed in keel/eval and keel/gate.
