@@ -2,4 +2,11 @@
 
 from keel._generated.errors import ErrorCode
 
-__all__ = ["ErrorCode"]
+
+class KeelError(Exception):
+    def __init__(self, code: ErrorCode, message: str | None = None):
+        self.code = code
+        super().__init__(message or code.message)
+
+
+__all__ = ["ErrorCode", "KeelError"]

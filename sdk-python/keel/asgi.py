@@ -4,6 +4,7 @@ import asyncio
 import inspect
 import json
 import logging
+import os
 import uuid
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
@@ -19,7 +20,7 @@ from starlette.routing import Route
 
 from keel.context import Context
 from keel.manifest import _contract_file
-from keel.protocol.errors import ErrorCode
+from keel.protocol.errors import ErrorCode, KeelError
 from keel.protocol.events import ErrorEvent, FinalEvent, SuspendEvent
 from keel.protocol.sse import encode_event
 from keel.tracing import attrs
@@ -70,7 +71,9 @@ def create_app(agent) -> Starlette:
         if root.get_span_context().is_valid:
             trace_id = f"{root.get_span_context().trace_id:032x}"
         events: asyncio.Queue = asyncio.Queue()
-        context = Context(agent.name, run_id, trace_id, events, tracer)
+        context = Context(agent.name, run_id, trace_id, events, tracer,
+                          manifest=agent.manifest, tool_functions=agent._tools,
+                          env=request.headers.get("X-Keel-Env") or os.environ.get("KEEL_ENV"))
         entry_request = SimpleNamespace(**data)
 
         async def execute():
@@ -105,14 +108,22 @@ def create_app(agent) -> Starlette:
                         raise ValueError("entry returned no final or suspend event")
             except asyncio.CancelledError:
                 raise
+            except KeelError as exc:
+                root.set_attribute(attrs.STATUS, "failed")
+                logger.error("agent invocation rejected trace_id=%s agent=%s code=%s",
+                             trace_id, agent.name, exc.code.value)
+                events.put_nowait(ErrorEvent(**_error(exc.code, trace_id, run_id)))
             except Exception:
                 root.set_attribute(attrs.STATUS, "failed")
                 logger.error("agent invocation failed trace_id=%s agent=%s", trace_id, agent.name)
                 code = ErrorCode.SERVER_INTERNAL_ERROR
                 events.put_nowait(ErrorEvent(**_error(code, trace_id, run_id)))
             finally:
-                root.end()
-                events.put_nowait(_END)
+                try:
+                    await context.aclose()
+                finally:
+                    root.end()
+                    events.put_nowait(_END)
 
         async def stream():
             worker = asyncio.create_task(execute())

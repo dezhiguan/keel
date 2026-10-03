@@ -17,6 +17,10 @@ sdk-python/keel/llm/client.py
 sdk-python/keel/knowledge.py
 sdk-python/keel/audit/{reporter.py,masking.py}
 sdk-python/keel/context.py        # 替换 P0-6 的桩
+sdk-python/keel/asgi.py           # 创建 Context 时传入 manifest、工具注册表和客户端配置
+sdk-python/keel/agent.py          # 启动时验证本任务所需的环境变量
+sdk-python/keel/protocol/errors.py # 将客户端失败映射到已登记错误码
+sdk-python/pyproject.toml         # openai SDK 运行时依赖
 sdk-python/tests/integration/**   # 假 LiteLLM / rag-forge / keel-audit
 ```
 

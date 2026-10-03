@@ -1,6 +1,7 @@
 """Per-invocation context and event emission points."""
 
 import asyncio
+import inspect
 import secrets
 import re
 from datetime import datetime
@@ -8,6 +9,10 @@ from typing import Any
 
 from opentelemetry import trace
 
+from keel.audit.reporter import AuditReporter
+from keel.knowledge import KnowledgeClient
+from keel.llm.client import LlmClient
+from keel.protocol.errors import ErrorCode, KeelError
 from keel.tracing import attrs
 
 from keel.protocol.events import FinalEvent, StepEvent, SuspendEvent, TokenEvent, ToolEvent
@@ -20,18 +25,56 @@ class _UnimplementedClient:
     def __getattr__(self, method: str):
         raise NotImplementedError(f"ctx.{self.name}.{method} is implemented in P0-8")
 
+    async def aclose(self):
+        pass
+
+
+class _ToolClient:
+    def __init__(self, functions: dict, manifest, reporter: AuditReporter | None,
+                 trace_id: str, run_id: str):
+        self.functions = functions
+        self.manifest = manifest
+        self.reporter = reporter
+        self.trace_id = trace_id
+        self.run_id = run_id
+
+    async def call(self, name: str, **kwargs):
+        callback = self.functions.get(name)
+        declared = next((tool for tool in (self.manifest.spec.tools or []) if tool.name == name), None)
+        if callback is None or declared is None:
+            raise KeelError(ErrorCode.TOOL_NOT_GRANTED)
+        if self.reporter is None:
+            raise KeelError(ErrorCode.AUDIT_WRITE_FAILED)
+        risk = declared.risk.value if declared.risk else "low"
+        await self.reporter.record("tool.call", risk, "allowed", payload=kwargs,
+                                   resource=name, trace_id=self.trace_id, run_id=self.run_id)
+        if inspect.iscoroutinefunction(callback):
+            return await callback(**kwargs)
+        return await asyncio.to_thread(callback, **kwargs)
+
 
 class Context:
-    def __init__(self, agent: str, run_id: str, trace_id: str, events: asyncio.Queue, tracer=None):
+    def __init__(self, agent: str, run_id: str, trace_id: str, events: asyncio.Queue, tracer=None,
+                 *, manifest=None, tool_functions=None, env: str | None = None,
+                 llm_client=None, knowledge_client=None, audit_reporter=None):
         self.agent = agent
         self.run_id = run_id
         self.trace_id = trace_id
         self._events = events
         self._tracer = tracer or trace.get_tracer("keel.agent")
-        # P0-7/P0-8 replace these clients at the invocation boundary.
-        self.llm = _UnimplementedClient("llm")
-        self.knowledge = _UnimplementedClient("knowledge")
-        self.tools = _UnimplementedClient("tools")
+        models = manifest.spec.models if manifest else None
+        knowledge = manifest.spec.knowledge if manifest else None
+        tool_specs = manifest.spec.tools if manifest else None
+        audit_spec = manifest.spec.audit if manifest else None
+        self.llm = llm_client or (LlmClient(agent, models.default_ if models else None,
+                                            trace_id, self._tracer) if models else _UnimplementedClient("llm"))
+        self.knowledge = knowledge_client or (KnowledgeClient(agent, self._tracer)
+                                              if knowledge else _UnimplementedClient("knowledge"))
+        self.audit = audit_reporter or (AuditReporter(
+            agent, env, audit_spec.captureFields or () if audit_spec else ())
+            if (tool_specs or audit_spec) and env else None)
+        self.tools = (_ToolClient(tool_functions or {}, manifest, self.audit, trace_id, run_id)
+                      if manifest else _UnimplementedClient("tools"))
 
     def step(self, name: str, status: str = "ok") -> None:
         self._span(name, "agent", status)
@@ -71,3 +114,8 @@ class Context:
 
     async def gather(self, *args, **kwargs):
         raise NotImplementedError("ctx.gather is implemented after P0-6")
+
+    async def aclose(self):
+        for client in (self.llm, self.knowledge, self.audit):
+            if client is not None and hasattr(client, "aclose"):
+                await client.aclose()
