@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.keel.server.integration.authgw.AuthGatewayClient;
 import com.keel.server.integration.authgw.ClientAssertion;
 import com.sun.net.httpserver.HttpServer;
+import io.fabric8.kubernetes.client.server.mock.KubernetesMockServer;
 import org.junit.jupiter.api.Test;
 
 import java.net.InetSocketAddress;
@@ -22,6 +23,8 @@ class AuthClientProvisionerTest {
         var bodies = new ArrayList<String>();
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         var keys = new AgentKeys();
+        var cluster = new KubernetesMockServer();
+        cluster.start();
         server.createContext("/internal/clients", exchange -> {
             if ("POST".equals(exchange.getRequestMethod())) {
                 posts.incrementAndGet();
@@ -48,7 +51,7 @@ class AuthClientProvisionerTest {
         });
         server.start();
         try {
-            var secrets = new SecretWriter();
+            var secrets = new SecretWriter(cluster.createClient(), "pk-lf", "sk-lf", "http://langfuse", "http://litellm");
             var base = "http://127.0.0.1:" + server.getAddress().getPort();
             var provisioner = new AuthClientProvisioner(keys, secrets, new AuthGatewayClient(base), base);
             var manifest = new ObjectMapper().readTree("""
@@ -72,6 +75,7 @@ class AuthClientProvisionerTest {
             assertThat(new AgentJwksController(keys).jwks("code-review").get("keys")).isEqualTo(List.of());
         } finally {
             server.stop(0);
+            cluster.destroy();
         }
     }
 }
