@@ -1,7 +1,7 @@
 # Keel 任务拆解
 
 来源：`docs/architecture/Keel-技术文档.html` 第 14 节里程碑 + 第 4/5/8/9 节的服务与流程拆开到可执行粒度。
-每条任务对应 `docs/specs/` 下一份 spec。动手前先写 spec，不要拿着这张表直接改代码。
+每条任务对应 `docs/specs/p0/` 或 `docs/specs/p1/` 下一份 spec。动手前先读 spec，不要拿着这张表直接改代码。
 
 ## 当前进度（2026-10-03）
 
@@ -73,17 +73,17 @@
 
 ## P1 平台核心（第 3–5 周）
 
-验收：三个服务的链路串在同一个 trace 里；智能体代码里没有厂商 Key。
+验收：三个服务的链路串在同一个 trace 里；智能体代码里没有厂商 Key。每条任务的 spec 在 `docs/specs/p1/`。
 
 | ID | 任务 | 依赖 | 执行者 | 完成标准 |
 |---|---|---|---|---|
 | P1-1 | 观测节点 + Langfuse v4 自建，无界面初始化 dev/staging/prod 三个项目，配备份和磁盘监控 | ECS | 人工 + Cursor | 内网可访问，镜像版本已锁定 |
 | P1-2 | LiteLLM 部署 + `config.yaml`（模型、价格、路由降级）+ Redis；**关闭自带 Langfuse 回调** | P1-1 | Codex | 国内模型成本不为 0，两边价格口径一致 |
-| P1-0 | 底座最小可运行：keel-server 骨架 + registry 三张表 + `/me` `/insight/overview` `/agents` + console 骨架（**已完成**，见 `specs/P1-0-runnable-baseline.md`） | P0-4 | Cursor | 本地页面可访问 |
+| P1-0 | 底座最小可运行：keel-server 骨架 + registry 三张表 + `/me` `/insight/overview` `/agents` + console 骨架（**已完成**，见 `specs/p1/P1-0-runnable-baseline.md`） | P0-4 | Cursor | 本地页面可访问 |
 | P1-3 | keel-server 工程骨架 + `keel` 库全部 Flyway 脚本（12 张表，含 P0-1a 的 `agent_run`）。**骨架和三张 registry 表已在 P1-0 完成，只补其余九张，从 V2 开始** | P0-4 | Codex | Testcontainers 起 PG 迁移通过 |
 | P1-4 | registry：agent / agent_version / agent_instance CRUD + 控制台查询接口 | P1-3 | Codex | 接口按 OpenAPI 对齐 |
 | P1-5 | ManifestValidator + SelfCheckService（健康、协议、追踪、审批绑定四项自检） | P1-4 | **Cursor** | 缺授权、缺审批策略时注册被拒 |
-| P1-6 | provisioning 编排 + 失败逆序回滚 + `agent_resource` 记录 | P1-4 | **Cursor** | 任一步失败后外部资源被完整回收 |
+| P1-6 | provisioning 编排 + 失败逆序回滚 + `agent_resource` 记录 | P1-4 P1-5 | **Cursor** | 任一步失败后外部资源被完整回收 |
 | P1-7 | AuthClientProvisioner + AgentJwksController（生成 RSA 密钥对、托管公钥） | P1-6 P0-5 | **Cursor** | 智能体能用 private_key_jwt 完成换票 |
 | P1-8 | LiteLlmProvisioner / LangfuseProvisioner / SecretWriter | P1-6 | Codex | 虚拟 Key 别名为 `{agent}-{env}`，预算按汇率换算 |
 | P1-9 | discovery：K8sAgentWatcher + ReconcileJob（六种 finding 判定） | P1-4 | **Cursor** | 六种场景都能产出正确 finding |
@@ -93,7 +93,7 @@
 | P1-13 | insight：TraceQueryService，按 traceId 取 Observations v2，组装协作图/泳道/调用树并叠加审计审批 | P1-1 P1-11 | **Cursor** | 多智能体 trace 的协作图与原型一致 |
 | P1-14 | insight：OverviewService / CostService / QualityService / SharedServiceMonitor | P1-13 | Codex | 成本按智能体拆分与 LiteLLM 对得上 |
 | P1-15 | console 工程骨架 + 总览、智能体、审计、模型网关四页。**页面已在 P1-0 / P1-15a 完成，剩下的是去掉 mock、接 keel-server 真接口** | P1-14 | Codex | 按原型实现，数据全部走接口 |
-| P1-15a | 控制台七个页面按原型落地，数据走 MSW mock（**已完成**，见 `specs/P1-15a-console-prototype-mock.md`） | P1-0 | Cursor | `vitest run` 通过，七页可用 |
+| P1-15a | 控制台七个页面按原型落地，数据走 MSW mock（**已完成**，见 `specs/p1/P1-15a-console-prototype-mock.md`） | P1-0 | Cursor | `vitest run` 通过，七页可用 |
 | P1-16 | console 链路追踪页：**trace 列表**（原型缺这块）+ 三视图详情 + 按智能体筛选 | P1-13 P1-15 | **Cursor** | 列表可筛选可分页，点行进详情 |
 | P1-17 | askdb 接入：删 trace/audit/quota/approvals/evalstore，影子运行一周 | P0-6~8 | **Cursor** | 新旧链路数、审计条数、评测分数一致后删旧代码 |
 | P1-18 | rag-forge：OTel exporter、检索分段子 span、`caller_agent`/`kb` 指标标签、`service.yaml` 登记、模型调用改走 LiteLLM | P1-1 P0-1 | Codex | 检索作为 retriever 节点进调用方的 trace；embedding 无 fallback，向量空间不变 |
@@ -158,7 +158,7 @@ P1 之后可以拉开：keel-audit（P1-11/12）、rag-forge（P1-18）、consol
 不要贴需求描述，贴 spec 路径加验证命令：
 
 ```
-按 docs/specs/P1-3-keel-server-schema.md 实现。
+按 docs/specs/p1/P1-3-keel-server-schema.md 实现。
 完成后必须 `mvn -o -pl :keel-server test` 通过。
 只改 keel-server/ 目录下的文件。
 ```

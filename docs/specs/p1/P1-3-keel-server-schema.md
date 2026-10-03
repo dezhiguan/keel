@@ -7,13 +7,13 @@
 ## 依赖
 
 - 前置任务：P0-4、P1-0。
-- 契约：`docs/specs/P0-1a-run-lifecycle.md` 定义 `agent_run` 和审批主体；数据库表以 `docs/architecture/Keel-技术文档.html` 第 06 节为准。
+- 契约：`docs/specs/p0/P0-1a-run-lifecycle.md` 定义 `agent_run` 和审批主体；数据库表以 `docs/architecture/Keel-技术文档.html` 第 06 节为准。
 - 外部组件：PostgreSQL 16；CI 用 Testcontainers，本地无 Docker 时测试按仓库约定跳过。
 
 ## 改哪些文件
 
 ```
-docs/specs/P1-3-keel-server-schema.md
+docs/specs/p1/P1-3-keel-server-schema.md
 keel-server/src/main/resources/db/migration/V2__platform.sql
 keel-server/src/test/java/com/keel/server/SchemaMigrationTest.java
 ```

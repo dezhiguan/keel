@@ -40,7 +40,7 @@ npx openapi-typescript contracts/console-api.openapi.yaml -o console/src/api/sch
 
 ## 本地运行控制台
 
-不需要 Docker。前提：JDK 21、Maven 3.9、Node 20+，本机 PostgreSQL 监听 5432。范围见 [P1-0 spec](docs/specs/P1-0-runnable-baseline.md)。
+不需要 Docker。前提：JDK 21、Maven 3.9、Node 20+，本机 PostgreSQL 监听 5432。范围见 [P1-0 spec](docs/specs/p1/P1-0-runnable-baseline.md)。
 
 ```bash
 # 1. 建库（只需一次）

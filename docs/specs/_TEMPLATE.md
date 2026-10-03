@@ -1,6 +1,6 @@
 # {任务 ID} {任务名}
 
-> 复制这份模板，文件名用 `{任务ID}-{短名}.md`，例如 `P1-3-keel-server-schema.md`。
+> 复制这份模板。P0 放 `docs/specs/p0/`，P1 放 `docs/specs/p1/`，文件名用 `{任务ID}-{短名}.md`，例如 `docs/specs/p1/P1-3-keel-server-schema.md`。
 > 写完这份 spec 再动手。Codex 拿到的应该是这个文件的路径，不是一段聊天描述。
 
 ## 目标

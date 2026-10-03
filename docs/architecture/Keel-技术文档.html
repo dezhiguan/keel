@@ -674,7 +674,7 @@ X-Keel-Eval-Run: &lt;run_id&gt;                 <span class="c"># 评测流量�
     <div><i>5</i><b>审批人决策</b><span>控制台或企业微信回调 <code>POST /api/v1/approvals/{id}/decision</code>；keel-server 同步写 <code>approval · approved</code> 审计，再调智能体的 <code>POST /v1/runs/{run_id}/resume</code></span></div>
     <div><i>6</i><b>恢复</b><span>SDK 按 <code>checkpoint_ref</code> 还原现场 → <b>重新换票</b>（原换票 token 600 秒必然已过期；用户会话也失效的改用 <code>/oauth/delegation-token</code>，两者都没有则返回 <code>RUN_RESUME_DENIED</code>）→ 执行工具 → <b>同步</b>写 <code>tool.call · approved</code> 审计（写失败则不执行）→ 新的 SSE 流接着跑完</span></div>
   </div>
-  <div class="note info"><b>审批只是挂起的一种。</b>底座把「等人」统一成运行生命周期：<code>suspend.reason</code> 有 <code>approval</code>（等批准）、<code>input_required</code>（等用户回答）、<code>handoff</code>（转人工）三种，共用同一套待办、通知、超时和审计，智能体不用各自建后台。<b>边界：底座管账（run 状态、谁有权决定、截止时间、审计、恢复入口），智能体管现场（状态怎么序列化、怎么接着跑）。底座永远不决定下一步做什么，只在人做完决定后把现场原样递回去。</b>v1 底座只存 <code>checkpoint_ref</code> 字符串，不存现场内容——askdb 继续用自带的 LangGraph checkpointer。详见 <code>docs/specs/P0-1a-run-lifecycle.md</code>。</div></div>
+  <div class="note info"><b>审批只是挂起的一种。</b>底座把「等人」统一成运行生命周期：<code>suspend.reason</code> 有 <code>approval</code>（等批准）、<code>input_required</code>（等用户回答）、<code>handoff</code>（转人工）三种，共用同一套待办、通知、超时和审计，智能体不用各自建后台。<b>边界：底座管账（run 状态、谁有权决定、截止时间、审计、恢复入口），智能体管现场（状态怎么序列化、怎么接着跑）。底座永远不决定下一步做什么，只在人做完决定后把现场原样递回去。</b>v1 底座只存 <code>checkpoint_ref</code> 字符串，不存现场内容——askdb 继续用自带的 LangGraph checkpointer。详见 <code>docs/specs/p0/P0-1a-run-lifecycle.md</code>。</div></div>
   <div class="pane" data-pane="flow">
   <div class="seq">
     <div><i>1</i><b>CI</b><span>单测通过后运行 <code>keel gate --env prod</code></span></div>

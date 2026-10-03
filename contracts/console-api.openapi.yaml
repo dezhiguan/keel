@@ -1580,7 +1580,7 @@ components:
         id: { type: string, example: ap_0912 }
         subjectType:
           type: string
-          description: 草案（P3-1 定稿）。与 approval_request.subject_type 一致，见 docs/specs/P0-1a-run-lifecycle.md
+          description: 草案（P3-1 定稿）。与 approval_request.subject_type 一致，见 docs/specs/p0/P0-1a-run-lifecycle.md
           enum: [tool.call, tool.config, agent.config, agent.retire, data.export]
         subjectRef: { type: string, description: 工具名 / 智能体名 / 导出申请 id }
         runId: { type: string, nullable: true, description: 非空表示有一次执行正挂起等这张单 }

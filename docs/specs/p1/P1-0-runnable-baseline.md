@@ -13,7 +13,7 @@
 ## 改哪些文件
 
 ```
-docs/specs/P1-0-runnable-baseline.md
+docs/specs/p1/P1-0-runnable-baseline.md
 contracts/error-codes.yaml                      # 新增 SERVER_* 通用错误码（只加条目，非破坏）
 pom.xml                                         # 编译开 -parameters（父 pom 不是 spring-boot-starter-parent，默认没开）
 keel-common/src/main/java/com/keel/common/error/**

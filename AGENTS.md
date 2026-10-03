@@ -8,7 +8,7 @@ Keel 是智能体平台底座。设计文档在 `docs/` 下按包分类，冲突
 
 ## 动手之前
 
-1. 先读 `docs/specs/` 下对应任务的 spec。没有 spec 就先写 spec，不要直接改代码。
+1. 先读 `docs/specs/p0/` 或 `docs/specs/p1/` 下对应任务的 spec。没有 spec 就先写 spec，不要直接改代码。
 2. 涉及跨语言的数据结构，先看 `contracts/`。契约是唯一事实来源。
 3. 外部组件（Langfuse、LiteLLM、auth-gateway）的接口**不要凭记忆写**。这三个在本项目里的正确用法和通用写法差别很大，见 `.cursor/rules/external-apis.mdc`。核实不了就停下来问。
 
