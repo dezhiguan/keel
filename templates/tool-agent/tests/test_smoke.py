@@ -1,17 +1,36 @@
 import asyncio
 import json
 import os
+import socket
+import threading
 from pathlib import Path
 
 import httpx
+import uvicorn
+
+from keel.lite import LiteServer, LiteStore
 
 os.environ.setdefault("KEEL_ENV", "dev")
-os.environ.setdefault("KEEL_AUDIT_URL", "http://127.0.0.1:9")
 os.environ.setdefault("KEEL_AUDIT_TOKEN", "local-dev-token")
 os.environ.setdefault("KEEL_AUDIT_SPOOL_PATH", ".keel/audit-spool.jsonl")
 
+def _free_port():
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+_port = _free_port()
+os.environ["KEEL_AUDIT_URL"] = f"http://127.0.0.1:{_port}"
+_lite = uvicorn.Server(uvicorn.Config(LiteServer(LiteStore("."), ("title",)),
+                                      host="127.0.0.1", port=_port, log_level="error"))
+threading.Thread(target=_lite.run, daemon=True).start()
+for _ in range(100):
+    if _lite.started:
+        break
+    threading.Event().wait(0.05)
+
 from app import app
-from tools.checkpoint import create_work_order, load_checkpoint
+from tools.checkpoint import create_work_order
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -63,8 +82,27 @@ def test_suspend_event_points_at_a_checkpoint():
     response = asyncio.run(_invoke("停电检修"))
     payload = _payload(response)
     assert payload["reason"] == "approval"
-    assert payload["ref"].startswith("ckpt_")
-    assert load_checkpoint(payload["ref"])["title"] == "停电检修"
+    assert payload["ref"].startswith("ap_")
+    saved = json.loads(Path(f".keel/checkpoints/ckpt_{payload['run_id']}").read_text())
+    assert saved["kwargs"]["title"] == "停电检修"
+
+
+def test_approve_then_resume_finishes_the_tool():
+    response = asyncio.run(_invoke("更换风扇"))
+    payload = _payload(response)
+    approved = httpx.post(
+        f"{os.environ['KEEL_AUDIT_URL']}/api/v1/approvals/{payload['ref']}/decision",
+        json={"decision": "APPROVE"}, timeout=5)
+    assert approved.status_code == 200
+
+    async def resume():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            return await client.post(
+                f"/v1/runs/{payload['run_id']}/resume",
+                json={"resume_token": payload["resume_token"], "decision": "approve"})
+
+    resumed = asyncio.run(resume())
+    assert "created:更换风扇" in resumed.text
 
 
 def test_checkpoint_round_trip():

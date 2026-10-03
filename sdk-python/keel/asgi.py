@@ -21,6 +21,8 @@ from starlette.routing import Route
 from keel.context import Context
 from keel.manifest import _contract_file
 from keel.protocol.errors import ErrorCode, KeelError
+from keel.runs import get as get_run
+from keel.runs import save as save_run
 from keel.protocol.events import ErrorEvent, FinalEvent, SuspendEvent
 from keel.protocol.sse import encode_event
 from keel.tracing import attrs
@@ -73,6 +75,7 @@ def create_app(agent) -> Starlette:
         events: asyncio.Queue = asyncio.Queue()
         context = Context(agent.name, run_id, trace_id, events, tracer,
                           manifest=agent.manifest, tool_functions=agent._tools,
+                          children=agent._children, budget=_budget(request),
                           env=request.headers.get("X-Keel-Env") or os.environ.get("KEEL_ENV"))
         entry_request = SimpleNamespace(**data)
 
@@ -87,6 +90,7 @@ def create_app(agent) -> Starlette:
                             if isinstance(event, (FinalEvent, SuspendEvent, ErrorEvent)):
                                 if isinstance(event, SuspendEvent):
                                     root.set_attribute(attrs.RUN_SUSPENDED, True)
+                                    _remember(agent.name, run_id, trace_id, data.get("input"), event, context.pending)
                                 if isinstance(event, ErrorEvent):
                                     root.set_attribute(attrs.STATUS, "failed")
                                 terminal = True
@@ -99,6 +103,7 @@ def create_app(agent) -> Starlette:
                     if isinstance(result, (FinalEvent, SuspendEvent, ErrorEvent)):
                         if isinstance(result, SuspendEvent):
                             root.set_attribute(attrs.RUN_SUSPENDED, True)
+                            _remember(agent.name, run_id, trace_id, data.get("input"), result, context.pending)
                         if isinstance(result, ErrorEvent):
                             root.set_attribute(attrs.STATUS, "failed")
                         events.put_nowait(result)
@@ -176,9 +181,95 @@ def create_app(agent) -> Starlette:
         # TODO(P0-7): forward feedback to the configured Langfuse project.
         return Response(status_code=204)
 
-    async def run_not_found(request: Request):
-        code = ErrorCode.RUN_NOT_FOUND
-        return JSONResponse(_error(code), status_code=code.http)
+    async def run_status(request: Request):
+        record = get_run(request.path_params["run_id"])
+        if record is None or record["agent"] != agent.name:
+            code = ErrorCode.RUN_NOT_FOUND
+            return JSONResponse(_error(code), status_code=code.http)
+        return JSONResponse({"run_id": record["run_id"], "agent": record["agent"],
+                             "status": record["status"], "trace_id": record["trace_id"]})
+
+    async def resume(request: Request):
+        record = get_run(request.path_params["run_id"])
+        trace_id = _trace_id(request)
+        if record is None or record["agent"] != agent.name:
+            code = ErrorCode.RUN_NOT_FOUND
+            return JSONResponse(_error(code, trace_id), status_code=code.http)
+        try:
+            body = await request.json()
+        except json.JSONDecodeError:
+            code = ErrorCode.SERVER_INVALID_PARAM
+            return JSONResponse(_error(code, trace_id), status_code=code.http)
+        if body.get("resume_token") != record["resume_token"]:
+            code = ErrorCode.RUN_RESUME_DENIED
+            return JSONResponse(_error(code, trace_id), status_code=code.http)
+        if record["status"] != "SUSPENDED":
+            code = ErrorCode.RUN_NOT_RESUMABLE
+            return JSONResponse(_error(code, trace_id), status_code=code.http)
+        if record["reason"] == "approval" and body.get("decision") != "approve":
+            code = ErrorCode.RUN_NOT_RESUMABLE
+            return JSONResponse(_error(code, trace_id), status_code=code.http)
+        if record["reason"] == "approval" and not await _approval_granted(record):
+            code = ErrorCode.RUN_NOT_RESUMABLE
+            return JSONResponse(_error(code, trace_id), status_code=code.http)
+        record["status"] = "DONE"
+        save_run(record)
+        resumed = dict(record["input"] or {})
+        if record.get("input_text"):
+            resumed["text"] = record["input_text"]
+        return await invoke_resume(request, {"input": resumed}, record["run_id"])
+
+    async def invoke_resume(request: Request, data: dict, run_id: str):
+        trace_id = record_trace(request)
+        events: asyncio.Queue = asyncio.Queue()
+        context = Context(agent.name, run_id, trace_id, events, tracer,
+                          manifest=agent.manifest, tool_functions=agent._tools,
+                          children=agent._children, budget=_budget(request),
+                          env=request.headers.get("X-Keel-Env") or os.environ.get("KEEL_ENV"))
+        context.resuming = True
+        entry_request = SimpleNamespace(**data, resume=True)
+        root = tracer.start_span("agent.resume", attributes={
+            attrs.OBSERVATION_TYPE: "agent", attrs.AGENT: agent.name,
+            attrs.RUN_ID: run_id, attrs.STATUS: "ok",
+        })
+
+        async def execute():
+            try:
+                with trace.use_span(root, end_on_exit=False):
+                    result = agent._entry(entry_request, context)
+                    if inspect.isawaitable(result):
+                        result = await result
+                    if isinstance(result, (FinalEvent, SuspendEvent, ErrorEvent)):
+                        events.put_nowait(result)
+                    elif result is not None:
+                        events.put_nowait(context.final(str(result)))
+                    else:
+                        raise ValueError("entry returned no final or suspend event")
+            except KeelError as exc:
+                events.put_nowait(ErrorEvent(**_error(exc.code, trace_id, run_id)))
+            except Exception:
+                events.put_nowait(ErrorEvent(**_error(ErrorCode.SERVER_INTERNAL_ERROR, trace_id, run_id)))
+            finally:
+                await context.aclose()
+                root.end()
+                events.put_nowait(_END)
+
+        async def stream():
+            worker = asyncio.create_task(execute())
+            try:
+                while True:
+                    event = await events.get()
+                    if event is _END:
+                        break
+                    yield encode_event(event)
+                    if isinstance(event, (SuspendEvent, FinalEvent, ErrorEvent)):
+                        break
+            finally:
+                if not worker.done():
+                    worker.cancel()
+                await asyncio.gather(worker, return_exceptions=True)
+
+        return StreamingResponse(stream(), media_type="text/event-stream")
 
     @asynccontextmanager
     async def lifespan(app):
@@ -193,9 +284,54 @@ def create_app(agent) -> Starlette:
         Route("/v1/health", health, methods=["GET"]),
         Route("/v1/manifest", manifest, methods=["GET"]),
         Route("/v1/feedback", feedback, methods=["POST"]),
-        Route("/v1/runs/{run_id}/resume", run_not_found, methods=["POST"]),
-        Route("/v1/runs/{run_id}", run_not_found, methods=["GET"]),
+        Route("/v1/runs/{run_id}/resume", resume, methods=["POST"]),
+        Route("/v1/runs/{run_id}", run_status, methods=["GET"]),
     ], lifespan=lifespan)
+
+
+def _budget(request: Request) -> dict:
+    raw = request.headers.get("X-Keel-Budget")
+    if not raw:
+        return {"cny": 1.0, "steps": 8}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return {"cny": 1.0, "steps": 8}
+    return {"cny": float(parsed.get("cny", 1.0)), "steps": int(parsed.get("steps", 8))}
+
+
+def _remember(agent: str, run_id: str, trace_id: str, payload: dict | None,
+              event: SuspendEvent, pending: dict | None) -> None:
+    pending = pending or {}
+    save_run({
+        "run_id": run_id, "agent": agent, "status": "SUSPENDED",
+        "reason": event.reason.value if hasattr(event.reason, "value") else event.reason,
+        "ref": event.ref, "resume_token": event.resume_token, "trace_id": trace_id,
+        "input": payload or {}, "checkpoint_ref": pending.get("checkpoint_ref") or event.ref,
+        "approval_id": pending.get("approval_id"), "input_text": pending.get("input_text"),
+    })
+
+
+def record_trace(request: Request) -> str:
+    return _trace_id(request)
+
+
+async def _approval_granted(record: dict) -> bool:
+    approval_id = record.get("approval_id")
+    url = os.environ.get("KEEL_AUDIT_URL")
+    token = os.environ.get("KEEL_AUDIT_TOKEN")
+    if not approval_id or not url or not token:
+        return False
+    import httpx
+    try:
+        async with httpx.AsyncClient(base_url=url, timeout=5,
+                                     headers={"Authorization": f"Bearer {token}"}) as client:
+            response = await client.get("/api/v1/approvals", params={"status": "APPROVED", "size": 100})
+            response.raise_for_status()
+            items = response.json().get("data", {}).get("items", [])
+    except httpx.HTTPError:
+        return False
+    return any(item.get("id") == approval_id for item in items)
 
 
 def mount_to(app, agent=None):

@@ -68,7 +68,8 @@ def test_gitignore_covers_local_state():
     assert ".keel/" in (ROOT / ".gitignore").read_text().splitlines()
 
 
-def test_app_steps_follow_both_children():
+def test_app_delegates_through_the_sdk():
     source = (ROOT / "app.py").read_text()
-    assert 'ctx.step("research-bot")' in source
-    assert 'ctx.step("draft-bot")' in source
+    assert 'ctx.delegate("research-bot"' in source
+    assert 'ctx.delegate("draft-bot"' in source
+    assert "@agent.child" in source

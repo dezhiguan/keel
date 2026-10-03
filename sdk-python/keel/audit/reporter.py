@@ -38,7 +38,8 @@ class AuditReporter:
 
     async def record(self, action: str, risk: str, decision: str, *,
                      payload: dict | None = None, resource: str | None = None,
-                     trace_id: str | None = None, run_id: str | None = None):
+                     trace_id: str | None = None, run_id: str | None = None,
+                     approver: str | None = None):
         event = {"event_id": uuid4().hex,
                  "ts": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                  "agent": self.agent, "env": self.env, "action": action,
@@ -50,6 +51,8 @@ class AuditReporter:
             event["trace_id"] = trace_id
         if run_id is not None:
             event["run_id"] = run_id
+        if approver is not None:
+            event["approver"] = approver
 
         if risk == "high":
             try:

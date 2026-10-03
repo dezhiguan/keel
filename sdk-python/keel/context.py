@@ -2,6 +2,7 @@
 
 import asyncio
 import inspect
+import os
 import secrets
 import re
 from datetime import datetime
@@ -30,24 +31,27 @@ class _UnimplementedClient:
 
 
 class _ToolClient:
-    def __init__(self, functions: dict, manifest, reporter: AuditReporter | None,
-                 trace_id: str, run_id: str):
+    def __init__(self, functions: dict, manifest, owner: "Context"):
         self.functions = functions
         self.manifest = manifest
-        self.reporter = reporter
-        self.trace_id = trace_id
-        self.run_id = run_id
+        self.owner = owner
 
     async def call(self, name: str, **kwargs):
         callback = self.functions.get(name)
         declared = next((tool for tool in (self.manifest.spec.tools or []) if tool.name == name), None)
         if callback is None or declared is None:
             raise KeelError(ErrorCode.TOOL_NOT_GRANTED)
-        if self.reporter is None:
+        if self.owner.audit is None:
             raise KeelError(ErrorCode.AUDIT_WRITE_FAILED)
         risk = declared.risk.value if declared.risk else "low"
-        await self.reporter.record("tool.call", risk, "allowed", payload=kwargs,
-                                   resource=name, trace_id=self.trace_id, run_id=self.run_id)
+        approval = declared.approval.value if declared.approval else "none"
+        if risk == "high" and approval == "required" and not self.owner.resuming:
+            return await self.owner.suspend_for_approval(name, kwargs)
+        decision = "approved" if self.owner.resuming else "allowed"
+        await self.owner.audit.record(
+            "tool.call", risk, decision, payload=kwargs, resource=name,
+            trace_id=self.owner.trace_id, run_id=self.owner.run_id,
+            approver="local" if self.owner.resuming and risk == "high" else None)
         if inspect.iscoroutinefunction(callback):
             return await callback(**kwargs)
         return await asyncio.to_thread(callback, **kwargs)
@@ -55,12 +59,18 @@ class _ToolClient:
 
 class Context:
     def __init__(self, agent: str, run_id: str, trace_id: str, events: asyncio.Queue, tracer=None,
-                 *, manifest=None, tool_functions=None, env: str | None = None,
-                 llm_client=None, knowledge_client=None, audit_reporter=None):
+                 *, manifest=None, tool_functions=None, children=None, budget=None,
+                 env: str | None = None, llm_client=None, knowledge_client=None,
+                 audit_reporter=None):
         self.agent = agent
         self.run_id = run_id
         self.trace_id = trace_id
         self._events = events
+        self.manifest = manifest
+        self.resuming = False
+        self.pending: dict | None = None
+        self.budget = dict(budget or {"cny": 1.0, "steps": 8})
+        self._children = children or {}
         self._tracer = tracer or trace.get_tracer("keel.agent")
         models = manifest.spec.models if manifest else None
         knowledge = manifest.spec.knowledge if manifest else None
@@ -73,7 +83,7 @@ class Context:
         self.audit = audit_reporter or (AuditReporter(
             agent, env, audit_spec.captureFields or () if audit_spec else ())
             if (tool_specs or audit_spec) and env else None)
-        self.tools = (_ToolClient(tool_functions or {}, manifest, self.audit, trace_id, run_id)
+        self.tools = (_ToolClient(tool_functions or {}, manifest, self)
                       if manifest else _UnimplementedClient("tools"))
 
     def step(self, name: str, status: str = "ok") -> None:
@@ -109,8 +119,51 @@ class Context:
                             deadline=deadline, resume_token=secrets.token_urlsafe(32),
                             trace_id=self.trace_id)
 
-    async def delegate(self, *args, **kwargs):
-        raise NotImplementedError("ctx.delegate is implemented after P0-6")
+    async def suspend_for_approval(self, tool: str, kwargs: dict) -> SuspendEvent:
+        import json
+        from pathlib import Path
+        import httpx
+        folder = Path(".keel/checkpoints")
+        folder.mkdir(parents=True, exist_ok=True)
+        ref = f"ckpt_{self.run_id}"
+        (folder / ref).write_text(json.dumps({"tool": tool, "kwargs": kwargs}), encoding="utf-8")
+        url = os.environ.get("KEEL_AUDIT_URL")
+        token = os.environ.get("KEEL_AUDIT_TOKEN")
+        if not url or not token:
+            raise KeelError(ErrorCode.AUDIT_WRITE_FAILED)
+        try:
+            async with httpx.AsyncClient(base_url=url, timeout=5,
+                                         headers={"Authorization": f"Bearer {token}"}) as client:
+                response = await client.post("/api/v1/approvals", json={
+                    "subjectType": "tool.call", "subjectRef": tool, "agent": self.agent,
+                    "summary": f"批准调用 {tool}?", "risk": "HIGH", "runId": self.run_id,
+                    "checkpointRef": ref, "traceId": self.trace_id,
+                })
+                response.raise_for_status()
+                approval_id = response.json()["data"]["id"]
+        except (httpx.HTTPError, KeyError, ValueError) as exc:
+            raise KeelError(ErrorCode.AUDIT_WRITE_FAILED) from exc
+        event = self.suspend("approval", ref=approval_id, prompt=f"批准调用 {tool}?")
+        self.pending = {"tool": tool, "kwargs": kwargs, "checkpoint_ref": ref,
+                        "approval_id": approval_id, "input_text": kwargs.get("title") or kwargs.get("text")}
+        return event
+
+    async def delegate(self, name: str, text: str):
+        declared = list(self.manifest.spec.delegates or []) if self.manifest else []
+        if name not in declared:
+            raise KeelError(ErrorCode.DELEGATE_NOT_DECLARED)
+        child = self._children.get(name)
+        if child is None:
+            raise KeelError(ErrorCode.DELEGATE_NOT_DECLARED)
+        if self.budget.get("steps", 0) < 1 or self.budget.get("cny", 0) <= 0:
+            raise KeelError(ErrorCode.GW_QUOTA_EXCEEDED)
+        child_budget = {"cny": round(self.budget["cny"] - 0.1, 2), "steps": self.budget["steps"] - 1}
+        self.budget = child_budget
+        self._span(name, "agent", "ok")
+        result = child(text, child_budget, self.trace_id)
+        if inspect.isawaitable(result):
+            result = await result
+        return {"result": result, "budget": dict(child_budget), "trace_id": self.trace_id, "agent": name}
 
     async def gather(self, *args, **kwargs):
         raise NotImplementedError("ctx.gather is implemented after P0-6")

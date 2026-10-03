@@ -16,6 +16,7 @@ class Agent:
         self.name = manifest.metadata.name
         self._entry: Callable | None = None
         self._tools: dict[str, Callable] = {}
+        self._children: dict[str, Callable] = {}
         Agent._current = self
 
     @classmethod
@@ -38,6 +39,15 @@ class Agent:
             self._tools[tool_name] = callback
             return callback
         return register(function) if function is not None else register
+
+    def child(self, name: str):
+        """Register an in-process agent that ctx.delegate may call."""
+        def register(callback: Callable) -> Callable:
+            if name in self._children:
+                raise ValueError(f"Child already registered: {name}")
+            self._children[name] = callback
+            return callback
+        return register
 
     def asgi(self):
         from keel.asgi import create_app

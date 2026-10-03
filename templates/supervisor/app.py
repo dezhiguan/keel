@@ -1,20 +1,28 @@
 from keel import Agent
 
-from tools.delegation import delegate
-
 agent = Agent.from_manifest("agent.yaml")
+
+
+@agent.child("research-bot")
+async def research(text, budget, trace_id):
+    return "notes:" + text
+
+
+@agent.child("draft-bot")
+async def draft(text, budget, trace_id):
+    return "draft:" + text
 
 
 @agent.entry
 async def run(request, ctx):
-    declared = list(agent.manifest.spec.delegates or [])
-    budget = {"cny": 1.0, "steps": 4}
-    trace_id = ctx.trace_id
-    research = delegate(declared, "research-bot", request.input["text"], budget, trace_id)
+    research_result = await ctx.delegate("research-bot", request.input["text"])
     ctx.step("research-bot")
-    draft = delegate(declared, "draft-bot", research["result"], research["budget"], trace_id)
+    draft_result = await ctx.delegate("draft-bot", research_result["result"])
     ctx.step("draft-bot")
-    return ctx.final(draft["result"], meta={"trace_id": trace_id, "budget_cny": draft["budget"]["cny"]})
+    return ctx.final(
+        draft_result["result"],
+        meta={"trace_id": draft_result["trace_id"], "budget_cny": draft_result["budget"]["cny"]},
+    )
 
 
 app = agent.asgi()

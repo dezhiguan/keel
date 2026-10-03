@@ -37,9 +37,10 @@ def frames(response):
 
 
 async def call(app, method, path, **kwargs):
+    headers = kwargs.pop("headers", None)
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
                                  base_url="http://test") as client:
-        return await client.request(method, path, **kwargs)
+        return await client.request(method, path, headers=headers, **kwargs)
 
 
 def test_invoke_protocol_health_manifest_and_feedback(tmp_path):

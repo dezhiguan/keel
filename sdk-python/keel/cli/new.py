@@ -67,8 +67,9 @@ def _copy_template(source: Path, target: Path, name: str) -> None:
     second = f"{name}-aux"
     if not re.fullmatch(r"[a-z][a-z0-9-]{1,38}[a-z0-9]", second):
         raise ValueError("Agent name is too long for the second java-spring agent")
+    skipped = {".keel", "__pycache__", ".pytest_cache", ".git"}
     for path in source.rglob("*"):
-        if not path.is_file() or path.name == ".gitkeep":
+        if not path.is_file() or path.name == ".gitkeep" or skipped.intersection(path.parts):
             continue
         relative = Path(str(path.relative_to(source)).replace("{{name_aux}}", second).replace("{{name}}", name))
         text = path.read_text(encoding="utf-8").replace("{{name_aux}}", second).replace("{{name}}", name)
