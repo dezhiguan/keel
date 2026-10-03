@@ -1,0 +1,18 @@
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  name: {{name}}
+spec:
+  runtime:
+    endpoint: http://127.0.0.1:8000
+  tools:
+    - name: create_work_order
+      access: write
+      risk: high
+      approval: required
+    - name: echo
+      access: read
+      risk: low
+      approval: none
+  audit:
+    captureFields: [title]

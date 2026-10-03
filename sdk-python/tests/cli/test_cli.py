@@ -67,8 +67,8 @@ def test_new_project_matches_schema_and_ignores_local_state(tmp_path):
 def test_new_rejects_bad_names_and_unshipped_templates(tmp_path):
     with pytest.raises(ValueError, match="metadata.name"):
         create_project("Hi", root=tmp_path)
-    with pytest.raises(ValueError, match="P0-13"):
-        create_project("hello-agent", template="java-spring", root=tmp_path)
+    java_project = create_project("hello-agent", template="java-spring", root=tmp_path / "java")
+    assert (java_project / "pom.xml").is_file()
     create_project("hello-agent", root=tmp_path)
     with pytest.raises(FileExistsError):
         create_project("hello-agent", root=tmp_path)

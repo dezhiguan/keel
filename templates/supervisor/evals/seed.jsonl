@@ -1,0 +1,4 @@
+{"input":"风机","expected":"draft:notes:风机","tags":["delegate"]}
+{"input":"海缆","expected":"draft:notes:海缆","tags":["delegate"]}
+{"input":"unknown-bot","expected":"refused","tags":["denied"]}
+{"input":"预算","expected":"draft:notes:预算","tags":["budget"]}

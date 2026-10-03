@@ -1,0 +1,9 @@
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  name: {{name}}
+spec:
+  runtime:
+    endpoint: http://127.0.0.1:8000
+  eval:
+    dataset: {{name}}/graph

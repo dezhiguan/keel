@@ -1,0 +1,4 @@
+{"input":"primary","expected":"{{name}}","tags":["primary"]}
+{"input":"aux","expected":"{{name_aux}}","tags":["aux"]}
+{"input":"isolated","expected":"distinct","tags":["isolation"]}
+{"input":"health","expected":"ok","tags":["health"]}

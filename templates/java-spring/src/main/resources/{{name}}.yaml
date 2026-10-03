@@ -1,0 +1,8 @@
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  name: {{name}}
+spec:
+  runtime:
+    language: java
+    endpoint: http://127.0.0.1:8080

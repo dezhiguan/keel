@@ -1,0 +1,14 @@
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  name: {{name}}
+spec:
+  runtime:
+    endpoint: http://127.0.0.1:8000
+  knowledge:
+    - kb: demo-kb
+  models:
+    default: qwen-plus
+  eval:
+    dataset: {{name}}/answers
+    evaluators: [citation_present]

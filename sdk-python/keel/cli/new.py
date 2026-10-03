@@ -6,14 +6,28 @@ from pathlib import Path
 from keel.manifest import load_manifest
 
 
+TEMPLATES = ("chat-rag", "tool-agent", "graph-agent", "supervisor", "java-spring")
+
+
+def template_dir(name: str) -> Path:
+    root = Path(__file__).resolve().parents[3] / "templates" / name
+    if not (root / "agent.yaml").is_file() and not any(root.glob("*.yaml")):
+        raise FileNotFoundError(f"Template {name} is not installed")
+    return root
+
+
 def create_project(name: str, *, template: str = "hello-agent", root: str | Path = ".") -> Path:
     if not re.fullmatch(r"[a-z][a-z0-9-]{1,38}[a-z0-9]", name):
         raise ValueError("Agent name must match the keel/v1 metadata.name pattern")
-    if template != "hello-agent":
-        raise ValueError(f"Template {template} is provided by P0-13 and is not installed yet")
+    if template not in ("hello-agent", *TEMPLATES):
+        raise ValueError(f"Unknown template {template}")
     target = Path(root) / name
     if target.exists():
         raise FileExistsError(f"{target} already exists")
+    if template in TEMPLATES:
+        _copy_template(template_dir(template), target, name)
+        print(f"Created {target}. Run: cd {name} && keel dev")
+        return target
     target.mkdir(parents=True)
     files = {
         "agent.yaml": ("apiVersion: keel/v1\nkind: Agent\nmetadata:\n"
@@ -47,3 +61,23 @@ def create_project(name: str, *, template: str = "hello-agent", root: str | Path
     load_manifest(target / "agent.yaml")
     print(f"Created {target}. Run: cd {name} && keel dev")
     return target
+
+
+def _copy_template(source: Path, target: Path, name: str) -> None:
+    second = f"{name}-aux"
+    if not re.fullmatch(r"[a-z][a-z0-9-]{1,38}[a-z0-9]", second):
+        raise ValueError("Agent name is too long for the second java-spring agent")
+    for path in source.rglob("*"):
+        if not path.is_file() or path.name == ".gitkeep":
+            continue
+        relative = Path(str(path.relative_to(source)).replace("{{name_aux}}", second).replace("{{name}}", name))
+        text = path.read_text(encoding="utf-8").replace("{{name_aux}}", second).replace("{{name}}", name)
+        destination = target / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(text, encoding="utf-8")
+    for manifest in target.rglob("*.yaml"):
+        if manifest.parts[-2:] == (".github",) or ".github" in manifest.parts:
+            continue
+        content = manifest.read_text(encoding="utf-8")
+        if content.startswith("apiVersion:"):
+            load_manifest(manifest)

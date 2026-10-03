@@ -1,0 +1,4 @@
+{"input":"echo ping","expected":"ping","tags":["read"]}
+{"input":"更换风扇","expected":"created:更换风扇","tags":["approval","high"]}
+{"input":"echo ","expected":"","tags":["read"]}
+{"input":"停电检修","expected":"created:停电检修","tags":["approval","high"]}

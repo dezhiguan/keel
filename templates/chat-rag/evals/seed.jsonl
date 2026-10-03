@@ -1,0 +1,7 @@
+# Formal onboarding needs at least 50 tagged rows covering every manifest eval tag.
+# These four rows only show the shape that Langfuse dataset import expects.
+
+{"input":"退货期限","expected":"7 天","tags":["citation","policy"]}
+{"input":"发票抬头","expected":"公司全称","tags":["citation","invoice"]}
+{"input":"没有依据的问题","expected":"不知道","tags":["abstain"]}
+{"input":"运费谁承担","expected":"买家","tags":["citation","shipping"]}

@@ -1,0 +1,4 @@
+{"input":"风机","expected":"outline:风机","tags":["plan"]}
+{"input":"resume","expected":"answer:风机","tags":["draft"]}
+{"input":"海缆","expected":"outline:海缆","tags":["plan"]}
+{"input":"done","expected":"answer:海缆","tags":["draft"]}

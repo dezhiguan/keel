@@ -1,0 +1,11 @@
+name: keel
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # P2-3 replaces this job with: pytest -> keel gate -> build -> keel release.
+      # keel gate and keel release are not available yet, so this workflow only runs tests.
+      - run: pip install keel-sdk pytest httpx
+      - run: pytest -q
