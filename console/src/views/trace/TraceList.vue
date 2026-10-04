@@ -15,8 +15,8 @@ const router = useRouter()
 const envStore = useEnvStore()
 const result = ref<TracePage | null>(null)
 const loading = ref(false)
-const filter = reactive<{ agent?: string; status?: ListTracesQuery['status']; page: number; size: NonNullable<ListTracesQuery['size']> }>({
-  agent: undefined,
+const filter = reactive<{ agent: string; status?: ListTracesQuery['status']; page: number; size: NonNullable<ListTracesQuery['size']> }>({
+  agent: '',
   status: undefined,
   page: 1,
   size: 10,
@@ -25,7 +25,13 @@ const filter = reactive<{ agent?: string; status?: ListTracesQuery['status']; pa
 async function load() {
   loading.value = true
   try {
-    result.value = await listTraces({ env: envStore.env, agent: filter.agent, status: filter.status, page: filter.page, size: filter.size })
+    result.value = await listTraces({
+      env: envStore.env,
+      agent: filter.agent || undefined,
+      status: filter.status,
+      page: filter.page,
+      size: filter.size,
+    })
   } catch (error) {
     ElMessage.error(`加载链路失败：${toKeelError(error).message}`)
   } finally {
@@ -34,8 +40,8 @@ async function load() {
 }
 
 function search() {
-  filter.page = 1
-  load()
+  if (filter.page === 1) load()
+  else filter.page = 1
 }
 
 function setStatus(status?: ListTracesQuery['status']) {
@@ -55,7 +61,7 @@ watch(() => [filter.page, filter.size], load, { immediate: true })
     </div>
     <div class="toolbar">
       <select v-model="filter.agent" class="inp" @change="search">
-        <option :value="undefined">全部智能体</option>
+        <option value="">全部智能体</option>
         <option v-for="a in AGENTS" :key="a" :value="a">{{ a }}</option>
       </select>
       <div class="chipsel">

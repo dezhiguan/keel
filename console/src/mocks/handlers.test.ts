@@ -18,19 +18,6 @@ async function call(method: 'GET' | 'POST', path: string, body?: unknown) {
 }
 
 describe('mock handlers', () => {
-  it('pages trace list and filters by agent', async () => {
-    const all = await call('GET', '/insight/traces?page=1&size=10')
-    expect(all.json.data.items).toHaveLength(10)
-    const ops = await call('GET', '/insight/traces?agent=ops-copilot')
-    expect(ops.json.data.total).toBe(1)
-  })
-
-  it('returns the contract error body for an unknown trace', async () => {
-    const res = await call('GET', '/insight/traces/tr_missing')
-    expect(res.status).toBe(404)
-    expect(res.json).toMatchObject({ code: 'SERVER_NOT_FOUND', retryable: false })
-  })
-
   it('refuses to retire a tool that still has prod dependents', async () => {
     const res = await call('POST', '/tools/rag.search/retire')
     expect(res.status).toBe(409)
@@ -66,10 +53,12 @@ describe('mock handlers', () => {
     expect(run.json.data.progress).toBeGreaterThanOrEqual(0)
   })
 
-  it('still mocks shared services while audit and costs are real', async () => {
+  it('still mocks shared services while traces, audit and costs are real', async () => {
     const services = await call('GET', '/insight/services')
     expect(services.status).toBe(200)
     expect(services.json.data.services.length).toBeGreaterThan(0)
+    await expect(call('GET', '/insight/traces')).rejects.toThrow()
+    await expect(call('GET', '/insight/traces/tr_missing')).rejects.toThrow()
     await expect(call('GET', '/audit/events')).rejects.toThrow()
     await expect(call('GET', '/insight/costs')).rejects.toThrow()
     await expect(call('POST', '/audit/verify')).rejects.toThrow()

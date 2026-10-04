@@ -1,6 +1,5 @@
 import { http, HttpResponse } from 'msw'
 import { sharedServices } from './data/services'
-import { traceDetail, traceSummaries } from './data/traces'
 import { latestEval } from './data/eval'
 import { dependentsOf, toolDetail, tools } from './data/tools'
 import { approvals, suspendedRuns } from './data/approvals'
@@ -23,25 +22,6 @@ const evalRuns = new Map<string, { agent: string; startedAt: number }>()
 
 export const handlers = [
   http.get(`${BASE}/insight/services`, () => ok(sharedServices)),
-
-  http.get(`${BASE}/insight/traces`, ({ request }) => {
-    const url = new URL(request.url)
-    const agent = url.searchParams.get('agent')
-    const status = url.searchParams.get('status')
-    const env = url.searchParams.get('env')
-    const list = traceSummaries.filter(
-      (t) =>
-        (!agent || t.agents?.includes(agent)) &&
-        (!status || t.status === status) &&
-        (!env || env === 'all' || t.env === env),
-    )
-    return ok(paged(url, list))
-  }),
-
-  http.get(`${BASE}/insight/traces/:traceId`, ({ params }) => {
-    const detail = traceDetail(String(params.traceId))
-    return detail ? ok(detail) : fail(404, 'SERVER_NOT_FOUND', '资源不存在')
-  }),
 
   http.get(`${BASE}/eval/:agent/latest`, ({ params }) => {
     const result = latestEval(String(params.agent))

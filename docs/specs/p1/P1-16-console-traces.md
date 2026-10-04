@@ -45,10 +45,10 @@ GET /api/v1/insight/traces/{traceId}
 cd console && npx vue-tsc --noEmit && npx vitest related src/views/trace src/api/traces.ts
 ```
 
-- [ ] 改变智能体筛选后，请求的 `agent` 参数跟着变，页码回到第一页
-- [ ] 进入详情后，网络面板里对该 `traceId` 只有一次 GET
-- [ ] 三视图的节点数量一致
-- [ ] `langfuseUrl` 作为外链渲染，页面不请求 Langfuse 域名
+- [x] 改变智能体筛选后，请求的 `agent` 参数跟着变，页码回到第一页
+- [x] 进入详情后，网络面板里对该 `traceId` 只有一次 GET
+- [x] 三视图的节点数量一致
+- [x] `langfuseUrl` 作为外链渲染，页面不请求 Langfuse 域名
 
 ## 明确不做
 
