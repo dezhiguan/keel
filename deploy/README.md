@@ -66,7 +66,7 @@ kubectl -n keel-system create secret generic keel-server \
 
 一条流水线，前后端分开：
 
-- 后端：测试、门禁通过后，`keel-llm`、`keel-server`、`keel-gateway`、`keel-audit` 各自构建、各自部署。一个服务失败只标红它自己的节点。
+- 先看这次改了哪些路径。只测试和发布被改到的服务。`keel-common`、父 pom、构建脚本这种公共改动才会让四个后端一起走。手动触发则全部走一遍。
 - 前端：类型检查、测试、门禁，通过后构建，再构建镜像，应用 `deploy/k3s/console.yaml`
 - 两边都发布完才冒烟
 
