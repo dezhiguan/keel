@@ -1,14 +1,12 @@
 """Real echo agent: one user turn goes through ctx.llm and the SDK span exporter.
 
-Secrets are read on each request so a key created after the process starts is picked up.
+Secrets are read before the app is built and again on each request.
 """
 
 import os
 from pathlib import Path
 
 from keel import Agent
-
-agent = Agent.from_manifest("agent.yaml")
 
 
 def load_secret_files() -> None:
@@ -24,9 +22,15 @@ def load_secret_files() -> None:
         os.environ.setdefault("KEEL_TRACE_BUFFER_PATH", "/tmp/keel-traces")
 
 
+os.environ.setdefault("KEEL_LLM_BASE_URL", "http://keel-llm.keel-system.svc.cluster.local:8088")
+os.environ.setdefault("KEEL_LLM_KEY", "pending")
+load_secret_files()
+
+agent = Agent.from_manifest("agent.yaml")
+
+
 @agent.entry
 async def chat(request, ctx):
-    load_secret_files()
     text = request.input.get("text") or ""
     reply = await ctx.llm.chat([{"role": "user", "content": text}])
     return ctx.final(reply or "")
