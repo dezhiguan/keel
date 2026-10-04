@@ -15,13 +15,13 @@ Langfuse 继续用云端日本节点。`deploy/litellm/` 与 `deploy/langfuse/do
 
 ```
 .github/workflows/keel-cd.yml
-.dockerignore
-deploy/docker/service.Dockerfile
-deploy/docker/console.Dockerfile
-deploy/docker/console-nginx.conf
+ci/backend-gate.sh
+ci/frontend-gate.sh
+deploy/ci/configure-ssh.sh
+deploy/ci/resolve-image.sh
+deploy/k3s/backend.yaml
+deploy/k3s/console.yaml
 deploy/k3s/keel.yaml
-deploy/k3s/keel-llm/deployment.yaml
-deploy/nginx-keel.conf
 deploy/README.md
 docs/specs/p1/P1-19-github-cd.md
 ```
@@ -41,8 +41,9 @@ docs/specs/p1/P1-19-github-cd.md
 
 ## 验收标准
 
-- pull request 跑 `keel-llm`、`keel-server` 的模块测试和控制台 `npm run build`，不推镜像。
-- 推 `main` 后三个镜像出现在 ACR，`kubectl -n keel-system rollout status` 成功。
+- 前后端分作业。后端清单是 `deploy/k3s/backend.yaml`，控制台清单是 `deploy/k3s/console.yaml`。
+- pull request 跑后端测试、后端门禁、前端类型检查、前端测试、前端门禁和前端构建，不推镜像。
+- 推 `main` 后三个镜像分开构建。后端和控制台各一次发布，两边都成功才冒烟。
 - 节点上 `http://127.0.0.1:31110/` 返回控制台页面，`/api/v1/catalog` 的 `code` 为 `OK`。
 - `keel-llm` Service 的 type 是 ClusterIP，`/health` 返回 `up`。
 

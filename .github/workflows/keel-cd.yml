@@ -1,6 +1,15 @@
 name: keel CD
 
-# 与 askdb 同机（Server 3 的 k3s），经跳板机上机，复用 CareerMate 的 SSH 与 ACR。
+# 一条流水线，前后端分开走。
+#
+#   后端测试 ─┐
+#   后端门禁 ─┴─ 构建 keel-llm ──┐
+#                构建 keel-server ┴─ 部署后端 ──┐
+#   前端类型检查 ─┐                              ├─ 冒烟
+#   前端测试 ─────┼─ 前端构建 ─ 构建控制台 ─ 部署控制台 ┘
+#   前端门禁 ─────┘
+#
+# 镜像只在推 main 之后构建。pull request 停在测试和门禁。
 on:
   pull_request:
     branches: [main]
@@ -16,8 +25,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: test
+  backend-test:
+    name: 后端测试
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -27,11 +36,19 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
-      - name: Module tests
+      - name: keel-llm 与 keel-server
         run: mvn -pl :keel-llm,:keel-server -am test
 
-  console:
-    name: console
+  backend-gate:
+    name: 后端门禁
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash ci/backend-gate.sh
+
+  frontend-typecheck:
+    name: 前端类型检查
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -41,52 +58,80 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: console/package-lock.json
-      - name: Build
+      - name: 安装并做类型检查
+        working-directory: console
+        run: npm ci && npm run typecheck
+
+  frontend-test:
+    name: 前端测试
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: console/package-lock.json
+      - name: 安装并跑 vitest
+        working-directory: console
+        run: npm ci && npm test
+
+  frontend-gate:
+    name: 前端门禁
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash ci/frontend-gate.sh
+
+  frontend-build:
+    name: 前端构建
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [frontend-typecheck, frontend-test, frontend-gate]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: console/package-lock.json
+      - name: 生产构建
         working-directory: console
         run: npm ci && npm run build
+      - name: 产物里要有页面和静态资源
+        working-directory: console
+        run: |
+          test -s dist/index.html
+          grep -q 'Keel 控制台' dist/index.html
+          grep -q '/assets/' dist/index.html
 
-  build-and-push:
-    name: build-and-push
+  build-llm:
+    name: 构建 keel-llm
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    needs: [test, console]
+    timeout-minutes: 45
+    needs: [backend-test, backend-gate]
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Resolve image tags
-        id: image
+      - id: image
         env:
           ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
-        run: |
-          if [[ -z "${ACR_REGISTRY}" ]]; then
-            echo "ACR_REGISTRY must be set"; exit 1
-          fi
-          PULL_REGISTRY="${ACR_REGISTRY%/}"
-          PUSH_REGISTRY="${ACR_PUBLIC_REGISTRY:-${PULL_REGISTRY/-vpc./.}}"
-          TAG="${GITHUB_SHA::12}"
-          echo "server=${PUSH_REGISTRY%%/*}" >> "${GITHUB_OUTPUT}"
-          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
-          echo "llm=${PUSH_REGISTRY}/keel-llm:${TAG}" >> "${GITHUB_OUTPUT}"
-          echo "server_image=${PUSH_REGISTRY}/keel-server:${TAG}" >> "${GITHUB_OUTPUT}"
-          echo "console=${PUSH_REGISTRY}/keel-console:${TAG}" >> "${GITHUB_OUTPUT}"
-
+        run: bash deploy/ci/resolve-image.sh keel-llm
       - uses: docker/setup-buildx-action@v3
-
       - uses: docker/login-action@v3
         with:
           registry: ${{ steps.image.outputs.server }}
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
-
-      - name: Build and push keel-llm
-        uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v6
         with:
           context: .
           file: deploy/docker/service.Dockerfile
           push: true
           provenance: false
-          tags: ${{ steps.image.outputs.llm }}
+          tags: ${{ steps.image.outputs.push_image }}
           build-args: |
             MODULE=keel-llm
             JAR=keel-llm/target/keel-llm-0.1.0-SNAPSHOT.jar
@@ -94,14 +139,31 @@ jobs:
           cache-from: type=gha,scope=keel-llm
           cache-to: type=gha,scope=keel-llm,mode=max
 
-      - name: Build and push keel-server
-        uses: docker/build-push-action@v6
+  build-server:
+    name: 构建 keel-server
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [backend-test, backend-gate]
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: image
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+        run: bash deploy/ci/resolve-image.sh keel-server
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.image.outputs.server }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      - uses: docker/build-push-action@v6
         with:
           context: .
           file: deploy/docker/service.Dockerfile
           push: true
           provenance: false
-          tags: ${{ steps.image.outputs.server_image }}
+          tags: ${{ steps.image.outputs.push_image }}
           build-args: |
             MODULE=keel-server
             JAR=keel-server/target/keel-server-0.1.0-SNAPSHOT.jar
@@ -109,60 +171,49 @@ jobs:
           cache-from: type=gha,scope=keel-server
           cache-to: type=gha,scope=keel-server,mode=max
 
-      - name: Build and push console
-        uses: docker/build-push-action@v6
+  build-console:
+    name: 构建控制台
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [frontend-build]
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: image
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+        run: bash deploy/ci/resolve-image.sh keel-console
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.image.outputs.server }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      - uses: docker/build-push-action@v6
         with:
           context: .
           file: deploy/docker/console.Dockerfile
           push: true
           provenance: false
-          tags: ${{ steps.image.outputs.console }}
+          tags: ${{ steps.image.outputs.push_image }}
           cache-from: type=gha,scope=keel-console
           cache-to: type=gha,scope=keel-console,mode=max
 
-  deploy:
-    name: deploy-k3s-server3
+  deploy-backend:
+    name: 部署后端
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [build-and-push]
+    needs: [build-llm, build-server]
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Configure SSH (Server 3, via jump host)
+      - name: 配置 SSH
         env:
           SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
           DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
           JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
-        run: |
-          if [[ -z "${SSH_KEY}" || -z "${DEPLOY_HOST}" ]]; then
-            echo "CAREERMATE_APP_SSH_KEY and CAREERMATE_APP_HOST must be set"; exit 1
-          fi
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "${SSH_KEY}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          JUMP_HOST="${JUMP_HOST:-8.163.63.222}"
-          ssh-keyscan "${JUMP_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
-          {
-            printf '%s\n' 'Host keel-jump'
-            printf '%s\n' "  HostName ${JUMP_HOST}"
-            printf '%s\n' '  User root'
-            printf '%s\n' '  IdentityFile ~/.ssh/deploy_key'
-            printf '%s\n' '  IdentitiesOnly yes'
-            printf '%s\n' '  StrictHostKeyChecking accept-new'
-            printf '%s\n' '  BatchMode yes'
-            printf '%s\n' 'Host keel-app'
-            printf '%s\n' "  HostName ${DEPLOY_HOST}"
-            printf '%s\n' '  User root'
-            printf '%s\n' '  IdentityFile ~/.ssh/deploy_key'
-            printf '%s\n' '  IdentitiesOnly yes'
-            printf '%s\n' '  StrictHostKeyChecking accept-new'
-            printf '%s\n' '  BatchMode yes'
-            printf '%s\n' '  ProxyJump keel-jump'
-          } > ~/.ssh/config
-          chmod 600 ~/.ssh/config
-
-      - name: Apply manifest on Server 3
+        run: bash deploy/ci/configure-ssh.sh
+      - name: 发布 keel-llm 与 keel-server
         env:
           ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
           ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
@@ -170,23 +221,17 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "${ACR_REGISTRY}" ]]; then echo "ACR_REGISTRY must be set"; exit 1; fi
-          TAG="${GITHUB_SHA::12}"
-          PULL="${ACR_REGISTRY%/}"
-          LLM="${PULL}/keel-llm:${TAG}"
-          SERVER="${PULL}/keel-server:${TAG}"
-          CONSOLE="${PULL}/keel-console:${TAG}"
-          echo "将部署镜像 tag: ${TAG}"
+          tag="${GITHUB_SHA::12}"
+          pull="${ACR_REGISTRY%/}"
           sed \
-            -e "s|PLACEHOLDER_LLM_IMAGE|${LLM}|" \
-            -e "s|PLACEHOLDER_SERVER_IMAGE|${SERVER}|" \
-            -e "s|PLACEHOLDER_CONSOLE_IMAGE|${CONSOLE}|" \
-            deploy/k3s/keel.yaml > /tmp/keel.rendered.yaml
-          grep -q "PLACEHOLDER_" /tmp/keel.rendered.yaml && { echo "镜像占位符未被替换"; exit 1; }
-          scp -F ~/.ssh/config /tmp/keel.rendered.yaml keel-app:/tmp/keel.yaml
-          ACR_PASSWORD_B64="$(printf '%s' "${ACR_PASSWORD}" | base64 -w0)"
-          SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30)
-          timeout 15m ssh "${SSH_OPTS[@]}" keel-app \
-            "ACR_REGISTRY='${ACR_REGISTRY}' ACR_USERNAME='${ACR_USERNAME}' ACR_PASSWORD_B64='${ACR_PASSWORD_B64}' bash -s" <<'EOF'
+            -e "s|PLACEHOLDER_LLM_IMAGE|${pull}/keel-llm:${tag}|" \
+            -e "s|PLACEHOLDER_SERVER_IMAGE|${pull}/keel-server:${tag}|" \
+            deploy/k3s/backend.yaml > /tmp/keel-backend.yaml
+          grep -q "PLACEHOLDER_" /tmp/keel-backend.yaml && { echo "镜像占位符未被替换"; exit 1; }
+          scp -F ~/.ssh/config /tmp/keel-backend.yaml keel-app:/tmp/keel-backend.yaml
+          password_b64="$(printf '%s' "${ACR_PASSWORD}" | base64 -w0)"
+          ssh -T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 keel-app \
+            "ACR_REGISTRY='${ACR_REGISTRY}' ACR_USERNAME='${ACR_USERNAME}' ACR_PASSWORD_B64='${password_b64}' bash -s" <<'EOF'
           set -euo pipefail
           ACR_PASSWORD="$(printf '%s' "${ACR_PASSWORD_B64}" | base64 -d)"
           kubectl create namespace keel-system --dry-run=client -o yaml | kubectl apply -f -
@@ -201,54 +246,72 @@ jobs:
             --docker-username="${ACR_USERNAME}" \
             --docker-password="${ACR_PASSWORD}" \
             --dry-run=client -o yaml | kubectl apply -f -
-          kubectl apply -f /tmp/keel.yaml
+          kubectl apply -f /tmp/keel-backend.yaml
           kubectl -n keel-system rollout status deployment/keel-llm --timeout=180s
           kubectl -n keel-system rollout status deployment/keel-server --timeout=180s
-          kubectl -n keel-system rollout status deployment/keel-console --timeout=180s
-          rm -f /tmp/keel.yaml
+          rm -f /tmp/keel-backend.yaml
           EOF
 
-  smoke-test:
-    name: smoke-test
+  deploy-frontend:
+    name: 部署控制台
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: [deploy]
+    timeout-minutes: 20
+    needs: [build-console]
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     steps:
-      - name: Configure SSH (Server 3, via jump host)
+      - uses: actions/checkout@v4
+      - name: 配置 SSH
         env:
           SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
           DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
           JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+        run: bash deploy/ci/configure-ssh.sh
+      - name: 发布控制台
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
         run: |
-          if [[ -z "${SSH_KEY}" || -z "${DEPLOY_HOST}" ]]; then
-            echo "CAREERMATE_APP_SSH_KEY and CAREERMATE_APP_HOST must be set"; exit 1
-          fi
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "${SSH_KEY}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          JUMP_HOST="${JUMP_HOST:-8.163.63.222}"
-          ssh-keyscan "${JUMP_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
-          {
-            printf '%s\n' 'Host keel-jump'
-            printf '%s\n' "  HostName ${JUMP_HOST}"
-            printf '%s\n' '  User root'
-            printf '%s\n' '  IdentityFile ~/.ssh/deploy_key'
-            printf '%s\n' '  IdentitiesOnly yes'
-            printf '%s\n' '  StrictHostKeyChecking accept-new'
-            printf '%s\n' '  BatchMode yes'
-            printf '%s\n' 'Host keel-app'
-            printf '%s\n' "  HostName ${DEPLOY_HOST}"
-            printf '%s\n' '  User root'
-            printf '%s\n' '  IdentityFile ~/.ssh/deploy_key'
-            printf '%s\n' '  IdentitiesOnly yes'
-            printf '%s\n' '  StrictHostKeyChecking accept-new'
-            printf '%s\n' '  BatchMode yes'
-            printf '%s\n' '  ProxyJump keel-jump'
-          } > ~/.ssh/config
-          chmod 600 ~/.ssh/config
+          set -euo pipefail
+          if [[ -z "${ACR_REGISTRY}" ]]; then echo "ACR_REGISTRY must be set"; exit 1; fi
+          tag="${GITHUB_SHA::12}"
+          pull="${ACR_REGISTRY%/}"
+          sed \
+            -e "s|PLACEHOLDER_CONSOLE_IMAGE|${pull}/keel-console:${tag}|" \
+            deploy/k3s/console.yaml > /tmp/keel-console.yaml
+          grep -q "PLACEHOLDER_" /tmp/keel-console.yaml && { echo "镜像占位符未被替换"; exit 1; }
+          scp -F ~/.ssh/config /tmp/keel-console.yaml keel-app:/tmp/keel-console.yaml
+          password_b64="$(printf '%s' "${ACR_PASSWORD}" | base64 -w0)"
+          ssh -T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 keel-app \
+            "ACR_REGISTRY='${ACR_REGISTRY}' ACR_USERNAME='${ACR_USERNAME}' ACR_PASSWORD_B64='${password_b64}' bash -s" <<'EOF'
+          set -euo pipefail
+          ACR_PASSWORD="$(printf '%s' "${ACR_PASSWORD_B64}" | base64 -d)"
+          kubectl create namespace keel-system --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n keel-system create secret docker-registry acr-cred \
+            --docker-server="${ACR_REGISTRY%%/*}" \
+            --docker-username="${ACR_USERNAME}" \
+            --docker-password="${ACR_PASSWORD}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -f /tmp/keel-console.yaml
+          kubectl -n keel-system rollout status deployment/keel-console --timeout=180s
+          rm -f /tmp/keel-console.yaml
+          EOF
 
-      - name: Console, API, and in-cluster gateway
+  smoke-test:
+    name: 冒烟
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [deploy-backend, deploy-frontend]
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 配置 SSH
+        env:
+          SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
+          JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+        run: bash deploy/ci/configure-ssh.sh
+      - name: 页面、接口和集群内的薄网关
         run: |
           set -euo pipefail
           SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15)
@@ -267,9 +330,9 @@ jobs:
           assert body["data"]["templates"], body
           print("catalog ok")
           PY
-          TYPE="$(ssh "${SSH_OPTS[@]}" keel-app \
+          type="$(ssh "${SSH_OPTS[@]}" keel-app \
             "kubectl -n keel-system get svc keel-llm -o jsonpath='{.spec.type}'")"
-          test "${TYPE}" = "ClusterIP"
+          test "${type}" = "ClusterIP"
           ssh "${SSH_OPTS[@]}" keel-app 'bash -s' > /tmp/keel-llm-health.json <<'EOF'
           set -euo pipefail
           IP="$(kubectl -n keel-system get svc keel-llm -o jsonpath='{.spec.clusterIP}')"
