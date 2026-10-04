@@ -22,6 +22,6 @@ x-langfuse-ingestion-version: 4
 
 Hobby 限额：每月 5 万单位，保留 30 天，网页用户 2 个，Metrics API 每天 100 次。每 5 分钟打 metrics 会超限。生产对账和总览轮询前升 Core。追踪数据在 AWS 东京。
 
-2026-10-04 已从云服务器 `8.163.30.216` 实测：项目接口 200，带上述请求头的 OTLP span 能在 Tracing 页看到。当时只有试用项目 `My Project`，三个环境项目仍要在界面里建。
+2026-10-04 已实测三个环境项目都能读写：`dev-keel`、`staging-keel`、`prod-keel`。主机是日本节点，OTLP 带 `x-langfuse-ingestion-version: 4` 后，observations 接口能读到 span。试用项目 `My Project` 可以在界面里停用。项目私钥只放部署环境，不进 git。
 
 `docker-compose.yml` 是作废的自建草稿，不要执行。

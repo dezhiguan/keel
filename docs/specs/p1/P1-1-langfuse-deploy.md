@@ -50,7 +50,7 @@ GET /api/public/dataset-items
 ## 实现要点
 
 - **主机固定为日本节点。** 同一对 Key 打美国或欧盟节点会 401。`LANGFUSE_HOST=https://jp.cloud.langfuse.com`。
-- **三个项目在云端界面手工创建。** 项目管理 API 是企业版，Keel 不替每个智能体建项目。智能体共用该环境的项目 Key，用属性 `keel.agent` 区分。当前试用项目名是 `My Project`，三个环境项目建好后停用它。
+- **三个项目在云端界面手工创建。** 项目管理 API 是企业版，Keel 不替每个智能体建项目。智能体共用该环境的项目 Key，用属性 `keel.agent` 区分。三个环境项目已建好：`dev-keel`、`staging-keel`、`prod-keel`。试用项目 `My Project` 在界面里停用。
 - **登录用邮箱密码。** Hobby 没有企业 SSO，不影响 SDK 上报和 keel-server 用 API Key 读数。auth-gateway 现在不是 OIDC 提供方，不要接单点登录。
 - **在线评估器配在 observation 上**（根 agent 节点）。v4 不再跑 trace 级评估器。
 - **Model Definitions 的单价与薄网关配置一致**（P1-2）。缺价格时追踪页上的费用会显示成 0。控制台金额以薄网关的人民币花费为准。
@@ -64,11 +64,11 @@ curl -sf https://jp.cloud.langfuse.com/api/public/health
 # 用项目公钥:私钥打一条 OTLP/HTTP span，Tracing 页能看到 observation
 ```
 
-- [ ] `LANGFUSE_HOST` 是 `https://jp.cloud.langfuse.com`，仓库里没有项目私钥
-- [ ] dev、staging、prod 三个项目都已存在
-- [ ] 不带 `x-langfuse-ingestion-version: 4` 的请求在接入说明里写成已知坑
-- [ ] 客户端不调用 `GET /api/public/traces`
-- [ ] 接入说明写明 Hobby 的 metrics 每日上限，以及生产对账要升 Core
+- [x] `LANGFUSE_HOST` 是 `https://jp.cloud.langfuse.com`，仓库里没有项目私钥
+- [x] dev、staging、prod 三个项目都已存在
+- [x] 不带 `x-langfuse-ingestion-version: 4` 的请求在接入说明里写成已知坑
+- [x] 客户端不调用 `GET /api/public/traces`
+- [x] 接入说明写明 Hobby 的 metrics 每日上限，以及生产对账要升 Core
 
 ## 明确不做
 
