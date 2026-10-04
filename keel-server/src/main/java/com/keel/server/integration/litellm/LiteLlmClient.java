@@ -41,6 +41,20 @@ public class LiteLlmClient {
         return key;
     }
 
+    /** False only when the gateway answers 404 for this alias. Other failures propagate. */
+    public boolean hasAlias(String alias) {
+        try {
+            get("/admin/v1/keys/" + alias);
+            return true;
+        } catch (IllegalStateException e) {
+            var message = e.getMessage() == null ? "" : e.getMessage();
+            if (message.endsWith(" 404")) {
+                return false;
+            }
+            throw e;
+        }
+    }
+
     public void block(String alias) {
         send("/admin/v1/keys/" + alias + "/block", Map.of());
     }

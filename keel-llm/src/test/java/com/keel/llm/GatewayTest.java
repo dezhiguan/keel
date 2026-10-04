@@ -93,6 +93,22 @@ class GatewayTest {
                 .isEqualTo(ErrorCode.LLM_BUDGET_EXCEEDED);
     }
 
+    @Test void secondReplicaAcceptsAKeyCreatedOnTheFirst() throws Exception {
+        var seen = new ArrayList<String>();
+        var server = server((model, exchange) -> {
+            seen.add(model);
+            write(exchange, 200, usage("qwen-plus", 10, 4));
+        });
+        var shared = new java.util.concurrent.ConcurrentHashMap<String, String>();
+        var first = new Gateway(catalog(server), new BudgetCounter(), new Upstream(), new KeyDirectory(new KeyDirectory.MapBackend(shared)));
+        var second = new Gateway(catalog(server), new BudgetCounter(), new Upstream(), new KeyDirectory(new KeyDirectory.MapBackend(shared)));
+        var created = first.create("echo-dev", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false);
+        var completion = second.complete("Bearer " + created.key(), "/v1/chat/completions",
+                "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2));
+        assertThat(completion.spend().alias()).isEqualTo("echo-dev");
+        assertThat(seen).containsExactly("qwen-plus");
+    }
+
     @Test void twoGatewaysShareOneBudgetCounter() throws Exception {
         var server = server((model, exchange) -> write(exchange, 200, usage("qwen-plus", 1000, 100)));
         var budget = new BudgetCounter();

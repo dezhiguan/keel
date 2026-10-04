@@ -20,6 +20,9 @@ def load_secret_files() -> None:
     if os.environ.get("LANGFUSE_PUBLIC_KEY") and os.environ.get("LANGFUSE_SECRET_KEY"):
         os.environ.setdefault("LANGFUSE_HOST", "https://jp.cloud.langfuse.com")
         os.environ.setdefault("KEEL_TRACE_BUFFER_PATH", "/tmp/keel-traces")
+    base = os.environ.get("KEEL_LLM_BASE_URL", "").rstrip("/")
+    if base and not base.endswith("/v1"):
+        os.environ["KEEL_LLM_BASE_URL"] = base + "/v1"
 
 
 os.environ.setdefault("KEEL_LLM_BASE_URL", "http://keel-llm.keel-system.svc.cluster.local:8088")

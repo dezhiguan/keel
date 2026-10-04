@@ -16,10 +16,17 @@ from keel.tracing import attrs
 logger = logging.getLogger(__name__)
 
 
+def _openai_base(url: str | None) -> str:
+    base = (url or "").rstrip("/")
+    if base and not base.endswith("/v1"):
+        base += "/v1"
+    return base
+
+
 class LlmClient:
     def __init__(self, agent: str, default_model: str | None, trace_id: str,
                  tracer=None, http_client: httpx.AsyncClient | None = None):
-        base_url = os.environ.get("KEEL_LLM_BASE_URL")
+        base_url = _openai_base(os.environ.get("KEEL_LLM_BASE_URL"))
         api_key = os.environ.get("KEEL_LLM_KEY")
         if not base_url or not api_key:
             raise RuntimeError("KEEL_LLM_BASE_URL and KEEL_LLM_KEY are required")
@@ -45,8 +52,10 @@ class LlmClient:
             except openai.RateLimitError as exc:
                 span.set_attribute(attrs.STATUS, "failed")
                 raise KeelError(ErrorCode.GW_QUOTA_EXCEEDED) from exc
-            except (openai.APIConnectionError, openai.APITimeoutError,
-                    openai.APIStatusError) as exc:
+            except openai.APIStatusError as exc:
+                span.set_attribute(attrs.STATUS, "failed")
+                raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, f"薄网关 HTTP {exc.status_code}") from exc
+            except (openai.APIConnectionError, openai.APITimeoutError) as exc:
                 span.set_attribute(attrs.STATUS, "failed")
                 raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR) from exc
             usage = response.usage

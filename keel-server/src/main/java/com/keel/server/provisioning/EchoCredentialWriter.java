@@ -25,17 +25,21 @@ public class EchoCredentialWriter {
     }
 
     public void ensure(String agent) {
-        var base = System.getenv("KEEL_LLM_BASE_URL");
-        var admin = System.getenv("KEEL_LLM_ADMIN_KEY");
+        ensure(agent, System.getenv("KEEL_LLM_BASE_URL"), System.getenv("KEEL_LLM_ADMIN_KEY"));
+    }
+
+    void ensure(String agent, String base, String admin) {
         if (base == null || base.isBlank() || admin == null || admin.isBlank()) {
             return;
         }
         var name = "keel-" + agent;
+        var alias = agent + "-dev";
         var existing = kubernetes.secrets().inNamespace(NAMESPACE).withName(name).get();
-        if (existing != null && existing.getData() != null && existing.getData().containsKey("KEEL_LLM_KEY")) {
+        var hasKey = existing != null && existing.getData() != null && existing.getData().containsKey("KEEL_LLM_KEY");
+        if (hasKey && gateway.hasAlias(alias)) {
             return;
         }
-        var key = gateway.generate(agent + "-dev", List.of("qwen-plus"), List.of(), BigDecimal.valueOf(30), false);
+        var key = gateway.generate(alias, List.of("qwen-plus"), List.of(), BigDecimal.valueOf(30), false);
         var data = new java.util.LinkedHashMap<String, String>();
         data.put("KEEL_LLM_KEY", encode(key));
         data.put("KEEL_LLM_BASE_URL", encode("http://keel-llm.keel-system.svc.cluster.local:8088"));

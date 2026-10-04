@@ -75,11 +75,41 @@ def test_litellm_http_errors_use_registered_codes(monkeypatch, status, expected)
         try:
             with pytest.raises(KeelError) as error:
                 await client.chat([{"role": "user", "content": "hello"}])
-            return error.value.code
+            return error.value
         finally:
             await client.aclose()
 
-    assert run(scenario()) is expected
+    error = run(scenario())
+    assert error.code is expected
+    if status == 500:
+        assert "HTTP 500" in str(error)
+
+
+def test_gateway_root_without_v1_still_posts_chat_completions(monkeypatch):
+    monkeypatch.setenv("KEEL_LLM_BASE_URL", "https://litellm.test")
+    monkeypatch.setenv("KEEL_LLM_KEY", "test-virtual-key")
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(200, json={
+            "id": "chatcmpl-test", "object": "chat.completion", "created": 1,
+            "model": "qwen-plus", "choices": [{"index": 0,
+            "message": {"role": "assistant", "content": "hello"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        })
+
+    client = LlmClient("echo", "qwen-plus", "trace-1", http_client=httpx.AsyncClient(
+        transport=httpx.MockTransport(handle)))
+
+    async def scenario():
+        try:
+            return await client.chat([{"role": "user", "content": "hello"}])
+        finally:
+            await client.aclose()
+
+    assert run(scenario()) == "hello"
+    assert requests[0].url.path == "/v1/chat/completions"
 
 
 def test_ragforge_name_resolution_search_and_citations(monkeypatch):

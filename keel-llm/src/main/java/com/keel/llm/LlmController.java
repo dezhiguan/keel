@@ -103,7 +103,7 @@ public class LlmController {
     ResponseEntity<String> complete(HttpServletRequest request,
                                     @RequestHeader(value = "Authorization", required = false) String authorization,
                                     @RequestBody String body) {
-        var completion = gateway.complete(authorization, request.getRequestURI(), body, Duration.ofSeconds(8));
+        var completion = gateway.complete(authorization, request.getRequestURI(), body, Duration.ofSeconds(45));
         return ResponseEntity.status(completion.status()).body(completion.body());
     }
 

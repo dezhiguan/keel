@@ -10,9 +10,7 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -23,14 +21,18 @@ public final class Gateway {
     private final ModelCatalog catalog;
     private final BudgetCounter budget;
     private final Upstream upstream;
-    private final Map<String, VirtualKey> byAlias = new LinkedHashMap<>();
-    private final Map<String, VirtualKey> byToken = new LinkedHashMap<>();
+    private final KeyDirectory keys;
     private final List<Spend> spend = new ArrayList<>();
 
     public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream) {
+        this(catalog, budget, upstream, new KeyDirectory());
+    }
+
+    public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream, KeyDirectory keys) {
         this.catalog = catalog;
         this.budget = budget;
         this.upstream = upstream;
+        this.keys = keys;
     }
 
     public synchronized Created create(String alias, List<String> models, List<String> fallback, BigDecimal dailyBudgetCny, boolean allowFallback) {
@@ -43,23 +45,20 @@ public final class Gateway {
         models.forEach(catalog::require);
         var token = "sk-keel-" + UUID.randomUUID().toString().replace("-", "");
         var key = new VirtualKey(alias, token, List.copyOf(models), List.copyOf(fallback), dailyBudgetCny, allowFallback, false);
-        byAlias.put(alias, key);
-        byToken.put(token, key);
+        keys.save(key);
         return new Created(alias, token);
     }
 
     public synchronized void block(String alias) {
-        var key = byAlias.get(alias);
+        var key = keys.byAlias(alias);
         if (key == null) {
             throw new GatewayException(ErrorCode.SERVER_NOT_FOUND, "虚拟 Key 不存在");
         }
-        var blocked = key.asBlocked();
-        byAlias.put(alias, blocked);
-        byToken.put(key.token(), blocked);
+        keys.save(key.asBlocked());
     }
 
     public synchronized VirtualKey requireAlias(String alias) {
-        var key = byAlias.get(alias);
+        var key = keys.byAlias(alias);
         if (key == null) {
             throw new GatewayException(ErrorCode.SERVER_NOT_FOUND, "虚拟 Key 不存在");
         }
@@ -124,7 +123,7 @@ public final class Gateway {
         }
         VirtualKey key;
         synchronized (this) {
-            key = byToken.get(bearer.substring("Bearer ".length()).trim());
+            key = keys.byToken(bearer.substring("Bearer ".length()).trim());
         }
         if (key == null || key.blocked) {
             throw new GatewayException(ErrorCode.LLM_KEY_BLOCKED, ErrorCode.LLM_KEY_BLOCKED.message());

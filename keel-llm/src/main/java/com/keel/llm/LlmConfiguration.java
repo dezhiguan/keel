@@ -35,8 +35,8 @@ public class LlmConfiguration {
     }
 
     @Bean
-    Gateway gateway(ModelCatalog catalog, BudgetCounter budget) {
-        return new Gateway(catalog, budget, new Upstream());
+    Gateway gateway(ModelCatalog catalog, BudgetCounter budget, LlmProperties properties) {
+        return new Gateway(catalog, budget, new Upstream(), new KeyDirectory(properties.getRedis()));
     }
 
     @Bean
