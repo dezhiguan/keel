@@ -18,6 +18,55 @@ public class AgentEndpointClient {
         return response.statusCode() >= 200 && response.statusCode() < 300;
     }
 
+    public Answer invoke(String endpoint, String text) {
+        var base = trim(endpoint);
+        try {
+            var payload = json.createObjectNode();
+            payload.putObject("input").put("text", text);
+            var request = HttpRequest.newBuilder(URI.create(base + "/v1/invoke"))
+                    .timeout(Duration.ofSeconds(60))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(payload)))
+                    .build();
+            var response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 300) {
+                throw new IllegalStateException("智能体返回 HTTP " + response.statusCode());
+            }
+            return parseFinal(response.body());
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("调用智能体失败");
+        }
+    }
+
+    static Answer parseFinal(String body) {
+        String event = "";
+        String answer = null;
+        String traceId = null;
+        for (var line : body.split("\n")) {
+            if (line.startsWith("event:")) {
+                event = line.substring("event:".length()).trim();
+            } else if (line.startsWith("data:") && "final".equals(event)) {
+                try {
+                    var node = new ObjectMapper().readTree(line.substring("data:".length()).trim());
+                    answer = node.path("answer").asText("");
+                    traceId = node.path("trace_id").asText("");
+                } catch (Exception e) {
+                    throw new IllegalStateException("智能体的 final 事件无法解析");
+                }
+            } else if (line.startsWith("data:") && "error".equals(event)) {
+                throw new IllegalStateException("智能体返回错误");
+            }
+        }
+        if (answer == null) {
+            throw new IllegalStateException("智能体没有返回 final 事件");
+        }
+        return new Answer(answer, traceId == null || traceId.isBlank() ? null : traceId);
+    }
+
+    public record Answer(String text, String traceId) {}
+
     public String manifestVersion(String endpoint) {
         var response = send(endpoint, "/v1/manifest");
         if (response.statusCode() >= 300) {
@@ -30,8 +79,12 @@ public class AgentEndpointClient {
         }
     }
 
+    private static String trim(String endpoint) {
+        return endpoint.endsWith("/") ? endpoint.substring(0, endpoint.length() - 1) : endpoint;
+    }
+
     private HttpResponse<String> send(String endpoint, String path) {
-        var base = endpoint.endsWith("/") ? endpoint.substring(0, endpoint.length() - 1) : endpoint;
+        var base = trim(endpoint);
         try {
             var request = HttpRequest.newBuilder(URI.create(base + path))
                     .timeout(Duration.ofSeconds(3))

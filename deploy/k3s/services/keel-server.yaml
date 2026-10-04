@@ -3,6 +3,30 @@ kind: Namespace
 metadata:
   name: keel-system
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: keel-agent-secrets
+  namespace: keel-system
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: keel-server-agent-secrets
+  namespace: keel-system
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: keel-system
+roleRef:
+  kind: Role
+  name: keel-agent-secrets
+  apiGroup: rbac.authorization.k8s.io
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,6 +49,42 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
+          env:
+            - name: LANGFUSE_HOST
+              value: https://jp.cloud.langfuse.com
+            - name: KEEL_JWKS_BASE
+              value: http://keel-server.keel-system.svc.cluster.local:8080
+            - name: KEEL_LLM_BASE_URL
+              value: http://keel-llm.keel-system.svc.cluster.local:8088
+            - name: KEEL_LLM_ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: keel-llm
+                  key: admin-key
+            - name: LANGFUSE_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: keel-server
+                  key: LANGFUSE_PUBLIC_KEY
+                  optional: true
+            - name: LANGFUSE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: keel-server
+                  key: LANGFUSE_SECRET_KEY
+                  optional: true
+            - name: LANGFUSE_PROJECT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: keel-server
+                  key: LANGFUSE_PROJECT_ID
+                  optional: true
+            - name: KEEL_AUTH_GATEWAY_URL
+              valueFrom:
+                secretKeyRef:
+                  name: keel-server
+                  key: KEEL_AUTH_GATEWAY_URL
+                  optional: true
           envFrom:
             - secretRef:
                 name: keel-server

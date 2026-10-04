@@ -32,3 +32,7 @@ export function previewManifest(body: Record<string, unknown>) {
 export function registerAgent(body: Record<string, unknown>) {
   return post<SelfCheckReport>('/agents', body)
 }
+
+export function chatWithAgent(name: string, text: string) {
+  return post<{ text?: string; traceId?: string | null }>(`/agents/${encodeURIComponent(name)}/chat`, { text })
+}

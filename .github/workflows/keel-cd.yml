@@ -37,6 +37,7 @@ jobs:
       gateway: ${{ steps.scope.outputs.gateway }}
       audit: ${{ steps.scope.outputs.audit }}
       console: ${{ steps.scope.outputs.console }}
+      echo: ${{ steps.scope.outputs.echo }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -279,6 +280,53 @@ jobs:
           tags: ${{ steps.image.outputs.push_image }}
           cache-from: type=gha,scope=keel-console
           cache-to: type=gha,scope=keel-console,mode=max
+
+  build-echo:
+    name: 构建 echo-agent
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [changes]
+    if: needs.changes.outputs.echo == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - id: image
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+        run: bash deploy/ci/resolve-image.sh echo-agent
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.image.outputs.server }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/echo-agent.Dockerfile
+          push: true
+          provenance: false
+          tags: ${{ steps.image.outputs.push_image }}
+
+  deploy-echo:
+    name: 部署 echo-agent
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [changes, build-echo, deploy-server]
+    if: needs.changes.outputs.echo == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: 配置 SSH
+        env:
+          SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
+          JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+        run: bash deploy/ci/configure-ssh.sh
+      - name: 发布 echo-agent
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        run: bash deploy/ci/rollout-service.sh echo-agent deploy/k3s/services/echo-agent.yaml PLACEHOLDER_ECHO_IMAGE
 
   deploy-llm:
     name: 部署 keel-llm

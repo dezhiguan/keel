@@ -93,7 +93,7 @@ public final class RegisterManifest {
     public static String endpoint(JsonNode form, int port) {
         var name = text(form, "name");
         if ("echo".equals(text(form, "template"))) {
-            return "http://127.0.0.1:" + port + "/builtin/agents/" + (name.isBlank() ? "echo" : name);
+            return "http://echo-agent.keel-system.svc.cluster.local:8000";
         }
         var endpoint = text(form, "endpoint");
         if (endpoint.isBlank()) {

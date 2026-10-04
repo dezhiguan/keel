@@ -1,0 +1,20 @@
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  name: echo
+  displayName: 回声
+  owner: 研发效能组 / amy
+spec:
+  runtime:
+    type: code
+    language: python
+    endpoint: http://echo-agent.agents.svc.cluster.local:8000
+    liveness: k8s
+  auth:
+    audience: echo
+  models:
+    default: qwen-plus
+    budget:
+      dailyCny: 30
+  eval:
+    dataset: echo/smoke

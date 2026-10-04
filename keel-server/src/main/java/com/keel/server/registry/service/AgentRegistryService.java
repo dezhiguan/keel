@@ -63,6 +63,17 @@ public class AgentRegistryService {
         return new PageResult<>(result.getCurrent(), result.getSize(), result.getTotal(), items);
     }
 
+    public String invokeEndpoint(String name) {
+        require(name);
+        var versions = versionMapper.listByAgent(name);
+        var manifest = readManifest(versions.isEmpty() ? null : versions.get(0));
+        var endpoint = manifest == null ? "" : manifest.path("spec").path("runtime").path("endpoint").asText("");
+        if (endpoint.isBlank() || endpoint.contains("/builtin/agents/")) {
+            return "http://echo-agent.keel-system.svc.cluster.local:8000";
+        }
+        return endpoint;
+    }
+
     public AgentDetail detail(String name) {
         var agent = require(name);
         var versions = versionMapper.listByAgent(name);

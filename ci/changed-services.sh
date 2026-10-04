@@ -8,6 +8,7 @@ write() {
   echo "gateway=${gateway}" >> "${GITHUB_OUTPUT}"
   echo "audit=${audit}" >> "${GITHUB_OUTPUT}"
   echo "console=${console}" >> "${GITHUB_OUTPUT}"
+  echo "echo=${echo}" >> "${GITHUB_OUTPUT}"
 }
 
 llm=false
@@ -15,6 +16,7 @@ server=false
 gateway=false
 audit=false
 console=false
+echo=false
 
 if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
   llm=true
@@ -22,6 +24,7 @@ if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
   gateway=true
   audit=true
   console=true
+  echo=true
   write
   exit 0
 fi
@@ -36,6 +39,7 @@ else
     gateway=true
     audit=true
     console=true
+    echo=true
     write
     exit 0
   fi
@@ -59,6 +63,8 @@ while IFS= read -r file; do
       audit=true ;;
     console/*|deploy/docker/console.Dockerfile|deploy/docker/console-nginx.conf|deploy/k3s/console.yaml|ci/frontend-gate.sh)
       console=true ;;
+    agents/echo/*|deploy/docker/echo-agent.Dockerfile|deploy/k3s/services/echo-agent.yaml)
+      echo=true ;;
   esac
 done <<< "${files}"
 
@@ -69,5 +75,5 @@ if [[ "${shared}" == true ]]; then
   audit=true
 fi
 
-echo "本次需要发布：llm=${llm} server=${server} gateway=${gateway} audit=${audit} console=${console}"
+echo "本次需要发布：llm=${llm} server=${server} gateway=${gateway} audit=${audit} console=${console} echo=${echo}"
 write

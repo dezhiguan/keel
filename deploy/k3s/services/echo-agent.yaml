@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo-agent
+  namespace: keel-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: echo-agent }
+  template:
+    metadata:
+      labels: { app: echo-agent }
+    spec:
+      imagePullSecrets:
+        - name: acr-cred
+      containers:
+        - name: echo-agent
+          image: PLACEHOLDER_ECHO_IMAGE
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: KEEL_LLM_BASE_URL
+              value: http://keel-llm.keel-system.svc.cluster.local:8088
+            - name: KEEL_SECRET_DIR
+              value: /var/run/secrets/keel
+          volumeMounts:
+            - name: keel-echo
+              mountPath: /var/run/secrets/keel
+              readOnly: true
+          readinessProbe:
+            httpGet: { path: /v1/health, port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+      volumes:
+        - name: keel-echo
+          secret:
+            secretName: keel-echo
+            optional: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-agent
+  namespace: keel-system
+spec:
+  type: ClusterIP
+  selector: { app: echo-agent }
+  ports:
+    - port: 8000
+      targetPort: 8000

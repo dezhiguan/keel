@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.keel.common.error.ErrorCode;
 import com.keel.server.common.KeelException;
-import com.keel.server.builtin.EchoProbe;
 import com.keel.server.integration.audit.AuditStore;
 import com.keel.server.provisioning.ProvisioningService;
 import com.keel.server.provisioning.ResourceLedger;
@@ -27,20 +26,18 @@ public class LifecycleService {
     private final JdbcTemplate jdbc;
     private final ManifestValidator validator;
     private final ObjectMapper json;
-    private final EchoProbe echo;
     private final AuditStore audits;
     private final int port;
 
     public LifecycleService(AgentMapper agents, ProvisioningService provisioning, ResourceLedger ledger,
-                            JdbcTemplate jdbc, ManifestValidator validator, ObjectMapper json, EchoProbe echo,
-                            AuditStore audits, @Value("${server.port:8080}") int port) {
+                            JdbcTemplate jdbc, ManifestValidator validator, ObjectMapper json, AuditStore audits,
+                            @Value("${server.port:8080}") int port) {
         this.agents = agents;
         this.provisioning = provisioning;
         this.ledger = ledger;
         this.jdbc = jdbc;
         this.validator = validator;
         this.json = json;
-        this.echo = echo;
         this.audits = audits;
         this.port = port;
     }
@@ -82,9 +79,6 @@ public class LifecycleService {
         }
         if (report.passed()) {
             jdbc.update("INSERT INTO route_snapshot (changed_agent) VALUES (?)", name);
-        }
-        if ("echo".equals(body.path("template").asText(""))) {
-            echo.invoke(name, env);
         }
         return report;
     }

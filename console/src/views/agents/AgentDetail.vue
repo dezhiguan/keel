@@ -3,13 +3,34 @@ import { ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import StatusPill from '@/components/StatusPill.vue'
-import { getAgent, type AgentDetail } from '@/api/agents'
+import { chatWithAgent, getAgent, type AgentDetail } from '@/api/agents'
 import { toKeelError } from '@/api/http'
 import { agentStatus, orDash } from '@/utils/format'
 
 const route = useRoute()
 const detail = ref<AgentDetail | null>(null)
 const loading = ref(false)
+const draft = ref('')
+const reply = ref('')
+const traceId = ref('')
+const sending = ref(false)
+
+async function send() {
+  const text = draft.value.trim()
+  if (!text || !detail.value?.name) return
+  sending.value = true
+  reply.value = ''
+  traceId.value = ''
+  try {
+    const result = await chatWithAgent(detail.value.name, text)
+    reply.value = result.text ?? ''
+    traceId.value = result.traceId ?? ''
+  } catch (error) {
+    ElMessage.error(`发送失败：${toKeelError(error).message}`)
+  } finally {
+    sending.value = false
+  }
+}
 
 async function load() {
   loading.value = true
@@ -33,6 +54,15 @@ watch(() => route.params.name, load, { immediate: true })
       <span class="sub mono">{{ detail?.name }}</span>
       <StatusPill v-if="detail" v-bind="agentStatus(detail.status)" />
     </div>
+    <section class="card">
+      <h3>对话</h3>
+      <textarea v-model="draft" class="inp" rows="3" placeholder="输入一句话" style="width: 100%; box-sizing: border-box" />
+      <div class="wfoot">
+        <button class="btn pri" type="button" :disabled="sending || !draft.trim()" @click="send">{{ sending ? '发送中…' : '发送' }}</button>
+        <RouterLink v-if="traceId" class="btn" :to="`/traces/${traceId}`">查看这条链路</RouterLink>
+      </div>
+      <p v-if="reply" style="white-space: pre-wrap">{{ reply }}</p>
+    </section>
     <section class="card">
       <h3>登记</h3>
       <p>环境 {{ orDash(detail?.env) }} · 版本 {{ orDash(detail?.version) }} · 评分 {{ orDash(detail?.score) }} · 成本 {{ detail?.costCny == null ? '—' : `¥${detail.costCny.toFixed(2)}` }}</p>

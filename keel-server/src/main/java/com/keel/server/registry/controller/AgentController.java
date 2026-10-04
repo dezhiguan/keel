@@ -6,6 +6,7 @@ import com.keel.server.common.R;
 import com.keel.server.registry.model.dto.AgentDetail;
 import com.keel.server.registry.model.dto.AgentSummary;
 import com.keel.server.registry.model.enums.AgentStatus;
+import com.keel.server.registry.service.AgentChatService;
 import com.keel.server.registry.service.AgentRegistryService;
 import com.keel.server.registry.service.LifecycleService;
 import com.keel.server.registry.service.SelfCheckService;
@@ -24,10 +25,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class AgentController {
     private final AgentRegistryService agentRegistryService;
     private final LifecycleService lifecycleService;
+    private final AgentChatService chats;
 
-    public AgentController(AgentRegistryService agentRegistryService, LifecycleService lifecycleService) {
+    public AgentController(AgentRegistryService agentRegistryService, LifecycleService lifecycleService,
+                           AgentChatService chats) {
         this.agentRegistryService = agentRegistryService;
         this.lifecycleService = lifecycleService;
+        this.chats = chats;
     }
 
     @GetMapping
@@ -60,5 +64,10 @@ public class AgentController {
     @GetMapping("/{name}")
     public R<AgentDetail> detail(@PathVariable String name) {
         return R.ok(agentRegistryService.detail(name));
+    }
+
+    @PostMapping("/{name}/chat")
+    public R<java.util.Map<String, Object>> chat(@PathVariable String name, @RequestBody JsonNode body) {
+        return R.ok(chats.chat(name, body.path("text").asText("")));
     }
 }

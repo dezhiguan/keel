@@ -172,6 +172,40 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
 
+  /agents/{name}/chat:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+    post:
+      tags: [agents]
+      operationId: chatWithAgent
+      summary: 向已注册的智能体发一轮对话
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string }
+      responses:
+        "200":
+          description: 智能体的最终回复
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          text: { type: string }
+                          traceId: { type: string, nullable: true }
+        "404":
+          $ref: "#/components/responses/Error"
+
   /agents/{name}/releases:
     parameters:
       - $ref: "#/components/parameters/AgentName"
