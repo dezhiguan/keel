@@ -430,38 +430,11 @@ jobs:
           DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
           JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
         run: bash deploy/ci/configure-ssh.sh
-      - name: 页面、接口和集群内的薄网关
-        run: |
-          set -euo pipefail
-          SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15)
-          ssh "${SSH_OPTS[@]}" keel-app \
-            'curl --fail --silent --show-error --max-time 10 --retry 6 --retry-delay 5 http://127.0.0.1:31110/' \
-            > /tmp/keel-index.html
-          grep -q 'Keel 控制台' /tmp/keel-index.html
-          grep -q '/assets/' /tmp/keel-index.html
-          ssh "${SSH_OPTS[@]}" keel-app \
-            'curl --fail --silent --show-error --max-time 10 http://127.0.0.1:31110/api/v1/catalog' \
-            > /tmp/keel-catalog.json
-          python3 - <<'PY'
-          import json
-          body = json.load(open("/tmp/keel-catalog.json"))
-          assert body["code"] == "OK", body
-          assert body["data"]["templates"], body
-          print("catalog ok")
-          PY
-          for svc in keel-llm keel-gateway keel-audit keel-server; do
-            type="$(ssh "${SSH_OPTS[@]}" keel-app \
-              "kubectl -n keel-system get svc ${svc} -o jsonpath='{.spec.type}'")"
-            test "${type}" = "ClusterIP"
-          done
-          ssh "${SSH_OPTS[@]}" keel-app 'bash -s' > /tmp/keel-llm-health.json <<'EOF'
-          set -euo pipefail
-          IP="$(kubectl -n keel-system get svc keel-llm -o jsonpath='{.spec.clusterIP}')"
-          curl --fail --silent --show-error --max-time 10 "http://${IP}:8088/health"
-          EOF
-          python3 - <<'PY'
-          import json
-          body = json.load(open("/tmp/keel-llm-health.json"))
-          assert body["status"] == "up", body
-          print("keel-llm health ok")
-          PY
+      - name: 只检查本次部署的服务
+        env:
+          SMOKE_LLM: ${{ needs.deploy-llm.result == 'success' }}
+          SMOKE_SERVER: ${{ needs.deploy-server.result == 'success' }}
+          SMOKE_GATEWAY: ${{ needs.deploy-gateway.result == 'success' }}
+          SMOKE_AUDIT: ${{ needs.deploy-audit.result == 'success' }}
+          SMOKE_CONSOLE: ${{ needs.deploy-frontend.result == 'success' }}
+        run: bash deploy/ci/smoke.sh
