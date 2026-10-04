@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.keel.common.error.ErrorCode;
 import com.keel.server.common.KeelException;
 import com.keel.server.integration.langfuse.LangfuseClient;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +22,7 @@ public class TraceQueryService {
     private final String projectId;
     private final Map<String, double[]> pricesCnyPerToken;
 
+    @Autowired
     public TraceQueryService(LangfuseClient langfuse,
                              @Value("${LANGFUSE_HOST:}") String host,
                              @Value("${LANGFUSE_PROJECT_ID:}") String projectId) {
