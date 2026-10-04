@@ -56,11 +56,11 @@ mvn -o test
 
 再发一次带 `traceparent` 的检索：
 
-- [ ] Langfuse 里该 trace 有 retriever 节点，四个子 span 都在
-- [ ] embedding 的配置里没有 fallback 模型
-- [ ] Micrometer 导出的检索指标带 `caller_agent` 和 `kb`
-- [ ] `GET /api/v1/eval/summary?kb=` 返回三个字段，缺数据时为 null 而不是 500
-- [ ] 仓库和配置样例里没有厂商 API Key
+- [ ] Langfuse 里该 trace 有 retriever 节点，四个子 span 都在（代码会在设置了 `LANGFUSE_HOST` 和项目密钥后上报；还没用一次真实检索对过云端）
+- [x] embedding 的配置里没有 fallback 模型
+- [x] Micrometer 导出的检索指标带 `caller_agent` 和 `kb`
+- [x] `GET /api/v1/eval/summary?kb=` 返回三个字段，缺数据时为 null 而不是 500
+- [x] 仓库和配置样例里没有厂商 API Key
 
 ## 明确不做
 
