@@ -1,4 +1,17 @@
 package com.keel.audit.chain;
 
-/** Package-layout placeholder; behavior is added by its feature task. */
-public class ChainVerifyJob {}
+import java.util.Optional;
+
+public class ChainVerifyJob {
+    private final HashChainService chain;
+    private final ChainStore store;
+
+    public ChainVerifyJob(HashChainService chain, ChainStore store) {
+        this.chain = chain;
+        this.store = store;
+    }
+
+    public Optional<String> verify(String agent) {
+        return chain.brokenAt(store.list(agent));
+    }
+}
