@@ -1,4 +1,8 @@
-# LiteLLM（P1-2）
+# LiteLLM（已作废）
+
+2026-10-04 起模型网关改为自研 `keel-llm`，见 `docs/specs/p1/P1-2-model-gateway.md`。不要再部署本目录。
+
+# LiteLLM（P1-2，旧）
 
 两个副本，每个 Pod 1 vCPU + 4Gi（requests = limits），每个 Pod 1 个 worker，必须接 Redis。镜像钉在 `docker.litellm.ai/berriai/litellm:v1.98.0`（LiteLLM 生产文档给出的钉版本写法）。
 

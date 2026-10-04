@@ -8,7 +8,7 @@
 
 - 前置任务：P1-1、P0-1
 - 依赖的契约文件：`contracts/trace-attributes.md`、`contracts/manifest.schema.json`（`kind: Service` 的登记文件叫 `service.yaml`）
-- 依赖的外部组件：rag-forge 仓库（不在本仓库）。LiteLLM 使用别名 `rag-forge-{env}` 的虚拟 Key。自部署 reranker 不经过 LiteLLM。
+- 依赖的外部组件：rag-forge 仓库（不在本仓库）。薄网关使用别名 `rag-forge-{env}` 的虚拟 Key，向量化 Key 的 `allowFallback` 为 false。自部署 reranker 不经过薄网关。
 
 ## 改哪些文件
 
@@ -41,11 +41,11 @@ GET /api/v1/eval/summary?kb=
 ## 实现要点
 
 - **向量化模型 pin 死，禁止 fallback。** 降级到另一个 embedding 模型后，新向量和库里的存量向量不在同一空间，检索不报错，只是召回变差。改写和 judge 可以降级。
-- **reranker 仍走自部署服务。** 不要把 rerank 配进 LiteLLM。若以后改云厂商 rerank，先实测该 LiteLLM 版本的 `/rerank`，未实测前不要写。
+- **reranker 仍走自部署服务。** 薄网关没有 `/rerank`。若以后改云厂商 rerank，先单独核实那家的接口，未核实前不要写进网关。
 - **分段耗时写成 retriever 的子 span：** rewrite、vector、keyword、rerank。属性带 `kb`、`top_k`、分数。不把文档原文放进 span 属性。
 - **指标标签只加 `caller_agent` 和 `kb`。** `caller_agent` 来自 JWT 的 `azp`，没有则来自约定请求头。不要用用户显示名当标签。
 - **审计走 RocketMQ 的 `config.change`：** 知识库增删、文档导入、破玻璃提权、API Key 变更。本地审计表先留着。不要做成同步阻断检索。
-- 模型地址改为 LiteLLM 后，`model_usage_daily` 仍按组织记账，不要删。
+- 模型地址改为薄网关后，`model_usage_daily` 仍按组织记账，不要删。
 
 ## 验收标准
 

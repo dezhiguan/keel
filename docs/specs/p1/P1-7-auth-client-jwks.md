@@ -73,4 +73,4 @@ mvn -o -pl :keel-server test
 - 不改 auth-gateway 仓库
 - 不实现网关侧的换票缓存（P2-6）
 - 不实现委托 token（P3-1）
-- 不写 LiteLLM Key 和 Langfuse 数据集（P1-8）
+- 不写薄网关虚拟 Key 和 Langfuse 数据集（P1-8）

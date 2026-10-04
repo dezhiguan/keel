@@ -30,8 +30,8 @@ Python SDK 和 Java starter 产生的属性键集合必须完全一致。这份�
 | `keel.status` | `ok` \| `fallback` \| `failed` | **只有三档**，和 SSE 事件同一套口径 |
 | `keel.audit_ids` | 字符串数组 | 本节点写出的审计事件 id，控制台据此在追踪和审计之间互跳 |
 | `keel.fallback_from` | 字符串 | 降级前的模型别名 |
-| `keel.llm.key_alias` | 字符串 | LiteLLM 虚拟 Key 别名 `{agent}-{env}`，成本按它归集 |
-| `keel.llm.request_id` | 字符串 | 和 LiteLLM 花费日志对账用 |
+| `keel.llm.key_alias` | 字符串 | 薄网关虚拟 Key 别名 `{agent}-{env}`，成本按它归集 |
+| `keel.llm.request_id` | 字符串 | 和薄网关花费明细对账用 |
 | `keel.tool.deprecated` | 布尔 | 调用了废弃期内的工具 |
 | `keel.run.id` | 字符串 | 一次执行的 id |
 | `keel.run.suspended` | 布尔 | 本次执行中途挂起过 |
@@ -49,7 +49,7 @@ gen_ai.usage.input_tokens
 gen_ai.usage.output_tokens
 ```
 
-generation span **只由 Keel SDK 上报一次**。LiteLLM 自带的 Langfuse 回调必须关闭，否则一次调用记两条。
+generation span **只由 Keel SDK 上报一次**。薄网关不向 Langfuse 上报，否则一次调用会记两条。
 
 ## 禁止事项
 

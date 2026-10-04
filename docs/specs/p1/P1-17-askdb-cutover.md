@@ -8,7 +8,7 @@ askdb 的线上流量同时进 Langfuse 和 keel-audit。影子运行一周后�
 
 - 前置任务：P0-6、P0-7、P0-8。评测导入命令如果还没有 `keel eval import`，本任务只把用例文件交到 Langfuse 数据集 `askdb/nl2sql`，不在这里实现完整的 `keel eval`（P2-4）。
 - 依赖的契约文件：`contracts/manifest.schema.json`、`contracts/trace-attributes.md`、`contracts/audit-event.schema.json`
-- 依赖的外部组件：askdb 仓库（不在本仓库）。Langfuse dev/staging 项目（P1-1）、LiteLLM（P1-2）。
+- 依赖的外部组件：askdb 仓库（不在本仓库）。Langfuse Cloud 日本节点的 dev/staging 项目（P1-1）、薄网关（P1-2）。
 
 ## 改哪些文件
 
@@ -32,7 +32,7 @@ agentgraph.py · multiagent/ · planner.py   保留
 - 内部子智能体（router、verifier、synthesizer）不单独注册，span 类型仍是 `agent`
 - `OK_STATUSES` / `SOFT_STATUSES` 映射到 `keel.status` 的三档，不新增状态
 - 审计白名单是现在 `SUMMARY_FIELDS` 的内容，写进 manifest `audit.captureFields`
-- 模型调用走 LiteLLM，仓库里不留厂商 Key
+- 模型调用走薄网关，仓库里不留厂商 Key
 
 ## 实现要点
 

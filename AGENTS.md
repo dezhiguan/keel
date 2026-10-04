@@ -10,7 +10,7 @@ Keel 是智能体平台底座。设计文档在 `docs/` 下按包分类，冲突
 
 1. 先读 `docs/specs/p0/` 或 `docs/specs/p1/` 下对应任务的 spec。没有 spec 就先写 spec，不要直接改代码。
 2. 涉及跨语言的数据结构，先看 `contracts/`。契约是唯一事实来源。
-3. 外部组件（Langfuse、LiteLLM、auth-gateway）的接口**不要凭记忆写**。这三个在本项目里的正确用法和通用写法差别很大，见 `.cursor/rules/external-apis.mdc`。核实不了就停下来问。
+3. 外部组件（Langfuse Cloud、薄网关、auth-gateway）的接口**不要凭记忆写**。这三处的正确用法和通用写法差别很大，见 `.cursor/rules/external-apis.mdc`。核实不了就停下来问。
 
 ## 铁律
 
@@ -20,7 +20,7 @@ Keel 是智能体平台底座。设计文档在 `docs/` 下按包分类，冲突
 - SDK 和 starter 必须通过同一套 `contracts/tests`。
 
 ### 密钥与模型调用
-- 任何代码、配置、测试里都不允许出现厂商 API Key。厂商密钥只存在 LiteLLM 的 Secret 里。
+- 任何代码、配置、测试里都不允许出现厂商 API Key。厂商密钥只存在薄网关的 Secret `keel-llm-vendors` 里。
 - 调模型只能走 `ctx.llm`（Python）/ `ctx.llm()`（Java）。禁止 import openai、dashscope、anthropic 等厂商 SDK 直连模型。
 - 智能体的配置只从 K8s Secret `keel-{agent}` 注入的环境变量读，不要写默认值兜底。
 

@@ -48,7 +48,7 @@ spec:
   quality:    { onlineEvalSampling, feedback, annotationQueue }
 ```
 
-`kind: Service`（rag-forge 这类共享服务）**这次必须有 `models` 和 `budget` 两段**，字段形状和 Agent 一致。共享服务也要走 LiteLLM 发虚拟 Key，没有这两段 `keel register` 开通不了资源。其余段（`eval`、`quality`、`delegates`、`prompts`）对 Service 不适用，schema 里按 `kind` 条件化。
+`kind: Service`（rag-forge 这类共享服务）**这次必须有 `models` 和 `budget` 两段**，字段形状和 Agent 一致。共享服务也要走薄网关发虚拟 Key，没有这两段 `keel register` 开通不了资源。其余段（`eval`、`quality`、`delegates`、`prompts`）对 Service 不适用，schema 里按 `kind` 条件化。
 
 Service 的 `models.fallback` 要能按用途分开写，不能全局一个降级列表：
 
@@ -144,6 +144,6 @@ npx @redocly/cli lint contracts/invoke.openapi.yaml
 
 ## 明确不做
 
-- 不做 Service kind 的**全部**字段，但 `models`（含 `byPurpose`）和 `budget` 这次必须定。rag-forge 的模型调用要收进 LiteLLM，没这两段发不出虚拟 Key，拖到 P1-18 就晚了。健康探测、知识库元数据等 Service 专有字段仍留到 P1-18
+- 不做 Service kind 的**全部**字段，但 `models`（含 `byPurpose`）和 `budget` 这次必须定。rag-forge 的模型调用要收进薄网关，没这两段发不出虚拟 Key，拖到 P1-18 就晚了。健康探测、知识库元数据等 Service 专有字段仍留到 P1-18
 - 不做 Dify 相关字段的细化（P3）
 - 不写任何生成代码，那是 P0-2

@@ -8,7 +8,7 @@
 
 - 前置任务：P0-4（monorepo 骨架，已完成）
 - 依赖的契约文件：`contracts/console-api.openapi.yaml`（`/me`、`/insight/overview`、`/agents`；`Envelope`、`ApiError`、`PageMeta`、`AgentSummary`、`Overview`、`CurrentUser`）、`contracts/error-codes.yaml`
-- 依赖的外部组件：无。auth-gateway、Langfuse、LiteLLM 本任务都不接。
+- 依赖的外部组件：无。auth-gateway、Langfuse、薄网关本任务都不接。
 
 ## 改哪些文件
 

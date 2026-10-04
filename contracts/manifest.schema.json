@@ -19,7 +19,7 @@
         "name": {
           "type": "string",
           "pattern": "^[a-z][a-z0-9-]{1,38}[a-z0-9]$",
-          "description": "全局唯一。同时用作 auth-gateway 的 client_id、K8s Secret 名 keel-{name}、LiteLLM key_alias 前缀"
+          "description": "全局唯一。同时用作 auth-gateway 的 client_id、K8s Secret 名 keel-{name}、薄网关虚拟 Key 别名的前缀"
         },
         "displayName": { "type": "string" },
         "owner": { "type": "string", "description": "组织 / 负责人，如 电力运维组 / zhang.gong" }
@@ -142,7 +142,7 @@
           "type": "object",
           "default": {},
           "properties": {
-            "default": { "type": "string", "description": "LiteLLM 里的模型别名，不是厂商模型名，更不是密钥" },
+            "default": { "type": "string", "description": "薄网关里的模型别名，不是厂商模型名，更不是密钥" },
             "fallback": { "type": "array", "items": { "type": "string" }, "default": [] },
             "budget": { "$ref": "#/$defs/budget" }
           }
@@ -177,7 +177,7 @@
       }
     },
     "serviceSpec": {
-      "$comment": "kind: Service 专有（rag-forge 等共享服务）。模型调用也要走 LiteLLM，所以 models 和 budget 必须有；但 fallback 要按用途分开，向量化不允许降级",
+      "$comment": "kind: Service 专有（rag-forge 等共享服务）。模型调用也要走薄网关，所以 models 和 budget 必须有；但 fallback 要按用途分开，向量化不允许降级",
       "properties": {
         "models": {
           "type": "object",
@@ -211,7 +211,7 @@
     "purposeModel": {
       "type": "object",
       "properties": {
-        "default": { "type": "string", "description": "LiteLLM 里的模型别名" },
+        "default": { "type": "string", "description": "薄网关里的模型别名" },
         "fallback": { "type": "array", "items": { "type": "string" }, "default": [] }
       }
     },
@@ -223,7 +223,7 @@
           "type": "number",
           "minimum": 0,
           "default": 30,
-          "description": "人民币。LiteLLM 的预算按美元计，开通时由 keel-server 按配置的汇率换算，不要在这里写美元"
+          "description": "人民币。薄网关按这个数额执行日预算，开通时原样下发，不要写成美元"
         },
         "maxSteps": { "type": "integer", "minimum": 1, "default": 6 }
       }

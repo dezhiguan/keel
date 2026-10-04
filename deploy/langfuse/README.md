@@ -1,4 +1,6 @@
-# Langfuse v4（P1-1）
+# Langfuse v4 compose（已作废）
+
+2026-10-04 起追踪改用 Langfuse Cloud 日本节点 `https://jp.cloud.langfuse.com`，见 `docs/specs/p1/P1-1-langfuse-deploy.md`。不要再执行下面的 compose。
 
 观测节点用这份 compose。没有高可用：web、worker、ClickHouse、Postgres、Redis、MinIO 都是单副本。
 

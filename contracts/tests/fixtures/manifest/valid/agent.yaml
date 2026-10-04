@@ -16,7 +16,7 @@ spec:
     audience: offshore-wind
     roles: [ops_engineer, ops_admin]
   models:
-    default: qwen-plus              # LiteLLM 里的模型别名，不是厂商密钥
+    default: qwen-plus              # 薄网关里的模型别名，不是厂商密钥
     fallback: [deepseek-v3]
     budget: { dailyCny: 50, maxSteps: 6 }
   knowledge:

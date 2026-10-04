@@ -40,7 +40,7 @@ GET  /api/v1/catalog
 ## 实现要点
 
 - **详情从 manifest 快照读。** `manifestYaml`、`knowledgeBases`、`tools`、`models`、`delegates`、`manifestHash` 来自该环境下最新的 `agent_version.manifest_json`。没有版本就这些字段为空，不要猜。
-- **调用量、成本、评分、P95 本任务返回 null。** 它们来自 Langfuse / LiteLLM，在 P1-14 填。`instances` 只统计 `agent_instance` 里 `ready=true` 的行。
+- **调用量、成本、评分、P95 本任务返回 null。** 它们来自 Langfuse / 薄网关，在 P1-14 填。`instances` 只统计 `agent_instance` 里 `ready=true` 的行。
 - **`selfCheck`、`resources`、`findings` 本任务为空。** 自检是 P1-5，资源是 P1-6，对账是 P1-9。
 - **`category` 不在 V1 表上。** 不要改 V1。分类从 manifest 快照或列表查询时的派生规则读；规则写不清楚就在 spec 实现时把字段留 null 并写 TODO，不要为了筛选去改已经执行过的迁移。
 - **预览只生成 YAML，不写库，不注册。** `POST /api/v1/agents`、发布、下线不在本任务。
@@ -63,5 +63,5 @@ mvn -o -pl :keel-server test
 ## 明确不做
 
 - 不实现 `POST /api/v1/agents` 的开通流程（P1-6）
-- 不实现 `POST /releases`、`POST /retire`（发布是 P2-11，下线回收在 P1-6 只留接口位，本任务不调用 LiteLLM / auth-gateway）
+- 不实现 `POST /releases`、`POST /retire`（发布是 P2-11，下线回收在 P1-6 只留接口位，本任务不调用薄网关 / auth-gateway）
 - 不改 V1 迁移

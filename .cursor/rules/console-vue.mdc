@@ -19,7 +19,7 @@ Vue 3.4+ · Vite 5 · TypeScript · Element Plus · Pinia · Vue Router · EChar
 
 ## 数据来源
 
-- **前端只调 keel-server**，不允许直接调 Langfuse、LiteLLM、Prometheus。
+- **前端只调 keel-server**，不允许直接调 Langfuse、薄网关、Prometheus。
 - 跳 Langfuse 只用深链：`{langfuse}/project/{id}/traces/{traceId}`。
 - 所有请求走 `api/http.ts` 统一 axios 实例（带 JWT、trace_id 透传）。不要在组件里直接 new axios。
 

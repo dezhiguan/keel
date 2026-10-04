@@ -42,7 +42,7 @@ POST /api/v1/agents
 1. `ManifestValidator` 通过后写 `agent`、`agent_version`
 2. 生成密钥并登记公钥（接口调用，P1-7 实现）
 3. 注册 OAuth 客户端
-4. 建 LiteLLM 虚拟 Key
+4. 建薄网关虚拟 Key
 5. 写 Secret `keel-{name}`
 6. 导入 Langfuse 数据集
 7. 跑 `SelfCheckService`
@@ -55,7 +55,7 @@ POST /api/v1/agents
 - **失败按已成功步骤的逆序回收。** 第 5 步失败就要删掉第 4 步的 Key、第 3 步的客户端、第 2 步的公钥，并把对应 `agent_resource.status` 改成已回收。回收本身失败要记在资源行上并抛错，不能假装已经干净。
 - **重试必须可重复调用。** 同名注册在回滚之后再次进入，不能因为「客户端已存在」卡死。幂等由 P1-7、P1-8 的实现保证，本任务的测试要覆盖「第二步已成功、第三步失败、再次注册」。
 - **高风险的 `config.change` 同步写审计。** 写失败则注册失败，不允许改成异步。审计客户端走 `integration/audit`，队列和哈希链不在本任务。
-- **不要在编排类里写 LiteLLM 或 auth-gateway 的 URL、字段名。** 那些容易写错的细节留在 P1-7、P1-8。
+- **不要在编排类里写薄网关或 auth-gateway 的 URL、字段名。** 那些容易写错的细节留在 P1-7、P1-8。
 - `route_snapshot` 只追加版本号，不推送网关。网关长轮询是 P2-9。
 - 自检失败时状态停在已登记但报告 `passed=false`，已开通的资源不回收（技术文档：不通过则停在 REGISTERED）。这和中途异常不同，不要走回滚。
 
@@ -69,7 +69,7 @@ mvn -o -pl :keel-server test
 - [ ] 回滚结束后不存在 `status=ACTIVE` 的 `agent_resource`
 - [ ] 自检失败不回滚，响应里的 `SelfCheckReport.passed` 为 false
 - [ ] 审计写入失败时 `POST /api/v1/agents` 失败，库中没有半截 ACTIVE 资源
-- [ ] 测试不连接真实的 LiteLLM、Langfuse、auth-gateway
+- [ ] 测试不连接真实的薄网关、Langfuse、auth-gateway
 
 ## 明确不做
 

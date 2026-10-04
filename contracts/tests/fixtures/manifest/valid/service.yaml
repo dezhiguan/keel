@@ -1,5 +1,5 @@
 # kind: Service 的正例。共享服务（rag-forge）不走评测门禁，检索评测台保留在它自己那边，
-# 但模型调用要收进 LiteLLM，所以必须有 models 和 budget。
+# 但模型调用要收进薄网关，所以必须有 models 和 budget。
 apiVersion: keel/v1
 kind: Service
 metadata:

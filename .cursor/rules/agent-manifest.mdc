@@ -10,7 +10,7 @@ alwaysApply: false
 
 ## 不允许出现的内容
 
-- 厂商 API Key、厂商模型的真实名称。`models.default` / `fallback` 填的是 **LiteLLM 里的模型别名**。
+- 厂商 API Key、厂商模型的真实名称。`models.default` / `fallback` 填的是 **薄网关里的模型别名**。
 - `budget.dailyCny` 是人民币，不要写美元。
 - 未在 keel-server 注册的工具名、未授权的知识库。注册自检会直接失败。
 

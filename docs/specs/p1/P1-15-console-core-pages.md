@@ -8,7 +8,7 @@
 
 - 前置任务：P1-14、P1-12、P1-4、P1-15a
 - 依赖的契约文件：`contracts/console-api.openapi.yaml`
-- 依赖的外部组件：无。浏览器只访问 keel-server，不直接访问 Langfuse 或 LiteLLM。
+- 依赖的外部组件：无。浏览器只访问 keel-server，不直接访问 Langfuse 或薄网关。
 
 ## 改哪些文件
 

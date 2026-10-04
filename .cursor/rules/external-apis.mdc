@@ -1,32 +1,38 @@
 ---
-description: Langfuse v4 / LiteLLM / auth-gateway 的接口事实，与通用写法冲突，按记忆写一定错
+description: Langfuse Cloud / 薄网关 / auth-gateway 的接口事实，与通用写法冲突，按记忆写一定错
 alwaysApply: true
 ---
 
 # 外部组件：这几处按记忆写一定是错的
 
-来源：技术文档第 15 节「开工前核实结论」（2026-09-30 核实）。
+来源：技术文档第 15 节。2026-09-30 核实了 auth-gateway 与 Langfuse v4 接口；2026-10-04 改为 Langfuse Cloud 日本节点，模型网关改为自研薄网关。
 
-## Langfuse 必须按 v4 写
+## Langfuse 必须按 Cloud v4 写
 
+- 主机是 `https://jp.cloud.langfuse.com`。同一对 Key 打美国或欧盟节点会 401。
 - 上报端点只有 `POST /api/public/otel/v1/traces`，Basic Auth（公钥:私钥）。
 - **必须带请求头 `x-langfuse-ingestion-version: 4`**。漏了数据要 15 分钟后才可见，且不报错。
-- **只支持 OTLP/HTTP，不支持 gRPC。** Java 侧不允许用 `OtlpGrpcSpanExporter`。
+- **只支持 OTLP/HTTP，不支持 gRPC。** Java 侧不允许用 `OtlpGrpcSpanExporter`。不要用旧的 `/api/public/ingestion`，云端会在 2026-11-16 停掉 trace 写入。
 - 读接口只允许用：`/api/public/v2/observations`、`/api/public/v2/metrics`、`/api/public/v3/scores`、`/api/public/experiments`、`/api/public/experiment-items`、`/api/public/datasets`、`/api/public/dataset-items`。
-- 以下 v3 接口在 v4 一律返回 404，**禁止使用**：`/api/public/traces`、`/api/public/observations`、`/api/public/scores`、`/api/public/metrics`、`/api/public/sessions`、`/api/public/dataset-run-items`。
+- 以下接口**禁止使用**：`/api/public/traces`、`/api/public/observations`、`/api/public/scores`、`/api/public/metrics`、`/api/public/sessions`、`/api/public/dataset-run-items`。2026-09-16 及之后创建的云端组织，`GET /api/public/traces` 返回 410。
 - 提示词打标签：`PATCH /api/public/v2/prompts/{name}/versions/{version}`。
 - Python SDK 锁 `>= 4.7.0`，低于这个版本数据在 v4 服务端会延迟约 15 分钟。
-- generation span 只由 Keel SDK 上报一次。**LiteLLM 自带的 Langfuse 回调必须关闭**，否则一次调用记两条。
+- generation span 只由 Keel SDK 上报一次。薄网关不向 Langfuse 上报，否则一次调用记两条。
 - 在线评估器配成 observation 级（挂在根 agent 节点上）。v4 不再运行 trace 级评估器。
+- 当前账号是 Hobby：每月 5 万单位、保留 30 天、网页用户 2 个、Metrics API 每天 100 次。每 5 分钟打 metrics 会超限。生产对账和总览轮询前升 Core。追踪数据在 AWS 东京。
 
-## LiteLLM
+## 薄网关（keel-llm）
 
-- 花费明细用 `GET /spend/logs/v2`（分页）和 `/global/spend/report`（按天汇总）。**不要用 `/spend/logs`**，它最多只返回最近 1 万行。
-- 虚拟 Key：`/key/generate`、`/key/update`、`/key/block`、`/key/unblock`。`/key/delete` 尚未确认存在，下线流程先只做 block。
-- Key 别名格式 `{agent}-{env}`，由 `litellm_settings.key_alias_pattern` 强制。
-- **预算按美元计**，manifest 里写的是人民币（`budget.dailyCny`），开通时必须按配置的汇率换算，不要直接把数字传过去。
-- 国内模型（百炼等）必须在 `model_info` 里配 `input_cost_per_token` / `output_cost_per_token`，否则成本静默记 0，只打一行 WARNING。Langfuse 的 Model Definitions 要配同样的价格。
-- 每个 Pod 固定 1 vCPU + 4Gi（requests = limits），4Gi 是下限，低于会 OOM；1 个 worker / Pod；多副本必须接 Redis。
+不要再写 LiteLLM 的 `/key/generate`、`/spend/logs`、美元 `max_budget`、每 Pod 4Gi。
+
+- 调用：`POST /v1/chat/completions`、`POST /v1/embeddings`，Bearer 虚拟 Key。
+- 管理：`POST /admin/v1/keys`、`POST /admin/v1/keys/{alias}/block`、`GET /admin/v1/keys/{alias}`、`GET /admin/v1/spend`、`GET /admin/v1/models`。下线只 block。
+- 别名 `{agent}-{env}`，必须匹配 `^[a-z][a-z0-9-]{1,38}[a-z0-9]-(dev|staging|prod)$`。
+- **预算按人民币计**，字段 `dailyBudgetCny`，与 manifest 的 `budget.dailyCny` 相同，开通时原样下发。
+- 单价写在网关配置里。缺单价拒绝启动，不允许成本静默记 0。Langfuse Model Definitions 配同一组价格；控制台金额以网关的 `costCny` 为准。
+- 向量化 Key 的 `allowFallback` 为 false。网关没有 `/rerank`。
+- 2 副本，requests `100m` / `256Mi`，limits `500m` / `512Mi`，Redis 记日预算，库名 `keel_llm`。厂商密钥只在 Secret `keel-llm-vendors`。
+- 已落库的 `agent_resource.type=litellm_key` 表示这把虚拟 Key，不要新加类型名。
 
 ## auth-gateway
 

@@ -31,4 +31,4 @@ alwaysApply: true
 ## 假依赖
 
 - Java 集成测试用 Testcontainers 起 PostgreSQL 和 Redis，**不要用 H2 替代 PG**（分区表、FOR UPDATE 行为不一样）。
-- Python 用假的 Langfuse / LiteLLM HTTP 服务做集成测试，不要 mock 掉整个 client 类，那样测不出协议问题。
+- Python 用假的 Langfuse / 薄网关 HTTP 服务做集成测试，不要 mock 掉整个 client 类，那样测不出协议问题。

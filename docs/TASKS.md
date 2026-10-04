@@ -3,7 +3,11 @@
 来源：`docs/architecture/Keel-技术文档.html` 第 14 节里程碑 + 第 4/5/8/9 节的服务与流程拆开到可执行粒度。
 每条任务对应 `docs/specs/p0/` 或 `docs/specs/p1/` 下一份 spec。动手前先读 spec，不要拿着这张表直接改代码。
 
-## 当前进度（2026-10-03）
+## 当前进度（2026-10-04）
+
+2026-10-04 选型调整：追踪改用 **Langfuse Cloud 日本节点** `https://jp.cloud.langfuse.com`（已从云服务器实测读写）。模型网关改为 **自研薄网关 `keel-llm`**，日预算按人民币，不再部署 LiteLLM，也不再购买观测节点。P1-1、P1-2 按新 spec 重做。P1-8 已按 LiteLLM `/key/generate` 和美元预算写过的客户端要改到薄网关管理接口。`agent_resource.type` 仍用已落库的 `litellm_key`。
+
+## 此前进度（2026-10-03）
 
 | 状态 | 任务 |
 |---|---|
@@ -32,7 +36,7 @@
 **交给 Cursor**（你要在场、随时能打断）
 
 - 决定后续所有代码形状的：契约、SDK 的 API 形状、包结构
-- 外部系统首次对接：Langfuse v4、LiteLLM、auth-gateway 的真实行为要边调边确认
+- 外部系统首次对接：Langfuse Cloud 日本节点、薄网关、auth-gateway 的真实行为要边调边确认
 - 安全与一致性关键：哈希链、换票、配额、审批状态机、资源开通的失败回滚
 - 迁移存量项目：要先读懂 askdb / careermate / offshore-wind 现有代码才能动
 - 跨模块的聚合逻辑：协作图组装、对账判定
@@ -62,7 +66,7 @@
 | P0-5 | auth-gateway 四处改造：客户端注册内部 API、`audience_scopes` 表驱动、`roles` claim、注册 keel-api 受众 | — | **Cursor** | careermate、rag-forge 登录和换票回归通过 |
 | P0-6 | sdk-python：`agent` / `context` / `asgi` / `protocol` 骨架 | P0-1 | **Cursor** | hello-agent 能起来，`/v1/invoke` 返回合规 SSE |
 | P0-7 | sdk-python：tracing（OTel + 本地缓冲重放 + LangGraph 回调适配） | P0-6 | **Cursor** | Langfuse dev 项目能看到完整节点树，断网后能重放 |
-| P0-8 | sdk-python：`llm`（→LiteLLM）、`knowledge`（→rag-forge）、audit reporter | P0-6 | Codex | 假服务集成测试通过 |
+| P0-8 | sdk-python：`llm`（→薄网关）、`knowledge`（→rag-forge）、audit reporter | P0-6 | Codex | 假服务集成测试通过 |
 | P0-9 | keel-lite：SQLite 版审计与审批 | P0-1 | Codex | `keel dev` 下审批能挂起和批准 |
 | P0-10 | CLI：`new` / `dev` | P0-6 P0-9 | Codex | 生成项目可直接 `keel dev` 起来 |
 | P0-11 | Java starter：自动装配 + InvokeController(SSE) + Health/Manifest/Feedback | P0-2 | **Cursor** | 一个进程内多个 `@KeelAgent` 各自挂载成功 |
@@ -77,26 +81,26 @@
 
 | ID | 任务 | 依赖 | 执行者 | 完成标准 |
 |---|---|---|---|---|
-| P1-1 | 观测节点 + Langfuse v4 自建，无界面初始化 dev/staging/prod 三个项目，配备份和磁盘监控 | ECS | 人工 + Cursor | 内网可访问，镜像版本已锁定 |
-| P1-2 | LiteLLM 部署 + `config.yaml`（模型、价格、路由降级）+ Redis；**关闭自带 Langfuse 回调** | P1-1 | Codex | 国内模型成本不为 0，两边价格口径一致 |
+| P1-1 | Langfuse Cloud 日本节点：界面建 dev/staging/prod 三个项目，密钥不进 git。**自建 compose 作废，按新 spec 重做** | — | 人工 + Cursor | 云服务器上 OTLP span 出现在对应项目 |
+| P1-2 | 自研薄网关 `keel-llm`：OpenAI 兼容、虚拟 Key、人民币日预算、降级；2 副本放现有应用节点。**LiteLLM 部署作废** | — | **Cursor** | 国内模型 `costCny` 大于 0，缺单价拒绝启动 |
 | P1-0 | 底座最小可运行：keel-server 骨架 + registry 三张表 + `/me` `/insight/overview` `/agents` + console 骨架（**已完成**，见 `specs/p1/P1-0-runnable-baseline.md`） | P0-4 | Cursor | 本地页面可访问 |
 | P1-3 | keel-server 工程骨架 + `keel` 库全部 Flyway 脚本（12 张表，含 P0-1a 的 `agent_run`）。**骨架和三张 registry 表已在 P1-0 完成，只补其余九张，从 V2 开始** | P0-4 | Codex | Testcontainers 起 PG 迁移通过 |
 | P1-4 | registry：agent / agent_version / agent_instance CRUD + 控制台查询接口 | P1-3 | Codex | 接口按 OpenAPI 对齐 |
 | P1-5 | ManifestValidator + SelfCheckService（健康、协议、追踪、审批绑定四项自检） | P1-4 | **Cursor** | 缺授权、缺审批策略时注册被拒 |
 | P1-6 | provisioning 编排 + 失败逆序回滚 + `agent_resource` 记录 | P1-4 P1-5 | **Cursor** | 任一步失败后外部资源被完整回收 |
 | P1-7 | AuthClientProvisioner + AgentJwksController（生成 RSA 密钥对、托管公钥） | P1-6 P0-5 | **Cursor** | 智能体能用 private_key_jwt 完成换票 |
-| P1-8 | LiteLlmProvisioner / LangfuseProvisioner / SecretWriter | P1-6 | Codex | 虚拟 Key 别名为 `{agent}-{env}`，预算按汇率换算 |
+| P1-8 | 薄网关开通 / LangfuseProvisioner / SecretWriter。已写的 LiteLLM 客户端改打 `/admin/v1/keys`，预算原样下发人民币 | P1-6 P1-2 | **Cursor** | 虚拟 Key 别名为 `{agent}-{env}`，`dailyBudgetCny` 不做汇率换算 |
 | P1-9 | discovery：K8sAgentWatcher + ReconcileJob（六种 finding 判定） | P1-4 | **Cursor** | 六种场景都能产出正确 finding |
 | P1-10 | discovery：HeartbeatController + DifyProber + ManifestVersionChecker | P1-9 | Codex | 心跳超 45s 置 OFFLINE |
 | P1-11 | keel-audit：同步写入 + MQ 顺序消费 + 哈希链 | P0-1 | **Cursor** | 链头并发写正确，断链能检出，**100% 分支覆盖** |
 | P1-12 | keel-audit：字段白名单 + PII 脱敏 + 查询 + 导出（挂审批）+ 按月分区归档 | P1-11 | Codex | 应用账号无 UPDATE/DELETE 仍能正常工作 |
 | P1-13 | insight：TraceQueryService，按 traceId 取 Observations v2，组装协作图/泳道/调用树并叠加审计审批 | P1-1 P1-11 | **Cursor** | 多智能体 trace 的协作图与原型一致 |
-| P1-14 | insight：OverviewService / CostService / QualityService / SharedServiceMonitor | P1-13 | Codex | 成本按智能体拆分与 LiteLLM 对得上 |
+| P1-14 | insight：OverviewService / CostService / QualityService / SharedServiceMonitor | P1-13 | Codex | 成本按智能体拆分与薄网关 `costCny` 对得上 |
 | P1-15 | console 工程骨架 + 总览、智能体、审计、模型网关四页。**页面已在 P1-0 / P1-15a 完成，剩下的是去掉 mock、接 keel-server 真接口** | P1-14 | Codex | 按原型实现，数据全部走接口 |
 | P1-15a | 控制台七个页面按原型落地，数据走 MSW mock（**已完成**，见 `specs/p1/P1-15a-console-prototype-mock.md`） | P1-0 | Cursor | `vitest run` 通过，七页可用 |
 | P1-16 | console 链路追踪页：**trace 列表**（原型缺这块）+ 三视图详情 + 按智能体筛选 | P1-13 P1-15 | **Cursor** | 列表可筛选可分页，点行进详情 |
 | P1-17 | askdb 接入：删 trace/audit/quota/approvals/evalstore，影子运行一周 | P0-6~8 | **Cursor** | 新旧链路数、审计条数、评测分数一致后删旧代码 |
-| P1-18 | rag-forge：OTel exporter、检索分段子 span、`caller_agent`/`kb` 指标标签、`service.yaml` 登记、模型调用改走 LiteLLM | P1-1 P0-1 | Codex | 检索作为 retriever 节点进调用方的 trace；embedding 无 fallback，向量空间不变 |
+| P1-18 | rag-forge：OTel exporter、检索分段子 span、`caller_agent`/`kb` 指标标签、`service.yaml` 登记、模型调用改走薄网关 | P1-1 P0-1 | Codex | 检索作为 retriever 节点进调用方的 trace；embedding 无 fallback，向量空间不变 |
 
 ---
 

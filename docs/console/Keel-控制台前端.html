@@ -405,7 +405,7 @@ const S={
     {id:'ap_0917',subject:'tool.call',ref:'sql.execute · hr.salary',run:'r_6093',risk:'中',agent:'askdb',by:'数据负责人审批',ago:'9 分钟前',text:'askdb 代 <b>analyst@org_7</b> 查询部门平均薪资（聚合查询，不含个人明细）。',trace:'tr_4f02aa18'},
     {id:'ap_0919',subject:'tool.config',ref:'sql.legacy_export',risk:'高',agent:'数据平台组',by:'数据负责人审批',ago:'1 小时前',text:'申请把 <code>sql.legacy_export</code> 风险等级从<b>高</b>调为<b>中</b>（90 天无调用）。<b>调低风险等级本身要走审批</b>，批准后立即生效并通知依赖方。'},
     {id:'ap_0923',subject:'agent.config',ref:'offshore-wind',risk:'高',agent:'offshore-wind',by:'负责人审批',ago:'26 分钟前',text:'张工申请把接地校验从 <code>enforce</code> 改为 <code>shadow</code>：误拦率偏高，先观察两周。护栏降级，批准后写 <code>config.change</code> 审计。'},
-    {id:'ap_0925',subject:'agent.retire',ref:'night-patrol',risk:'高',agent:'night-patrol',by:'平台管理员审批',ago:'2 小时前',text:'申请下线 <b>night-patrol</b>（7 天无流量，已判定 ZOMBIE）。批准后吊销 LiteLLM 虚拟 Key、删除 Secret <code>keel-night-patrol</code>，状态置 RETIRED。'},
+    {id:'ap_0925',subject:'agent.retire',ref:'night-patrol',risk:'高',agent:'night-patrol',by:'平台管理员审批',ago:'2 小时前',text:'申请下线 <b>night-patrol</b>（7 天无流量，已判定 ZOMBIE）。批准后吊销 薄网关 虚拟 Key、删除 Secret <code>keel-night-patrol</code>，状态置 RETIRED。'},
     {id:'ap_0927',subject:'data.export',ref:'audit_export · 7d',risk:'高',agent:'keel-audit',by:'安全负责人审批',ago:'34 分钟前',text:'amy 申请导出 cs-bot 近 7 天审计记录（约 1.2 万条）用于季度合规检查。批准后生成脱敏文件，导出动作本身也写审计。'},
     {id:'ap_0921',subject:'run.input',ref:'排期冲突',run:'r_7b4a',risk:'低',agent:'offshore-wind',by:'发起用户 张工',ago:'3 分钟前',text:'检修建议涉及两台风机，<b>WT-07</b> 和 <b>WT-11</b> 的停机窗口冲突。请指定先检修哪一台，智能体据此继续排期。',trace:'tr_5c1e9a4f'}
   ],
@@ -517,7 +517,7 @@ VIEWS.overview=v=>{
   <div class="kpis">
     <div class="kpi"><div class="l">在线智能体</div><div class="v">${online}<span class="mut" style="font-size:14px"> / ${as.length}</span></div><div class="d">业务 ${as.filter(a=>a.cat==='biz').length} · 研发 ${as.filter(a=>a.cat==='dev').length}</div></div>
     <div class="kpi"><div class="l">调用次数</div><div class="v">${fmtN(calls)}</div><div class="d up">▲ 8.2%</div></div>
-    <div class="kpi"><div class="l">模型成本</div><div class="v">¥${cost.toFixed(2)}</div><div class="d">经 LiteLLM 统计</div></div>
+    <div class="kpi"><div class="l">模型成本</div><div class="v">¥${cost.toFixed(2)}</div><div class="d">经 薄网关 统计</div></div>
     <div class="kpi"><div class="l">平均评测分</div><div class="v">${avg.toFixed(2)}</div><div class="d">门禁 0.85</div></div>
     <div class="kpi"><div class="l">待办审批</div><div class="v" style="color:var(--warn)">${S.approvals.length}</div><div class="d"><a href="#/approvals" style="color:var(--soft)">去处理 →</a></div></div>
   </div>
@@ -528,7 +528,7 @@ VIEWS.overview=v=>{
   <div class="row2">
     <div class="card"><h3>告警与事件</h3><ul class="alerts">
       <li><span class="tm">12:44</span><span class="pill nd p-bad">门禁</span><span>offshore-wind v0.7.2 评测 <b>0.84</b> 低于 0.85，"安全规程"下降 6pt，已阻止发布 prod。</span></li>
-      <li><span class="tm">12:31</span><span class="pill nd p-warn">降级</span><span>askdb 主模型 qwen-plus 超时率 3.2%，LiteLLM 已切到 deepseek-v3。</span></li>
+      <li><span class="tm">12:31</span><span class="pill nd p-warn">降级</span><span>askdb 主模型 qwen-plus 超时率 3.2%，薄网关 已切到 deepseek-v3。</span></li>
       <li><span class="tm">12:18</span><span class="pill nd p-bad">离线</span><span>test-gen 0/1 就绪（CrashLoopBackOff），已通知 amy。</span></li>
       <li><span class="tm">12:05</span><span class="pill nd p-bad">对账</span><span>发现未登记的 Deployment <code>report-bot</code>，它没有虚拟 Key，模型调用全部被拒。</span></li>
       <li><span class="tm">11:40</span><span class="pill nd p-warn">工具</span><span>work_order_query 已废弃，截止 10-31，offshore-wind 仍在使用。</span></li>
@@ -582,7 +582,7 @@ ${a.runtime==='code'?`    <span class="k">language</span>: ${String(a.lang).spli
     <span class="k">liveness</span>: k8s`:`    <span class="k">liveness</span>: probe            <span class="c"># Dify API 探活</span>`}
   <span class="k">auth</span>: { <span class="k">audience</span>: ${a.id||'&lt;name&gt;'} }
 ${L('models',`  <span class="k">models</span>:
-    <span class="k">default</span>: ${a.models[0]}            <span class="c"># LiteLLM 别名</span>
+    <span class="k">default</span>: ${a.models[0]}            <span class="c"># 薄网关 别名</span>
     <span class="k">fallback</span>: [${a.models.slice(1).join(', ')}]
     <span class="k">budget</span>: { <span class="k">dailyCny</span>: ${a.budget} }   <span class="c"># 写到虚拟 Key 上</span>`)}
 ${a.delegates?`  <span class="k">delegates</span>: [${a.delegates.join(', ')}]\n`:''}${L('kbs',`  <span class="k">knowledge</span>:${a.kbs.length?'\n'+a.kbs.map(k=>`    - <span class="k">kb</span>: ${k}`).join('\n'):' []'}`)}
@@ -592,7 +592,7 @@ ${L('tools',`  <span class="k">tools</span>:${a.tools.length?'\n'+tl:' []'}`)}
     <span class="k">gate</span>: { <span class="k">minScore</span>: 0.85, <span class="k">maxRegression</span>: 0.02, <span class="k">byTag</span>: true }`;
 }
 function selfChecks(a){
-  const items=[['agent.yaml 校验通过','keel/v1'],['LiteLLM 虚拟 Key 已发放',a.models.length+' 个模型 · ¥'+a.budget+'/天'],['Langfuse Key 已写入 Secret','keel-'+a.id],['/v1/health 返回 200',a.st==='OFFLINE'?'失败':'38ms'],['调用协议自检','SSE 5/5'],['追踪上报正常','Langfuse'],['高风险工具已绑定审批',a.tools.filter(t=>(toolOf(t)||{}).risk==='高').join('、')||'无高风险工具'],['评测门禁',a.score==null?'未运行':(a.gate?a.score+' ≥ 0.85':a.score+' < 0.85')]];
+  const items=[['agent.yaml 校验通过','keel/v1'],['薄网关 虚拟 Key 已发放',a.models.length+' 个模型 · ¥'+a.budget+'/天'],['Langfuse Key 已写入 Secret','keel-'+a.id],['/v1/health 返回 200',a.st==='OFFLINE'?'失败':'38ms'],['调用协议自检','SSE 5/5'],['追踪上报正常','Langfuse'],['高风险工具已绑定审批',a.tools.filter(t=>(toolOf(t)||{}).risk==='高').join('、')||'无高风险工具'],['评测门禁',a.score==null?'未运行':(a.gate?a.score+' ≥ 0.85':a.score+' < 0.85')]];
   return items.map(([n,s],i)=>{let ok=true;if(a.st==='DRAFT')ok=i===0?null:null;if(a.st==='OFFLINE'&&i===3)ok=false;if(i===7)ok=a.score==null?null:a.gate;return `<li><span class="ic ${ok===true?'ok':ok===false?'no':''}">${ok===true?'✓':ok===false?'✗':'·'}</span>${n}<small>${s}</small></li>`}).join('');
 }
 let dTab='ov';
@@ -613,7 +613,7 @@ function agentBody(a){
     </tbody></table>
     <h4 style="margin:16px 0 8px;color:var(--white);font-size:13px">替它开通的外部资源</h4>
     <table class="t"><thead><tr><th>资源</th><th>标识</th><th>状态</th></tr></thead><tbody>
-    <tr><td>LiteLLM 虚拟 Key</td><td class="mono">${a.id}-${a.env}</td><td>${a.st==='RETIRED'?'<span class="pill p-mute">已吊销</span>':a.st==='DRAFT'?'<span class="pill p-mute">未创建</span>':'<span class="pill p-ok">有效</span>'}</td></tr>
+    <tr><td>薄网关 虚拟 Key</td><td class="mono">${a.id}-${a.env}</td><td>${a.st==='RETIRED'?'<span class="pill p-mute">已吊销</span>':a.st==='DRAFT'?'<span class="pill p-mute">未创建</span>':'<span class="pill p-ok">有效</span>'}</td></tr>
     <tr><td>K8s Secret</td><td class="mono">keel-${a.id}</td><td>${a.st==='RETIRED'?'<span class="pill p-mute">已删除</span>':a.st==='DRAFT'?'<span class="pill p-mute">未创建</span>':'<span class="pill p-ok">已写入</span>'}</td></tr>
     <tr><td>Langfuse 数据集</td><td class="mono">${a.id}/main</td><td>${a.st==='DRAFT'?'<span class="pill p-mute">未导入</span>':'<span class="pill p-ok">已导入</span>'}</td></tr></tbody></table>`;
   if(dTab==='ver')body=`<table class="t"><thead><tr><th>版本</th><th>环境</th><th>变更</th><th>评测分</th><th>门禁</th><th>时间</th></tr></thead><tbody>
@@ -655,7 +655,7 @@ function drawWForm(){
     ${W.mode==='code'?`<div class="field"><label>语言</label><div class="chipsel"><button data-act="wSet" data-k="lang" data-v="python" class="${W.lang==='python'?'on':''}">Python · keel-sdk</button><button data-act="wSet" data-k="lang" data-v="java" class="${W.lang==='java'?'on':''}">Java · keel-starter</button></div></div>`:`<div class="field"><label>Dify 应用 Key</label><input class="inp" placeholder="app-xxxxxxxx" style="width:100%"><div class="hint">平台会生成 manifest，建虚拟 Key 回填给 Dify</div></div>`}`}
   if(W.step===3)h=`<h3>模板与资源</h3>
     ${W.mode==='code'?`<div class="field"><label>模板</label><div class="opts tpls">${TPLS.filter(t=>W.lang==='java'?t[0]==='java-spring'||t[0]==='supervisor':t[0]!=='java-spring').map(([k,n,d])=>`<div class="opt ${W.tpl===k?'on':''}" data-act="wSet" data-k="tpl" data-v="${k}"><b>${n}</b><small><code>${k}</code></small><small>${d}</small></div>`).join('')}</div></div>`:''}
-    <div class="row2e"><div class="field"><label>默认模型（LiteLLM 别名）</label><select class="inp" data-w="model" style="width:100%">${MODELS.map(m=>`<option ${W.model===m?'selected':''}>${m}</option>`).join('')}</select></div>
+    <div class="row2e"><div class="field"><label>默认模型（薄网关 别名）</label><select class="inp" data-w="model" style="width:100%">${MODELS.map(m=>`<option ${W.model===m?'selected':''}>${m}</option>`).join('')}</select></div>
     <div class="field"><label>降级模型</label><select class="inp" data-w="fb" style="width:100%"><option value="">不降级</option>${MODELS.map(m=>`<option ${W.fb===m?'selected':''}>${m}</option>`).join('')}</select></div></div>
     <div class="field"><label>日预算：<b id="budV" style="color:var(--white)">¥${W.budget}</b>（到 80% 告警，到 100% 只保留降级模型）</label><input type="range" min="5" max="100" step="5" data-w="budget" value="${W.budget}"></div>
     <div class="field"><label>知识库（rag-forge）</label><div class="chips">${KBS.map(([k,o])=>`<label class="ck ${W.kbs.includes(k)?'on':''}" style="padding:4px 9px"><input type="checkbox" data-wl="kbs" value="${k}" ${W.kbs.includes(k)?'checked':''}>${k}<small class="mut">${o}</small></label>`).join('')}</div></div>
@@ -672,7 +672,7 @@ keel release --env prod</pre><div class="wfoot"><button class="btn" data-act="wR
     :`<h3>预览并注册到 staging</h3>
       <div class="kv"><span>ID</span><b class="mono">${W.id}</b><span>名称</span><b>${W.name||'—'}</b><span>方式</span><b>${W.mode==='code'?'代码 · '+a.lang+' · '+a.tpl:'低代码 · Dify'}</b><span>模型</span><b>${a.models.join(' → ')}</b><span>预算</span><b>¥${W.budget} / 天</b><span>知识库</span><b>${W.kbs.join('、')||'—'}</b><span>工具</span><b>${W.tools.join('、')||'—'}</b></div>
       <h4 style="margin:14px 0 6px;color:var(--white);font-size:13px">注册时自动执行</h4>
-      <ul class="checks" id="regChecks">${['校验 agent.yaml（keel/v1）','检查共享工具与知识库授权','在 LiteLLM 创建虚拟 Key','写入 K8s Secret keel-'+W.id,'导入 10 条冒烟评测用例到 Langfuse','高风险工具绑定审批策略','写审计 agent.register'].map(n=>`<li><span class="ic"></span>${n}<small></small></li>`).join('')}</ul>
+      <ul class="checks" id="regChecks">${['校验 agent.yaml（keel/v1）','检查共享工具与知识库授权','在 薄网关 创建虚拟 Key','写入 K8s Secret keel-'+W.id,'导入 10 条冒烟评测用例到 Langfuse','高风险工具绑定审批策略','写审计 agent.register'].map(n=>`<li><span class="ic"></span>${n}<small></small></li>`).join('')}</ul>
       <div class="wfoot"><button class="btn" data-act="wPrev">上一步</button><button class="btn pri" id="regBtn" data-act="wRegister">注册到 staging</button></div>`;
   }
   if(W.step<4){const canNext=W.step!==2||!idErr();h+=`<div class="wfoot">${W.step>1?'<button class="btn" data-act="wPrev">上一步</button>':''}<button class="btn pri" id="nextBtn" data-act="wNext" ${canNext?'':'disabled'}>下一步</button></div>`}
@@ -693,7 +693,7 @@ document.addEventListener('change',e=>{
 
 /* services */
 let svcTab='health';
-const SVC_ROWS=[['keel-gateway','入口网关 · 自研轻量版','2/2','18ms 开销','0.1%','ONLINE'],['keel-server','注册中心 · 工具 · 审批','2/2','42ms','0%','ONLINE'],['keel-audit','审计','2/2','9ms','0%','ONLINE'],['auth-gateway','身份认证','2/2','25ms','0%','ONLINE'],['rag-forge','知识检索','2/2 · worker 1','0.78s','0.6%（429）','ONLINE'],['LiteLLM','模型网关','2/2','12ms 开销','0.2%','ONLINE'],['Langfuse','追踪 · 评测（自建观测节点）','web + worker','—','队列积压 0','ONLINE']];
+const SVC_ROWS=[['keel-gateway','入口网关 · 自研轻量版','2/2','18ms 开销','0.1%','ONLINE'],['keel-server','注册中心 · 工具 · 审批','2/2','42ms','0%','ONLINE'],['keel-audit','审计','2/2','9ms','0%','ONLINE'],['auth-gateway','身份认证','2/2','25ms','0%','ONLINE'],['rag-forge','知识检索','2/2 · worker 1','0.78s','0.6%（429）','ONLINE'],['薄网关','模型网关','2/2','12ms 开销','0.2%','ONLINE'],['Langfuse','追踪 · 评测（Cloud 日本）','云端','—','—','ONLINE']];
 const KB_ROWS=[['fault-manual','电力运维组',312,'2 天前',2040,'1.2%',.91],['safety-procedures','电力运维组',86,'14 天前',1080,'0.8%',.94],['jd-kb','求职产品组',5420,'今天',2860,'3.5%',.86],['cs-faq','客服中心',640,'41 天前',2410,'6.8%',.79],['metric-glossary','数据平台组',210,'5 天前',1480,'2.1%',.88],['dev-standards','研发效能组',148,'3 天前',469,'1.6%',.9]];
 VIEWS.services=v=>{
   PGR.svc=PGR.kb=()=>VIEWS.services($('#view'));
@@ -736,7 +736,7 @@ const N_M=[
   {id:'w1',ag:'wind',type:'GENERATION',name:'route',short:'路由',s:1500,t:700,st:'ok',d:2,crit:true,svc:'offshore-wind',model:'qwen-flash',tin:380,tout:30,cost:.0004,in:'子任务文本',out:'需要：故障处理手册 + 安全规程'},
   {id:'w2',ag:'wind',type:'RETRIEVER',name:'rag.fault-manual',short:'检索手册',s:2200,t:700,st:'ok',d:2,crit:true,svc:'rag-forge',in:'F203 变桨',out:'top5，命中 §4.7 变桨系统故障（改写 90ms · 向量 220ms · 关键词 70ms · 重排 280ms）',rel:'rag-forge 知识库 fault-manual · recall@5 0.91'},
   {id:'w3',ag:'wind',type:'RETRIEVER',name:'rag.safety-procedures',short:'检索规程',s:2200,t:600,st:'ok',d:2,row:1,svc:'rag-forge',in:'登机检修',out:'top3，命中 §5.1 停机作业'},
-  {id:'w4',ag:'wind',type:'GENERATION',name:'answer',short:'生成回答',s:2950,t:3050,st:'fallback',d:2,crit:true,svc:'offshore-wind',model:'deepseek-v3（降级）',tin:2980,tout:560,cost:.0101,in:'子任务 + 检索到的 8 个片段',out:'qwen-plus 超时 5s，LiteLLM 按降级规则切到 deepseek-v3 后完成'},
+  {id:'w4',ag:'wind',type:'GENERATION',name:'answer',short:'生成回答',s:2950,t:3050,st:'fallback',d:2,crit:true,svc:'offshore-wind',model:'deepseek-v3（降级）',tin:2980,tout:560,cost:.0101,in:'子任务 + 检索到的 8 个片段',out:'qwen-plus 超时 5s，薄网关 按降级规则切到 deepseek-v3 后完成'},
   {id:'w5',ag:'wind',type:'GUARDRAIL',name:'grounding',short:'接地校验',s:6000,t:400,st:'ok',d:2,crit:true,svc:'offshore-wind',in:'回答中的 6 条陈述',out:'6 条全部能在引用片段中找到依据'},
   {id:'syn',ag:'sup',type:'GENERATION',name:'synthesize',short:'汇总',s:6450,t:3350,st:'ok',d:1,crit:true,svc:'ops-copilot',model:'qwen-plus',tin:2310,tout:486,cost:.0048,in:'askdb 的统计结果 + offshore-wind 的处理建议',out:'结论：同批次故障率偏高 3 倍，建议整批排查；需要创建 P1 工单'},
   {id:'tool',ag:'sup',type:'TOOL',name:'work_order_create',short:'建工单',s:9800,t:600,st:'ok',d:1,crit:true,svc:'ops-copilot',in:'WT-07 · 变桨 F203 · P1 · 同批次排查',out:'工单 WO-20260929-031 已创建',rel:'审计事件 ae_…c31a · 审批记录 ap_…0912'},
@@ -849,7 +849,7 @@ function showNode(id){
     '<div><span>模型</span><b>'+(n.model||'—')+'</b></div>'+
     '<div><span>tokens'+(n.agg?'（含子节点）':'')+'</span><b>'+(tk?tk.toLocaleString():'—')+'</b></div>'+
     '<div><span>成本'+(n.agg?'（含子节点）':'')+'</span><b>'+(n.cost?'¥'+n.cost.toFixed(4):'—')+'</b></div>'+
-    (n.model?'<div class="full"><span>模型网关</span><b>经 LiteLLM · 虚拟 Key '+LKEY[n.ag]+' · 花费计入该智能体的日预算</b></div>':'')+
+    (n.model?'<div class="full"><span>模型网关</span><b>经薄网关 · 虚拟 Key '+LKEY[n.ag]+' · 花费计入该智能体的日预算</b></div>':'')+
     '<div class="full"><span>输入摘要</span><b>'+n.in+'</b></div>'+
     '<div class="full"><span>输出摘要</span><b>'+n.out+'</b></div>'+
     '<div class="full"><span>关联</span><div class="acts">'+(n.rel?'<span class="pill p-soft">'+n.rel+'</span>':'<span class="mut">—</span>')+'<span class="sp"></span><button class="btn" data-act="ext" data-n="Langfuse 节点详情">在 Langfuse 中查看此节点 ↗</button></div></div>';
@@ -933,7 +933,7 @@ const MODEL_ROWS=[['qwen-plus','DashScope','主力',8920,'4.6s','3.2%',58.3,'war
 VIEWS.models=v=>{
   PGR.model=PGR.key=()=>VIEWS.models($('#view'));
   const as=S.agents.filter(a=>a.st!=='DRAFT');
-  v.innerHTML=`<div class="vh"><h2>模型网关</h2><span class="sub">后端是 LiteLLM · Keel 调它的 API 取数和下发配置</span><span class="sp"></span><button class="btn" data-act="ext" data-n="LiteLLM 管理界面">LiteLLM 管理界面 ↗</button></div>
+  v.innerHTML=`<div class="vh"><h2>模型网关</h2><span class="sub">后端是自研薄网关 keel-llm · 本页调 keel-server 取数和下发配置</span><span class="sp"></span></div>
   <div class="chipsel" style="margin-bottom:14px"><button data-act="modelTab" data-k="model" class="${modelTab==='model'?'on':''}">模型 · ${MODEL_ROWS.length}</button><button data-act="modelTab" data-k="key" class="${modelTab==='key'?'on':''}">虚拟 Key 与日预算 · ${as.length}</button></div>
   ${modelTab==='model'?`<div class="card"><h3>模型</h3><table class="t"><thead><tr><th>模型</th><th>提供方</th><th>用途</th><th>24h 调用</th><th>P95</th><th>超时率</th><th>成本</th><th>状态</th></tr></thead><tbody>
     ${pageOf('model',MODEL_ROWS).map(([m,pv,use,calls,p95,to,cost,st])=>`<tr><td class="mono">${m}</td><td>${pv}</td><td>${use}</td><td class="mono">${fmtN(calls)}</td><td class="mono">${p95}</td><td class="mono" style="${st==='warn'?'color:var(--warn)':''}">${to}</td><td class="mono">¥${cost.toFixed(2)}</td><td>${st==='warn'?'<span class="pill p-warn">波动</span>':'<span class="pill p-ok">正常</span>'}</td></tr>`).join('')}
@@ -960,7 +960,7 @@ const ACT={
   ext:d=>toast(`原型中不跳转：实际会带上下文深链到 <b>${d.n}</b>`,'info'),
   release:d=>{const a=agentOf(d.id);openModal('发布到 prod',`<p>将 <b class="mono">${a.id} ${a.ver}</b> 发布到 prod。依次执行：</p><ul class="checks" id="relChecks">${['keel gate：跑实验并逐维度对比','提示词打 production 标签','更新路由与 agent_version','写审计 release'].map(n=>`<li><span class="ic"></span>${n}</li>`).join('')}</ul>`,`<button class="btn" data-act="closeModal">取消</button><button class="btn pri" id="relGo" data-act="releaseGo" data-id="${a.id}">开始发布</button>`)},
   releaseGo:d=>{const a=agentOf(d.id);$('#relGo').disabled=true;runChecks('#relChecks',()=>{a.env='prod';a.st='ONLINE';addAudit({a:a.id,u:'amy',act:'release',res:a.ver+' → prod',risk:'中',dec:'allowed'});closeModal();openAgent(a.id);toast(`<b>${a.id}</b> 已发布到 prod`);render()})},
-  retire:d=>{const a=agentOf(d.id);openModal('下线智能体',`<p>下线后将<b>吊销 LiteLLM 虚拟 Key、删除 Secret、停止部署</b>，历史追踪、评测和审计保留。</p>${a.delegates?'':`<p class="mut" style="margin-top:6px">${S.agents.filter(x=>x.delegates&&x.delegates.includes(a.id)).map(x=>x.id).join('、')?'⚠ 被 '+S.agents.filter(x=>x.delegates&&x.delegates.includes(a.id)).map(x=>'<b>'+x.id+'</b>').join('、')+' 编排，下线后它们的委派会失败':''}</p>`}<div class="field"><label>输入智能体 ID <b class="mono">${a.id}</b> 确认</label><input class="inp" id="retIn" style="width:100%" autocomplete="off"></div>`,`<button class="btn" data-act="closeModal">取消</button><button class="btn danger" id="retGo" data-act="retireGo" data-id="${a.id}" disabled>确认下线</button>`);$('#retIn').oninput=e=>$('#retGo').disabled=e.target.value!==a.id;setTimeout(()=>$('#retIn').focus(),100)},
+  retire:d=>{const a=agentOf(d.id);openModal('下线智能体',`<p>下线后将<b>吊销 薄网关 虚拟 Key、删除 Secret、停止部署</b>，历史追踪、评测和审计保留。</p>${a.delegates?'':`<p class="mut" style="margin-top:6px">${S.agents.filter(x=>x.delegates&&x.delegates.includes(a.id)).map(x=>x.id).join('、')?'⚠ 被 '+S.agents.filter(x=>x.delegates&&x.delegates.includes(a.id)).map(x=>'<b>'+x.id+'</b>').join('、')+' 编排，下线后它们的委派会失败':''}</p>`}<div class="field"><label>输入智能体 ID <b class="mono">${a.id}</b> 确认</label><input class="inp" id="retIn" style="width:100%" autocomplete="off"></div>`,`<button class="btn" data-act="closeModal">取消</button><button class="btn danger" id="retGo" data-act="retireGo" data-id="${a.id}" disabled>确认下线</button>`);$('#retIn').oninput=e=>$('#retGo').disabled=e.target.value!==a.id;setTimeout(()=>$('#retIn').focus(),100)},
   retireGo:d=>{const a=agentOf(d.id);a.st='RETIRED';a.calls=0;addAudit({a:a.id,u:'amy',act:'agent.retire',res:a.id+' '+a.ver,risk:'高',dec:'allowed'});closeModal();openAgent(a.id);toast(`<b>${a.id}</b> 已下线，虚拟 Key 已吊销`,'warn');render()},
   /* wizard */
   wSet:d=>{W[d.k]=d.v;if(d.k==='lang')W.tpl=d.v==='java'?'java-spring':'tool-agent';if(d.k==='mode'&&d.v==='dify'){W.lang='python'}drawWForm();drawWPrev(d.k==='mode'?null:d.k)},
@@ -1022,8 +1022,8 @@ const ACT={
     S.approvals.unshift({id:'ap_'+Math.floor(Math.random()*9000+1000),subject:'data.export',ref:'audit_export · 自定义筛选',risk:'高',agent:'keel-audit',by:'安全负责人审批',ago:'刚刚',text:'amy 申请导出审计记录，理由："'+($('#expR')?.value||'未填写')+'"。批准后生成脱敏文件。'});
     updateBadge();toast('已提交导出申请，可在<b>审批中心 · 数据导出</b>查看','warn')},
   /* models */
-  budget:d=>{const a=agentOf(d.id);openModal(`调整日预算 · ${a.id}`,`<div class="field"><label>日预算：<b id="bv" style="color:var(--white)">¥${a.budget}</b>（今日已用 ¥${a.cost.toFixed(2)}）</label><input type="range" id="bIn" min="10" max="200" step="5" value="${a.budget}"></div><p class="mut" style="font-size:12px">保存后同步写到 LiteLLM 虚拟 Key <span class="mono">${a.id}-${a.env}</span>，并记入审计。</p>`,`<button class="btn" data-act="closeModal">取消</button><button class="btn pri" data-act="budgetGo" data-id="${a.id}">保存</button>`);$('#bIn').oninput=e=>$('#bv').textContent='¥'+e.target.value},
-  budgetGo:d=>{const a=agentOf(d.id);const nv=+$('#bIn').value;addAudit({a:a.id,u:'amy',act:'config.change',res:`日预算 ¥${a.budget} → ¥${nv}`,risk:'中',dec:'allowed'});a.budget=nv;closeModal();VIEWS.models($('#view'));toast(`已更新 <b>${a.id}</b> 日预算为 ¥${nv}，LiteLLM 已同步`)}
+  budget:d=>{const a=agentOf(d.id);openModal(`调整日预算 · ${a.id}`,`<div class="field"><label>日预算：<b id="bv" style="color:var(--white)">¥${a.budget}</b>（今日已用 ¥${a.cost.toFixed(2)}）</label><input type="range" id="bIn" min="10" max="200" step="5" value="${a.budget}"></div><p class="mut" style="font-size:12px">保存后同步写到 薄网关 虚拟 Key <span class="mono">${a.id}-${a.env}</span>，并记入审计。</p>`,`<button class="btn" data-act="closeModal">取消</button><button class="btn pri" data-act="budgetGo" data-id="${a.id}">保存</button>`);$('#bIn').oninput=e=>$('#bv').textContent='¥'+e.target.value},
+  budgetGo:d=>{const a=agentOf(d.id);const nv=+$('#bIn').value;addAudit({a:a.id,u:'amy',act:'config.change',res:`日预算 ¥${a.budget} → ¥${nv}`,risk:'中',dec:'allowed'});a.budget=nv;closeModal();VIEWS.models($('#view'));toast(`已更新 <b>${a.id}</b> 日预算为 ¥${nv}，薄网关 已同步`)}
 };
 function runChecks(sel,done,resultOf){
   const lis=[...document.querySelectorAll(sel+' li')];let i=0;

@@ -491,7 +491,7 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
     <div><b>P2</b><h4>协议优先于代码库</h4><p>Python 和 Java 共用的是 HTTP + SSE + 统一事件格式，SDK 只是协议的薄封装。换语言、换框架、换成 Dify 都能接入。</p></div>
     <div><b>P3</b><h4>上报不阻塞业务</h4><p>追踪异步批量上报，失败先写本地缓冲再重试。高风险审计例外：写不进去就拒绝执行。</p></div>
     <div><b>P4</b><h4>评测是门禁，不是报表</h4><p>分数低于阈值自动阻止发布。评测集随代码版本化，改提示词也要过门禁。</p></div>
-    <div><b>P5</b><h4>复用已有，成熟开源直接用</h4><p>auth-gateway、rag-forge 直接成为底座组件；追踪、评测、质量用开源 Langfuse，模型网关用开源 LiteLLM，不自己造轮子。Keel 只做开源工具覆盖不了的治理部分，并把它们串成一个整体。</p></div>
+    <div><b>P5</b><h4>复用已有，薄处自研</h4><p>auth-gateway、rag-forge 直接成为底座组件。追踪、评测、质量用 Langfuse Cloud（日本节点）。模型网关自研一层薄代理：OpenAI 兼容、虚拟 Key、按人民币计的日预算和降级。Keel 再做这两边覆盖不了的治理，并把它们串成一个整体。</p></div>
   </div>
 
   <h3 class="sub reveal">总体架构</h3>
@@ -502,12 +502,12 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
     <div class="layer"><div class="lname">业务智能体<small>AGENTS · 5 个</small></div><div class="boxes"><div class="box agent">careermate<small>求职助手 · Java · keel-starter</small></div><div class="box agent">askdb<small>自然语言问数 · Python · keel-sdk</small></div><div class="box agent">offshore-wind<small>风机维检 · Python · keel-sdk</small></div><div class="box agent">智能客服<small>Dify · 网关协议适配</small></div><div class="box agent">运维总控<small>多智能体 · 编排 askdb + offshore-wind</small></div></div></div>
     <div class="layer"><div class="lname">研发智能体<small>DEV AGENTS · 开发流程 agent 化</small></div><div class="boxes"><div class="box agent">需求分析<small>需求 → PRD、用户故事、验收标准 · Java</small></div><div class="box agent">代码评审<small>PR 自动评审 · 规范、安全、测试覆盖 · Python</small></div><div class="box agent">测试生成<small>生成并执行用例 · 失败自动修复 · Java</small></div><div class="box agent">CI 诊断<small>构建失败归因 · 自动提修复 PR · Python</small></div><div class="box agent">研发总控<small>多智能体 · 编排前四个 · 源自 ai-multi-agent-dev-platform</small></div><div class="box dashed">下一个智能体<small>keel new 生成</small></div></div></div>
     <div class="flow">▼ 通过 Keel SDK / 标准协议调用：SDK 内置鉴权、配额、护栏、审计埋点 ▼</div>
-    <div class="layer"><div class="lname">运行时服务<small>RUNTIME</small></div><div class="boxes"><div class="box oss">LiteLLM（模型网关）<small>OpenAI 兼容 · 虚拟 Key · 预算 · 降级</small></div><div class="box reuse">rag-forge<small>知识检索 · MCP · 登记为共享服务，接入追踪和看板</small></div><div class="box new">工具注册与审批<small>MCP 工具 · 风险分级</small></div><div class="box new">护栏策略<small>注入检测 · 接地校验 · 脱敏</small></div></div></div>
-    <div class="layer"><div class="lname">治理服务<small>GOVERNANCE</small></div><div class="boxes"><div class="box oss">Langfuse（自建）<small>追踪 · 评测数据集与实验 · 质量打分 · 提示词</small></div><div class="box new">审计中心<small>keel-audit</small></div><div class="box new">发布门禁<small>keel-gate · CI 脚本</small></div><div class="box new">注册中心 + 控制台<small>keel-console · 登记 · 探测 · 对账</small></div></div></div>
-    <div class="layer"><div class="lname">数据层<small>DATA</small></div><div class="boxes"><div class="box reuse">PostgreSQL<small>注册 · 审计只追加 · LiteLLM Key 与花费 · Langfuse 元数据</small></div><div class="box oss">ClickHouse<small>Langfuse 追踪存储</small></div><div class="box reuse">Redis<small>配额 · LiteLLM 限流 · Langfuse 队列</small></div><div class="box reuse">RocketMQ<small>审计异步入库</small></div><div class="box">阿里云 OSS<small>Langfuse 事件 · 评测产物 · 审计归档</small></div></div></div>
+    <div class="layer"><div class="lname">运行时服务<small>RUNTIME</small></div><div class="boxes"><div class="box new">薄网关 keel-llm<small>OpenAI 兼容 · 虚拟 Key · 人民币日预算 · 降级</small></div><div class="box reuse">rag-forge<small>知识检索 · MCP · 登记为共享服务，接入追踪和看板</small></div><div class="box new">工具注册与审批<small>MCP 工具 · 风险分级</small></div><div class="box new">护栏策略<small>注入检测 · 接地校验 · 脱敏</small></div></div></div>
+    <div class="layer"><div class="lname">治理服务<small>GOVERNANCE</small></div><div class="boxes"><div class="box oss">Langfuse Cloud（日本）<small>追踪 · 评测数据集与实验 · 质量打分 · 提示词</small></div><div class="box new">审计中心<small>keel-audit</small></div><div class="box new">发布门禁<small>keel-gate · CI 脚本</small></div><div class="box new">注册中心 + 控制台<small>keel-console · 登记 · 探测 · 对账</small></div></div></div>
+    <div class="layer"><div class="lname">数据层<small>DATA</small></div><div class="boxes"><div class="box reuse">PostgreSQL<small>注册 · 审计只追加 · 薄网关 Key 与花费</small></div><div class="box reuse">Redis<small>配额 · 薄网关日预算</small></div><div class="box reuse">RocketMQ<small>审计异步入库</small></div><div class="box">阿里云 OSS<small>审计归档 · 评测产物</small></div></div></div>
     <div class="legend"><span><i style="border-color:#0b7a75;background:rgba(11,122,117,.1)"></i>复用你已有的服务或中间件</span><span><i style="border-color:#3d6fd6;background:rgba(61,111,214,.1)"></i>直接采用的开源组件</span><span><i style="border-color:#d9480f"></i>Keel 新建</span><span><i style="background:#101a2b;border-color:#101a2b"></i>业务智能体</span></div>
   </div>
-  <div class="note reveal"><b>三个"网关"别混：</b><b>auth-gateway</b> 管用户登录和签发 JWT，已有，直接复用；<b>keel-gateway</b>（入口网关）管"用户 / 渠道 → 智能体"这一段，自研，先做轻量版；<b>模型网关</b>管"智能体 → 大模型"这一段，直接用 LiteLLM。keel-gateway 上线前，鉴权和配额由 SDK 在智能体入口完成；上线后 SDK 只保留轻量校验作为双保险，业务代码都不用改。</div>
+  <div class="note reveal"><b>三个"网关"别混：</b><b>auth-gateway</b> 管用户登录和签发 JWT，已有，直接复用；<b>keel-gateway</b>（入口网关）管"用户 / 渠道 → 智能体"这一段，自研，先做轻量版；<b>薄网关 keel-llm</b> 管"智能体 → 大模型"这一段，自研，只做 OpenAI 兼容、虚拟 Key、人民币日预算和降级。keel-gateway 上线前，鉴权和配额由 SDK 在智能体入口完成；上线后 SDK 只保留轻量校验作为双保险，业务代码都不用改。</div>
 </section>
 
 <!-- 03 -->
@@ -563,8 +563,8 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
               <h4>告警与事件</h4>
               <ul class="alerts">
                 <li><span class="t">12:44</span><span class="pill p-bad">门禁</span><span>offshore-wind v0.7.2 评测 <b>0.84</b>，低于门禁 0.85，"安全规程"维度下降 6pt，<b>已阻止发布到 prod</b>。</span></li>
-                <li><span class="t">12:31</span><span class="pill p-warn">降级</span><span>askdb 主模型 qwen-plus 超时率 3.2%，LiteLLM 已按降级规则切到 deepseek-v3。</span></li>
-                <li><span class="t">12:05</span><span class="pill p-bad">对账</span><span>agents 命名空间发现<b>未登记</b>的 Deployment <code>report-bot</code>：没有虚拟 Key，模型调用全部被 LiteLLM 拒绝，已通知负责人补注册。</span></li>
+                <li><span class="t">12:31</span><span class="pill p-warn">降级</span><span>askdb 主模型 qwen-plus 超时率 3.2%，薄网关 已按降级规则切到 deepseek-v3。</span></li>
+                <li><span class="t">12:05</span><span class="pill p-bad">对账</span><span>agents 命名空间发现<b>未登记</b>的 Deployment <code>report-bot</code>：没有虚拟 Key，模型调用全部被 薄网关 拒绝，已通知负责人补注册。</span></li>
                 <li><span class="t">11:47</span><span class="pill p-warn">离线</span><span>night-patrol（函数计算定时任务）45 秒未收到心跳，已标记离线；Key 和配置保留，恢复心跳后自动转回上线。</span></li>
                 <li><span class="t">11:58</span><span class="pill p-warn">质量</span><span>cs-bot 点踩率较昨日 +2.1pt，主要原因是"信息过时"，已生成 14 条坏案例。</span></li>
                 <li><span class="t">10:20</span><span class="pill p-mute">变更</span><span>amy 把 offshore-wind 提示词从 v12 改为 v13，已写入审计并自动触发回归评测。</span></li>
@@ -608,7 +608,7 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
                     <ul class="check">
                       <li><span class="ic ok">✓</span>agent.yaml 校验通过<small>keel/v1</small></li>
                       <li><span class="ic ok">✓</span>/v1/health 返回 200<small>38ms</small></li>
-                      <li><span class="ic ok">✓</span>LiteLLM 虚拟 Key 已发放<small>3 个模型 · ¥50/天</small></li>
+                      <li><span class="ic ok">✓</span>薄网关 虚拟 Key 已发放<small>3 个模型 · ¥50/天</small></li>
                       <li><span class="ic ok">✓</span>Langfuse Key 已写入 Secret<small>keel-offshore-wind</small></li>
                       <li><span class="ic ok">✓</span>调用协议自检<small>SSE 5/5</small></li>
                       <li><span class="ic ok">✓</span>追踪上报正常<small>1,204 spans/5min</small></li>
@@ -643,7 +643,7 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
             </div>
           </div>
           <div class="card">
-            <h4>运行状态与对账<small>登记看注册中心，在线看 K8s 探测 / 心跳 / Dify 探活，流量看 Langfuse 和 LiteLLM，每 5 分钟对账一次</small></h4>
+            <h4>运行状态与对账<small>登记看注册中心，在线看 K8s 探测 / 心跳 / Dify 探活，流量看 Langfuse 和 薄网关，每 5 分钟对账一次</small></h4>
             <table class="ct">
               <thead><tr><th>智能体</th><th>登记状态</th><th>探测方式</th><th>实例</th><th>运行版本</th><th>最近流量</th><th>对账结论</th></tr></thead>
               <tbody>
@@ -656,7 +656,7 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
                 <tr><td class="nm">faq-bot</td><td>已下线</td><td>—</td><td class="mono">0/0</td><td class="mono">v1.2.0</td><td class="mono">虚拟 Key 已吊销</td><td><span class="pill p-mute">已归档</span></td></tr>
               </tbody>
             </table>
-            <div class="srcnote">状态流转：已注册 → 上线 → 降级 / 离线 → 已下线。<b>离线</b>是意外挂掉，会告警但保留 Key 和配置；<b>已下线</b>是 <code>keel retire</code> 主动退役，吊销 Key、停止部署，历史追踪、评测和审计照常可查。不注册就拿不到 LiteLLM 和 Langfuse 的 Key，所以未登记的智能体调不了模型，也上报不了追踪。</div>
+            <div class="srcnote">状态流转：已注册 → 上线 → 降级 / 离线 → 已下线。<b>离线</b>是意外挂掉，会告警但保留 Key 和配置；<b>已下线</b>是 <code>keel retire</code> 主动退役，吊销 Key、停止部署，历史追踪、评测和审计照常可查。不注册就拿不到 薄网关 和 Langfuse 的 Key，所以未登记的智能体调不了模型，也上报不了追踪。</div>
           </div>
         </div>
 
@@ -847,9 +847,9 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
         </div>
 
         <div class="view" id="v-models">
-          <div class="vh"><h3>模型网关</h3><span class="crumb">后端是 LiteLLM · Keel 调它的 API 取数和下发配置 · 单次调用明细来自 Langfuse</span><span class="sp"></span><button class="btn">LiteLLM 管理界面 ↗</button><button class="btn pri">+ 接入模型</button></div>
+          <div class="vh"><h3>模型网关</h3><span class="crumb">后端是薄网关 keel-llm · 控制台调它的 API 取数和下发配置 · 单次调用明细来自 Langfuse</span><span class="sp"></span><button class="btn pri">+ 接入模型</button></div>
           <div class="card">
-            <h4>模型<small>LiteLLM 模型列表 · 调用量、延迟、成本来自 LiteLLM 花费日志</small></h4>
+            <h4>模型<small>薄网关 模型列表 · 调用量、延迟、成本来自 薄网关 花费日志</small></h4>
             <table class="ct">
               <thead><tr><th>模型</th><th>提供方</th><th>用途</th><th>24h 调用</th><th>P95</th><th>超时率</th><th>成本</th><th>状态</th></tr></thead>
               <tbody>
@@ -863,12 +863,12 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
           </div>
           <div class="row2b">
             <div class="card">
-              <h4>路由与降级规则<small>由 agent.yaml 生成，写入 LiteLLM 路由配置</small></h4>
+              <h4>路由与降级规则<small>由 agent.yaml 生成，写入 薄网关 路由配置</small></h4>
               <ul class="alerts">
                 <li><span class="pill p-soft">askdb</span><span>qwen-plus 超时 5s 或 5xx 时切 <b>deepseek-v3</b>；连续 3 次失败冷却 60s</span></li>
                 <li><span class="pill p-soft">offshore-wind</span><span>路由步骤固定 qwen-flash，回答步骤 qwen-plus，降级到 deepseek-v3</span></li>
                 <li><span class="pill p-soft">careermate</span><span>面试评分 temperature=0、固定 seed，结果可复现</span></li>
-                <li><span class="pill p-soft">cs-bot</span><span>Dify 的模型提供方配成 LiteLLM（OpenAI 兼容），用自己的虚拟 Key 计费</span></li>
+                <li><span class="pill p-soft">cs-bot</span><span>Dify 的模型提供方配成 薄网关（OpenAI 兼容），用自己的虚拟 Key 计费</span></li>
               </ul>
             </div>
             <div class="card">
@@ -885,7 +885,7 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
               </table>
             </div>
           </div>
-          <div class="srcnote">厂商密钥只放在 LiteLLM 里，智能体手里只有虚拟 Key。预算到 80% 告警，到 100% 只保留降级模型。模型表和预算来自 LiteLLM 的花费日志和 Key 信息接口；某一次调用的输入输出、属于哪个 trace，在链路追踪页看，数据来自 Langfuse。generation 只由 SDK 上报一次，LiteLLM 自带的 Langfuse 回调关闭，避免同一次调用出现两条记录。</div>
+          <div class="srcnote">厂商密钥只放在 薄网关 里，智能体手里只有虚拟 Key。预算到 80% 告警，到 100% 只保留降级模型。模型表和预算来自 薄网关 的花费日志和 Key 信息接口；某一次调用的输入输出、属于哪个 trace，在链路追踪页看，数据来自 Langfuse。generation 只由 SDK 上报一次，薄网关 自带的 Langfuse 回调关闭，避免同一次调用出现两条记录。</div>
         </div>
 
         <div class="view" id="v-services">
@@ -898,8 +898,8 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
                 <tr><td class="nm">keel-gateway<small>自研 · 轻量版</small></td><td>入口网关</td><td class="mono">2/2</td><td class="mono">18ms<small class="mut"> 自身开销</small></td><td class="mono">0.1%</td><td><span class="pill p-ok">正常</span></td></tr>
                 <tr><td class="nm">auth-gateway</td><td>身份认证</td><td class="mono">2/2</td><td class="mono">25ms</td><td class="mono">0%</td><td><span class="pill p-ok">正常</span></td></tr>
                 <tr><td class="nm">rag-forge</td><td>知识检索</td><td class="mono">2/2 · worker 1</td><td class="mono">0.78s</td><td class="mono" style="color:var(--warn)">0.6%<small class="mut"> 429</small></td><td><span class="pill p-ok">正常</span></td></tr>
-                <tr><td class="nm">LiteLLM</td><td>模型网关</td><td class="mono">2/2</td><td class="mono">12ms<small class="mut"> 自身开销</small></td><td class="mono">0.2%</td><td><span class="pill p-ok">正常</span></td></tr>
-                <tr><td class="nm">Langfuse<small>自建观测节点</small></td><td>追踪 · 评测</td><td class="mono">web + worker</td><td class="mono">—</td><td class="mono">队列积压 0</td><td><span class="pill p-ok">正常</span></td></tr>
+                <tr><td class="nm">薄网关</td><td>模型网关</td><td class="mono">2/2</td><td class="mono">12ms<small class="mut"> 自身开销</small></td><td class="mono">0.2%</td><td><span class="pill p-ok">正常</span></td></tr>
+                <tr><td class="nm">Langfuse<small>Cloud 日本节点</small></td><td>追踪 · 评测</td><td class="mono">web + worker</td><td class="mono">—</td><td class="mono">队列积压 0</td><td><span class="pill p-ok">正常</span></td></tr>
                 <tr><td class="nm">keel-audit</td><td>审计</td><td class="mono">2/2</td><td class="mono">9ms</td><td class="mono">0%</td><td><span class="pill p-ok">正常</span></td></tr>
               </tbody>
             </table>
@@ -909,7 +909,7 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
             <div class="kpi"><div class="l">检索 P95</div><div class="v">0.78s</div><div class="d mut">P50 0.70s</div></div>
             <div class="kpi"><div class="l">限流 / 超时</div><div class="v" style="color:var(--warn)">0.6%</div><div class="d mut">429 为主</div></div>
             <div class="kpi"><div class="l">知识库</div><div class="v">5</div><div class="d mut">1 个超过 30 天未更新</div></div>
-            <div class="kpi"><div class="l">今日模型成本</div><div class="v">¥4.10</div><div class="d mut">经 LiteLLM · rag-forge Key</div></div>
+            <div class="kpi"><div class="l">今日模型成本</div><div class="v">¥4.10</div><div class="d mut">经 薄网关 · rag-forge Key</div></div>
           </div>
           <div class="row2">
             <div class="card">
@@ -954,7 +954,7 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
   <div class="sec-h reveal"><div class="no">04</div><h2>十项共享能力</h2><p>每一项都注明从你哪个项目里抽取。大部分不用从零写，而是把已经验证过的实现升级成独立服务。</p></div>
   <div class="caps reveal">
     <div class="cap"><div class="ix">C01</div><div><h4>入口网关<small>keel-gateway · 自研 · 先做轻量版</small></h4><p>所有外部流量的统一入口，基于 Spring Cloud Gateway。</p><ul><li>按注册中心动态路由，只放行"上线"状态的智能体</li><li>用 auth-gateway 的 JWKS 验签（用户 token 的 aud 统一为 keel-api），按角色准入</li><li>按用户、组织、智能体做配额和并发控制（Redis）</li><li>Token Exchange 换成目标智能体 aud 的 token 再转发</li><li>SSE 透传，客户端断开时取消上游；生成根 span，写调用级审计</li><li>上线前这些由 SDK 在智能体入口完成，上线后 SDK 只保留轻量校验</li></ul><div class="src">来源：auth-gateway（复用）+ askdb quota.py</div></div></div>
-    <div class="cap"><div class="ix">C02</div><div><h4>模型网关<small>LiteLLM（采用）</small></h4><p>直接部署开源 LiteLLM，OpenAI 兼容接口，智能体只认模型别名。</p><ul><li>厂商密钥只放在 LiteLLM；注册时给智能体创建虚拟 Key，限定可用模型和日预算</li><li>多厂商路由、超时降级、重试、限流用 LiteLLM 自带的路由配置，由 agent.yaml 生成</li><li>成本按虚拟 Key 统计到智能体；按步骤的成本在 Langfuse 的 generation 上看</li><li>智能体只能通过 <code>ctx.llm</code> 调模型，keel-gate 检查代码里直接调厂商 SDK 的写法</li></ul><div class="src">来源：LiteLLM（采用）+ careermate Provider 抽象</div></div></div>
+    <div class="cap"><div class="ix">C02</div><div><h4>模型网关<small>自研薄网关 keel-llm</small></h4><p>自研一层 OpenAI 兼容代理，智能体只认模型别名。</p><ul><li>厂商密钥只放在薄网关；注册时给智能体创建虚拟 Key，限定可用模型和人民币日预算</li><li>超时降级按该 Key 的 fallback 列表，由 agent.yaml 生成。向量化不允许降级</li><li>成本按虚拟 Key 统计到智能体，单位是人民币；按步骤的成本在 Langfuse 的 generation 上看</li><li>智能体只能通过 <code>ctx.llm</code> 调模型，keel-gate 检查代码里直接调厂商 SDK 的写法</li></ul><div class="src">来源：自研薄网关 + careermate Provider 抽象</div></div></div>
     <div class="cap"><div class="ix">C03</div><div><h4>知识服务<small>rag-forge · 共享服务</small></h4><p>直接作为底座组件，登记为共享服务，接入追踪和看板，只需少量改造。</p><ul><li>在 manifest 里声明可访问的知识库，SDK 用 Token Exchange 换票</li><li>检索结果自带 citations，供接地校验和评测使用</li><li>检索作为 retriever 节点进调用方的 trace，分段耗时写成子 span</li><li>控制台"共享服务"页展示健康、分段耗时、按调用方用量、知识库新鲜度和 recall@5</li></ul><div class="src">来源：rag-forge（复用）；检索评测台、LLM 裁判保留在 rag-forge</div></div></div>
     <div class="cap"><div class="ix">C04</div><div><h4>链路追踪<small>Langfuse（自建）</small></h4><p>直接采用 Langfuse，回答"慢在哪一步、钱花在哪一步、哪个智能体出的问题"。</p><ul><li>多智能体：子智能体是 <code>agent</code> 类型节点，跨服务靠 traceparent 串进同一个 trace，自动生成 Agent Graph</li><li>askdb 用 LangGraph 原生回调，careermate 走 OTLP/HTTP，Dify 用内置集成</li><li>Keel 在其上叠加：三档状态口径、按智能体拆分成本、与审计 / 审批 / 门禁互跳</li><li>和 SkyWalking 分工：SkyWalking 看服务和接口，Langfuse 看智能体语义</li></ul><div class="src">来源：Langfuse（采用）+ askdb trace.py 的状态口径；offshore tracestore.py 下线</div></div></div>
     <div class="cap"><div class="ix">C05</div><div><h4>审计中心<small>keel-audit</small></h4><p>记录谁、在什么时间、通过哪个智能体、对什么资源做了什么。</p><ul><li>统一事件格式，按字段白名单记录，敏感信息自动脱敏</li><li>只追加 + 哈希链防篡改，保留期按风险分级</li><li>高风险动作同步写入，写失败就拒绝执行</li></ul><div class="src">来源：askdb audit.py / auditstore.py + careermate AuditService</div></div></div>
@@ -963,18 +963,18 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
     <div class="cap"><div class="ix">C08</div><div><h4>护栏策略<small>guardrails</small></h4><p>作为策略配置，不写进业务代码。</p><ul><li>输入：提示词注入检测、敏感词</li><li>输出：接地校验 off / shadow / enforce 三种模式，PII 脱敏</li><li>先用 shadow 只做标注，确认效果后再切到 enforce</li></ul><div class="src">来源：offshore GROUNDING_MODE 设计</div></div></div>
     <div class="cap"><div class="ix">C09</div><div><h4>工具注册与生命周期<small>keel-tools</small></h4><p>工具统一声明读写属性和风险等级。</p><ul><li>支持 MCP 工具注册，可跨智能体共享（如 rag.search）</li><li>高风险工具强制走审批，审批结果写入审计</li><li>描述或参数变更触发依赖方回归评测；破坏兼容必须改名；有 prod 依赖不能直接下线</li><li>工具执行日志统一记录</li></ul><div class="src">来源：careermate McpToolService / tool_execution_log + askdb approvals.py</div></div></div>
     <div class="cap"><div class="ix">C10</div><div><h4>审批中心与人工介入<small>approval · run lifecycle</small></h4><p>所有需要人点一下的事集中到一处，智能体不用各自建后台。</p><ul><li><b>四类审批共用一张表</b>（<code>subject_type</code>）：工具调用、工具变更（风险调低也要批）、智能体配置与下线、数据导出。不是只有工具调用要审批</li><li><b>人工介入</b>是另一回事：执行挂起等人回话（<code>input_required</code>）或转人工（<code>handoff</code>），没有审批单，处理完从断点继续</li><li>挂起时 SSE 流正常关闭，网关借此释放并发位；恢复时重新换票（原票 600 秒必然已过期）</li><li><b>边界：底座管账，智能体管现场。</b>底座存 run 状态、谁有权决定、截止时间、恢复入口；现场只存一个 <code>checkpoint_ref</code>，内容不碰。底座永远不决定下一步做什么——那是工作流引擎，不是 Keel</li><li>v1 不提供现场存储实现，askdb 继续用自带的 LangGraph checkpointer</li></ul><div class="src">来源：askdb approvals.py + LangGraph checkpoint；详见 docs/specs/p0/P0-1a-run-lifecycle.md</div></div></div>
-    <div class="cap"><div class="ix">C10</div><div><h4>注册中心与控制台<small>keel-console</small></h4><p>智能体的"户口本"和统一看板。</p><ul><li>存 manifest、版本、环境、负责人、绑定资源</li><li>注册时自动自检，并发放 LiteLLM 和 Langfuse 的 Key：不注册就调不了模型</li><li>通过 K8s watch、SDK 心跳、Dify 探活感知在线；定时对账，发现离线、未登记、下线不彻底就告警</li><li>第 03 节演示的所有页面</li></ul><div class="src">来源：新建（Vue 3，与 careermate 前端一致）</div></div></div>
+    <div class="cap"><div class="ix">C10</div><div><h4>注册中心与控制台<small>keel-console</small></h4><p>智能体的"户口本"和统一看板。</p><ul><li>存 manifest、版本、环境、负责人、绑定资源</li><li>注册时自动自检，并发放 薄网关 和 Langfuse 的 Key：不注册就调不了模型</li><li>通过 K8s watch、SDK 心跳、Dify 探活感知在线；定时对账，发现离线、未登记、下线不彻底就告警</li><li>第 03 节演示的所有页面</li></ul><div class="src">来源：新建（Vue 3，与 careermate 前端一致）</div></div></div>
   </div>
 
-  <h3 class="sub reveal">LiteLLM 和 Langfuse 怎么融进底座</h3>
+  <h3 class="sub reveal">薄网关 和 Langfuse 怎么融进底座</h3>
   <p class="reveal" style="color:var(--ink2);font-size:14.5px;margin-bottom:14px">不是在控制台放两个跳转按钮。集成分三层：开发者日常看的、日常做的操作都在 Keel 里完成，只有深入排查时才带着上下文跳过去。</p>
   <table class="doc reveal">
     <thead><tr><th>层</th><th>做什么</th><th>具体做法</th></tr></thead>
     <tbody>
-      <tr><td><b>① 运行时打通</b><br><small class="mut">开发者看不见</small></td><td>智能体不直接感知 LiteLLM 和 Langfuse，由 SDK 在背后接好</td><td><code>ctx.llm</code> 的地址指向 LiteLLM，带上该智能体的虚拟 Key，以及 agent、trace_id、session_id 等 metadata；每次模型调用由 SDK 记成 Langfuse 的 generation，挂在当前 trace 下。LiteLLM 自带的 Langfuse 回调关闭，避免重复记录</td></tr>
-      <tr><td><b>② 控制台取数</b><br><small class="mut">高频看的放在 Keel</small></td><td>Keel 后端调两边的 API，汇总成跨智能体视图</td><td>总览、质量、评测页调 Langfuse 的 traces、scores、datasets 接口；模型网关页调 LiteLLM 的花费日志、Key 信息、模型列表接口。深挖时用深链跳转：追踪节点带 trace_id 跳到那条 Langfuse 链路，评测页跳到对应实验。不用 iframe 整页嵌入，跨域登录和权限都会出问题</td></tr>
-      <tr><td><b>③ 配置自动化</b><br><small class="mut">写操作由 Keel 代办</small></td><td>开发者不用去两边手工配置</td><td><code>keel register</code> 时：在 LiteLLM 创建虚拟 Key（限定模型、日预算）；把两边的 Key 写进该智能体的 K8s Secret；在 Langfuse 导入评测数据集。<code>keel release</code> 时给提示词打 production 标签。<code>keel retire</code> 时吊销虚拟 Key。每一步都写审计</td></tr>
-      <tr><td><b>登录</b></td><td>尽量一次登录</td><td>auth-gateway 目前不是 OIDC 提供方（没有授权端点和发现端点），Langfuse 暂时接不了它的单点登录：先用邮箱密码并关闭自助注册，账号由管理员创建；auth-gateway 以后补上 OIDC 再接。LiteLLM 管理界面只有平台管理员会打开，用自带的管理员账号即可</td></tr>
+      <tr><td><b>① 运行时打通</b><br><small class="mut">开发者看不见</small></td><td>智能体不直接感知 薄网关 和 Langfuse，由 SDK 在背后接好</td><td><code>ctx.llm</code> 的地址指向 薄网关，带上该智能体的虚拟 Key，以及 agent、trace_id、session_id 等 metadata；每次模型调用由 SDK 记成 Langfuse 的 generation，挂在当前 trace 下。薄网关 自带的 Langfuse 回调关闭，避免重复记录</td></tr>
+      <tr><td><b>② 控制台取数</b><br><small class="mut">高频看的放在 Keel</small></td><td>Keel 后端调两边的 API，汇总成跨智能体视图</td><td>总览、质量、评测页调 Langfuse 的 traces、scores、datasets 接口；模型网关页调 薄网关 的花费日志、Key 信息、模型列表接口。深挖时用深链跳转：追踪节点带 trace_id 跳到那条 Langfuse 链路，评测页跳到对应实验。不用 iframe 整页嵌入，跨域登录和权限都会出问题</td></tr>
+      <tr><td><b>③ 配置自动化</b><br><small class="mut">写操作由 Keel 代办</small></td><td>开发者不用去两边手工配置</td><td><code>keel register</code> 时：在 薄网关 创建虚拟 Key（限定模型、日预算）；把两边的 Key 写进该智能体的 K8s Secret；在 Langfuse 导入评测数据集。<code>keel release</code> 时给提示词打 production 标签。<code>keel retire</code> 时吊销虚拟 Key。每一步都写审计</td></tr>
+      <tr><td><b>登录</b></td><td>尽量一次登录</td><td>auth-gateway 目前不是 OIDC 提供方（没有授权端点和发现端点），Langfuse 暂时接不了它的单点登录：先用邮箱密码并关闭自助注册，账号由管理员创建；auth-gateway 以后补上 OIDC 再接。薄网关没有单独的管理界面，模型、Key 和预算都在 Keel 控制台里看</td></tr>
     </tbody>
   </table>
 
@@ -992,12 +992,12 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
       <li>在运行、很久没有流量 → 僵尸，提示是否下线</li>
       <li>在运行、没登记 → <b>未登记</b>，告警（有人绕过了流程）</li>
       <li>已下线、仍在运行 → 下线不彻底，告警并确认 Key 已吊销</li>
-      <li>流量从 Langfuse（按 agent 数 trace）和 LiteLLM（按虚拟 Key 数调用）两边取</li></ul></div>
+      <li>流量从 Langfuse（按 agent 数 trace）和 薄网关（按虚拟 Key 数调用）两边取</li></ul></div>
   </div>
   <div class="note reveal"><b>要不要用 Nacos：</b>Java 智能体多、服务发现本来就用 Nacos 时，可以让 Nacos 承担"在不在线"这一层；manifest、状态机、Key 发放这些治理数据仍放在 Keel 注册中心。现在的规模直接用 K8s watch 就够了，不必多引入一个组件。</div>
 
   <h3 class="sub reveal">自研 keel-gateway：先做轻量版</h3>
-  <p class="reveal" style="color:var(--ink2);font-size:14.5px;margin-bottom:14px">选自研不选 Higress：模型代理已经交给 LiteLLM，入口网关的核心（按注册中心路由、Keel 审计契约、渠道协议适配）本质是业务逻辑，用 Java 写比写 Wasm 插件好开发、好调试，资源占用也小。基于 Spring Cloud Gateway，JWT 验签、Redis 限流、SSE 都有现成支持。</p>
+  <p class="reveal" style="color:var(--ink2);font-size:14.5px;margin-bottom:14px">选自研不选 Higress：模型代理已经交给 薄网关，入口网关的核心（按注册中心路由、Keel 审计契约、渠道协议适配）本质是业务逻辑，用 Java 写比写 Wasm 插件好开发、好调试，资源占用也小。基于 Spring Cloud Gateway，JWT 验签、Redis 限流、SSE 都有现成支持。</p>
   <table class="doc reveal">
     <thead><tr><th>模块</th><th>轻量版（P2，约 2～3 周）</th><th>完整版（P3 起按需）</th></tr></thead>
     <tbody>
@@ -1021,7 +1021,7 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
       <tr><td><b>登记与探测</b></td><td>注册中心登记为 <code>kind: Service</code>，K8s watch 探测 api、worker、judge 三类实例；控制台"共享服务"页展示</td><td>Deployment 加 <code>keel.io/service</code> 标签，<code>/actuator/health</code> 作就绪探针（已有）</td></tr>
       <tr><td><b>追踪</b></td><td>检索作为 <code>retriever</code> 节点挂在调用方的 trace 下，改写、向量、关键词、重排写成子 span，带上知识库、top_k、分数</td><td>加 OpenTelemetry Java Agent，OTLP/HTTP 上报 Langfuse；读取请求里的 traceparent。SkyWalking 保留，看服务和接口</td></tr>
       <tr><td><b>指标</b></td><td>Keel 控制台读 Prometheus：QPS、P95、429 / 504 比例，按调用方智能体和知识库拆分</td><td>Micrometer 指标加 <code>caller_agent</code>、<code>kb</code> 标签</td></tr>
-      <tr><td><b>模型成本</b></td><td>改写、应答、向量化、裁判的模型调用改走 LiteLLM，用 rag-forge 自己的虚拟 Key，成本和智能体在同一处看；自部署的 gte-rerank 不经过 LiteLLM</td><td>模型地址改成 LiteLLM；<code>model_usage_daily</code> 可保留做组织分摊，或改从 LiteLLM 取数</td></tr>
+      <tr><td><b>模型成本</b></td><td>改写、应答、向量化、裁判的模型调用改走 薄网关，用 rag-forge 自己的虚拟 Key，成本和智能体在同一处看；自部署的 gte-rerank 不经过 薄网关</td><td>模型地址改成 薄网关；<code>model_usage_daily</code> 可保留做组织分摊，或改从 薄网关 取数</td></tr>
       <tr><td><b>评测与质量</b></td><td>召回、排序这类检索专属指标仍用 rag-forge 的评测台和 LLM 裁判；Keel 调它的 API 展示 recall@5 汇总和知识库新鲜度，点击跳转</td><td>提供评测汇总接口（只读）</td></tr>
       <tr><td><b>审计</b></td><td>知识库增删、文档导入、破玻璃提权、API Key 变更作为 <code>config.change</code> 审计事件同步到 keel-audit</td><td>现有审计表保留作缓冲，异步上报 keel-audit</td></tr>
     </tbody>
@@ -1049,8 +1049,8 @@ spec:
     audience: offshore-wind     # auth-gateway 签发 JWT 的 aud
     roles: [ops_engineer, ops_admin]
   models:
-    default: qwen-plus          # LiteLLM 里的模型别名，不是厂商密钥
-    fallback: [deepseek-v3]     # 生成 LiteLLM 的降级规则
+    default: qwen-plus          # 薄网关 里的模型别名，不是厂商密钥
+    fallback: [deepseek-v3]     # 生成 薄网关 的降级规则
     budget: { dailyCny: 50, maxSteps: 6 }   # 日预算写到该智能体的虚拟 Key 上
   knowledge:
     - kb: fault-manual          # rag-forge 知识库
@@ -1080,7 +1080,7 @@ spec:
   quality:
     onlineEvalSampling: 0.05    # Langfuse 在线评估器采样比例
     feedback: true
-    annotationQueue: 电力运维组-抽检</pre><aside><h5>唯一需要认真写的配置</h5><ul><li>平台据此完成<b>所有资源绑定</b>：模型、知识库、工具、护栏、预算</li><li>模型和预算部分由 <code>keel register</code> 翻译成 LiteLLM 的虚拟 Key 和路由规则</li><li>审计白名单写在这里，避免敏感字段被顺手写进日志</li><li>门禁阈值写在这里，CI 读取后自动执行</li><li>接入 Dify 应用时，平台<b>自动生成</b>这份文件</li><li>除 name 和 endpoint 外都有默认值</li></ul></aside></div>
+    annotationQueue: 电力运维组-抽检</pre><aside><h5>唯一需要认真写的配置</h5><ul><li>平台据此完成<b>所有资源绑定</b>：模型、知识库、工具、护栏、预算</li><li>模型和预算部分由 <code>keel register</code> 翻译成 薄网关 的虚拟 Key 和路由规则</li><li>审计白名单写在这里，避免敏感字段被顺手写进日志</li><li>门禁阈值写在这里，CI 读取后自动执行</li><li>接入 Dify 应用时，平台<b>自动生成</b>这份文件</li><li>除 name 和 endpoint 外都有默认值</li></ul></aside></div>
     <div class="pane"><pre data-lang="http">POST /v1/invoke                         # 智能体必须实现
 Headers:
   Authorization: Bearer &lt;auth-gateway 签发的用户 JWT，SDK 验签&gt;
@@ -1142,10 +1142,10 @@ POST /v1/feedback    # SDK 自动挂载，点赞点踩写成 Langfuse 分数</pr
     "gen_ai.usage.input_tokens": 2980,
     "gen_ai.usage.output_tokens": 560,
     "keel.fallback_from": "qwen-plus",
-    "keel.llm.key_alias": "offshore-wind-prod",   // 经 LiteLLM 的哪个虚拟 Key
-    "keel.llm.request_id": "chatcmpl-…"           // 和 LiteLLM 花费日志对得上
+    "keel.llm.key_alias": "offshore-wind-prod",   // 经 薄网关 的哪个虚拟 Key
+    "keel.llm.request_id": "chatcmpl-…"           // 和 薄网关 花费日志对得上
   }
-}</pre><aside><h5>追踪设计要点</h5><ul><li>三个服务、一个 trace：委派时通过 W3C <code>traceparent</code> 传播，子智能体不需要知道自己被谁编排</li><li>节点类型用 <b>agent / tool / retriever</b> 等，Langfuse 据此自动画出 Agent Graph</li><li><code>keel.*</code> 是 Keel 的扩展属性：委派关系、状态口径、审计关联</li><li>Java 必须用 <b>OTLP/HTTP</b>，Langfuse 不收 gRPC</li><li>generation 只由 SDK 上报；LiteLLM 的 Langfuse 回调关闭，否则每次调用会记两条</li><li>属性里不放原文，原文只按审计白名单记录</li></ul></aside></div>
+}</pre><aside><h5>追踪设计要点</h5><ul><li>三个服务、一个 trace：委派时通过 W3C <code>traceparent</code> 传播，子智能体不需要知道自己被谁编排</li><li>节点类型用 <b>agent / tool / retriever</b> 等，Langfuse 据此自动画出 Agent Graph</li><li><code>keel.*</code> 是 Keel 的扩展属性：委派关系、状态口径、审计关联</li><li>Java 必须用 <b>OTLP/HTTP</b>，Langfuse 不收 gRPC</li><li>generation 只由 SDK 上报；薄网关 的 Langfuse 回调关闭，否则每次调用会记两条</li><li>属性里不放原文，原文只按审计白名单记录</li></ul></aside></div>
     <div class="pane"><pre data-lang="json">{
   "event_id": "ae_20260929_123930_7d21",
   "ts": "2026-09-29T12:39:30+08:00",
@@ -1204,7 +1204,7 @@ async def handle(req, ctx: Context):
     answer = await ctx.llm.chat(messages=answer_prompt(req.text, docs, route))
     return ctx.final(answer, citations=docs.citations)
 
-app = agent.asgi()    # 自动挂载 /v1/invoke /v1/health /v1/manifest</pre><aside><h5>SDK 自动完成的事</h5><ul><li>校验请求 JWT（auth-gateway 的 JWKS），执行配额，注入用户上下文</li><li><code>ctx.llm</code> 走 LiteLLM：地址和虚拟 Key 从注册时写入的 Secret 读取，降级和计费由 LiteLLM 完成，generation span 由 SDK 上报</li><li><code>ctx.knowledge</code> 调 rag-forge 并自动换票</li><li>工具调用自动审计，高风险工具自动挂起等审批</li><li>追踪通过 OTLP 异步上报到 Langfuse，失败时写本地缓冲</li><li>护栏按 manifest 在入口和出口自动执行</li><li>不在 K8s 里运行时，自动向注册中心发心跳</li></ul></aside></div>
+app = agent.asgi()    # 自动挂载 /v1/invoke /v1/health /v1/manifest</pre><aside><h5>SDK 自动完成的事</h5><ul><li>校验请求 JWT（auth-gateway 的 JWKS），执行配额，注入用户上下文</li><li><code>ctx.llm</code> 走 薄网关：地址和虚拟 Key 从注册时写入的 Secret 读取，降级和计费由 薄网关 完成，generation span 由 SDK 上报</li><li><code>ctx.knowledge</code> 调 rag-forge 并自动换票</li><li>工具调用自动审计，高风险工具自动挂起等审批</li><li>追踪通过 OTLP 异步上报到 Langfuse，失败时写本地缓冲</li><li>护栏按 manifest 在入口和出口自动执行</li><li>不在 K8s 里运行时，自动向注册中心发心跳</li></ul></aside></div>
     <div class="pane"><pre data-lang="python"># ops-copilot/app.py：用 supervisor 模板生成的运维总控
 from keel import Agent, Context
 
@@ -1243,14 +1243,14 @@ public class CareerAgent {
     <div class="pane"><pre data-lang="bash"># 1. 生成项目：底座已接好，模板自带 10 条冒烟评测
 keel new wind-inspection --lang python --template graph-agent
 
-# 2. 本地开发：连测试环境的 LiteLLM 和 Langfuse dev 项目，审计写本地 SQLite + 热重载
+# 2. 本地开发：连测试环境的 薄网关 和 Langfuse dev 项目，审计写本地 SQLite + 热重载
 keel dev
 
 # 3. 本地跑一次实验，结果进 Langfuse，和 CI 口径一致
 keel eval run --dataset offshore-wind/inspection
 
 # 4. 注册到平台：校验 manifest、健康检查、协议自检；
-#    在 LiteLLM 创建虚拟 Key，把 LiteLLM 和 Langfuse 的 Key 写进 K8s Secret，导入初始评测用例
+#    在 薄网关 创建虚拟 Key，把 薄网关 和 Langfuse 的 Key 写进 K8s Secret，导入初始评测用例
 keel register --env staging
 
 # 5. 发布：keel gate 跑实验并逐维度判定，通过才发布；提示词同时打上 production 标签
@@ -1299,7 +1299,7 @@ keel retire --env prod
     <div><b>发布门禁</b>改提示词也要过评测</div>
     <div><b>成本管控</b>日预算、自动降级、告警</div>
   </div>
-  <div class="note reveal"><b>Dify 路径：</b>在 Dify 里配好应用，到控制台选"接入 Dify 应用"并填入应用 Key，平台生成 manifest，keel-gateway 的协议适配把标准 <code>/v1/invoke</code> 转成 Dify API，鉴权、配额、调用级审计都在网关完成。Dify 的模型提供方配成 LiteLLM（OpenAI 兼容），用 cs-bot 自己的虚拟 Key，统一计费；Dify 自带 Langfuse 集成，在应用设置里填上同一个 Langfuse 项目的 Key，节点级追踪就和代码智能体在一起了。</div>
+  <div class="note reveal"><b>Dify 路径：</b>在 Dify 里配好应用，到控制台选"接入 Dify 应用"并填入应用 Key，平台生成 manifest，keel-gateway 的协议适配把标准 <code>/v1/invoke</code> 转成 Dify API，鉴权、配额、调用级审计都在网关完成。Dify 的模型提供方配成 薄网关（OpenAI 兼容），用 cs-bot 自己的虚拟 Key，统一计费；Dify 自带 Langfuse 集成，在应用设置里填上同一个 Langfuse 项目的 Key，节点级追踪就和代码智能体在一起了。</div>
 </section>
 
 <!-- 08 -->
@@ -1307,7 +1307,7 @@ keel retire --env prod
   <div class="sec-h reveal"><div class="no">08</div><h2>职责边界</h2><p>边界划清楚，底座才不会越做越重，智能体也不会越做越乱。</p></div>
   <div class="duo reveal">
     <div><h4>Keel 底座负责</h4><ul>
-      <li>身份认证、准入、配额、限流（keel-gateway，上线前由 SDK 承担）</li><li>模型接入、路由、降级、计费、密钥（LiteLLM）</li><li>智能体登记、在线探测、对账、下线</li><li>知识检索（rag-forge，作为共享服务纳入监控）</li><li>追踪的采集、存储、展示</li><li>审计的格式、存储、防篡改、查询、导出审批</li><li>发布门禁（数据集、实验、评估器用 Langfuse）</li><li>线上质量汇总（打分、标注、坏案例回流用 Langfuse）</li><li>工具注册、风险分级、审批流</li><li>护栏策略执行</li><li>SDK、脚手架、CI 模板、keel-lite</li></ul></div>
+      <li>身份认证、准入、配额、限流（keel-gateway，上线前由 SDK 承担）</li><li>模型接入、路由、降级、计费、密钥（薄网关）</li><li>智能体登记、在线探测、对账、下线</li><li>知识检索（rag-forge，作为共享服务纳入监控）</li><li>追踪的采集、存储、展示</li><li>审计的格式、存储、防篡改、查询、导出审批</li><li>发布门禁（数据集、实验、评估器用 Langfuse）</li><li>线上质量汇总（打分、标注、坏案例回流用 Langfuse）</li><li>工具注册、风险分级、审批流</li><li>护栏策略执行</li><li>SDK、脚手架、CI 模板、keel-lite</li></ul></div>
     <div><h4>智能体自己负责</h4><ul>
       <li>业务流程和推理逻辑</li><li>提示词内容（在 Langfuse 里维护版本）</li><li>业务工具的实现（查告警、改简历、执行 SQL）</li><li><b>评测数据</b>：什么算答对，只有业务方知道</li><li><b>领域评分函数</b>：故障类型判定、SQL 结果比对</li><li>agent.yaml 里的声明：模型、知识库、工具、风险等级、门禁阈值</li><li>坏案例的业务判断（是缺陷还是预期内）</li></ul>
       <p style="margin-top:14px;font-size:13px;color:var(--mute)">判断标准：一段代码如果在第二个智能体里也要写一遍，它就属于底座。</p></div>
@@ -1316,14 +1316,14 @@ keel retire --env prod
 
 <!-- 09 -->
 <section class="sec" id="s9">
-  <div class="sec-h reveal"><div class="no">09</div><h2>部署与技术选型</h2><p>Keel 服务和 LiteLLM 沿用你现有的 k3s + PostgreSQL + Redis + RocketMQ；Langfuse 自建：单独买一台观测节点，用官方 Docker Compose 部署，数据和配置完全在自己手里。阿里云托管版作为备选，以后不想运维时再切换。</p></div>
+  <div class="sec-h reveal"><div class="no">09</div><h2>部署与技术选型</h2><p>Keel 服务和薄网关沿用现有的 k3s + PostgreSQL + Redis + RocketMQ，放在已有应用节点上。追踪用 Langfuse Cloud 日本节点，不另买观测机器，不部署 ClickHouse。</p></div>
   <div class="deploy reveal">
     <div class="k8s">
-      <div class="ns"><b>namespace: keel-system</b><div class="boxes"><div class="box new">keel-gateway ×2<small>入口网关 · 轻量版</small></div><div class="box oss">LiteLLM ×2<small>模型网关 · 官方镜像</small></div><div class="box new">keel-audit ×2</div><div class="box new">keel-console<small>注册中心 + 控制台</small></div><div class="box new">keel-gate<small>CI 任务，不常驻</small></div></div></div>
+      <div class="ns"><b>namespace: keel-system</b><div class="boxes"><div class="box new">keel-gateway ×2<small>入口网关 · 轻量版</small></div><div class="box new">keel-llm ×2<small>薄网关 · 256Mi 起</small></div><div class="box new">keel-audit ×2</div><div class="box new">keel-console<small>注册中心 + 控制台</small></div><div class="box new">keel-gate<small>CI 任务，不常驻</small></div></div></div>
       <div class="ns"><b>namespace: shared（已有）</b><div class="boxes"><div class="box reuse">auth-gateway ×2</div><div class="box reuse">rag-forge<small>加 OTel Agent，登记为共享服务</small></div><div class="box reuse">reranker</div></div></div>
       <div class="ns"><b>namespace: agents</b><div class="boxes"><div class="box agent">careermate</div><div class="box agent">askdb</div><div class="box agent">offshore-wind</div><div class="box agent">ops-copilot</div><div class="box agent">dify（cs-bot）</div></div></div>
-      <div class="ns" style="border-color:#3d6fd6"><b>观测节点：ECS 8 核 32G · ESSD 200G（与 k3s 同 VPC，内网上报）</b><div class="boxes"><div class="box oss">langfuse-web<small>界面 + API + OTLP 接收</small></div><div class="box oss">langfuse-worker<small>异步入库 · 评估器</small></div><div class="box oss">ClickHouse<small>追踪存储 · 时区 UTC</small></div><div class="box oss">Redis<small>Langfuse 队列</small></div></div></div>
-      <div class="ns"><b>数据层（已有 + 云服务）</b><div class="boxes"><div class="box reuse">PostgreSQL<small>keel 注册 · 审计 · litellm 库</small></div><div class="box reuse">Redis<small>配额 · LiteLLM 限流</small></div><div class="box reuse">RocketMQ</div><div class="box">阿里云 OSS<small>审计归档</small></div></div></div>
+      <div class="ns" style="border-color:#3d6fd6"><b>Langfuse Cloud · 日本（东京）</b><div class="boxes"><div class="box oss">Langfuse<small>界面 + API + OTLP · https://jp.cloud.langfuse.com</small></div></div></div>
+      <div class="ns"><b>数据层（已有 + 云服务）</b><div class="boxes"><div class="box reuse">PostgreSQL<small>keel 注册 · 审计 · keel_llm</small></div><div class="box reuse">Redis<small>配额 · 薄网关日预算</small></div><div class="box reuse">RocketMQ</div><div class="box">阿里云 OSS<small>审计归档</small></div></div></div>
     </div>
     <div>
       <table class="doc">
@@ -1333,9 +1333,9 @@ keel retire --env prod
           <tr><td>控制台</td><td>Vue 3 + Vite</td><td>与 careermate 前端一致</td></tr>
           <tr><td>SDK</td><td>Python 3.11+ / Spring Boot Starter</td><td>覆盖现有两种语言</td></tr>
           <tr><td>协议</td><td>HTTP + SSE，W3C traceparent</td><td>与语言无关，可选 OTLP 导出</td></tr>
-          <tr><td>模型网关</td><td>LiteLLM（开源 MIT，2 副本）</td><td>OpenAI 兼容，虚拟 Key、预算、降级开箱即用；无状态，Key 和花费存在现有 PG 的 litellm 库；官方要求每副本 1 核、4Gi（内存低于 4Gi 会 OOM），多副本需要 Redis</td></tr>
+          <tr><td>模型网关</td><td>自研薄网关 keel-llm（2 副本）</td><td>OpenAI 兼容，虚拟 Key、人民币日预算、超时降级。Key 和花费存在现有 PG 的 keel_llm 库，日预算计数在现有 Redis。单副本内存按百兆计，放在现有应用节点</td></tr>
           <tr><td>入口网关</td><td>keel-gateway 自研（Spring Cloud Gateway，2 副本）</td><td>核心是按注册中心路由、Keel 审计、协议适配等业务逻辑，Java 写比 Higress 的 Wasm 插件好开发、好调试；每副本约 0.5～1 核、1G</td></tr>
-          <tr><td>追踪 · 评测 · 质量 · 提示词</td><td>自建 Langfuse（开源版）</td><td>开源版功能全都有，数据留在自己的服务器上，费用固定</td></tr>
+          <tr><td>追踪 · 评测 · 质量 · 提示词</td><td>Langfuse Cloud 日本节点</td><td>与自建同一套产品。2026-10-04 从云服务器实测读写通过。换地址和项目 Key 即可切换。追踪数据在 AWS 东京，审计仍在自有 PostgreSQL</td></tr>
           <tr><td>发布门禁</td><td>keel-gate（CI 中运行的 Python 脚本）</td><td>调 Langfuse SDK 跑实验、读分数，逻辑很薄</td></tr>
           <tr><td>审计存储</td><td>PG 只追加 + 哈希链，180 天后归档</td><td>满足合规，可回溯</td></tr>
           <tr><td>异步入库</td><td>RocketMQ（复用 rag-forge 集群）</td><td>审计上报和入库解耦，高峰不丢数据</td></tr>
@@ -1345,10 +1345,10 @@ keel retire --env prod
     </div>
   </div>
 
-  <h3 class="sub reveal">Langfuse、LiteLLM 和 Keel 的分工</h3>
+  <h3 class="sub reveal">Langfuse、薄网关和 Keel 的分工</h3>
   <div class="split reveal">
-    <div><h4>交给 Langfuse 和 LiteLLM</h4><ul>
-      <li><b>模型网关（LiteLLM）</b>：多厂商接入、OpenAI 兼容接口、虚拟 Key、日预算、限流、降级重试、花费记录</li>
+    <div><h4>交给 Langfuse，模型调用交给薄网关</h4><ul>
+      <li><b>模型网关（keel-llm，Keel 自研）</b>：多厂商接入、OpenAI 兼容接口、虚拟 Key、人民币日预算、降级重试、花费记录。不向 Langfuse 上报</li>
       <li><b>追踪</b>：接收和存储（OTLP、LangGraph 回调、Dify 集成），调用树、时间线、Agent Graph、多轮会话</li>
       <li><b>评测</b>：数据集、实验、两版对比、大模型裁判和代码评分器</li>
       <li><b>质量</b>：用户反馈、线上采样打分、人工标注队列、看板和告警、坏案例加入数据集</li>
@@ -1358,28 +1358,27 @@ keel retire --env prod
       <li><b>业务审计</b>：谁通过智能体做了什么，不可篡改、不采样、导出要审批</li>
       <li><b>发布门禁</b>：CI 里按维度判定退步，不达标就不许发布；提示词切到 production 也要过门禁</li>
       <li>入口网关 keel-gateway（自研）</li>
-      <li>工具审批；注册中心（登记、探测、对账，并替智能体在 LiteLLM、Langfuse 里开通和吊销 Key）</li>
-      <li>跨智能体总览：调 Langfuse 和 LiteLLM 的 API 按智能体拆分耗时、成本、质量指标，标出关键路径</li>
+      <li>工具审批；注册中心（登记、探测、对账，并替智能体在 薄网关、Langfuse 里开通和吊销 Key）</li>
+      <li>跨智能体总览：调 Langfuse 和 薄网关 的 API 按智能体拆分耗时、成本、质量指标，标出关键路径</li>
       <li>把审计、审批、门禁信息挂到链路节点上</li></ul></div>
   </div>
-  <div class="note reveal"><b>免费版缺的企业功能怎么办：</b>审计日志、数据保留期策略、项目级权限、受保护的提示词标签、服务端脱敏属于 Langfuse 企业版，要单独授权。起步阶段的替代做法：约定提示词只通过 <code>keel release</code> 切到 production 标签，Keel 定时比对 production 当前指向的版本和上次门禁通过的版本，不一致就告警并写审计（免费版拦不住手工改标签，只能事后发现）；敏感字段在 SDK 上报前脱敏（客户端脱敏是免费的）；不同智能体按组织拆项目来隔离权限。<br><b>LiteLLM 同理：</b>虚拟 Key、预算、路由降级在开源版里都有；管理界面的 SSO 等属于企业版，只有平台管理员会用它的界面，用自带管理员账号即可，开发者都在 Keel 控制台里看数据。</div>
+  <div class="note reveal"><b>云端套餐边界：</b>当前账号是 Hobby，没有企业 SSO，网页用户 2 个，每月 5 万单位，保留 30 天，Metrics API 每天 100 次。邮箱密码登录即可，SDK 和 keel-server 用项目 API Key，不依赖 SSO。提示词仍只通过 <code>keel release</code> 切 production 标签，Keel 比对漂移并写审计；敏感字段在 SDK 上报前脱敏。生产上的 5 分钟对账和总览轮询会打满 Hobby 的 metrics 配额，升 Core 后再按分钟级查 Langfuse。薄网关没有单独的管理界面，模型、Key 和花费都在 Keel 控制台看。</div>
 
-  <h3 class="sub reveal">Langfuse 部署方案</h3>
+  <h3 class="sub reveal">Langfuse 接入方案</h3>
   <table class="doc reveal">
     <thead><tr><th>方案</th><th>怎么做</th><th>费用参考</th><th>适合</th></tr></thead>
     <tbody>
-      <tr><td><b>采用：自建</b></td><td>新购一台 8 核 32G、ESSD 200G 的 ECS，和 k3s 集群放同一地域、同一 VPC；用官方 Docker Compose 部署 web、worker、ClickHouse、Redis；PG 复用现有节点新建 <code>langfuse</code> 库，对象存储用 OSS</td><td>一年约 8,600～10,500 元，每月约 700～900 元，费用固定</td><td>现在：数据和配置完全自己掌控</td></tr>
-      <tr><td>备选：阿里云托管</td><td>建云数据库 ClickHouse 企业版实例，在实例详情页开启 Langfuse</td><td>按用量计费，2 个 CCU 全天运行约 800 元/月，买资源包约 400 元/月</td><td>以后不想运维 ClickHouse 时切换，智能体只改地址和 Key</td></tr>
-      <tr><td>不推荐：Langfuse 官方云</td><td>—</td><td>—</td><td>能源、人事数据会出境</td></tr>
+      <tr><td><b>采用：Langfuse Cloud 日本</b></td><td>主机 <code>https://jp.cloud.langfuse.com</code>。dev、staging、prod 三个项目在云端界面创建。智能体只配置地址和项目 Key。2026-10-04 已从云服务器 <code>8.163.30.216</code> 实测读写</td><td>Hobby 免费。生产对账和总览升 Core，约 29 美元/月起</td><td>现在：不买机器，不运维 ClickHouse</td></tr>
+      <tr><td>以后可换：自建或阿里云托管</td><td>换 <code>LANGFUSE_HOST</code> 和项目 Key。历史 trace 不跟随迁移</td><td>自建约 700～900 元/月量级；阿里云托管按量</td><td>追踪数据需要留在自己的 VPC 时</td></tr>
     </tbody>
   </table>
-  <div class="note reveal"><b>自建要注意：</b>
-    <br>① ClickHouse 和 Postgres 时区必须是 UTC；直接部署 Langfuse v4，ClickHouse 装 25.12 以上（推荐 26.4）；OTLP 上报要带请求头 <code>x-langfuse-ingestion-version: 4</code>，否则数据约 15 分钟后才可见。
-    <br>② 界面不直接暴露到公网：只在内网或 VPN 访问，或者放在 Nginx 后面加访问控制；智能体走 VPC 内网上报。
-    <br>③ 大模型裁判要调百炼等公网 API，ECS 需要能访问公网（绑定弹性公网 IP，或走 NAT 网关）。
-    <br>④ 备份：ClickHouse 每天备份到 OSS，Postgres 的 <code>langfuse</code> 库随现有 PG 一起备份。
-    <br>⑤ 容量：开源版没有数据保留期策略，要监控磁盘，按月看增长，快满时扩容 ESSD 或清理旧数据。
-    <br>⑥ 升级：跟随官方版本，升级前先在测试环境验证并备份。</div>
+  <div class="note reveal"><b>云端要注意：</b>
+    <br>① OTLP 上报必须带请求头 <code>x-langfuse-ingestion-version: 4</code>，只走 HTTP，不走 gRPC。漏了请求头时服务不报错，数据大约 15 分钟后才可见。
+    <br>② 密钥按区域隔离。日本项目的 Key 不能拿去打美国或欧盟主机。
+    <br>③ 追踪数据在 AWS 东京。审计仍在自有 PostgreSQL，两者用 <code>keel.audit_ids</code> 互跳。
+    <br>④ 2026-09-16 及之后创建的组织，<code>GET /api/public/traces</code> 返回 410。读链路用 Observations API v2。
+    <br>⑤ Hobby 的 Metrics API 每天 100 次。对账任务在 Hobby 上每天向 Langfuse 查一次流量，调用数以薄网关为准。
+    <br>⑥ 三个环境项目手工创建。Keel 不调用项目管理 API。</div>
 </section>
 
 <!-- 10 -->
@@ -1387,18 +1386,18 @@ keel retire --env prod
   <div class="sec-h reveal"><div class="no">10</div><h2>落地路线</h2><p>不推倒重来。每个阶段让一个现有智能体迁移过来，同时删掉它身上的一部分重复代码。</p></div>
   <div class="road reveal">
     <div class="phase"><div class="ph">P0</div><h4>契约与 SDK</h4><div class="wk">第 1–2 周</div><ul><li>冻结五份契约 keel/v1</li><li>从 askdb 的 trace.py、audit.py、quota.py 抽出 Python SDK，内置 JWT 校验、配额、护栏（网关上线前由 SDK 承担）</li><li>从 careermate 的 observability、audit 抽出 Java Starter</li><li>keel-lite 单机版 + CLI 的 new、dev 命令</li></ul><div class="ok"><b>验收：</b>用 keel new 生成 hello-agent，30 分钟内在本地看到追踪和审计</div></div>
-    <div class="phase"><div class="ph">P1</div><h4>Langfuse + LiteLLM + 审计</h4><div class="wk">第 3–5 周</div><ul><li>买观测节点（8 核 32G），自建 Langfuse，配好内网访问、公网出口、备份和磁盘监控</li><li>部署 LiteLLM，厂商密钥收进去，三个智能体的 <code>ctx.llm</code> 统一指向它</li><li>askdb 接 LangGraph 回调，careermate 走 OTLP/HTTP，offshore-wind 删掉 tracestore.py 改用 SDK</li><li>rag-forge 加 OTel Agent，检索作为 retriever 节点进同一个 trace；登记为共享服务</li><li>上线 keel-audit；注册中心：登记、自动发 Key、K8s 探测、对账</li><li>控制台：总览、智能体、多智能体追踪页、模型网关、审计中心</li></ul><div class="ok"><b>验收：</b>三个智能体的链路在同一个 Langfuse 项目可查，跨智能体调用串在同一个 trace 里；智能体代码里不再有厂商密钥</div></div>
+    <div class="phase"><div class="ph">P1</div><h4>Langfuse Cloud + 薄网关 + 审计</h4><div class="wk">第 3–5 周</div><ul><li>接入 Langfuse Cloud 日本节点，建好 dev、staging、prod 三个项目</li><li>在现有应用节点部署薄网关，厂商密钥收进去，三个智能体的 <code>ctx.llm</code> 统一指向它</li><li>askdb 接 LangGraph 回调，careermate 走 OTLP/HTTP，offshore-wind 删掉 tracestore.py 改用 SDK</li><li>rag-forge 加 OTel Agent，检索作为 retriever 节点进同一个 trace；登记为共享服务</li><li>上线 keel-audit；注册中心：登记、自动发 Key、K8s 探测、对账</li><li>控制台：总览、智能体、多智能体追踪页、模型网关、审计中心</li></ul><div class="ok"><b>验收：</b>三个智能体的链路在同一个 Langfuse 项目可查，跨智能体调用串在同一个 trace 里；智能体代码里不再有厂商密钥</div></div>
     <div class="phase"><div class="ph">P2</div><h4>评测迁移 + 门禁</h4><div class="wk">第 6–8 周</div><ul><li>askdb、offshore 的评测用例导入 Langfuse 数据集，删掉 evalstore.py、evalview.py</li><li>领域评分函数改成 Langfuse 代码评分器</li><li>写 keel-gate 并接入 CI 模板</li><li>提示词迁到 Langfuse 管理；给 careermate 补评测集</li><li>keel-gateway 轻量版：动态路由、JWT 准入、配额与并发、SSE 透传、根 span 和审计埋点；配 NetworkPolicy</li><li>控制台"共享服务"页：rag-forge 分段耗时、调用方用量、知识库新鲜度</li></ul><div class="ok"><b>验收：</b>offshore-wind 评测不达标时发布被自动阻止</div></div>
-    <div class="phase"><div class="ph">P3</div><h4>质量 · 审批 · Dify</h4><div class="wk">第 9–12 周</div><ul><li>质量：开启 Langfuse 在线评估器和标注队列，坏案例回流数据集</li><li>工具注册与审批中心</li><li>keel-gateway 完整版：协议适配（Dify、企业微信、钉钉）、输入护栏前移、流式脱敏、熔断</li><li>部署 Dify，经网关协议适配接入，模型走 LiteLLM，上线智能客服</li><li>rag-forge 的模型调用切到 LiteLLM，审计同步到 keel-audit</li><li>用 supervisor 模板上线运维总控 ops-copilot</li></ul><div class="ok"><b>验收：</b>五个智能体（含 Dify 客服、多智能体总控）在同一个看板管理</div></div>
+    <div class="phase"><div class="ph">P3</div><h4>质量 · 审批 · Dify</h4><div class="wk">第 9–12 周</div><ul><li>质量：开启 Langfuse 在线评估器和标注队列，坏案例回流数据集</li><li>工具注册与审批中心</li><li>keel-gateway 完整版：协议适配（Dify、企业微信、钉钉）、输入护栏前移、流式脱敏、熔断</li><li>部署 Dify，经网关协议适配接入，模型走 薄网关，上线智能客服</li><li>rag-forge 的模型调用切到 薄网关，审计同步到 keel-audit</li><li>用 supervisor 模板上线运维总控 ops-copilot</li></ul><div class="ok"><b>验收：</b>五个智能体（含 Dify 客服、多智能体总控）在同一个看板管理</div></div>
   </div>
   <h3 class="sub reveal">关键风险与对策</h3>
   <table class="doc reveal">
     <thead><tr><th>风险</th><th>对策</th></tr></thead>
     <tbody>
-      <tr><td>底座故障拖垮所有智能体</td><td>追踪上报异步、失败本地缓冲；keel-gateway、LiteLLM、keel-audit 各两副本；只有高风险审计同步写入</td></tr>
+      <tr><td>底座故障拖垮所有智能体</td><td>追踪上报异步、失败本地缓冲；keel-gateway、薄网关、keel-audit 各两副本；只有高风险审计同步写入</td></tr>
       <tr><td>自研网关的鉴权或流式出漏洞</td><td>JWT 用 Spring Security 资源服务器验签，不自己解析；SSE 断开取消、心跳、超时先写测试用例；SDK 保留轻量校验作为双保险</td></tr>
-      <tr><td>LiteLLM 成为单点</td><td>两副本加就绪探针；它是无状态的，Key 和花费在 PG 里，挂了重启即可；智能体只认 OpenAI 兼容接口，以后换成 Higress 或自研也只改地址</td></tr>
-      <tr><td>有人绕过底座直接调模型</td><td>厂商密钥只放在 LiteLLM，智能体手里没有；keel-gate 扫描代码里直接调厂商 SDK 的写法；对账发现未登记的实例就告警</td></tr>
+      <tr><td>薄网关 成为单点</td><td>两副本加就绪探针；它是无状态的，Key 和花费在 PG 里，挂了重启即可；智能体只认 OpenAI 兼容接口，以后换成 Higress 或自研也只改地址</td></tr>
+      <tr><td>有人绕过底座直接调模型</td><td>厂商密钥只放在 薄网关，智能体手里没有；keel-gate 扫描代码里直接调厂商 SDK 的写法；对账发现未登记的实例就告警</td></tr>
       <tr><td>SDK 版本不一致</td><td>契约带版本号 keel/v1，平台向后兼容两个小版本；注册自检时检查 SDK 版本</td></tr>
       <tr><td>底座越做越重，新智能体绕开它</td><td>只把"第二个智能体也要写"的东西纳入底座；agent.yaml 除 name、endpoint 外都有默认值</td></tr>
       <tr><td>评测集质量差，门禁形同虚设</td><td>模板自带冒烟用例；坏案例持续回流；门禁同时约束总分和单维度退步</td></tr>
@@ -1407,7 +1406,7 @@ keel retire --env prod
   </table>
 </section>
 
-<footer><span>Keel 龙骨 · 智能体平台底座设计说明 v0.3（自研 keel-gateway 轻量版 · LiteLLM · 自建 Langfuse · rag-forge 纳入监控）</span><span>2026-09-30 · 基于 careermate / askdb / offshore-wind-agent / auth-gateway / rag-forge 现状</span></footer>
+<footer><span>Keel 龙骨 · 智能体平台底座设计说明 v0.4（自研 keel-gateway 轻量版 · 自研薄网关 · Langfuse Cloud 日本 · rag-forge 纳入监控）</span><span>2026-10-04 · 基于 careermate / askdb / offshore-wind-agent / auth-gateway / rag-forge 现状</span></footer>
 </div>
 </main>
 
@@ -1476,7 +1475,7 @@ const N=[
   {id:'w1',ag:'wind',type:'GENERATION',name:'route',short:'路由',s:1500,t:700,st:'ok',d:2,crit:true,svc:'offshore-wind',model:'qwen-flash',tin:380,tout:30,cost:.0004,in:'子任务文本',out:'需要：故障处理手册 + 安全规程'},
   {id:'w2',ag:'wind',type:'RETRIEVER',name:'rag.fault-manual',short:'检索手册',s:2200,t:700,st:'ok',d:2,crit:true,svc:'rag-forge',in:'F203 变桨',out:'top5，命中 §4.7 变桨系统故障（改写 90ms · 向量 220ms · 关键词 70ms · 重排 280ms）',rel:'rag-forge 知识库 fault-manual · recall@5 0.91'},
   {id:'w3',ag:'wind',type:'RETRIEVER',name:'rag.safety-procedures',short:'检索规程',s:2200,t:600,st:'ok',d:2,row:1,svc:'rag-forge',in:'登机检修',out:'top3，命中 §5.1 停机作业'},
-  {id:'w4',ag:'wind',type:'GENERATION',name:'answer',short:'生成回答',s:2950,t:3050,st:'fallback',d:2,crit:true,svc:'offshore-wind',model:'deepseek-v3（降级）',tin:2980,tout:560,cost:.0101,in:'子任务 + 检索到的 8 个片段',out:'qwen-plus 超时 5s，LiteLLM 按降级规则切到 deepseek-v3 后完成'},
+  {id:'w4',ag:'wind',type:'GENERATION',name:'answer',short:'生成回答',s:2950,t:3050,st:'fallback',d:2,crit:true,svc:'offshore-wind',model:'deepseek-v3（降级）',tin:2980,tout:560,cost:.0101,in:'子任务 + 检索到的 8 个片段',out:'qwen-plus 超时 5s，薄网关 按降级规则切到 deepseek-v3 后完成'},
   {id:'w5',ag:'wind',type:'GUARDRAIL',name:'grounding',short:'接地校验',s:6000,t:400,st:'ok',d:2,crit:true,svc:'offshore-wind',in:'回答中的 6 条陈述',out:'6 条全部能在引用片段中找到依据'},
   {id:'syn',ag:'sup',type:'GENERATION',name:'synthesize',short:'汇总',s:6450,t:3350,st:'ok',d:1,crit:true,svc:'ops-copilot',model:'qwen-plus',tin:2310,tout:486,cost:.0048,in:'askdb 的统计结果 + offshore-wind 的处理建议',out:'结论：同批次故障率偏高 3 倍，建议整批排查；需要创建 P1 工单'},
   {id:'tool',ag:'sup',type:'TOOL',name:'work_order_create',short:'建工单',s:9800,t:600,st:'ok',d:1,crit:true,svc:'ops-copilot',in:'WT-07 · 变桨 F203 · P1 · 同批次排查',out:'工单 WO-20260929-031 已创建',rel:'审计事件 ae_…c31a · 审批记录 ap_…0912'},
@@ -1569,7 +1568,7 @@ function showNode(id){
     '<div><span>模型</span><b>'+(n.model||'—')+'</b></div>'+
     '<div><span>tokens'+(n.agg?'（含子节点）':'')+'</span><b>'+(tk?tk.toLocaleString():'—')+'</b></div>'+
     '<div><span>成本'+(n.agg?'（含子节点）':'')+'</span><b>'+(n.cost?'¥'+n.cost.toFixed(4):'—')+'</b></div>'+
-    (n.model?'<div class="full"><span>模型网关</span><b>经 LiteLLM · 虚拟 Key '+LKEY[n.ag]+' · 花费计入该智能体的日预算</b></div>':'')+
+    (n.model?'<div class="full"><span>模型网关</span><b>经 薄网关 · 虚拟 Key '+LKEY[n.ag]+' · 花费计入该智能体的日预算</b></div>':'')+
     '<div class="full"><span>输入摘要</span><b>'+n.in+'</b></div>'+
     '<div class="full"><span>输出摘要</span><b>'+n.out+'</b></div>'+
     '<div class="full"><span>关联</span><div class="acts">'+(n.rel?'<span class="pill p-soft">'+n.rel+'</span>':'<span class="mut">—</span>')+'<span class="sp"></span><button class="btn">在 Langfuse 中查看此节点 ↗</button></div></div>';

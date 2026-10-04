@@ -55,14 +55,14 @@ P1 的 20 条任务都有 spec，文件在 `specs/p1/`。已完成的是 P1-0 �
 | 任务 | spec | 执行者 | 前置 |
 |---|---|---|---|
 | P1-0 | [底座最小可运行](specs/p1/P1-0-runnable-baseline.md)（已完成） | Cursor | P0-4 |
-| P1-1 | [Langfuse v4 部署](specs/p1/P1-1-langfuse-deploy.md) | 人工 + Cursor | ECS |
-| P1-2 | [LiteLLM 部署](specs/p1/P1-2-litellm-deploy.md) | Codex | P1-1 |
+| P1-1 | [Langfuse Cloud 日本节点](specs/p1/P1-1-langfuse-deploy.md) | 人工 + Cursor | — |
+| P1-2 | [自研薄网关](specs/p1/P1-2-model-gateway.md) | Cursor | — |
 | P1-3 | [keel 库其余表](specs/p1/P1-3-keel-server-schema.md) | Codex | P0-4 P1-0 |
 | P1-4 | [registry 查询与登记数据](specs/p1/P1-4-registry-crud.md) | Codex | P1-3 |
 | P1-5 | [manifest 校验与自检](specs/p1/P1-5-manifest-self-check.md) | Cursor | P1-4 |
 | P1-6 | [开通编排与回滚](specs/p1/P1-6-provisioning-rollback.md) | Cursor | P1-4 P1-5 |
 | P1-7 | [OAuth 客户端与公钥](specs/p1/P1-7-auth-client-jwks.md) | Cursor | P1-6 P0-5 |
-| P1-8 | [LiteLLM / Langfuse / Secret](specs/p1/P1-8-external-provisioners.md) | Codex | P1-6 |
+| P1-8 | [薄网关 / Langfuse / Secret](specs/p1/P1-8-external-provisioners.md) | Cursor | P1-6 P1-2 |
 | P1-9 | [对账](specs/p1/P1-9-discovery-reconcile.md) | Cursor | P1-4 |
 | P1-10 | [心跳与探活](specs/p1/P1-10-heartbeat-probe.md) | Codex | P1-9 |
 | P1-11 | [审计哈希链](specs/p1/P1-11-audit-chain.md) | Cursor | P0-1 |

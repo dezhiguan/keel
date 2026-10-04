@@ -7,7 +7,7 @@ info:
     keel-console 九个页面消费的全部接口，由 keel-server 实现。
 
     这份文件是前端、mock 数据、后端实现三方的唯一事实来源：
-    - 前端只调这里定义的接口，不直接调 Langfuse / LiteLLM / Prometheus
+    - 前端只调这里定义的接口，不直接调 Langfuse / 薄网关 / Prometheus
     - mock 数据由这份文件生成，接口切真时前端只改 baseURL
     - 后端 P1 按这份文件实现，字段不一致以这里为准
 
@@ -907,7 +907,7 @@ paths:
       tags: [models]
       operationId: getModelGateway
       summary: 模型网关页全部数据
-      description: 模型与花费来自 LiteLLM，单次调用明细在链路追踪页看（来自 Langfuse）。
+      description: 模型与花费来自薄网关（人民币），单次调用明细在链路追踪页看（来自 Langfuse）。
       parameters:
         - $ref: "#/components/parameters/Env"
         - name: range
@@ -1199,6 +1199,7 @@ components:
                   type:
                     type: string
                     enum: [litellm_key, langfuse, secret, dataset, oauth_client]
+                    description: litellm_key 是历史枚举值，语义为薄网关虚拟 Key
                   externalId: { type: string }
                   status: { type: string }
             versions:
@@ -1661,7 +1662,7 @@ components:
               status: { type: string, enum: [ok, warn, bad] }
               priceConfigured:
                 type: boolean
-                description: LiteLLM model_info 是否配了单价；为 false 时成本会静默记 0
+                description: 薄网关是否为该模型配置了单价；为 false 时表示配置漂移
         keys:
           type: array
           items:
@@ -1678,7 +1679,7 @@ components:
               status: { type: string, enum: [ACTIVE, BLOCKED] }
         routing:
           type: array
-          description: 由各智能体 manifest 生成，写入 LiteLLM 路由配置
+          description: 由各智能体 manifest 生成，写入薄网关的虚拟 Key
           items:
             type: object
             properties:

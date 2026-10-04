@@ -86,7 +86,7 @@ cd sdk-python && pytest tests -q
 
 ## 明确不做
 
-- 不接 LiteLLM、rag-forge、Langfuse、keel-audit，全部留桩（P0-7、P0-8）
+- 不接薄网关、rag-forge、Langfuse、keel-audit，全部留桩（P0-7、P0-8）
 - 不做换票、配额、护栏。`auth/`、`quota.py`、`guard/` 已按技术文档第 05 节放了只有 docstring 的占位，这一期**不实现、不删除**
 - 不做 `ctx.delegate` 的真实实现，只留接口
 - 不做 `idempotency_key` 的去重存储（P3-1）
