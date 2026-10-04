@@ -42,6 +42,7 @@ POST /api/v1/instances/heartbeat
 - **版本核对写的是实例上的 version，不改 `agent_version`。** 登记版本仍是发布记录。两者不同由 P1-9 报 VERSION_MISMATCH。
 - **核对请求失败时不要把版本改成空。** 空版本会被 P1-9 跳过，从而掩盖一次网络故障。失败保持上次版本，并在日志里带 `trace_id` 和 `agent`。
 - Dify 探活只覆盖 `runtime=dify` 的实例。代码智能体不走探活。
+- **2026-10-04：** 没有对照过正在运行的 Dify 管理 API，探活只打登记 endpoint 的 `GET /v1/health`。不要改成猜出来的 Dify REST。
 - starter 与 Python SDK 的心跳间隔必须小于 45 秒，建议 15 秒。不要在 SDK 里写 keel-server 的地址默认值；地址来自环境变量，缺失则不启动心跳。
 
 ## 验收标准

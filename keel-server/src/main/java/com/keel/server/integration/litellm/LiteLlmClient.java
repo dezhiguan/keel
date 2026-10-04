@@ -9,6 +9,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -41,6 +42,63 @@ public class LiteLlmClient {
 
     public void block(String alias) {
         send("/admin/v1/keys/" + alias + "/block", Map.of());
+    }
+
+    /** True when spend has a row at or after {@code since}. Null when the gateway cannot be read. */
+    public Boolean calledSince(String alias, Instant since) {
+        if (baseUrl.isBlank() || masterKey.isBlank()) {
+            return null;
+        }
+        try {
+            for (int page = 1; page <= 20; page++) {
+                var body = get("/admin/v1/spend?alias=" + alias + "&page=" + page + "&size=50");
+                var data = body.path("data");
+                if (!data.isArray() || data.isEmpty()) {
+                    return false;
+                }
+                var recent = false;
+                for (var row : data) {
+                    var ts = row.path("ts").asText("");
+                    if (!ts.isBlank() && !Instant.parse(ts).isBefore(since)) {
+                        recent = true;
+                    }
+                }
+                if (recent) {
+                    return true;
+                }
+                if (data.size() < 50) {
+                    return false;
+                }
+            }
+            return false;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private JsonNode get(String path) {
+        if (baseUrl.isBlank() || masterKey.isBlank()) {
+            throw new IllegalStateException("薄网关地址或管理密钥未配置");
+        }
+        try {
+            var request = HttpRequest.newBuilder(URI.create(baseUrl + path))
+                    .timeout(Duration.ofSeconds(5))
+                    .header("Authorization", "Bearer " + masterKey)
+                    .GET()
+                    .build();
+            var response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 300) {
+                throw new IllegalStateException("薄网关 " + path + " " + response.statusCode());
+            }
+            if (response.body() == null || response.body().isBlank()) {
+                return json.createObjectNode();
+            }
+            return json.readTree(response.body());
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private JsonNode send(String path, Object body) {

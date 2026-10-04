@@ -11,8 +11,10 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.net.URLEncoder;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.HexFormat;
@@ -77,6 +79,28 @@ public class LangfuseClient {
 
     public void deleteDataset(String dataset) {
         send("DELETE", "/api/public/datasets/" + dataset, null, true);
+    }
+
+    /**
+     * Observation count over the window. Null when Langfuse cannot be read.
+     * v2 metrics has no traces view; this counts observations.
+     */
+    public Integer observationCount(Instant from, Instant to) {
+        if (baseUrl.isBlank() || authorization.isBlank()) {
+            return null;
+        }
+        try {
+            var query = "{\"view\":\"observations\",\"metrics\":[{\"measure\":\"count\",\"aggregation\":\"count\"}],"
+                    + "\"dimensions\":[],\"filters\":[],\"fromTimestamp\":\"" + from + "\",\"toTimestamp\":\"" + to + "\"}";
+            var body = get("/api/public/v2/metrics?query=" + URLEncoder.encode(query, StandardCharsets.UTF_8));
+            var count = body.path("data").path(0).path("count_count");
+            if (count.isMissingNode() || count.isNull()) {
+                return 0;
+            }
+            return Integer.valueOf(count.asText("0"));
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     private JsonNode get(String path) {
