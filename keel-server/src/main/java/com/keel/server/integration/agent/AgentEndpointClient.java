@@ -58,7 +58,7 @@ public class AgentEndpointClient {
                     throw new IllegalStateException("智能体的 final 事件无法解析");
                 }
             } else if (line.startsWith("data:") && "error".equals(event)) {
-                throw new IllegalStateException("智能体返回错误");
+                throw new IllegalStateException("智能体返回错误 " + line.substring("data:".length()).trim());
             }
         }
         if (answer == null) {

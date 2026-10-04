@@ -20,6 +20,7 @@ class AgentEndpointClientTest {
 
     @Test void rejectsAnErrorEvent() {
         assertThatThrownBy(() -> AgentEndpointClient.parseFinal("event: error\ndata: {\"code\":\"SERVER_INTERNAL_ERROR\"}\n"))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("SERVER_INTERNAL_ERROR");
     }
 }
