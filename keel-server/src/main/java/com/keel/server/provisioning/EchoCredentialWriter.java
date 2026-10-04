@@ -25,6 +25,11 @@ public class EchoCredentialWriter {
     }
 
     public void ensure(String agent) {
+        var base = System.getenv("KEEL_LLM_BASE_URL");
+        var admin = System.getenv("KEEL_LLM_ADMIN_KEY");
+        if (base == null || base.isBlank() || admin == null || admin.isBlank()) {
+            return;
+        }
         var name = "keel-" + agent;
         var existing = kubernetes.secrets().inNamespace(NAMESPACE).withName(name).get();
         if (existing != null && existing.getData() != null && existing.getData().containsKey("KEEL_LLM_KEY")) {

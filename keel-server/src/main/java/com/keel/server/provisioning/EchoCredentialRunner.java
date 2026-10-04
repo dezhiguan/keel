@@ -20,8 +20,8 @@ public class EchoCredentialRunner implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         try {
             writer.ensure("echo");
-        } catch (RuntimeException e) {
-            log.warn("echo virtual key was not created: {}", e.getMessage());
+        } catch (Throwable e) {
+            log.warn("echo virtual key was not created: {}", e.toString());
         }
     }
 }
