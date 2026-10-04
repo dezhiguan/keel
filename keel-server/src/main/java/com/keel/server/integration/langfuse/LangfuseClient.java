@@ -85,6 +85,20 @@ public class LangfuseClient {
      * Observation count over the window. Null when Langfuse cannot be read.
      * v2 metrics has no traces view; this counts observations.
      */
+    public JsonNode observationsByTrace(String traceId) {
+        if (baseUrl.isBlank() || authorization.isBlank()) {
+            throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
+        }
+        return get("/api/public/v2/observations?limit=100&traceId=" + URLEncoder.encode(traceId, StandardCharsets.UTF_8));
+    }
+
+    public JsonNode observationsPage() {
+        if (baseUrl.isBlank() || authorization.isBlank()) {
+            throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
+        }
+        return get("/api/public/v2/observations?limit=100");
+    }
+
     public Integer observationCount(Instant from, Instant to) {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             return null;

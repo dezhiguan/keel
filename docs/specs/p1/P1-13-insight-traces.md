@@ -20,7 +20,7 @@ keel-server/src/test/java/com/keel/server/insight/**
 docs/specs/p1/P1-13-insight-traces.md
 ```
 
-列表接口 `GET /api/v1/insight/traces` 也在本任务实现，页面在 P1-16 才接。列表同样只走 v2 observations 或 v2 metrics。如果这两个接口都组不出「按 trace 分页」的形状，把实际响应样例记到本文件再改组装，不要换一个未核实的路径。
+列表接口 `GET /api/v1/insight/traces` 也在本任务实现，页面在 P1-16 才接。列表同样只走 v2 observations。v2 没有按 trace 分页的接口（`GET /api/public/traces` 对 2026-09-16 之后的组织返回 410）。实现是拉一页 `/api/public/v2/observations`，在服务端按 `traceId` 分组后再分页。
 
 ## 接口契约
 
