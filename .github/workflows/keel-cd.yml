@@ -3,12 +3,12 @@ name: keel CD
 # 一条流水线，前后端分开走。
 #
 #   后端测试 ─┐
-#   后端门禁 ─┴─ 构建 keel-llm ─────┐
-#                构建 keel-server ──┤
-#                构建 keel-gateway ─┤
-#                构建 keel-audit ───┴─ 部署后端 ──┐
-#   前端类型检查 ─┐                                ├─ 冒烟
-#   前端测试 ─────┼─ 前端构建 ─ 构建控制台 ─ 部署控制台 ┘
+#   后端门禁 ─┴─ 构建 keel-llm ───── 部署 keel-llm ─────┐
+#                构建 keel-server ── 部署 keel-server ──┤
+#                构建 keel-gateway ─ 部署 keel-gateway ─┤
+#                构建 keel-audit ─── 部署 keel-audit ───┴─ 冒烟
+#   前端类型检查 ─┐                                      │
+#   前端测试 ─────┼─ 前端构建 ─ 构建控制台 ─ 部署控制台 ──┘
 #   前端门禁 ─────┘
 #
 # 镜像只在推 main 之后构建。pull request 停在测试和门禁。
@@ -109,49 +109,73 @@ jobs:
           grep -q 'Keel 控制台' dist/index.html
           grep -q '/assets/' dist/index.html
 
-  build-backend:
-    name: 构建 ${{ matrix.service }}
+  build-llm:
+    name: 构建 keel-llm
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: [backend-test, backend-gate]
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - service: keel-llm
-            ram: "60.0"
-          - service: keel-server
-            ram: "70.0"
-          - service: keel-gateway
-            ram: "70.0"
-          - service: keel-audit
-            ram: "70.0"
+    env:
+      ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
-      - id: image
-        env:
-          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
-        run: bash deploy/ci/resolve-image.sh ${{ matrix.service }}
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: ./.github/actions/build-java
         with:
-          registry: ${{ steps.image.outputs.server }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
-      - uses: docker/build-push-action@v6
+          service: keel-llm
+          ram: "60.0"
+
+  build-server:
+    name: 构建 keel-server
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [backend-test, backend-gate]
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    env:
+      ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/build-java
         with:
-          context: .
-          file: deploy/docker/service.Dockerfile
-          push: true
-          provenance: false
-          tags: ${{ steps.image.outputs.push_image }}
-          build-args: |
-            MODULE=${{ matrix.service }}
-            JAR=${{ matrix.service }}/target/${{ matrix.service }}-0.1.0-SNAPSHOT.jar
-            RAM_PERCENTAGE=${{ matrix.ram }}
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,scope=${{ matrix.service }},mode=max
+          service: keel-server
+          ram: "70.0"
+
+  build-gateway:
+    name: 构建 keel-gateway
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [backend-test, backend-gate]
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    env:
+      ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/build-java
+        with:
+          service: keel-gateway
+          ram: "70.0"
+
+  build-audit:
+    name: 构建 keel-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [backend-test, backend-gate]
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    env:
+      ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/build-java
+        with:
+          service: keel-audit
+          ram: "70.0"
 
   build-console:
     name: 构建控制台
@@ -181,11 +205,11 @@ jobs:
           cache-from: type=gha,scope=keel-console
           cache-to: type=gha,scope=keel-console,mode=max
 
-  deploy-backend:
-    name: 部署后端
+  deploy-llm:
+    name: 部署 keel-llm
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: [build-backend]
+    timeout-minutes: 20
+    needs: [build-llm]
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4
@@ -195,48 +219,75 @@ jobs:
           DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
           JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
         run: bash deploy/ci/configure-ssh.sh
-      - name: 发布四个后端
+      - name: 发布 keel-llm
         env:
           ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
           ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
           ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${ACR_REGISTRY}" ]]; then echo "ACR_REGISTRY must be set"; exit 1; fi
-          tag="${GITHUB_SHA::12}"
-          pull="${ACR_REGISTRY%/}"
-          sed \
-            -e "s|PLACEHOLDER_LLM_IMAGE|${pull}/keel-llm:${tag}|" \
-            -e "s|PLACEHOLDER_SERVER_IMAGE|${pull}/keel-server:${tag}|" \
-            -e "s|PLACEHOLDER_GATEWAY_IMAGE|${pull}/keel-gateway:${tag}|" \
-            -e "s|PLACEHOLDER_AUDIT_IMAGE|${pull}/keel-audit:${tag}|" \
-            deploy/k3s/backend.yaml > /tmp/keel-backend.yaml
-          grep -q "PLACEHOLDER_" /tmp/keel-backend.yaml && { echo "镜像占位符未被替换"; exit 1; }
-          scp -F ~/.ssh/config /tmp/keel-backend.yaml keel-app:/tmp/keel-backend.yaml
-          password_b64="$(printf '%s' "${ACR_PASSWORD}" | base64 -w0)"
-          ssh -T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 keel-app \
-            "ACR_REGISTRY='${ACR_REGISTRY}' ACR_USERNAME='${ACR_USERNAME}' ACR_PASSWORD_B64='${password_b64}' bash -s" <<'EOF'
-          set -euo pipefail
-          ACR_PASSWORD="$(printf '%s' "${ACR_PASSWORD_B64}" | base64 -d)"
-          kubectl create namespace keel-system --dry-run=client -o yaml | kubectl apply -f -
-          for name in keel-llm keel-llm-vendors keel-server; do
-            if ! kubectl -n keel-system get secret "${name}" >/dev/null 2>&1; then
-              echo "缺少 Secret ${name}。按 deploy/README.md 在 Server 3 上建好再重跑。"
-              exit 1
-            fi
-          done
-          kubectl -n keel-system create secret docker-registry acr-cred \
-            --docker-server="${ACR_REGISTRY%%/*}" \
-            --docker-username="${ACR_USERNAME}" \
-            --docker-password="${ACR_PASSWORD}" \
-            --dry-run=client -o yaml | kubectl apply -f -
-          kubectl apply -f /tmp/keel-backend.yaml
-          kubectl -n keel-system rollout status deployment/keel-llm --timeout=180s
-          kubectl -n keel-system rollout status deployment/keel-server --timeout=180s
-          kubectl -n keel-system rollout status deployment/keel-gateway --timeout=180s
-          kubectl -n keel-system rollout status deployment/keel-audit --timeout=180s
-          rm -f /tmp/keel-backend.yaml
-          EOF
+        run: bash deploy/ci/rollout-service.sh keel-llm deploy/k3s/services/keel-llm.yaml PLACEHOLDER_LLM_IMAGE keel-llm keel-llm-vendors
+
+  deploy-server:
+    name: 部署 keel-server
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build-server]
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 配置 SSH
+        env:
+          SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
+          JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+        run: bash deploy/ci/configure-ssh.sh
+      - name: 发布 keel-server
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        run: bash deploy/ci/rollout-service.sh keel-server deploy/k3s/services/keel-server.yaml PLACEHOLDER_SERVER_IMAGE keel-server
+
+  deploy-gateway:
+    name: 部署 keel-gateway
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build-gateway]
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 配置 SSH
+        env:
+          SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
+          JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+        run: bash deploy/ci/configure-ssh.sh
+      - name: 发布 keel-gateway
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        run: bash deploy/ci/rollout-service.sh keel-gateway deploy/k3s/services/keel-gateway.yaml PLACEHOLDER_GATEWAY_IMAGE
+
+  deploy-audit:
+    name: 部署 keel-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build-audit]
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 配置 SSH
+        env:
+          SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
+          JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+        run: bash deploy/ci/configure-ssh.sh
+      - name: 发布 keel-audit
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        run: bash deploy/ci/rollout-service.sh keel-audit deploy/k3s/services/keel-audit.yaml PLACEHOLDER_AUDIT_IMAGE
 
   deploy-frontend:
     name: 部署控制台
@@ -287,7 +338,7 @@ jobs:
     name: 冒烟
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [deploy-backend, deploy-frontend]
+    needs: [deploy-llm, deploy-server, deploy-gateway, deploy-audit, deploy-frontend]
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4

@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keel-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keel-llm
+  namespace: keel-system
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 1, maxSurge: 0 }
+  selector:
+    matchLabels: { app: keel-llm }
+  template:
+    metadata:
+      labels: { app: keel-llm }
+    spec:
+      imagePullSecrets:
+        - name: acr-cred
+      terminationGracePeriodSeconds: 75
+      containers:
+        - name: keel-llm
+          image: PLACEHOLDER_LLM_IMAGE
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8088
+          env:
+            - name: KEEL_LLM_ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: keel-llm
+                  key: admin-key
+            - name: KEEL_LLM_REDIS
+              valueFrom:
+                secretKeyRef:
+                  name: keel-llm
+                  key: redis-url
+          envFrom:
+            - secretRef:
+                name: keel-llm-vendors
+                optional: false
+          readinessProbe:
+            httpGet: { path: /health, port: 8088 }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8088 }
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keel-llm
+  namespace: keel-system
+spec:
+  type: ClusterIP
+  selector: { app: keel-llm }
+  ports:
+    - port: 8088
+      targetPort: 8088

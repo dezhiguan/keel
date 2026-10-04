@@ -10,12 +10,12 @@ import org.springframework.context.annotation.Configuration;
 public class KubernetesConfiguration {
     @Bean
     KubernetesClient kubernetesClient() {
-        try {
-            return new KubernetesClientBuilder().build();
-        } catch (Exception e) {
+        // 不在集群里时，fabric8 仍会把地址设成 kubernetes.default.svc，测试和本机都会解析失败。
+        if (System.getenv("KUBERNETES_SERVICE_HOST") == null) {
             return new KubernetesClientBuilder()
                     .withConfig(new ConfigBuilder().withMasterUrl("http://127.0.0.1:1").build())
                     .build();
         }
+        return new KubernetesClientBuilder().build();
     }
 }

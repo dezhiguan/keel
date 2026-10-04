@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keel-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keel-gateway
+  namespace: keel-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: keel-gateway }
+  template:
+    metadata:
+      labels: { app: keel-gateway }
+    spec:
+      imagePullSecrets:
+        - name: acr-cred
+      containers:
+        - name: keel-gateway
+          image: PLACEHOLDER_GATEWAY_IMAGE
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            tcpSocket: { port: 8080 }
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 8080 }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keel-gateway
+  namespace: keel-system
+spec:
+  type: ClusterIP
+  selector: { app: keel-gateway }
+  ports:
+    - port: 8080
+      targetPort: 8080

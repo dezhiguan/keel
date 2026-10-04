@@ -16,6 +16,17 @@ public class CostService {
     }
 
     public Result cost() {
+        try {
+            return load();
+        } catch (IllegalStateException e) {
+            if (e.getMessage() != null && e.getMessage().contains("未配置")) {
+                return new Result(0, 0, Map.of(), Map.of(), List.of());
+            }
+            throw e;
+        }
+    }
+
+    private Result load() {
         var rows = gateway.spendAll();
         var byAgent = new LinkedHashMap<String, Double>();
         double total = 0;

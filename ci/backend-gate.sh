@@ -24,18 +24,18 @@ print("单价门禁通过")
 PY
 
 if grep -RInE 'sk-[A-Za-z0-9]{10,}|AKIA[0-9A-Z]{16}' \
-  keel-llm/src keel-server/src keel-gateway/src keel-audit/src deploy/k3s/backend.yaml; then
+  keel-llm/src keel-server/src keel-gateway/src keel-audit/src deploy/k3s/services; then
   echo "后端源码或清单里出现了密钥" >&2
   exit 1
 fi
 
-manifest=deploy/k3s/backend.yaml
 for name in keel-llm keel-server keel-gateway keel-audit; do
+  manifest="deploy/k3s/services/${name}.yaml"
   grep -q "name: ${name}" "$manifest"
+  grep -q 'type: ClusterIP' "$manifest"
+  if grep -Eq 'nodePort|keel-console|PLACEHOLDER_CONSOLE' "$manifest"; then
+    echo "${name} 的清单不能带控制台或对公网端口" >&2
+    exit 1
+  fi
 done
-test "$(grep -c 'type: ClusterIP' "$manifest")" -ge 4
-if grep -Eq 'nodePort|keel-console|PLACEHOLDER_CONSOLE' "$manifest"; then
-  echo "后端清单不能带控制台或对公网端口" >&2
-  exit 1
-fi
 echo "后端清单门禁通过"
