@@ -30,11 +30,12 @@ spec:
               readOnly: true
           readinessProbe:
             httpGet: { path: /v1/health, port: 8000 }
-            initialDelaySeconds: 5
+            initialDelaySeconds: 10
             periodSeconds: 10
+            failureThreshold: 12
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
-            limits: { cpu: "500m", memory: "512Mi" }
+            limits: { cpu: "1000m", memory: "1Gi" }
       volumes:
         - name: keel-echo
           secret:
