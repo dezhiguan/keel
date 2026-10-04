@@ -11,7 +11,8 @@ name: keel CD
 #   前端测试 ─────┼─ 前端构建 ─ 构建控制台 ─ 部署控制台 ──┘
 #   前端门禁 ─────┘
 #
-# 镜像只在推 main 之后构建。pull request 停在测试和门禁。
+# 只测试和发布本次改动影响到的服务。公共代码（keel-common、父 pom、构建脚本）才让四个后端一起走。
+# 镜像只在推 main 之后构建。pull request 停在测试和门禁。手动触发会四个后端和前端都走一遍。
 on:
   pull_request:
     branches: [main]
@@ -27,10 +28,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  backend-test:
-    name: 后端测试
+  changes:
+    name: 变更范围
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    outputs:
+      llm: ${{ steps.scope.outputs.llm }}
+      server: ${{ steps.scope.outputs.server }}
+      gateway: ${{ steps.scope.outputs.gateway }}
+      audit: ${{ steps.scope.outputs.audit }}
+      console: ${{ steps.scope.outputs.console }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: scope
+        env:
+          BEFORE: ${{ github.event.before }}
+          BASE_REF: ${{ github.base_ref }}
+        run: bash ci/changed-services.sh
+
+  test-llm:
+    name: 测试 keel-llm
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [changes]
+    if: needs.changes.outputs.llm == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -38,13 +60,59 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
-      - name: 四个后端模块
-        run: mvn -pl :keel-llm,:keel-server,:keel-gateway,:keel-audit -am test
+      - run: mvn -pl :keel-llm -am test
+
+  test-server:
+    name: 测试 keel-server
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [changes]
+    if: needs.changes.outputs.server == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - run: mvn -pl :keel-server -am test
+
+  test-gateway:
+    name: 测试 keel-gateway
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [changes]
+    if: needs.changes.outputs.gateway == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - run: mvn -pl :keel-gateway -am test
+
+  test-audit:
+    name: 测试 keel-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [changes]
+    if: needs.changes.outputs.audit == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - run: mvn -pl :keel-audit -am test
 
   backend-gate:
     name: 后端门禁
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    needs: [changes]
+    if: needs.changes.outputs.llm == 'true' || needs.changes.outputs.server == 'true' || needs.changes.outputs.gateway == 'true' || needs.changes.outputs.audit == 'true'
     steps:
       - uses: actions/checkout@v4
       - run: bash ci/backend-gate.sh
@@ -53,6 +121,8 @@ jobs:
     name: 前端类型检查
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: [changes]
+    if: needs.changes.outputs.console == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -68,6 +138,8 @@ jobs:
     name: 前端测试
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: [changes]
+    if: needs.changes.outputs.console == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -83,6 +155,8 @@ jobs:
     name: 前端门禁
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    needs: [changes]
+    if: needs.changes.outputs.console == 'true'
     steps:
       - uses: actions/checkout@v4
       - run: bash ci/frontend-gate.sh
@@ -91,7 +165,8 @@ jobs:
     name: 前端构建
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [frontend-typecheck, frontend-test, frontend-gate]
+    needs: [changes, frontend-typecheck, frontend-test, frontend-gate]
+    if: needs.changes.outputs.console == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -113,8 +188,8 @@ jobs:
     name: 构建 keel-llm
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    needs: [backend-test, backend-gate]
-    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    needs: [changes, test-llm, backend-gate]
+    if: needs.changes.outputs.llm == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     env:
       ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
       ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
@@ -130,8 +205,8 @@ jobs:
     name: 构建 keel-server
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    needs: [backend-test, backend-gate]
-    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    needs: [changes, test-server, backend-gate]
+    if: needs.changes.outputs.server == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     env:
       ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
       ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
@@ -147,8 +222,8 @@ jobs:
     name: 构建 keel-gateway
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    needs: [backend-test, backend-gate]
-    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    needs: [changes, test-gateway, backend-gate]
+    if: needs.changes.outputs.gateway == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     env:
       ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
       ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
@@ -164,8 +239,8 @@ jobs:
     name: 构建 keel-audit
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    needs: [backend-test, backend-gate]
-    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    needs: [changes, test-audit, backend-gate]
+    if: needs.changes.outputs.audit == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     env:
       ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
       ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
@@ -181,8 +256,8 @@ jobs:
     name: 构建控制台
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [frontend-build]
-    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    needs: [changes, frontend-build]
+    if: needs.changes.outputs.console == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - id: image
@@ -209,8 +284,8 @@ jobs:
     name: 部署 keel-llm
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [build-llm]
-    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    needs: [changes, build-llm]
+    if: needs.changes.outputs.llm == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - name: 配置 SSH
@@ -230,8 +305,8 @@ jobs:
     name: 部署 keel-server
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [build-server]
-    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    needs: [changes, build-server]
+    if: needs.changes.outputs.server == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - name: 配置 SSH
@@ -251,8 +326,8 @@ jobs:
     name: 部署 keel-gateway
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [build-gateway]
-    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    needs: [changes, build-gateway]
+    if: needs.changes.outputs.gateway == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - name: 配置 SSH
@@ -272,8 +347,8 @@ jobs:
     name: 部署 keel-audit
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [build-audit]
-    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    needs: [changes, build-audit]
+    if: needs.changes.outputs.audit == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - name: 配置 SSH
@@ -293,8 +368,8 @@ jobs:
     name: 部署控制台
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [build-console]
-    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    needs: [changes, build-console]
+    if: needs.changes.outputs.console == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - name: 配置 SSH
@@ -339,7 +414,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [deploy-llm, deploy-server, deploy-gateway, deploy-audit, deploy-frontend]
-    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    if: >-
+      !cancelled() &&
+      (needs.deploy-llm.result == 'success' || needs.deploy-server.result == 'success' || needs.deploy-gateway.result == 'success' || needs.deploy-audit.result == 'success' || needs.deploy-frontend.result == 'success') &&
+      (needs.deploy-llm.result == 'success' || needs.deploy-llm.result == 'skipped') &&
+      (needs.deploy-server.result == 'success' || needs.deploy-server.result == 'skipped') &&
+      (needs.deploy-gateway.result == 'success' || needs.deploy-gateway.result == 'skipped') &&
+      (needs.deploy-audit.result == 'success' || needs.deploy-audit.result == 'skipped') &&
+      (needs.deploy-frontend.result == 'success' || needs.deploy-frontend.result == 'skipped')
     steps:
       - uses: actions/checkout@v4
       - name: 配置 SSH
