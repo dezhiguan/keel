@@ -3,9 +3,11 @@ name: keel CD
 # 一条流水线，前后端分开走。
 #
 #   后端测试 ─┐
-#   后端门禁 ─┴─ 构建 keel-llm ──┐
-#                构建 keel-server ┴─ 部署后端 ──┐
-#   前端类型检查 ─┐                              ├─ 冒烟
+#   后端门禁 ─┴─ 构建 keel-llm ─────┐
+#                构建 keel-server ──┤
+#                构建 keel-gateway ─┤
+#                构建 keel-audit ───┴─ 部署后端 ──┐
+#   前端类型检查 ─┐                                ├─ 冒烟
 #   前端测试 ─────┼─ 前端构建 ─ 构建控制台 ─ 部署控制台 ┘
 #   前端门禁 ─────┘
 #
@@ -36,8 +38,8 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
-      - name: keel-llm 与 keel-server
-        run: mvn -pl :keel-llm,:keel-server -am test
+      - name: 四个后端模块
+        run: mvn -pl :keel-llm,:keel-server,:keel-gateway,:keel-audit -am test
 
   backend-gate:
     name: 后端门禁
@@ -107,18 +109,30 @@ jobs:
           grep -q 'Keel 控制台' dist/index.html
           grep -q '/assets/' dist/index.html
 
-  build-llm:
-    name: 构建 keel-llm
+  build-backend:
+    name: 构建 ${{ matrix.service }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: [backend-test, backend-gate]
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: keel-llm
+            ram: "60.0"
+          - service: keel-server
+            ram: "70.0"
+          - service: keel-gateway
+            ram: "70.0"
+          - service: keel-audit
+            ram: "70.0"
     steps:
       - uses: actions/checkout@v4
       - id: image
         env:
           ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
-        run: bash deploy/ci/resolve-image.sh keel-llm
+        run: bash deploy/ci/resolve-image.sh ${{ matrix.service }}
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -133,43 +147,11 @@ jobs:
           provenance: false
           tags: ${{ steps.image.outputs.push_image }}
           build-args: |
-            MODULE=keel-llm
-            JAR=keel-llm/target/keel-llm-0.1.0-SNAPSHOT.jar
-            RAM_PERCENTAGE=60.0
-          cache-from: type=gha,scope=keel-llm
-          cache-to: type=gha,scope=keel-llm,mode=max
-
-  build-server:
-    name: 构建 keel-server
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    needs: [backend-test, backend-gate]
-    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: image
-        env:
-          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
-        run: bash deploy/ci/resolve-image.sh keel-server
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ${{ steps.image.outputs.server }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: deploy/docker/service.Dockerfile
-          push: true
-          provenance: false
-          tags: ${{ steps.image.outputs.push_image }}
-          build-args: |
-            MODULE=keel-server
-            JAR=keel-server/target/keel-server-0.1.0-SNAPSHOT.jar
-            RAM_PERCENTAGE=70.0
-          cache-from: type=gha,scope=keel-server
-          cache-to: type=gha,scope=keel-server,mode=max
+            MODULE=${{ matrix.service }}
+            JAR=${{ matrix.service }}/target/${{ matrix.service }}-0.1.0-SNAPSHOT.jar
+            RAM_PERCENTAGE=${{ matrix.ram }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max
 
   build-console:
     name: 构建控制台
@@ -202,8 +184,8 @@ jobs:
   deploy-backend:
     name: 部署后端
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: [build-llm, build-server]
+    timeout-minutes: 30
+    needs: [build-backend]
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4
@@ -213,7 +195,7 @@ jobs:
           DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
           JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
         run: bash deploy/ci/configure-ssh.sh
-      - name: 发布 keel-llm 与 keel-server
+      - name: 发布四个后端
         env:
           ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
           ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
@@ -226,6 +208,8 @@ jobs:
           sed \
             -e "s|PLACEHOLDER_LLM_IMAGE|${pull}/keel-llm:${tag}|" \
             -e "s|PLACEHOLDER_SERVER_IMAGE|${pull}/keel-server:${tag}|" \
+            -e "s|PLACEHOLDER_GATEWAY_IMAGE|${pull}/keel-gateway:${tag}|" \
+            -e "s|PLACEHOLDER_AUDIT_IMAGE|${pull}/keel-audit:${tag}|" \
             deploy/k3s/backend.yaml > /tmp/keel-backend.yaml
           grep -q "PLACEHOLDER_" /tmp/keel-backend.yaml && { echo "镜像占位符未被替换"; exit 1; }
           scp -F ~/.ssh/config /tmp/keel-backend.yaml keel-app:/tmp/keel-backend.yaml
@@ -249,6 +233,8 @@ jobs:
           kubectl apply -f /tmp/keel-backend.yaml
           kubectl -n keel-system rollout status deployment/keel-llm --timeout=180s
           kubectl -n keel-system rollout status deployment/keel-server --timeout=180s
+          kubectl -n keel-system rollout status deployment/keel-gateway --timeout=180s
+          kubectl -n keel-system rollout status deployment/keel-audit --timeout=180s
           rm -f /tmp/keel-backend.yaml
           EOF
 
@@ -330,9 +316,11 @@ jobs:
           assert body["data"]["templates"], body
           print("catalog ok")
           PY
-          type="$(ssh "${SSH_OPTS[@]}" keel-app \
-            "kubectl -n keel-system get svc keel-llm -o jsonpath='{.spec.type}'")"
-          test "${type}" = "ClusterIP"
+          for svc in keel-llm keel-gateway keel-audit keel-server; do
+            type="$(ssh "${SSH_OPTS[@]}" keel-app \
+              "kubectl -n keel-system get svc ${svc} -o jsonpath='{.spec.type}'")"
+            test "${type}" = "ClusterIP"
+          done
           ssh "${SSH_OPTS[@]}" keel-app 'bash -s' > /tmp/keel-llm-health.json <<'EOF'
           set -euo pipefail
           IP="$(kubectl -n keel-system get svc keel-llm -o jsonpath='{.spec.clusterIP}')"

@@ -1,4 +1,5 @@
-# 后端：薄网关和 keel-server。控制台在 deploy/k3s/console.yaml，由另一条作业发布。
+# 四个后端。控制台在 deploy/k3s/console.yaml，由另一条作业发布。
+# gateway、audit 起步 1 副本。技术文档里的 2 副本留到压测之后再加。
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -125,6 +126,106 @@ metadata:
 spec:
   type: ClusterIP
   selector: { app: keel-server }
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keel-gateway
+  namespace: keel-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: keel-gateway }
+  template:
+    metadata:
+      labels: { app: keel-gateway }
+    spec:
+      imagePullSecrets:
+        - name: acr-cred
+      containers:
+        - name: keel-gateway
+          image: PLACEHOLDER_GATEWAY_IMAGE
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            tcpSocket: { port: 8080 }
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 8080 }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keel-gateway
+  namespace: keel-system
+spec:
+  type: ClusterIP
+  selector: { app: keel-gateway }
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keel-audit
+  namespace: keel-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: keel-audit }
+  template:
+    metadata:
+      labels: { app: keel-audit }
+    spec:
+      imagePullSecrets:
+        - name: acr-cred
+      containers:
+        - name: keel-audit
+          image: PLACEHOLDER_AUDIT_IMAGE
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            tcpSocket: { port: 8080 }
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 8080 }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keel-audit
+  namespace: keel-system
+spec:
+  type: ClusterIP
+  selector: { app: keel-audit }
   ports:
     - port: 8080
       targetPort: 8080

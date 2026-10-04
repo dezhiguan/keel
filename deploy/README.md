@@ -66,7 +66,7 @@ kubectl -n keel-system create secret generic keel-server \
 
 一条流水线，前后端分开：
 
-- 后端：测试、门禁，通过后分别构建 `keel-llm` 和 `keel-server`，再应用 `deploy/k3s/backend.yaml`
+- 后端：测试、门禁，通过后分别构建 `keel-llm`、`keel-server`、`keel-gateway`、`keel-audit`，再应用 `deploy/k3s/backend.yaml`
 - 前端：类型检查、测试、门禁，通过后构建，再构建镜像，应用 `deploy/k3s/console.yaml`
 - 两边都发布完才冒烟
 

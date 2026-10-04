@@ -1,4 +1,4 @@
-# keel-llm 与 keel-server 共用这一份。镜像里没有厂商密钥。
+# 四个后端服务共用这一份。镜像里没有厂商密钥。
 # Server 3 拉不了公网基础镜像，所以构建发生在 GitHub runner，产物进 ACR。
 
 FROM maven:3.9-eclipse-temurin-21 AS build
