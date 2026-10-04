@@ -133,6 +133,17 @@ codes:
     http: 400
     note: 仅 enforce 模式拦截；shadow 模式只标注不拦
 
+  # ── 薄网关 ──────────────────────────────────────────────────────
+  LLM_BUDGET_EXCEEDED:
+    message: 模型日预算已用完
+    retryable: true
+    http: 429
+
+  LLM_KEY_BLOCKED:
+    message: 虚拟 Key 已停用
+    retryable: false
+    http: 401
+
   # ── 委派 ────────────────────────────────────────────────────────
   DELEGATE_NOT_DECLARED:
     message: 目标智能体未在 manifest 的 delegates 中声明

@@ -1,0 +1,18 @@
+server:
+  port: 8088
+keel:
+  llm:
+    admin-key: ${KEEL_LLM_ADMIN_KEY:}
+    redis: ${KEEL_LLM_REDIS:}
+    # 单价是占位，部署前改成厂商当天价目。缺了或写成 0，进程拒绝启动。
+    models:
+      qwen-plus:
+        input-cny-per-token: "0.0000008"
+        output-cny-per-token: "0.000002"
+        upstream: ${QWEN_UPSTREAM:https://dashscope.aliyuncs.com/compatible-mode}
+        upstream-key: ${QWEN_API_KEY:}
+      deepseek-v3:
+        input-cny-per-token: "0.000001"
+        output-cny-per-token: "0.000002"
+        upstream: ${DEEPSEEK_UPSTREAM:https://api.deepseek.com}
+        upstream-key: ${DEEPSEEK_API_KEY:}

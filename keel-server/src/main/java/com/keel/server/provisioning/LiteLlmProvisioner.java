@@ -2,11 +2,9 @@ package com.keel.server.provisioning;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.keel.server.integration.litellm.LiteLlmClient;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 
@@ -14,13 +12,10 @@ import java.util.LinkedHashSet;
 public class LiteLlmProvisioner implements ProvisionStep {
     private final LiteLlmClient client;
     private final SecretWriter secrets;
-    private final String rateText;
 
-    public LiteLlmProvisioner(LiteLlmClient client, SecretWriter secrets,
-                              @Value("${KEEL_USD_CNY_RATE:}") String rateText) {
+    public LiteLlmProvisioner(LiteLlmClient client, SecretWriter secrets) {
         this.client = client;
         this.secrets = secrets;
-        this.rateText = rateText == null ? "" : rateText;
     }
 
     @Override
@@ -30,29 +25,36 @@ public class LiteLlmProvisioner implements ProvisionStep {
 
     @Override
     public void provision(String agent, String env, JsonNode manifest) {
-        if (rateText.isBlank()) {
-            throw new IllegalStateException("KEEL_USD_CNY_RATE 未配置");
-        }
-        var rate = new BigDecimal(rateText);
-        if (rate.signum() <= 0) {
-            throw new IllegalStateException("KEEL_USD_CNY_RATE 未配置");
-        }
         var cnyNode = manifest.path("spec").path("models").path("budget").path("dailyCny");
         if (!cnyNode.isNumber()) {
             throw new IllegalStateException("dailyCny 缺失");
         }
-        var usd = cnyNode.decimalValue().divide(rate, 8, RoundingMode.HALF_UP);
-        var models = new ArrayList<String>();
-        var seen = new LinkedHashSet<String>();
-        var defaultModel = manifest.path("spec").path("models").path("default").asText("");
-        if (!defaultModel.isBlank()) {
-            seen.add(defaultModel);
+        var models = new LinkedHashSet<String>();
+        var fallback = new LinkedHashSet<String>();
+        collect(manifest.path("spec").path("models"), models, fallback, false);
+        manifest.path("spec").path("models").path("byPurpose").fields().forEachRemaining(entry ->
+                collect(entry.getValue(), models, fallback, "embedding".equals(entry.getKey())));
+        if (manifest.path("spec").path("models").path("byPurpose").path("embedding").path("fallback").size() > 0) {
+            throw new IllegalStateException("向量化模型不允许 fallback");
         }
-        manifest.path("spec").path("models").path("fallback").forEach(node -> seen.add(node.asText()));
-        models.addAll(seen);
         var alias = agent + "-" + env;
-        var key = client.generate(alias, models, usd, agent);
+        var key = client.generate(alias, new ArrayList<>(models), new ArrayList<>(fallback), cnyNode.decimalValue(), !fallback.isEmpty());
         secrets.rememberLlmKey(agent, key);
+    }
+
+    private static void collect(JsonNode node, LinkedHashSet<String> models, LinkedHashSet<String> fallback, boolean embedding) {
+        var primary = node.path("default").asText("");
+        if (!primary.isBlank()) {
+            models.add(primary);
+        }
+        node.path("fallback").forEach(item -> {
+            if (!item.asText("").isBlank()) {
+                models.add(item.asText());
+                if (!embedding) {
+                    fallback.add(item.asText());
+                }
+            }
+        });
     }
 
     @Override

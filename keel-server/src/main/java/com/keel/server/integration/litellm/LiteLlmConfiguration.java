@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 public class LiteLlmConfiguration {
     @Bean
     LiteLlmClient liteLlmClient(@Value("${KEEL_LLM_BASE_URL:}") String baseUrl,
-                                @Value("${LITELLM_MASTER_KEY:}") String masterKey) {
+                                @Value("${KEEL_LLM_ADMIN_KEY:}") String masterKey) {
         return new LiteLlmClient(baseUrl, masterKey);
     }
 }

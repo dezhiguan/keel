@@ -23,6 +23,8 @@ public enum ErrorCode {
     RUN_RESUME_DENIED("无法恢复执行，凭据已失效", false, 401),
     AUDIT_WRITE_FAILED("审计写入失败，操作已拒绝", true, 503),
     GUARD_INJECTION_BLOCKED("输入被提示词注入检测拦截", false, 400),
+    LLM_BUDGET_EXCEEDED("模型日预算已用完", true, 429),
+    LLM_KEY_BLOCKED("虚拟 Key 已停用", false, 401),
     DELEGATE_NOT_DECLARED("目标智能体未在 manifest 的 delegates 中声明", false, 403);
     private final String message;
     private final boolean retryable;

@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keel-llm
+  namespace: keel-system
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: keel-llm
+  template:
+    metadata:
+      labels:
+        app: keel-llm
+    spec:
+      containers:
+        - name: keel-llm
+          image: keel-llm:0.1.0
+          ports:
+            - containerPort: 8088
+          env:
+            - name: KEEL_LLM_ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: keel-llm
+                  key: admin-key
+            - name: KEEL_LLM_REDIS
+              value: redis://redis.keel-system.svc:6379/0
+          envFrom:
+            - secretRef:
+                name: keel-llm-vendors
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

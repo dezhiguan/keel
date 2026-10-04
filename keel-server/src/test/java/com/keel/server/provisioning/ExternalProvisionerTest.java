@@ -27,43 +27,43 @@ class ExternalProvisionerTest {
         var base = server((exchange, body) -> {
             paths.add(exchange.getRequestURI().getPath());
             bodies.add(body);
-            var response = exchange.getRequestURI().getPath().equals("/key/generate")
+            var response = "POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getPath().equals("/admin/v1/keys")
                     ? "{\"key\":\"keel-virtual-key\"}" : "";
             var bytes = response.getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, bytes.length);
             exchange.getResponseBody().write(bytes);
         });
         var secrets = secretWriter(null);
-        var provisioner = new LiteLlmProvisioner(new LiteLlmClient(base, "master"), secrets, "7");
+        var provisioner = new LiteLlmProvisioner(new LiteLlmClient(base, "master"), secrets);
         var manifest = json.readTree("""
                 {"spec":{"models":{"default":"qwen-plus","fallback":["deepseek-v3"],"budget":{"dailyCny":30}}}}
                 """);
         provisioner.provision("code-review", "dev", manifest);
         provisioner.revoke("code-review", "dev");
         var generated = json.readTree(bodies.get(0));
-        assertThat(generated.get("max_budget").decimalValue()).isEqualByComparingTo("4.28571429");
-        assertThat(generated.get("max_budget").asDouble()).isNotEqualTo(30);
-        assertThat(generated.get("key_alias").asText()).isEqualTo("code-review-dev");
-        assertThat(generated.get("budget_duration").asText()).isEqualTo("1d");
+        assertThat(generated.get("dailyBudgetCny").decimalValue()).isEqualByComparingTo("30");
+        assertThat(generated.has("max_budget")).isFalse();
+        assertThat(generated.get("alias").asText()).isEqualTo("code-review-dev");
+        assertThat(generated.get("allowFallback").asBoolean()).isTrue();
         assertThat(bodies.get(0)).doesNotContain("langfuse", "success_callback");
-        assertThat(paths).containsExactly("/key/generate", "/key/block");
+        assertThat(paths).containsExactly("/admin/v1/keys", "/admin/v1/keys/code-review-dev/block");
         assertThat(secrets.privateKeyFor("code-review")).isNull();
     }
 
-    @Test void missingExchangeRateFailsBeforeAnyCall() {
+    @Test void missingDailyCnyFailsBeforeAnyCall() {
         var calls = new AtomicInteger();
-        var provisioner = new LiteLlmProvisioner(new LiteLlmClient("http://127.0.0.1:1", "master"), secretWriter(null), "");
+        var provisioner = new LiteLlmProvisioner(new LiteLlmClient("http://127.0.0.1:1", "master"), secretWriter(null));
         assertThatThrownBy(() -> provisioner.provision("code-review", "dev", json.readTree("""
-                {"spec":{"models":{"budget":{"dailyCny":30}}}}
+                {"spec":{"models":{"default":"qwen-plus"}}}
                 """)))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("KEEL_USD_CNY_RATE");
+                .hasMessageContaining("dailyCny");
         assertThat(calls.get()).isZero();
     }
 
     @Test void upstreamFailureIsNotSwallowed() throws Exception {
         var base = server((exchange, body) -> exchange.sendResponseHeaders(500, -1));
-        var provisioner = new LiteLlmProvisioner(new LiteLlmClient(base, "master"), secretWriter(null), "7");
+        var provisioner = new LiteLlmProvisioner(new LiteLlmClient(base, "master"), secretWriter(null));
         assertThatThrownBy(() -> provisioner.provision("code-review", "dev", json.readTree("""
                 {"spec":{"models":{"default":"qwen-plus","budget":{"dailyCny":30}}}}
                 """)))

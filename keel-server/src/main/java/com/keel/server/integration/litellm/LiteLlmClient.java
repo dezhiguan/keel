@@ -12,7 +12,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
-/** LiteLLM admin API. Never calls /spend/logs or /key/delete. */
+/** Thin-gateway admin API. Budget is CNY and is not converted. */
 public class LiteLlmClient {
     private final String baseUrl;
     private final String masterKey;
@@ -24,28 +24,28 @@ public class LiteLlmClient {
         this.masterKey = masterKey == null ? "" : masterKey;
     }
 
-    public String generate(String alias, List<String> models, BigDecimal maxBudgetUsd, String agent) {
+    public String generate(String alias, List<String> models, List<String> fallback, BigDecimal dailyBudgetCny, boolean allowFallback) {
         var body = Map.of(
+                "alias", alias,
                 "models", models,
-                "max_budget", maxBudgetUsd,
-                "budget_duration", "1d",
-                "key_alias", alias,
-                "metadata", Map.of("agent", agent));
-        var response = send("/key/generate", body);
+                "fallback", fallback,
+                "dailyBudgetCny", dailyBudgetCny,
+                "allowFallback", allowFallback);
+        var response = send("/admin/v1/keys", body);
         var key = response.path("key").asText("");
         if (key.isBlank()) {
-            throw new IllegalStateException("LiteLLM 没有返回虚拟 Key");
+            throw new IllegalStateException("薄网关没有返回虚拟 Key");
         }
         return key;
     }
 
     public void block(String alias) {
-        send("/key/block", Map.of("key_alias", alias));
+        send("/admin/v1/keys/" + alias + "/block", Map.of());
     }
 
     private JsonNode send(String path, Object body) {
         if (baseUrl.isBlank() || masterKey.isBlank()) {
-            throw new IllegalStateException("LiteLLM 地址或 master key 未配置");
+            throw new IllegalStateException("薄网关地址或管理密钥未配置");
         }
         try {
             var request = HttpRequest.newBuilder(URI.create(baseUrl + path))
@@ -56,7 +56,7 @@ public class LiteLlmClient {
                     .build();
             var response = http.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 300) {
-                throw new IllegalStateException("LiteLLM " + path + " " + response.statusCode());
+                throw new IllegalStateException("薄网关 " + path + " " + response.statusCode());
             }
             if (response.body() == null || response.body().isBlank()) {
                 return json.createObjectNode();
