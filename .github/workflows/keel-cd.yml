@@ -312,7 +312,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [changes, build-echo, deploy-server]
-    if: needs.changes.outputs.echo == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: >-
+      always() &&
+      needs.changes.outputs.echo == 'true' &&
+      needs.build-echo.result == 'success' &&
+      (needs.deploy-server.result == 'success' || needs.deploy-server.result == 'skipped') &&
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - name: 配置 SSH

@@ -1,4 +1,7 @@
-"""Real echo agent: one user turn goes through ctx.llm and the SDK span exporter."""
+"""Real echo agent: one user turn goes through ctx.llm and the SDK span exporter.
+
+Secrets are read on each request so a key created after the process starts is picked up.
+"""
 
 import os
 from pathlib import Path

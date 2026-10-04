@@ -56,6 +56,7 @@ watch(() => route.params.name, load, { immediate: true })
     </div>
     <section class="card">
       <h3>对话</h3>
+      <p class="sub">发给已注册的智能体进程，回复来自模型调用。</p>
       <textarea v-model="draft" class="inp" rows="3" placeholder="输入一句话" style="width: 100%; box-sizing: border-box" />
       <div class="wfoot">
         <button class="btn pri" type="button" :disabled="sending || !draft.trim()" @click="send">{{ sending ? '发送中…' : '发送' }}</button>
