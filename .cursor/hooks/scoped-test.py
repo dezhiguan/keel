@@ -6,6 +6,7 @@
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -24,15 +25,37 @@ def touched_files():
     return files
 
 
+def reactor_modules():
+    """父 pom 的 <module> 才是本反应器里的工程。目录名与 artifactId 一致。"""
+    pom = os.path.join(ROOT, "pom.xml")
+    try:
+        with open(pom, encoding="utf-8") as handle:
+            text = handle.read()
+    except OSError:
+        return set()
+    return set(re.findall(r"<module>([^<]+)</module>", text))
+
+
 def maven_modules(files):
-    """改了 {module}/src/main/java/... 就跑该模块的单测。"""
+    """改了 {module}/src/main/java/... 就跑该模块的单测。
+
+    只接受父 pom 声明的模块。仓库外的路径、或别的工程里叫 backend 的目录，
+    不能写进 -pl，否则 Maven 会在进测试之前就退出。
+    """
+    allowed = reactor_modules()
     modules = set()
     for path in files:
-        if "/src/main/java/" not in path:
+        norm = path.replace(os.sep, "/")
+        if norm.startswith("../") or "/../" in norm or "/src/main/java/" not in norm:
             continue
-        module = path.split("/src/main/java/", 1)[0]
-        if os.path.isfile(os.path.join(ROOT, module, "pom.xml")):
-            modules.add(module)
+        module = norm.split("/src/main/java/", 1)[0]
+        if module.startswith("/"):
+            module = os.path.relpath(module, ROOT).replace(os.sep, "/")
+        if module.startswith("../"):
+            continue
+        name = module.split("/")[-1]
+        if name in allowed and os.path.isfile(os.path.join(ROOT, name, "pom.xml")):
+            modules.add(name)
     return sorted(modules)
 
 
@@ -59,7 +82,7 @@ def build_commands(files):
 
     modules = maven_modules(files)
     if modules and shutil.which("mvn"):
-        selector = ",".join(":" + os.path.basename(m) for m in modules)
+        selector = ",".join(":" + m for m in modules)
         commands.append(["mvn", "-o", "-q", "-pl", selector, "test"])
 
     targets = python_targets(files)

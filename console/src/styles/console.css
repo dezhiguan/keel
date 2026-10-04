@@ -106,6 +106,26 @@ select.inp {
 
 .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; display: inline-block; }
 
+.stepper { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.stepper > div { display: flex; align-items: center; gap: 6px; color: var(--mute); font-size: 12.5px; }
+.stepper i { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line2); display: inline-flex; align-items: center; justify-content: center; font-style: normal; font-size: 11px; }
+.stepper .on { color: var(--white); }
+.stepper .on i, .stepper .done i { background: var(--acc); border-color: var(--acc); color: #1d0e05; }
+.wz { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 14px; align-items: start; }
+.opts { display: grid; gap: 8px; }
+.opt { border: 1px solid var(--line2); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
+.opt.on { border-color: var(--acc); }
+.opt b { color: var(--white); display: block; }
+.opt small { color: var(--mute); display: block; margin-top: 2px; }
+.field { margin-top: 12px; }
+.field label { display: block; color: var(--mute); font-size: 12px; margin-bottom: 6px; }
+.field .inp { width: 100%; box-sizing: border-box; }
+.hint { color: var(--mute); font-size: 12px; margin-top: 4px; }
+.hint.err, .inp.err { color: var(--bad); border-color: var(--bad); }
+.wfoot { display: flex; gap: 8px; margin-top: 16px; }
+.code { white-space: pre-wrap; background: var(--bg); border-radius: 8px; padding: 12px; font-family: var(--mono); font-size: 12px; color: var(--text); }
+@media (max-width: 900px) { .wz { grid-template-columns: 1fr; } }
+
 @media (max-width: 1100px) {
   .kpis { grid-template-columns: repeat(3, 1fr); }
   .row2e { grid-template-columns: 1fr; }

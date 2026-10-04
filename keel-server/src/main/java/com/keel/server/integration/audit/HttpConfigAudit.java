@@ -14,13 +14,19 @@ import java.util.UUID;
 
 @Component
 public class HttpConfigAudit implements ConfigAudit {
+    private final AuditStore store;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
+
+    public HttpConfigAudit(AuditStore store) {
+        this.store = store;
+    }
 
     @Override
     public void record(String agent, String env) {
         var base = System.getenv("KEEL_AUDIT_URL");
         if (base == null || base.isBlank()) {
-            throw new KeelException(ErrorCode.AUDIT_WRITE_FAILED, ErrorCode.AUDIT_WRITE_FAILED.message());
+            store.append(agent, env, "config.change", "high", "allowed", agent, null);
+            return;
         }
         var body = """
                 {"event_id":"%s","ts":"%s","agent":"%s","env":"%s","action":"config.change","risk":"high","decision":"allowed","hash":"%s"}

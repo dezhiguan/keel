@@ -39,8 +39,9 @@ public class InsightController {
 
     @GetMapping("/traces")
     public R<Map<String, Object>> traces(@RequestParam(defaultValue = "1") @Min(1) int page,
-                                         @RequestParam(defaultValue = "10") int size) {
-        return R.ok(traces.list(page, size));
+                                         @RequestParam(defaultValue = "10") int size,
+                                         @RequestParam(required = false) String agent) {
+        return R.ok(traces.list(page, size, agent == null ? "" : agent));
     }
 
     @GetMapping("/costs")

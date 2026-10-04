@@ -15,6 +15,7 @@ public class CatalogController {
     public R<Map<String, Object>> catalog() {
         return R.ok(Map.of(
                 "templates", List.of(
+                        template("echo", "回声", "python"),
                         template("chat-rag", "对话检索", "python"),
                         template("tool-agent", "工具调用", "python"),
                         template("graph-agent", "多步推理", "python"),

@@ -4,15 +4,15 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
+import { listAgents } from '@/api/agents'
 import { listTraces, type ListTracesQuery, type TracePage } from '@/api/traces'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { ago, fmtCny, fmtMs, fmtN, nodeStatus } from '@/utils/format'
 
-const AGENTS = ['ops-copilot', 'careermate', 'askdb', 'offshore-wind', 'cs-bot', 'prd-agent', 'code-review', 'test-gen']
-
 const router = useRouter()
 const envStore = useEnvStore()
+const agents = ref<string[]>([])
 const result = ref<TracePage | null>(null)
 const loading = ref(false)
 const filter = reactive<{ agent: string; status?: ListTracesQuery['status']; page: number; size: NonNullable<ListTracesQuery['size']> }>({
@@ -21,6 +21,15 @@ const filter = reactive<{ agent: string; status?: ListTracesQuery['status']; pag
   page: 1,
   size: 10,
 })
+
+async function loadAgents() {
+  try {
+    const page = await listAgents({ env: envStore.env, page: 1, size: 100 })
+    agents.value = (page.items ?? []).map((item) => item.name).filter((name): name is string => !!name)
+  } catch {
+    agents.value = []
+  }
+}
 
 async function load() {
   loading.value = true
@@ -49,8 +58,9 @@ function setStatus(status?: ListTracesQuery['status']) {
   search()
 }
 
-watch(() => envStore.env, search)
+watch(() => envStore.env, () => { loadAgents(); search() })
 watch(() => [filter.page, filter.size], load, { immediate: true })
+loadAgents()
 </script>
 
 <template>
@@ -62,7 +72,7 @@ watch(() => [filter.page, filter.size], load, { immediate: true })
     <div class="toolbar">
       <select v-model="filter.agent" class="inp" @change="search">
         <option value="">全部智能体</option>
-        <option v-for="a in AGENTS" :key="a" :value="a">{{ a }}</option>
+        <option v-for="a in agents" :key="a" :value="a">{{ a }}</option>
       </select>
       <div class="chipsel">
         <button :class="{ on: !filter.status }" @click="setStatus(undefined)">全部状态</button>

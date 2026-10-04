@@ -2,14 +2,16 @@ package com.keel.server.registry.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.keel.common.error.ErrorCode;
 import com.keel.server.common.KeelException;
+import com.keel.server.builtin.EchoProbe;
+import com.keel.server.integration.audit.AuditStore;
 import com.keel.server.provisioning.ProvisioningService;
 import com.keel.server.provisioning.ResourceLedger;
 import com.keel.server.registry.mapper.AgentMapper;
 import com.keel.server.registry.model.entity.Agent;
 import com.keel.server.registry.model.enums.AgentStatus;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -25,15 +27,22 @@ public class LifecycleService {
     private final JdbcTemplate jdbc;
     private final ManifestValidator validator;
     private final ObjectMapper json;
+    private final EchoProbe echo;
+    private final AuditStore audits;
+    private final int port;
 
     public LifecycleService(AgentMapper agents, ProvisioningService provisioning, ResourceLedger ledger,
-                            JdbcTemplate jdbc, ManifestValidator validator, ObjectMapper json) {
+                            JdbcTemplate jdbc, ManifestValidator validator, ObjectMapper json, EchoProbe echo,
+                            AuditStore audits, @Value("${server.port:8080}") int port) {
         this.agents = agents;
         this.provisioning = provisioning;
         this.ledger = ledger;
         this.jdbc = jdbc;
         this.validator = validator;
         this.json = json;
+        this.echo = echo;
+        this.audits = audits;
+        this.port = port;
     }
 
     public SelfCheckService.Report register(JsonNode body) {
@@ -60,9 +69,22 @@ public class LifecycleService {
                     manifest_hash = EXCLUDED.manifest_hash, released_at = now()
                 """, name, env, text, sha256(text));
         var endpoint = manifest.path("spec").path("runtime").path("endpoint").asText();
-        var report = provisioning.register(name, env, endpoint, manifest);
+        SelfCheckService.Report report;
+        try {
+            report = provisioning.register(name, env, endpoint, manifest);
+        } catch (RuntimeException e) {
+            if (!RegisterManifest.missingExternal(e.getMessage())) {
+                throw e;
+            }
+            audits.append(name, env, "agent.register", "high", "allowed", name, null);
+            report = new SelfCheckService.Report(false, java.util.List.of(
+                    new SelfCheckService.Item("开通", false, e.getMessage())));
+        }
         if (report.passed()) {
             jdbc.update("INSERT INTO route_snapshot (changed_agent) VALUES (?)", name);
+        }
+        if ("echo".equals(body.path("template").asText(""))) {
+            echo.invoke(name, env);
         }
         return report;
     }
@@ -85,22 +107,7 @@ public class LifecycleService {
     }
 
     private JsonNode manifest(JsonNode body) {
-        if (body.has("apiVersion")) {
-            return body;
-        }
-        ObjectNode manifest = json.createObjectNode();
-        manifest.put("apiVersion", "keel/v1");
-        manifest.put("kind", "Agent");
-        var metadata = manifest.putObject("metadata");
-        metadata.put("name", body.path("name").asText());
-        metadata.put("displayName", body.path("displayName").asText(body.path("name").asText()));
-        metadata.put("owner", body.path("ownerOrg").asText("") + " / " + body.path("ownerUser").asText(""));
-        var runtime = manifest.putObject("spec").putObject("runtime");
-        runtime.put("type", body.path("runtime").asText("code"));
-        runtime.put("language", body.path("language").asText("python").toLowerCase());
-        runtime.put("endpoint", body.path("endpoint").asText("http://" + body.path("name").asText() + ".agents.svc:8000"));
-        runtime.put("liveness", "dify".equals(body.path("runtime").asText()) ? "probe" : "k8s");
-        return manifest;
+        return RegisterManifest.toNode(json, body, port);
     }
 
     private static String sha256(String text) {

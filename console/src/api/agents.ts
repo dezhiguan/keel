@@ -1,4 +1,4 @@
-import { get } from './http'
+import { get, post } from './http'
 import type { components, operations } from './schema'
 
 export type AgentSummary = components['schemas']['AgentSummary']
@@ -14,4 +14,21 @@ export type AgentDetail = components['schemas']['AgentDetail']
 
 export function getAgent(name: string) {
   return get<AgentDetail>(`/agents/${encodeURIComponent(name)}`)
+}
+
+export interface SelfCheckReport {
+  passed?: boolean
+  items?: { name?: string; passed?: boolean; detail?: string | null }[]
+}
+
+export function checkAgentName(name: string) {
+  return get<{ available?: boolean; reason?: string }>('/agents/name-check', { params: { name } })
+}
+
+export function previewManifest(body: Record<string, unknown>) {
+  return post<{ yaml: string; warnings?: string[] }>('/agents/manifest-preview', body)
+}
+
+export function registerAgent(body: Record<string, unknown>) {
+  return post<SelfCheckReport>('/agents', body)
 }

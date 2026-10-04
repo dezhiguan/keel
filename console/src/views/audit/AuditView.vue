@@ -4,12 +4,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import JsonViewer from '@/components/JsonViewer.vue'
 import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
+import { listAgents } from '@/api/agents'
 import { listAuditEvents, requestAuditExport, verifyAuditChain, type AuditEvent, type AuditPage, type ListAuditQuery } from '@/api/audit'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { RISK, hms, type StatusTone } from '@/utils/format'
 
-const AGENTS = ['careermate', 'askdb', 'offshore-wind', 'cs-bot', 'ops-copilot', 'prd-agent', 'code-review', 'test-gen', 'dev-copilot']
 const DECISION: Record<NonNullable<AuditEvent['decision']>, { label: string; tone: StatusTone }> = {
   allowed: { label: '允许', tone: 'ok' },
   approved: { label: '已批准', tone: 'ok' },
@@ -19,6 +19,7 @@ const DECISION: Record<NonNullable<AuditEvent['decision']>, { label: string; ton
 }
 
 const envStore = useEnvStore()
+const agents = ref<string[]>([])
 const result = ref<AuditPage | null>(null)
 const loading = ref(false)
 const verifying = ref(false)
@@ -29,6 +30,15 @@ const filter = reactive<{ agent?: string; risk?: ListAuditQuery['risk']; page: n
   page: 1,
   size: 10,
 })
+
+async function loadAgents() {
+  try {
+    const page = await listAgents({ env: envStore.env, page: 1, size: 100 })
+    agents.value = (page.items ?? []).map((item) => item.name).filter((name): name is string => !!name)
+  } catch {
+    agents.value = []
+  }
+}
 
 async function load() {
   loading.value = true
@@ -82,8 +92,9 @@ async function exportAudit() {
   }
 }
 
-watch(() => envStore.env, search)
+watch(() => envStore.env, () => { loadAgents(); search() })
 watch(() => [filter.page, filter.size], load, { immediate: true })
+loadAgents()
 </script>
 
 <template>
@@ -98,7 +109,7 @@ watch(() => [filter.page, filter.size], load, { immediate: true })
     <div class="toolbar">
       <select v-model="filter.agent" class="inp" @change="search">
         <option :value="undefined">全部智能体</option>
-        <option v-for="a in AGENTS" :key="a" :value="a">{{ a }}</option>
+        <option v-for="a in agents" :key="a" :value="a">{{ a }}</option>
       </select>
       <div class="chipsel">
         <button :class="{ on: !filter.risk }" @click="setRisk(undefined)">全部风险</button>

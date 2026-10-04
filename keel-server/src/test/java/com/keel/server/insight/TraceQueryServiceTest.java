@@ -67,6 +67,25 @@ class TraceQueryServiceTest {
         server.stop(0);
     }
 
+    @Test void listUsesSavedTracesWhenLangfuseIsNotConfigured() {
+        var service = new TraceQueryService(new LangfuseClient("", "", ""), "", "", Map.of(), new SavedTraces() {
+            @Override
+            public void save(String agent, String env, String traceId, String question, int durationMs) {
+            }
+
+            @Override
+            public Map<String, Object> list(int page, int size, String agent) {
+                return Map.of("page", page, "size", size, "total", 1, "items", List.of(Map.of("traceId", "local-1")));
+            }
+
+            @Override
+            public Map<String, Object> detail(String traceId) {
+                return null;
+            }
+        });
+        assertThat(service.list(1, 10).get("total")).isEqualTo(1);
+    }
+
     private LangfuseClient client(HttpServer server) {
         return new LangfuseClient("http://127.0.0.1:" + server.getAddress().getPort(), "pk", "sk");
     }

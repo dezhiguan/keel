@@ -21,22 +21,48 @@ public class TraceQueryService {
     private final String host;
     private final String projectId;
     private final Map<String, double[]> pricesCnyPerToken;
+    private final SavedTraces saved;
 
     @Autowired
     public TraceQueryService(LangfuseClient langfuse,
                              @Value("${LANGFUSE_HOST:}") String host,
-                             @Value("${LANGFUSE_PROJECT_ID:}") String projectId) {
-        this(langfuse, host, projectId, Map.of());
+                             @Value("${LANGFUSE_PROJECT_ID:}") String projectId,
+                             SavedTraces saved) {
+        this(langfuse, host, projectId, Map.of(), saved);
     }
 
     public TraceQueryService(LangfuseClient langfuse, String host, String projectId, Map<String, double[]> pricesCnyPerToken) {
+        this(langfuse, host, projectId, pricesCnyPerToken, SavedTraces.EMPTY);
+    }
+
+    public TraceQueryService(LangfuseClient langfuse, String host, String projectId, Map<String, double[]> pricesCnyPerToken,
+                             SavedTraces saved) {
         this.langfuse = langfuse;
         this.host = host == null ? "" : host.replaceAll("/$", "");
         this.projectId = projectId == null ? "" : projectId;
         this.pricesCnyPerToken = pricesCnyPerToken;
+        this.saved = saved == null ? SavedTraces.EMPTY : saved;
     }
 
     public Map<String, Object> list(int page, int size) {
+        return list(page, size, "");
+    }
+
+    public Map<String, Object> list(int page, int size, String agent) {
+        try {
+            var remote = remoteList(page, size);
+            @SuppressWarnings("unchecked")
+            var items = (java.util.List<?>) remote.get("items");
+            if (items != null && !items.isEmpty()) {
+                return remote;
+            }
+        } catch (RuntimeException ignored) {
+            // Langfuse 没配好或读失败时，改看本机探针写下的 trace。
+        }
+        return saved.list(page, size, agent);
+    }
+
+    private Map<String, Object> remoteList(int page, int size) {
         JsonNode body = langfuse.observationsPage();
         var byTrace = new LinkedHashMap<String, List<JsonNode>>();
         body.path("data").forEach(row -> byTrace.computeIfAbsent(row.path("traceId").asText(""), key -> new ArrayList<>()).add(row));
@@ -55,6 +81,18 @@ public class TraceQueryService {
     }
 
     public Map<String, Object> detail(String traceId) {
+        try {
+            return remoteDetail(traceId);
+        } catch (RuntimeException e) {
+            var local = saved.detail(traceId);
+            if (local != null) {
+                return local;
+            }
+            throw e;
+        }
+    }
+
+    private Map<String, Object> remoteDetail(String traceId) {
         JsonNode body = langfuse.observationsByTrace(traceId);
         var rows = new ArrayList<JsonNode>();
         body.path("data").forEach(rows::add);
