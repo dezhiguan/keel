@@ -1,0 +1,179 @@
+# Keel 当前上线的三件：控制台、keel-server、薄网关。
+# 与 askdb 同机（Server 3 的 k3s）。镜像名由 CI 按 commit 替换。
+# 厂商密钥、管理密钥、Redis、数据库口令在 Secret 里，见 deploy/README.md。
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keel-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keel-llm
+  namespace: keel-system
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 1, maxSurge: 0 }
+  selector:
+    matchLabels: { app: keel-llm }
+  template:
+    metadata:
+      labels: { app: keel-llm }
+    spec:
+      imagePullSecrets:
+        - name: acr-cred
+      terminationGracePeriodSeconds: 75
+      containers:
+        - name: keel-llm
+          image: PLACEHOLDER_LLM_IMAGE
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8088
+          env:
+            - name: KEEL_LLM_ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: keel-llm
+                  key: admin-key
+            - name: KEEL_LLM_REDIS
+              valueFrom:
+                secretKeyRef:
+                  name: keel-llm
+                  key: redis-url
+          envFrom:
+            - secretRef:
+                name: keel-llm-vendors
+                optional: false
+          readinessProbe:
+            httpGet: { path: /health, port: 8088 }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8088 }
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keel-llm
+  namespace: keel-system
+spec:
+  type: ClusterIP
+  selector: { app: keel-llm }
+  ports:
+    - port: 8088
+      targetPort: 8088
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keel-server
+  namespace: keel-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: keel-server }
+  template:
+    metadata:
+      labels: { app: keel-server }
+    spec:
+      imagePullSecrets:
+        - name: acr-cred
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: keel-server
+          image: PLACEHOLDER_SERVER_IMAGE
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: keel-server
+                optional: false
+          readinessProbe:
+            httpGet: { path: /api/v1/catalog, port: 8080 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/v1/catalog, port: 8080 }
+            initialDelaySeconds: 40
+            periodSeconds: 30
+          resources:
+            requests: { cpu: "500m", memory: "512Mi" }
+            limits: { cpu: "1000m", memory: "1Gi" }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keel-server
+  namespace: keel-system
+spec:
+  type: ClusterIP
+  selector: { app: keel-server }
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keel-console
+  namespace: keel-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: keel-console }
+  template:
+    metadata:
+      labels: { app: keel-console }
+    spec:
+      imagePullSecrets:
+        - name: acr-cred
+      containers:
+        - name: keel-console
+          image: PLACEHOLDER_CONSOLE_IMAGE
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet: { path: /, port: 8080 }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "100m", memory: "64Mi" }
+            limits: { cpu: "200m", memory: "128Mi" }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keel-console
+  namespace: keel-system
+spec:
+  type: NodePort
+  selector: { app: keel-console }
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 31110

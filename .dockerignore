@@ -1,0 +1,10 @@
+.git
+.github
+.cursor
+**/.venv
+**/node_modules
+**/target
+console/dist
+docs
+**/*.md
+!deploy/README.md
