@@ -22,7 +22,7 @@ class SchemaMigrationTest {
     @Test
     @Transactional
     void migratesAllPlatformTablesAndRunConstraints() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("3");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("4");
 
         List<String> tables = jdbc.queryForList("""
             SELECT tablename FROM pg_tables
@@ -33,7 +33,7 @@ class SchemaMigrationTest {
             "agent", "agent_version", "agent_instance", "agent_resource",
             "reconcile_finding", "tool", "tool_version", "agent_tool_grant",
             "approval_policy", "approval_request", "agent_run", "release_record",
-            "route_snapshot");
+            "route_snapshot", "console_audit_event", "invoke_trace");
 
         List<String> runConstraints = jdbc.queryForList("""
             SELECT conname FROM pg_constraint WHERE conrelid = 'agent_run'::regclass
@@ -51,7 +51,8 @@ class SchemaMigrationTest {
             SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()
             """, String.class);
         assertThat(indexes).contains("ix_agent_run_status_deadline", "ix_approval_request_pending",
-            "ix_reconcile_finding_open", "route_snapshot_pkey");
+            "ix_reconcile_finding_open", "route_snapshot_pkey",
+            "ix_console_audit_event_ts", "ix_invoke_trace_started");
 
         jdbc.update("""
             INSERT INTO agent (name, display_name, kind, runtime, owner_org, owner_user, status, liveness)
