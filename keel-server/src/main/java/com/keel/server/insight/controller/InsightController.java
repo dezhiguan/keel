@@ -1,7 +1,9 @@
 package com.keel.server.insight.controller;
 
 import com.keel.server.common.R;
+import com.keel.server.insight.CostService;
 import com.keel.server.insight.OverviewService;
+import com.keel.server.insight.SharedServiceMonitor;
 import com.keel.server.insight.TraceQueryService;
 import java.util.Map;
 
@@ -18,10 +20,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class InsightController {
     private final OverviewService overviewService;
     private final TraceQueryService traces;
+    private final CostService costs;
+    private final SharedServiceMonitor services;
 
-    public InsightController(OverviewService overviewService, TraceQueryService traces) {
+    public InsightController(OverviewService overviewService, TraceQueryService traces, CostService costs, SharedServiceMonitor services) {
         this.overviewService = overviewService;
         this.traces = traces;
+        this.costs = costs;
+        this.services = services;
     }
 
     @GetMapping("/overview")
@@ -35,6 +41,23 @@ public class InsightController {
     public R<Map<String, Object>> traces(@RequestParam(defaultValue = "1") @Min(1) int page,
                                          @RequestParam(defaultValue = "10") int size) {
         return R.ok(traces.list(page, size));
+    }
+
+    @GetMapping("/costs")
+    public R<Map<String, Object>> costs(
+            @RequestParam(defaultValue = "all") @Pattern(regexp = "all|dev|staging|prod") String env,
+            @RequestParam(defaultValue = "24h") @Pattern(regexp = "24h|7d|30d") String range) {
+        var cost = costs.cost();
+        var models = cost.models().stream().map(model -> Map.of(
+                "model", model.name(),
+                "costCny", cost.byModel().getOrDefault(model.name(), 0d),
+                "priceConfigured", model.priceConfigured())).toList();
+        return R.ok(Map.of("models", models, "totalCny", cost.totalCny()));
+    }
+
+    @GetMapping("/services")
+    public R<Map<String, Object>> services() {
+        return R.ok(services.services());
     }
 
     @GetMapping("/traces/{traceId}")

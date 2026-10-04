@@ -10,6 +10,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -75,6 +76,33 @@ public class LiteLlmClient {
             return null;
         }
     }
+
+    public List<Spend> spendAll() {
+        var rows = new ArrayList<Spend>();
+        for (int page = 1; page <= 50; page++) {
+            var data = get("/admin/v1/spend?page=" + page + "&size=50").path("data");
+            if (!data.isArray() || data.isEmpty()) {
+                break;
+            }
+            data.forEach(row -> rows.add(new Spend(row.path("alias").asText(""), row.path("model").asText(""), row.path("costCny").asDouble())));
+            if (data.size() < 50) {
+                break;
+            }
+        }
+        return rows;
+    }
+
+    public List<Model> models() {
+        var rows = new ArrayList<Model>();
+        get("/admin/v1/models").path("data").forEach(row -> rows.add(new Model(
+                row.path("name").asText(""),
+                row.path("priceConfigured").asBoolean(false))));
+        return rows;
+    }
+
+    public record Spend(String alias, String model, double costCny) {}
+
+    public record Model(String name, boolean priceConfigured) {}
 
     private JsonNode get(String path) {
         if (baseUrl.isBlank() || masterKey.isBlank()) {

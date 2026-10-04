@@ -92,6 +92,13 @@ public class LangfuseClient {
         return get("/api/public/v2/observations?limit=100&traceId=" + URLEncoder.encode(traceId, StandardCharsets.UTF_8));
     }
 
+    public JsonNode scores() {
+        if (baseUrl.isBlank() || authorization.isBlank()) {
+            throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
+        }
+        return get("/api/public/v3/scores");
+    }
+
     public JsonNode observationsPage() {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
