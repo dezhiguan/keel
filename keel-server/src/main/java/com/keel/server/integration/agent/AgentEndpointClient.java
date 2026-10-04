@@ -1,6 +1,7 @@
 package com.keel.server.integration.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.stereotype.Component;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -8,7 +9,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 
-/** Calls an agent's own /v1/health and /v1/manifest. No Dify management API. */
+/** Calls an agent's own /v1/health, /v1/manifest, and /v1/invoke. No Dify management API. */
+@Component
 public class AgentEndpointClient {
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
     private final ObjectMapper json = new ObjectMapper();
