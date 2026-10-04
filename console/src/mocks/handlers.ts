@@ -1,11 +1,9 @@
-import { delay, http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { sharedServices } from './data/services'
 import { traceDetail, traceSummaries } from './data/traces'
 import { latestEval } from './data/eval'
 import { dependentsOf, toolDetail, tools } from './data/tools'
 import { approvals, suspendedRuns } from './data/approvals'
-import { auditEvents } from './data/audit'
-import { modelGateway } from './data/models'
 
 // Leading wildcard so the same handlers match in the browser and under msw/node (which has no page origin).
 const BASE = '*/api/v1'
@@ -127,21 +125,4 @@ export const handlers = [
     return ok(null)
   }),
 
-  http.get(`${BASE}/audit/events`, ({ request }) => {
-    const url = new URL(request.url)
-    const agent = url.searchParams.get('agent')
-    const risk = url.searchParams.get('risk')
-    return ok(paged(url, auditEvents.filter((e) => (!agent || e.agent === agent) && (!risk || e.risk === risk))))
-  }),
-
-  http.post(`${BASE}/audit/verify`, async ({ request }) => {
-    await delay(1200)
-    const agent = new URL(request.url).searchParams.get('agent')
-    const checked = auditEvents.filter((e) => !agent || e.agent === agent).length
-    return ok({ checked, intact: true, brokenAt: null, elapsedMs: 1200 })
-  }),
-
-  http.post(`${BASE}/audit/exports`, () => ok({ exportId: `ex_${Date.now().toString(36)}`, approvalId: 'ap_0927' }, 202)),
-
-  http.get(`${BASE}/insight/costs`, () => ok(modelGateway)),
 ]

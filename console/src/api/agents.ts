@@ -9,3 +9,9 @@ export type AgentPage = components['schemas']['PageMeta'] & { items?: AgentSumma
 export function listAgents(query: ListAgentsQuery) {
   return get<AgentPage>('/agents', { params: query })
 }
+
+export type AgentDetail = components['schemas']['AgentDetail']
+
+export function getAgent(name: string) {
+  return get<AgentDetail>(`/agents/${encodeURIComponent(name)}`)
+}

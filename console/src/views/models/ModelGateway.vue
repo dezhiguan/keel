@@ -33,7 +33,7 @@ async function load() {
 }
 
 function adjustBudget(agent: string) {
-  // TODO(P1-8): budget changes go through keel-server (LiteLLM /key/update, CNY → USD at the configured rate).
+  // TODO(P1-8): budget changes go through keel-server once the thin gateway exposes an update API.
   ElMessage.info(`${agent} 的预算调整尚未接入`)
 }
 
@@ -44,7 +44,7 @@ watch(() => envStore.env, load, { immediate: true })
   <div v-loading="loading">
     <div class="vh">
       <h2>模型网关</h2>
-      <span class="sub">后端是 LiteLLM · Keel 调它的 API 取数和下发配置</span>
+      <span class="sub">数据来自薄网关的人民币花费明细</span>
     </div>
     <div class="chipsel" style="margin-bottom: 14px">
       <button :class="{ on: tab === 'model' }" @click="tab = 'model'">模型 · {{ data?.models?.length ?? 0 }}</button>
@@ -63,7 +63,7 @@ watch(() => envStore.env, load, { immediate: true })
             <td class="mono">{{ fmtN(m.calls) }}</td>
             <td class="mono">{{ m.p95 }}</td>
             <td class="mono" :style="m.status === 'warn' ? { color: 'var(--warn)' } : undefined">{{ fmtPct(m.errorRate) }}</td>
-            <td class="mono">¥{{ m.costCny?.toFixed(2) }}</td>
+            <td class="mono">{{ m.priceConfigured === false || m.costCny == null ? '—' : `¥${m.costCny.toFixed(2)}` }}</td>
             <td><StatusPill v-bind="MODEL_STATUS[m.status ?? 'ok']" /></td>
           </tr>
         </tbody>

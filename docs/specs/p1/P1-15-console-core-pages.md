@@ -51,10 +51,10 @@ cd console && npx vue-tsc --noEmit && npx vitest related src/views/overview src/
 
 本地页面：keel-server 用 local profile 已启动时，`npm run dev` 打开总览、智能体、审计、模型网关，网络面板里这四页的请求打到 `:8080`，不打到 MSW。
 
-- [ ] `VITE_API_MOCK` 默认开启时，追踪、评测、工具、审批、共享服务仍返回 mock
-- [ ] 总览的调用量、成本与 `GET /insight/overview` 的 JSON 一致
-- [ ] 审计筛选条件会进查询参数
-- [ ] 模型页 `priceConfigured=false` 时能看出该模型未计费，而不是只显示 0
+- [x] `VITE_API_MOCK` 默认开启时，追踪、评测、工具、审批、共享服务仍返回 mock
+- [x] 总览的调用量、成本与 `GET /insight/overview` 的 JSON 一致
+- [x] 审计筛选条件会进查询参数
+- [x] 模型页 `priceConfigured=false` 时能看出该模型未计费，而不是只显示 0
 
 ## 明确不做
 

@@ -76,7 +76,7 @@ async function exportAudit() {
   }
   try {
     const r = await requestAuditExport({ agent: filter.agent, risk: filter.risk }, reason)
-    ElMessage.success(`已提交，审批单 ${r.approvalId}`)
+    ElMessage.success(`已提交审批 ${r.approvalId ?? ''}`.trim())
   } catch (error) {
     ElMessage.error(toKeelError(error).message)
   }

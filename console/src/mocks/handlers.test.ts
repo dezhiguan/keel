@@ -66,8 +66,13 @@ describe('mock handlers', () => {
     expect(run.json.data.progress).toBeGreaterThanOrEqual(0)
   })
 
-  it('filters audit events by risk', async () => {
-    const res = await call('GET', '/audit/events?risk=HIGH&size=100')
-    expect(res.json.data.items.every((e: { risk: string }) => e.risk === 'HIGH')).toBe(true)
+  it('still mocks shared services while audit and costs are real', async () => {
+    const services = await call('GET', '/insight/services')
+    expect(services.status).toBe(200)
+    expect(services.json.data.services.length).toBeGreaterThan(0)
+    await expect(call('GET', '/audit/events')).rejects.toThrow()
+    await expect(call('GET', '/insight/costs')).rejects.toThrow()
+    await expect(call('POST', '/audit/verify')).rejects.toThrow()
+    await expect(call('POST', '/audit/exports')).rejects.toThrow()
   })
 })
