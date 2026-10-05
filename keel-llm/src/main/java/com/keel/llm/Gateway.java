@@ -57,6 +57,17 @@ public final class Gateway {
         keys.save(key.asBlocked());
     }
 
+    public synchronized void updateBudget(String alias, BigDecimal dailyBudgetCny) {
+        if (dailyBudgetCny == null || dailyBudgetCny.signum() <= 0) {
+            throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "dailyBudgetCny 必须大于 0");
+        }
+        var key = keys.byAlias(alias);
+        if (key == null) {
+            throw new GatewayException(ErrorCode.SERVER_NOT_FOUND, "虚拟 Key 不存在");
+        }
+        keys.save(key.withBudget(dailyBudgetCny));
+    }
+
     public List<ListedKey> listed() {
         return keys.list().stream()
                 .map(key -> new ListedKey(key.alias(), key.models(), key.dailyBudgetCny(), budget.spent(key.alias()), key.blocked()))
@@ -91,25 +102,38 @@ public final class Gateway {
         var attempts = attempts(key, requested, "/v1/embeddings".equals(path));
         Upstream.Result result = null;
         String used = requested;
+        long latencyMs = 0;
         for (int i = 0; i < attempts.size(); i++) {
             used = attempts.get(i);
             var model = catalog.require(used);
             var forwarded = ((ObjectNode) request.deepCopy()).put("model", used).toString();
+            var started = System.nanoTime();
             result = upstream.post(model.upstream(), model.upstreamKey(), path, forwarded, timeout);
-            if (!result.retryable() || i == attempts.size() - 1) {
-                break;
+            latencyMs = Math.max(0L, (System.nanoTime() - started) / 1_000_000L);
+            if (result.retryable()) {
+                remember(key.alias(), used, 0, 0, BigDecimal.ZERO, latencyMs, result.status() == 504);
+                if (i < attempts.size() - 1) {
+                    continue;
+                }
+                throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "上游失败");
             }
+            break;
         }
-        if (result == null || result.retryable()) {
+        if (result == null) {
             throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "上游失败");
         }
         var cost = costOf(used, result.body());
         budget.add(key.alias, cost);
-        var row = new Spend(key.alias, used, tokens(result.body(), "prompt_tokens"), tokens(result.body(), "completion_tokens"), cost, "req-" + UUID.randomUUID(), Instant.now());
+        var row = remember(key.alias, used, tokens(result.body(), "prompt_tokens"), tokens(result.body(), "completion_tokens"), cost, latencyMs, false);
+        return new Completion(result.status(), result.body(), row);
+    }
+
+    private Spend remember(String alias, String model, int inputTokens, int outputTokens, BigDecimal cost, long latencyMs, boolean timedOut) {
+        var row = new Spend(alias, model, inputTokens, outputTokens, cost, "req-" + UUID.randomUUID(), Instant.now(), latencyMs, timedOut);
         synchronized (this) {
             spend.add(row);
         }
-        return new Completion(result.status(), result.body(), row);
+        return row;
     }
 
     private List<String> attempts(VirtualKey key, String requested, boolean embedding) {
@@ -168,11 +192,15 @@ public final class Gateway {
         public VirtualKey asBlocked() {
             return new VirtualKey(alias, token, models, fallback, dailyBudgetCny, allowFallback, true);
         }
+
+        public VirtualKey withBudget(BigDecimal budget) {
+            return new VirtualKey(alias, token, models, fallback, budget, allowFallback, blocked);
+        }
     }
 
     public record ListedKey(String alias, List<String> models, BigDecimal dailyBudgetCny, BigDecimal spentCny, boolean blocked) {}
 
-    public record Spend(String alias, String model, int inputTokens, int outputTokens, BigDecimal costCny, String requestId, Instant ts) {}
+    public record Spend(String alias, String model, int inputTokens, int outputTokens, BigDecimal costCny, String requestId, Instant ts, long latencyMs, boolean timedOut) {}
 
     public record Completion(int status, String body, Spend spend) {}
 

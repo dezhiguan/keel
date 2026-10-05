@@ -1,10 +1,14 @@
 package com.keel.server.insight.controller;
 
+import com.keel.common.error.ErrorCode;
+import com.keel.server.common.Audited;
+import com.keel.server.common.KeelException;
 import com.keel.server.common.R;
 import com.keel.server.insight.CostService;
 import com.keel.server.insight.OverviewService;
 import com.keel.server.insight.SharedServiceMonitor;
 import com.keel.server.insight.TraceQueryService;
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -12,6 +16,8 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -49,13 +55,21 @@ public class InsightController {
     public R<Map<String, Object>> costs(
             @RequestParam(defaultValue = "all") @Pattern(regexp = "all|dev|staging|prod") String env,
             @RequestParam(defaultValue = "24h") @Pattern(regexp = "24h|7d|30d") String range) {
-        var cost = costs.cost();
-        var models = cost.models().stream().map(model -> Map.of(
-                "model", model.name(),
-                "costCny", cost.byModel().getOrDefault(model.name(), 0d),
-                "priceConfigured", model.priceConfigured())).toList();
+        var cost = costs.cost(env, range);
+        var models = cost.stats().stream().map(model -> {
+            var row = new LinkedHashMap<String, Object>();
+            row.put("model", model.name());
+            row.put("provider", model.provider());
+            row.put("role", model.role());
+            row.put("calls", model.calls());
+            row.put("p95", model.p95());
+            row.put("errorRate", model.timeoutRate());
+            row.put("costCny", model.costCny());
+            row.put("status", model.status());
+            row.put("priceConfigured", model.priceConfigured());
+            return row;
+        }).toList();
         var keys = cost.keys().stream()
-                .filter(key -> "all".equals(env) || env.equals(key.env()))
                 .map(key -> {
                     var row = new LinkedHashMap<String, Object>();
                     row.put("alias", key.alias());
@@ -72,6 +86,18 @@ public class InsightController {
         body.put("totalCny", cost.totalCny());
         body.put("keys", keys);
         return R.ok(body);
+    }
+
+    @PostMapping("/costs/keys/{alias}/budget")
+    @Audited
+    public R<Map<String, Object>> updateBudget(@PathVariable String alias, @RequestBody Map<String, Object> body) {
+        var raw = body.get("dailyBudgetCny");
+        if (raw == null) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "dailyBudgetCny 缺失");
+        }
+        var budget = new BigDecimal(raw.toString());
+        costs.updateBudget(alias, budget);
+        return R.ok(Map.of("alias", alias, "dailyBudgetCny", budget));
     }
 
     @GetMapping("/services")

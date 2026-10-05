@@ -1,7 +1,10 @@
 package com.keel.llm;
 
 import java.math.BigDecimal;
+import java.net.URI;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /** Prices are CNY per token. A missing or non-positive price refuses startup. */
@@ -25,7 +28,31 @@ public final class ModelCatalog {
         if (copy.isEmpty()) {
             throw new IllegalStateException("缺单价");
         }
-        this.models = Map.copyOf(copy);
+        this.models = Collections.unmodifiableMap(copy);
+    }
+
+    /** Vendor label for the console. Empty when the upstream host is not one of the known providers. */
+    public static String provider(String upstream) {
+        var host = host(upstream);
+        if (host.contains("dashscope")) {
+            return "DashScope";
+        }
+        if (host.contains("deepseek")) {
+            return "DeepSeek";
+        }
+        return "";
+    }
+
+    private static String host(String upstream) {
+        if (upstream == null || upstream.isBlank()) {
+            return "";
+        }
+        try {
+            var host = URI.create(upstream).getHost();
+            return host == null ? upstream.toLowerCase(Locale.ROOT) : host.toLowerCase(Locale.ROOT);
+        } catch (IllegalArgumentException e) {
+            return upstream.toLowerCase(Locale.ROOT);
+        }
     }
 
     public Model require(String name) {

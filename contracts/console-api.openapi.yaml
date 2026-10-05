@@ -1044,6 +1044,42 @@ paths:
                     properties:
                       data: { $ref: "#/components/schemas/ModelGateway" }
 
+  /insight/costs/keys/{alias}/budget:
+    post:
+      tags: [models]
+      operationId: updateModelBudget
+      summary: 调整虚拟 Key 的人民币日预算
+      description: 保存后写到薄网关这把虚拟 Key，并记一条 config.change 审计。日预算与控制台滑杆一致，¥10 到 ¥200，步长 ¥5。
+      parameters:
+        - name: alias
+          in: path
+          required: true
+          schema: { type: string, example: askdb-dev }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dailyBudgetCny]
+              properties:
+                dailyBudgetCny: { type: number, format: float, minimum: 10, maximum: 200 }
+      responses:
+        "200":
+          description: 已写到薄网关
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          alias: { type: string }
+                          dailyBudgetCny: { type: number, format: float }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1782,8 +1818,11 @@ components:
               provider: { type: string, example: DashScope }
               role: { type: string, example: 主力 }
               calls: { type: integer }
-              p95: { type: string, example: 4.6s }
-              errorRate: { type: number, format: float }
+              p95: { type: string, example: 4.6s, description: 窗口内延迟 P95，没有样本时为空 }
+              errorRate:
+                type: number
+                format: float
+                description: 窗口内超时次数 / 调用次数。没有延迟或超时样本时为空
               costCny: { type: number, format: float }
               status: { type: string, enum: [ok, warn, bad] }
               priceConfigured:

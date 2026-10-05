@@ -81,6 +81,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agents/{name}/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 向已注册的智能体发一轮对话 */
+        post: operations["chatWithAgent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agents/{name}/releases": {
         parameters: {
             query?: never;
@@ -425,7 +444,12 @@ export interface paths {
          */
         get: operations["listApprovals"];
         put?: never;
-        post?: never;
+        /**
+         * 发起审批单
+         * @description 导出、工具变更、智能体配置与下线都从这里建单。runId 非空时必须已经有对应的 agent_run。
+         *     命中策略冷却期时不新建单，直接返回上一张 APPROVED。
+         */
+        post: operations["openApproval"];
         delete?: never;
         options?: never;
         head?: never;
@@ -459,12 +483,16 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 挂起等人回话的执行（草案，P3-1 定稿）
+         * 挂起等人回话的执行
          * @description 只返回 status=SUSPENDED 且 reason 为 input_required / handoff 的 run；reason=approval 的在 /approvals 里。
          */
         get: operations["listSuspendedRuns"];
         put?: never;
-        post?: never;
+        /**
+         * 登记一次等人回话的挂起
+         * @description reason 只接受 input_required 或 handoff。同一个 runId 再次登记且仍是同一挂起原因时返回原记录。
+         */
+        post: operations["openSuspendedRun"];
         delete?: never;
         options?: never;
         head?: never;
@@ -482,7 +510,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 回复挂起的执行（草案，P3-1 定稿），keel-server 据此调智能体的 /v1/runs/{id}/resume */
+        /** 回复挂起的执行。keel-server 据此调智能体的 /v1/runs/{id}/resume */
         post: operations["answerSuspendedRun"];
         delete?: never;
         options?: never;
@@ -550,11 +578,31 @@ export interface paths {
         };
         /**
          * 模型网关页全部数据
-         * @description 模型与花费来自 LiteLLM，单次调用明细在链路追踪页看（来自 Langfuse）。
+         * @description 模型与花费来自薄网关（人民币），单次调用明细在链路追踪页看（来自 Langfuse）。
          */
         get: operations["getModelGateway"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insight/costs/keys/{alias}/budget": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 调整虚拟 Key 的人民币日预算
+         * @description 保存后写到薄网关这把虚拟 Key，并记一条 config.change 审计。日预算与控制台滑杆一致，¥10 到 ¥200，步长 ¥5。
+         */
+        post: operations["updateModelBudget"];
         delete?: never;
         options?: never;
         head?: never;
@@ -757,7 +805,10 @@ export interface components {
             }[];
             /** @description 替它开通的外部资源，下线时按此回收 */
             resources?: {
-                /** @enum {string} */
+                /**
+                 * @description litellm_key 是历史枚举值，语义为薄网关虚拟 Key
+                 * @enum {string}
+                 */
                 type?: "litellm_key" | "langfuse" | "secret" | "dataset" | "oauth_client";
                 externalId?: string;
                 status?: string;
@@ -992,8 +1043,9 @@ export interface components {
             tokens?: number | null;
             /** Format: float */
             costCny?: number | null;
-            /** @description 摘要，不含原文 */
+            /** @description Langfuse observation 的 input，没有时用节点名 */
             inputSummary?: string;
+            /** @description Langfuse observation 的 output，没有时用节点名 */
             outputSummary?: string;
             auditIds?: string[];
             approvalId?: string | null;
@@ -1100,7 +1152,7 @@ export interface components {
             /** @example ap_0912 */
             id?: string;
             /**
-             * @description 草案（P3-1 定稿）。与 approval_request.subject_type 一致，见 docs/specs/P0-1a-run-lifecycle.md
+             * @description 草案（P3-1 定稿）。与 approval_request.subject_type 一致，见 docs/specs/p0/P0-1a-run-lifecycle.md
              * @enum {string}
              */
             subjectType?: "tool.call" | "tool.config" | "agent.config" | "agent.retire" | "data.export";
@@ -1183,15 +1235,21 @@ export interface components {
                 /** @example 主力 */
                 role?: string;
                 calls?: number;
-                /** @example 4.6s */
+                /**
+                 * @description 窗口内延迟 P95，没有样本时为空
+                 * @example 4.6s
+                 */
                 p95?: string;
-                /** Format: float */
+                /**
+                 * Format: float
+                 * @description 窗口内超时次数 / 调用次数。没有延迟或超时样本时为空
+                 */
                 errorRate?: number;
                 /** Format: float */
                 costCny?: number;
                 /** @enum {string} */
                 status?: "ok" | "warn" | "bad";
-                /** @description LiteLLM model_info 是否配了单价；为 false 时成本会静默记 0 */
+                /** @description 薄网关是否为该模型配置了单价；为 false 时表示配置漂移 */
                 priceConfigured?: boolean;
             }[];
             keys?: {
@@ -1207,7 +1265,7 @@ export interface components {
                 /** @enum {string} */
                 status?: "ACTIVE" | "BLOCKED";
             }[];
-            /** @description 由各智能体 manifest 生成，写入 LiteLLM 路由配置 */
+            /** @description 由各智能体 manifest 生成，写入薄网关的虚拟 Key */
             routing?: {
                 agent?: string;
                 default?: string;
@@ -1365,6 +1423,40 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Envelope"] & {
                         data?: components["schemas"]["AgentDetail"];
+                    };
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    chatWithAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 智能体的最终回复 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            text?: string;
+                            traceId?: string | null;
+                        };
                     };
                 };
             };
@@ -1907,6 +1999,49 @@ export interface operations {
             };
         };
     };
+    openApproval: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    subjectType: "tool.call" | "tool.config" | "agent.config" | "agent.retire" | "data.export";
+                    subjectRef: string;
+                    summary: string;
+                    actorUser: string;
+                    agent?: string;
+                    risk?: components["schemas"]["Risk"];
+                    runId?: string | null;
+                    traceId?: string;
+                    payloadDigest?: string;
+                    policyName?: string | null;
+                    env?: components["schemas"]["EnvName"];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["Approval"];
+                    };
+                };
+            };
+            /** @description 参数不合法 */
+            400: components["responses"]["Error"];
+            /** @description 策略、智能体或 run 不存在 */
+            404: components["responses"]["Error"];
+        };
+    };
     decideApproval: {
         parameters: {
             query?: never;
@@ -1967,6 +2102,50 @@ export interface operations {
                     };
                 };
             };
+        };
+    };
+    openSuspendedRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    runId: string;
+                    agent: string;
+                    env?: components["schemas"]["EnvName"];
+                    traceId?: string;
+                    /** @enum {string} */
+                    reason: "input_required" | "handoff";
+                    prompt: string;
+                    actorUser: string;
+                    /** Format: date-time */
+                    deadline?: string | null;
+                    checkpointRef?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["SuspendedRun"];
+                    };
+                };
+            };
+            /** @description 参数不合法 */
+            400: components["responses"]["Error"];
+            /** @description 智能体不存在 */
+            404: components["responses"]["Error"];
+            /** @description runId 已存在且不能再次挂起 */
+            409: components["responses"]["Error"];
         };
     };
     answerSuspendedRun: {
@@ -2120,6 +2299,41 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Envelope"] & {
                         data?: components["schemas"]["ModelGateway"];
+                    };
+                };
+            };
+        };
+    };
+    updateModelBudget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alias: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: float */
+                    dailyBudgetCny: number;
+                };
+            };
+        };
+        responses: {
+            /** @description 已写到薄网关 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            alias?: string;
+                            /** Format: float */
+                            dailyBudgetCny?: number;
+                        };
                     };
                 };
             };

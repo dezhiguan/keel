@@ -57,6 +57,8 @@ class GatewayTest {
                 "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2));
         assertThat(completion.spend().costCny()).isGreaterThan(BigDecimal.ZERO);
         assertThat(completion.spend().model()).isEqualTo("qwen-plus");
+        assertThat(completion.spend().latencyMs()).isGreaterThanOrEqualTo(0);
+        assertThat(completion.spend().timedOut()).isFalse();
         assertThat(seen).containsExactly("qwen-plus");
         assertThat(gateway.spend("askdb-dev", 1, 20)).hasSize(1);
     }
@@ -76,7 +78,28 @@ class GatewayTest {
         var completion = gateway.complete("Bearer " + created.key(), "/v1/chat/completions",
                 "{\"model\":\"qwen-plus\"}", Duration.ofMillis(200));
         assertThat(completion.spend().model()).isEqualTo("deepseek-v3");
+        assertThat(completion.spend().timedOut()).isFalse();
         assertThat(seen).containsExactly("qwen-plus", "deepseek-v3");
+        assertThat(gateway.spend("askdb-dev", 1, 10)).anySatisfy(row -> {
+            assertThat(row.model()).isEqualTo("qwen-plus");
+            assertThat(row.timedOut()).isTrue();
+            assertThat(row.costCny()).isEqualByComparingTo("0");
+        });
+    }
+
+    @Test void updateBudgetKeepsTheSameKey() {
+        var gateway = gateway(echoServer());
+        var created = gateway.create("echo-dev", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false);
+        gateway.updateBudget("echo-dev", new BigDecimal("45"));
+        assertThat(gateway.requireAlias("echo-dev").dailyBudgetCny()).isEqualByComparingTo("45");
+        assertThat(gateway.requireAlias("echo-dev").token()).isEqualTo(created.key());
+        assertThat(gateway.listed()).anySatisfy(key -> assertThat(key.dailyBudgetCny()).isEqualByComparingTo("45"));
+    }
+
+    @Test void providerComesFromTheUpstreamHost() {
+        assertThat(ModelCatalog.provider("https://dashscope.aliyuncs.com/compatible-mode")).isEqualTo("DashScope");
+        assertThat(ModelCatalog.provider("https://api.deepseek.com")).isEqualTo("DeepSeek");
+        assertThat(ModelCatalog.provider("http://127.0.0.1:9")).isEmpty();
     }
 
     @Test void disabledFallbackDoesNotSwitchModel() throws Exception {

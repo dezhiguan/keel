@@ -20,6 +20,7 @@ import java.util.Base64;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 
 /** Langfuse public API. Does not call the removed dataset-run-items route. */
 public class LangfuseClient {
@@ -260,6 +261,87 @@ public class LangfuseClient {
         }
     }
 
+    /**
+     * Generation observations in the window. Null when Langfuse cannot be read.
+     * These are the model calls the SDK reported; the thin gateway does not report them.
+     */
+    public List<Generation> generations(Instant from, Instant to) {
+        if (baseUrl.isBlank() || authorization.isBlank()) {
+            return null;
+        }
+        try {
+            var rows = new ArrayList<Generation>();
+            String cursor = null;
+            for (int page = 0; page < 20; page++) {
+                var path = "/api/public/v2/observations?fields=core,basic,time,metadata&limit=100"
+                        + "&fromStartTime=" + URLEncoder.encode(from.toString(), StandardCharsets.UTF_8)
+                        + "&toStartTime=" + URLEncoder.encode(to.toString(), StandardCharsets.UTF_8);
+                if (cursor != null) {
+                    path += "&cursor=" + URLEncoder.encode(cursor, StandardCharsets.UTF_8);
+                }
+                var body = get(path);
+                var data = body.path("data");
+                if (!data.isArray() || data.isEmpty()) {
+                    break;
+                }
+                data.forEach(row -> {
+                    if (!generation(row)) {
+                        return;
+                    }
+                    var model = modelOf(row);
+                    if (model.isBlank()) {
+                        return;
+                    }
+                    rows.add(new Generation(
+                            model,
+                            text(row.path("metadata"), "keel.llm.key_alias"),
+                            seconds(row),
+                            timedOut(row),
+                            text(row.path("metadata"), "keel.fallback_from")));
+                });
+                var next = body.path("meta").path("cursor").asText("");
+                if (next.isBlank() || next.equals(cursor)) {
+                    break;
+                }
+                cursor = next;
+            }
+            return rows;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static boolean generation(JsonNode row) {
+        var type = row.path("type").asText("");
+        if (type.equalsIgnoreCase("GENERATION")) {
+            return true;
+        }
+        if ("generation".equals(text(row.path("metadata"), "langfuse.observation.type"))) {
+            return true;
+        }
+        return type.isBlank() && "llm.chat".equals(row.path("name").asText("")) && !modelOf(row).isBlank();
+    }
+
+    private static String modelOf(JsonNode row) {
+        var direct = row.path("model").asText("");
+        if (!direct.isBlank()) {
+            return direct;
+        }
+        var metadata = row.path("metadata");
+        var named = text(metadata, "gen_ai.request.model");
+        if (!named.isBlank()) {
+            return named;
+        }
+        return text(metadata, "attributes.gen_ai.request.model");
+    }
+
+    private static boolean timedOut(JsonNode row) {
+        var metadata = row.path("metadata");
+        var blob = (row.path("statusMessage").asText("") + " " + row.path("level").asText("") + " "
+                + text(metadata, "keel.status")).toLowerCase(Locale.ROOT);
+        return blob.contains("timeout") || blob.contains("timed out") || blob.contains("超时");
+    }
+
     public Integer observationCount(Instant from, Instant to) {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             return null;
@@ -324,6 +406,8 @@ public class LangfuseClient {
     }
 
     public record RootCall(String traceId, String agent, String keyAlias, Double latencySeconds) {}
+
+    public record Generation(String model, String keyAlias, Double latencySeconds, boolean timedOut, String fallbackFrom) {}
 
     public record RootPage(List<RootCall> rows, boolean complete) {}
 

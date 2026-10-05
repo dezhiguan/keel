@@ -98,7 +98,13 @@ public class LiteLlmClient {
             if (!data.isArray() || data.isEmpty()) {
                 break;
             }
-            data.forEach(row -> rows.add(new Spend(row.path("alias").asText(""), row.path("model").asText(""), row.path("costCny").asDouble())));
+            data.forEach(row -> rows.add(new Spend(
+                    row.path("alias").asText(""),
+                    row.path("model").asText(""),
+                    row.path("costCny").asDouble(),
+                    row.path("ts").asText(""),
+                    row.has("latencyMs") && !row.path("latencyMs").isNull() ? row.path("latencyMs").asLong() : null,
+                    row.path("timedOut").asBoolean(false))));
             if (data.size() < 50) {
                 break;
             }
@@ -121,15 +127,20 @@ public class LiteLlmClient {
         var rows = new ArrayList<Model>();
         get("/admin/v1/models").path("data").forEach(row -> rows.add(new Model(
                 row.path("name").asText(""),
-                row.path("priceConfigured").asBoolean(false))));
+                row.path("priceConfigured").asBoolean(false),
+                row.path("provider").asText(""))));
         return rows;
+    }
+
+    public void updateBudget(String alias, BigDecimal dailyBudgetCny) {
+        send("/admin/v1/keys/" + alias + "/budget", Map.of("dailyBudgetCny", dailyBudgetCny));
     }
 
     public record VirtualKey(String alias, List<String> models, double dailyBudgetCny, double spentCny, boolean blocked) {}
 
-    public record Spend(String alias, String model, double costCny) {}
+    public record Spend(String alias, String model, double costCny, String ts, Long latencyMs, boolean timedOut) {}
 
-    public record Model(String name, boolean priceConfigured) {}
+    public record Model(String name, boolean priceConfigured, String provider) {}
 
     private JsonNode get(String path) {
         if (baseUrl.isBlank() || masterKey.isBlank()) {

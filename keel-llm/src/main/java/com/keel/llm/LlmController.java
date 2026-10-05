@@ -56,6 +56,16 @@ public class LlmController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/admin/v1/keys/{alias}/budget")
+    ResponseEntity<Void> budget(@RequestHeader(value = "Authorization", required = false) String authorization,
+                                @PathVariable String alias,
+                                @RequestBody Map<String, Object> body) {
+        admin(authorization);
+        var raw = body.get("dailyBudgetCny");
+        gateway.updateBudget(alias, raw == null ? null : new BigDecimal(raw.toString()));
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/admin/v1/keys")
     Map<String, Object> keys(@RequestHeader(value = "Authorization", required = false) String authorization) {
         admin(authorization);
@@ -99,7 +109,9 @@ public class LlmController {
                 "outputTokens", row.outputTokens(),
                 "costCny", row.costCny(),
                 "requestId", row.requestId(),
-                "ts", row.ts().toString())).toList();
+                "ts", row.ts().toString(),
+                "latencyMs", row.latencyMs(),
+                "timedOut", row.timedOut())).toList();
         return Map.of("data", rows, "page", page, "size", size);
     }
 
@@ -110,7 +122,8 @@ public class LlmController {
                 "name", model.name(),
                 "inputCnyPerToken", model.inputCnyPerToken(),
                 "outputCnyPerToken", model.outputCnyPerToken(),
-                "priceConfigured", model.priceConfigured())).toList();
+                "priceConfigured", model.priceConfigured(),
+                "provider", ModelCatalog.provider(model.upstream()))).toList();
         return Map.of("data", rows);
     }
 
