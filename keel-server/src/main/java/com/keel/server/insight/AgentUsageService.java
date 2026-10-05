@@ -108,6 +108,15 @@ public class AgentUsageService {
         if (allTime != null && allTime.complete()) {
             totalsKnown = true;
             var all = new LinkedHashMap<String, String>();
+            try {
+                for (var hit : saved.since(Instant.parse("2020-01-01T00:00:00Z"), env)) {
+                    if (!hit.traceId().isBlank() && !hit.agent().isBlank()) {
+                        all.put(hit.traceId(), hit.agent());
+                    }
+                }
+            } catch (RuntimeException ignored) {
+                // 本机表不可用时，总调用只计 Langfuse 里能读全的根节点。
+            }
             counted(allTime, env, all, null);
             totals = new HashMap<>();
             for (var agent : all.values()) {

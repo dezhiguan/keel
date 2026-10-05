@@ -5,7 +5,9 @@ export function fmtScore(value: number | null | undefined): string {
 
 export function fmtMoney(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—'
-  return `¥${value.toFixed(2)}`
+  if (value === 0) return '¥0.00'
+  const digits = Math.abs(value) >= 0.01 ? 2 : 4
+  return `¥${value.toFixed(digits)}`
 }
 
 export function fmtSeconds(value: number | null | undefined): string {

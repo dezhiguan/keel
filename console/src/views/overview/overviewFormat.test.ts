@@ -10,6 +10,7 @@ describe('overview format', () => {
   it('keeps a zero cost visible and a missing cost blank', () => {
     expect(fmtMoney(0)).toBe('¥0.00')
     expect(fmtMoney(101.1)).toBe('¥101.10')
+    expect(fmtMoney(0.004694)).toBe('¥0.0047')
     expect(fmtMoney(undefined)).toBe('—')
   })
 
