@@ -1,5 +1,6 @@
-"""Real echo agent: one user turn goes through ctx.llm and the SDK span exporter.
+"""Real echo agent: one user turn goes through ctx.llm.
 
+The SDK generation span carries that turn to Langfuse.
 Secrets are read before the app is built and again on each request.
 """
 

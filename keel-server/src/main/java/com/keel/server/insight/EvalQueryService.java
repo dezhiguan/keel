@@ -5,6 +5,7 @@ import com.keel.common.error.ErrorCode;
 import com.keel.server.common.KeelException;
 import com.keel.server.integration.langfuse.LangfuseClient;
 import com.keel.server.registry.service.AgentRegistryService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -22,6 +23,7 @@ public class EvalQueryService {
     private final Function<String, JsonNode> manifest;
     private final Map<String, Run> runs = new ConcurrentHashMap<>();
 
+    @Autowired
     public EvalQueryService(LangfuseClient langfuse, AgentRegistryService registry) {
         this(langfuse, registry::manifestOrEmpty);
     }
