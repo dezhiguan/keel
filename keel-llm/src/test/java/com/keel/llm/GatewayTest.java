@@ -37,6 +37,20 @@ class GatewayTest {
         assertThat(listed.toString()).doesNotContain(created.key());
     }
 
+    @Test void spendSurvivesASecondReplica() throws Exception {
+        var server = echoServer();
+        var log = new SpendLog(null);
+        var first = new Gateway(catalog(server), new BudgetCounter(), new Upstream(), new KeyDirectory(), log);
+        var created = first.create("echo-dev", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false);
+        first.complete("Bearer " + created.key(), "/v1/chat/completions", "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2));
+        var second = new Gateway(catalog(server), new BudgetCounter(), new Upstream(), new KeyDirectory(), log);
+        var rows = second.spend("echo-dev", 1, 10);
+        assertThat(rows).hasSize(1);
+        assertThat(rows.getFirst().model()).isEqualTo("qwen-plus");
+        assertThat(rows.getFirst().latencyMs()).isGreaterThanOrEqualTo(0);
+        server.stop(0);
+    }
+
     @Test void rejectsAliasOutsideAgentEnv() {
         var gateway = gateway(echoServer());
         assertThatThrownBy(() -> gateway.create("CodeReview", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false))

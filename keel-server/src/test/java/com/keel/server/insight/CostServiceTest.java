@@ -76,7 +76,7 @@ class CostServiceTest {
         assertThat(result.stats()).anySatisfy(model -> {
             assertThat(model.name()).isEqualTo("deepseek-v3");
             assertThat(model.provider()).isEqualTo("DeepSeek");
-            assertThat(model.role()).isEmpty();
+            assertThat(model.role()).isEqualTo("降级备选");
             assertThat(model.calls()).isEqualTo(1);
             assertThat(model.costCny()).isEqualTo(3.0);
         });
@@ -138,7 +138,7 @@ class CostServiceTest {
         });
         assertThat(result.stats()).anySatisfy(model -> {
             assertThat(model.name()).isEqualTo("deepseek-v3");
-            assertThat(model.role()).isEmpty();
+            assertThat(model.role()).isEqualTo("降级备选");
             assertThat(model.calls()).isEqualTo(1);
             assertThat(model.timeoutRate()).isEqualTo(1.0);
             assertThat(model.status()).isEqualTo("bad");

@@ -221,6 +221,7 @@ public class CostService {
                 roles.put(model, "向量化");
             }
         });
+        roles.putIfAbsent("deepseek-v3", "降级备选");
         return roles;
     }
 

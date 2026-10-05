@@ -15,24 +15,29 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 public final class Gateway {
-    public static final Pattern ALIAS = Pattern.compile("^[a-z][a-z0-9-]{1,38}[a-z0-9]-(dev|staging|prod)$");
+    public static final Pattern ALIAS = Pattern.compile("^[a-z][a-z0-9-]{1,38}[a-z0-9]-(dev|test|staging|prod)$");
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final ModelCatalog catalog;
     private final BudgetCounter budget;
     private final Upstream upstream;
     private final KeyDirectory keys;
-    private final List<Spend> spend = new ArrayList<>();
+    private final SpendLog spendLog;
 
     public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream) {
         this(catalog, budget, upstream, new KeyDirectory());
     }
 
     public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream, KeyDirectory keys) {
+        this(catalog, budget, upstream, keys, new SpendLog(null));
+    }
+
+    public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream, KeyDirectory keys, SpendLog spendLog) {
         this.catalog = catalog;
         this.budget = budget;
         this.upstream = upstream;
         this.keys = keys;
+        this.spendLog = spendLog;
     }
 
     public synchronized Created create(String alias, List<String> models, List<String> fallback, BigDecimal dailyBudgetCny, boolean allowFallback) {
@@ -83,7 +88,7 @@ public final class Gateway {
     }
 
     public List<Spend> spend(String alias, int page, int size) {
-        var matched = spend.stream().filter(row -> alias == null || alias.isBlank() || row.alias.equals(alias)).toList();
+        var matched = spendLog.all().stream().filter(row -> alias == null || alias.isBlank() || row.alias.equals(alias)).toList();
         int from = Math.max(0, (page - 1) * size);
         int to = Math.min(matched.size(), from + size);
         return from >= matched.size() ? List.of() : matched.subList(from, to);
@@ -130,9 +135,7 @@ public final class Gateway {
 
     private Spend remember(String alias, String model, int inputTokens, int outputTokens, BigDecimal cost, long latencyMs, boolean timedOut) {
         var row = new Spend(alias, model, inputTokens, outputTokens, cost, "req-" + UUID.randomUUID(), Instant.now(), latencyMs, timedOut);
-        synchronized (this) {
-            spend.add(row);
-        }
+        spendLog.append(row);
         return row;
     }
 
