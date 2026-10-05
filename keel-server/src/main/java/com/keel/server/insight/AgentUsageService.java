@@ -3,6 +3,7 @@ package com.keel.server.insight;
 import com.keel.server.integration.langfuse.LangfuseClient;
 import com.keel.server.integration.litellm.LiteLlmClient;
 import com.keel.server.registry.model.dto.AgentSummary;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -31,6 +32,7 @@ public class AgentUsageService {
     private String cachedEnv;
     private Instant cachedAt;
 
+    @Autowired
     public AgentUsageService(LangfuseClient langfuse, LiteLlmClient gateway, QualityService quality, SavedTraces saved) {
         this(langfuse, gateway, quality, saved, Clock.systemUTC());
     }
