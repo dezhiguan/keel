@@ -22,7 +22,7 @@ class SchemaMigrationTest {
     @Test
     @Transactional
     void migratesAllPlatformTablesAndRunConstraints() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("4");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("5");
 
         List<String> tables = jdbc.queryForList("""
             SELECT tablename FROM pg_tables
@@ -45,7 +45,7 @@ class SchemaMigrationTest {
             SELECT conname FROM pg_constraint WHERE conrelid = 'approval_request'::regclass
             """, String.class);
         assertThat(requestConstraints).contains("ck_approval_request_subject",
-            "ck_approval_request_status", "approval_request_run_id_fkey");
+            "ck_approval_request_status", "ck_approval_request_risk", "approval_request_run_id_fkey");
 
         List<String> indexes = jdbc.queryForList("""
             SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()
