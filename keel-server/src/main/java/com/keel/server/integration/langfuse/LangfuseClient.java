@@ -144,14 +144,14 @@ public class LangfuseClient {
         if (datasetIds != null && !datasetIds.isEmpty()) {
             filter = "&datasetId=" + URLEncoder.encode(String.join(",", datasetIds), StandardCharsets.UTF_8);
         }
-        return pages("/api/public/experiments?fromStartTime=2020-01-01T00:00:00.000Z&limit=100&fields=core,metadata,scores" + filter);
+        return pages("/api/public/experiments?fromStartTime=2020-01-01T00:00:00.000Z&limit=100&fields=core,scores" + filter);
     }
 
     public JsonNode experimentItems(String experimentId) {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
         }
-        return pages("/api/public/experiment-items?fromStartTime=2020-01-01T00:00:00.000Z&limit=100&fields=core,scores&experimentId="
+        return pages("/api/public/experiment-items?fromStartTime=2020-01-01T00:00:00.000Z&limit=100&fields=scores&experimentId="
                 + URLEncoder.encode(experimentId, StandardCharsets.UTF_8));
     }
 
