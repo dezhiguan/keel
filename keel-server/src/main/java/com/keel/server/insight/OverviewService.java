@@ -61,15 +61,16 @@ public class OverviewService {
                 .toList();
         var agents = usage.apply(listed, scope);
         var snap = usage.snapshotOf(scope);
-        var online = (int) agents.stream()
-                .filter(agent -> agent.status() == AgentStatus.ONLINE || agent.status() == AgentStatus.DEGRADED)
-                .count();
+        var online = (int) agents.stream().filter(agent -> agent.status() == AgentStatus.ONLINE).count();
         var biz = (int) agents.stream().filter(agent -> "biz".equals(agent.category())).count();
         var dev = (int) agents.stream().filter(agent -> "dev".equals(agent.category())).count();
         Long calls = snap.callsKnown() ? snap.callTotal() : null;
         Double cost = snap.costKnown() ? snap.costTotal() : null;
-        var scored = agents.stream().map(AgentSummary::score).filter(score -> score != null).mapToDouble(Double::doubleValue).toArray();
-        Double avg = scored.length == 0 ? quality.average() : Math.round(java.util.Arrays.stream(scored).average().orElseThrow() * 100.0) / 100.0;
+        var scored = agents.stream().map(AgentSummary::score).filter(score -> score != null).toList();
+        Double avg = quality.average();
+        if (!scored.isEmpty()) {
+            avg = Math.round(scored.stream().mapToDouble(Double::doubleValue).average().orElseThrow() * 100.0) / 100.0;
+        }
         var kpi = new Kpi(online, agents.size(), biz, dev, calls, snap.trendPct(), cost, avg, GATE, pendingApprovals.getAsInt());
         var costByAgent = new ArrayList<Map<String, Object>>();
         if (snap.costKnown()) {
