@@ -57,7 +57,44 @@ public class AgentUsageService {
                 snap.p95.get(item.name()),
                 snap.costKnown ? snap.cost.getOrDefault(item.name(), 0.0) : null,
                 snap.budgets.get(item.name()),
-                snap.scores.get(item.name()))).toList();
+                scoreOf(snap, item.name()))).toList();
+    }
+
+    private Double scoreOf(Snapshot snap, String agent) {
+        if (agent == null || agent.isBlank()) {
+            return null;
+        }
+        var fromExperiment = experimentScore(agent);
+        if (fromExperiment != null) {
+            return fromExperiment;
+        }
+        return snap.scores.get(agent);
+    }
+
+    private final Map<String, Double> experimentScores = new HashMap<>();
+    private Instant experimentScoresAt;
+
+    private synchronized Double experimentScore(String agent) {
+        var now = clock.instant();
+        if (experimentScoresAt == null || !experimentScoresAt.plus(TTL).isAfter(now)) {
+            experimentScores.clear();
+            experimentScoresAt = now;
+        }
+        if (experimentScores.containsKey(agent)) {
+            var cached = experimentScores.get(agent);
+            return Double.isNaN(cached) ? null : cached;
+        }
+        Double score = null;
+        try {
+            var value = evaluations.latest(agent).get("scoreTotal");
+            if (value instanceof Number number) {
+                score = number.doubleValue();
+            }
+        } catch (RuntimeException ignored) {
+            score = null;
+        }
+        experimentScores.put(agent, score == null ? Double.NaN : score);
+        return score;
     }
 
     public Snapshot snapshotOf(String env) {
