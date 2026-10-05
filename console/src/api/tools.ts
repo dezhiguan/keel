@@ -21,3 +21,28 @@ export function deprecateTool(name: string, replacedBy: string, deadline: string
 export function retireTool(name: string) {
   return post<unknown>(`/tools/${encodeURIComponent(name)}/retire`)
 }
+
+export function registerTool(body: {
+  name: string
+  description?: string
+  scope: 'PRIVATE' | 'SHARED'
+  access: 'READ' | 'WRITE' | 'EXEC'
+  risk: 'LOW' | 'MID' | 'HIGH'
+  provider: string
+  ownerAgent?: string
+  ownerOrg?: string
+  schemaJson: Record<string, unknown>
+}) {
+  return post<{ name?: string }>('/tools', body)
+}
+
+export function publishToolVersion(name: string, body: {
+  version: string
+  description?: string
+  schemaJson?: Record<string, unknown>
+  access?: 'READ' | 'WRITE' | 'EXEC'
+  risk?: 'LOW' | 'MID' | 'HIGH'
+  breaking: boolean
+}) {
+  return post<{ triggeredRegressions?: string[] }>(`/tools/${encodeURIComponent(name)}/versions`, body)
+}

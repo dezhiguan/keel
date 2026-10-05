@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import StatusPill from '@/components/StatusPill.vue'
 import ToolStatusPill from './ToolStatusPill.vue'
-import { deprecateTool, getTool, retireTool, type ToolDetail } from '@/api/tools'
+import { deprecateTool, getTool, publishToolVersion, retireTool, type ToolDetail } from '@/api/tools'
 import { toKeelError } from '@/api/http'
 import { RISK, agentStatus } from '@/utils/format'
 
@@ -16,7 +16,9 @@ const router = useRouter()
 const tool = ref<ToolDetail | null>(null)
 const loading = ref(false)
 const deprecating = ref(false)
+const publishing = ref(false)
 const form = reactive({ replacedBy: '', deadline: '' })
+const versionForm = reactive({ version: '', description: '', breaking: false })
 
 async function load() {
   loading.value = true
@@ -59,9 +61,31 @@ async function retire() {
   }
 }
 
-function publishVersion() {
-  // TODO(P3-4): new-version dialog for POST /tools/{name}/versions; breaking changes must use a new name.
-  ElMessage.info('发布新版本尚未接入')
+function openPublish() {
+  versionForm.version = ''
+  versionForm.description = tool.value?.description ?? ''
+  versionForm.breaking = false
+  publishing.value = true
+}
+
+async function submitPublish() {
+  if (!versionForm.version.trim()) {
+    ElMessage.warning('版本不能为空')
+    return
+  }
+  try {
+    const result = await publishToolVersion(tool.value!.name!, {
+      version: versionForm.version.trim(),
+      description: versionForm.description.trim(),
+      breaking: versionForm.breaking,
+    })
+    publishing.value = false
+    const triggered = result.triggeredRegressions ?? []
+    ElMessage.success(triggered.length ? `已发布，将回归：${triggered.join('、')}` : '已发布')
+    load()
+  } catch (error) {
+    ElMessage.error(toKeelError(error).message)
+  }
 }
 
 watch(() => route.params.name, load, { immediate: true })
@@ -77,7 +101,7 @@ watch(() => route.params.name, load, { immediate: true })
       <template v-if="tool && tool.status !== 'RETIRED'">
         <button class="btn danger" @click="retire">下线</button>
         <button v-if="tool.status !== 'DEPRECATED'" class="btn" @click="deprecating = true">废弃</button>
-        <button class="btn pri" @click="publishVersion">发布新版本</button>
+        <button class="btn pri" @click="openPublish">发布新版本</button>
       </template>
     </div>
 
@@ -141,6 +165,20 @@ watch(() => route.params.name, load, { immediate: true })
       <template #footer>
         <button class="btn" @click="deprecating = false">取消</button>
         <button class="btn pri" style="margin-left: 8px" @click="submitDeprecate">确认废弃</button>
+      </template>
+    </el-dialog>
+    <el-dialog v-model="publishing" title="发布新版本" width="440px">
+      <el-form label-width="90px">
+        <el-form-item label="版本"><el-input v-model="versionForm.version" placeholder="如 v2" /></el-form-item>
+        <el-form-item label="变更说明"><el-input v-model="versionForm.description" type="textarea" :rows="2" /></el-form-item>
+        <el-form-item label="破坏兼容">
+          <el-checkbox v-model="versionForm.breaking">参数不兼容，必须换新工具名</el-checkbox>
+        </el-form-item>
+      </el-form>
+      <p v-if="versionForm.breaking" class="mut">破坏兼容不能在原名上发版。请到工具列表用新名字注册。</p>
+      <template #footer>
+        <button class="btn" @click="publishing = false">取消</button>
+        <button class="btn pri" style="margin-left: 8px" @click="submitPublish">确认发布</button>
       </template>
     </el-dialog>
   </div>

@@ -46,6 +46,12 @@ public class ToolController {
         return R.ok(tools.detail(name));
     }
 
+    @PostMapping("/{name}/versions")
+    public R<Map<String, Object>> publish(@PathVariable String name, @RequestBody JsonNode body) {
+        var triggered = tools.publish(name, body);
+        return R.ok(Map.of("triggeredRegressions", triggered));
+    }
+
     @PostMapping("/{name}/deprecate")
     public R<Map<String, Object>> deprecate(@PathVariable String name, @RequestBody JsonNode body) {
         tools.deprecate(name, body.path("replacedBy").asText(""), body.path("deadline").asText(""));

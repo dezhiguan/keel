@@ -112,6 +112,10 @@ public class ToolRegistryService {
         if (description.isBlank()) {
             description = name;
         }
+        var count = jdbc.queryForObject("SELECT count(*) FROM tool WHERE name = ?", Integer.class, name);
+        if (count != null && count > 0) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "工具名已存在");
+        }
         var schema = body.path("schemaJson").isMissingNode() ? json.createObjectNode() : body.path("schemaJson");
         jdbc.update("""
                 INSERT INTO tool (name, scope, owner_agent, owner_org, provider, status)
@@ -123,6 +127,48 @@ public class ToolRegistryService {
                 VALUES (?, 'v1', ?::jsonb, ?, ?, ?, false)
                 ON CONFLICT (tool_name, version) DO NOTHING
                 """, name, schema.toString(), description, access, risk);
+    }
+
+    public List<String> publish(String name, JsonNode body) {
+        requireName(name);
+        var status = jdbc.queryForObject("SELECT status FROM tool WHERE name = ?", String.class, name);
+        if ("RETIRED".equals(status)) {
+            throw new KeelException(ErrorCode.TOOL_RETIRED, ErrorCode.TOOL_RETIRED.message());
+        }
+        var rejection = breakingRejection(body.path("breaking").asBoolean(false));
+        if (rejection != null) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, rejection);
+        }
+        var version = text(body, "version");
+        if (version.isBlank()) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "版本不能为空");
+        }
+        var existing = jdbc.queryForObject(
+                "SELECT count(*) FROM tool_version WHERE tool_name = ? AND version = ?", Integer.class, name, version);
+        if (existing != null && existing > 0) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "版本已存在");
+        }
+        var current = detail(name);
+        var description = text(body, "description");
+        if (description.isBlank()) {
+            description = String.valueOf(current.get("description"));
+        }
+        var access = upper(text(body, "access"), String.valueOf(current.get("access")));
+        var risk = upper(text(body, "risk"), String.valueOf(current.get("risk")));
+        var schema = body.path("schemaJson").isMissingNode() || body.path("schemaJson").isNull()
+                ? json.valueToTree(current.get("schemaJson")) : body.path("schemaJson");
+        jdbc.update("""
+                INSERT INTO tool_version (tool_name, version, schema_json, description, access, risk, breaking)
+                VALUES (?, ?, ?::jsonb, ?, ?, ?, false)
+                """, name, version, schema.toString(), description, access, risk);
+        if ("REGISTERED".equals(status)) {
+            jdbc.update("UPDATE tool SET status = 'ONLINE', updated_at = now() WHERE name = ?", name);
+        }
+        return dependentsOf(name).stream().map(row -> String.valueOf(row.get("agent"))).distinct().toList();
+    }
+
+    static String breakingRejection(boolean breaking) {
+        return breaking ? "破坏兼容必须用新名字注册，不能在原名上发版" : null;
     }
 
     public void deprecate(String name, String replacedBy, String deadline) {

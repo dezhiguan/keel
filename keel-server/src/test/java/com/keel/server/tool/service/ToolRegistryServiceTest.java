@@ -29,4 +29,9 @@ class ToolRegistryServiceTest {
         assertThat(ToolRegistryService.blocksRetire(List.of("dev", "prod"))).isTrue();
         assertThat(ToolRegistryService.blocksRetire(List.of("dev"))).isFalse();
     }
+
+    @Test void breakingVersionMustUseANewName() {
+        assertThat(ToolRegistryService.breakingRejection(true)).contains("新名字");
+        assertThat(ToolRegistryService.breakingRejection(false)).isNull();
+    }
 }
