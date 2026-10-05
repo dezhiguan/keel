@@ -1742,7 +1742,7 @@ components:
     # ------------------------------------------------------------ 审计
     AuditEvent:
       type: object
-      description: 与 contracts/audit-event.schema.json 同构，额外带 hashVerified 供列表展示
+      description: 与 contracts/audit-event.schema.json 同构，额外带 hash、prevHash、hashVerified 供详情展示哈希链
       properties:
         eventId: { type: string }
         ts: { type: string, format: date-time }
@@ -1766,6 +1766,8 @@ components:
           description: 只含 manifest captureFields 白名单字段，已脱敏
         inputDigest: { type: string }
         hashVerified: { type: boolean }
+        hash: { type: string, description: 本事件 sha256 hex }
+        prevHash: { type: string, nullable: true, description: 同智能体链上一条的 hash，链头为空 }
 
     # ------------------------------------------------------------ 模型网关
     ModelGateway:

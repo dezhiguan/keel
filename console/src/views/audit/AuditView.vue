@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import JsonViewer from '@/components/JsonViewer.vue'
 import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import { listAgents } from '@/api/agents'
@@ -9,6 +9,7 @@ import { listAuditEvents, requestAuditExport, verifyAuditChain, type AuditEvent,
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { RISK, hms, type StatusTone } from '@/utils/format'
+import { eventTime, payloadText, shortHash } from './auditDrawer'
 
 const DECISION: Record<NonNullable<AuditEvent['decision']>, { label: string; tone: StatusTone }> = {
   allowed: { label: '允许', tone: 'ok' },
@@ -19,11 +20,13 @@ const DECISION: Record<NonNullable<AuditEvent['decision']>, { label: string; ton
 }
 
 const envStore = useEnvStore()
+const router = useRouter()
 const agents = ref<string[]>([])
 const result = ref<AuditPage | null>(null)
 const loading = ref(false)
 const verifying = ref(false)
 const selected = ref<AuditEvent | null>(null)
+const shown = ref(false)
 const filter = reactive<{ agent?: string; risk?: ListAuditQuery['risk']; page: number; size: NonNullable<ListAuditQuery['size']> }>({
   agent: undefined,
   risk: undefined,
@@ -92,8 +95,41 @@ async function exportAudit() {
   }
 }
 
+function close() {
+  selected.value = null
+}
+
+function openTrace() {
+  const traceId = selected.value?.traceId
+  if (!traceId) return
+  close()
+  router.push(`/traces/${traceId}`)
+}
+
+function onKey(event: KeyboardEvent) {
+  if (event.key === 'Escape' && selected.value) close()
+}
+
+watch(selected, async (event) => {
+  shown.value = false
+  if (!event) {
+    document.body.style.overflow = ''
+    return
+  }
+  document.body.style.overflow = 'hidden'
+  await nextTick()
+  requestAnimationFrame(() => {
+    if (selected.value === event) shown.value = true
+  })
+})
+
 watch(() => envStore.env, () => { loadAgents(); search() })
 watch(() => [filter.page, filter.size], load, { immediate: true })
+onMounted(() => window.addEventListener('keydown', onKey))
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKey)
+  document.body.style.overflow = ''
+})
 loadAgents()
 </script>
 
@@ -137,28 +173,39 @@ loadAgents()
       <Pager v-model:page="filter.page" v-model:size="filter.size" :total="result?.total ?? 0" />
     </div>
 
-    <el-drawer :model-value="!!selected" :title="selected?.eventId" size="520px" @close="selected = null">
+    <Teleport to="body">
       <template v-if="selected">
-        <div class="kv">
-          <span>时间</span><b class="mono">{{ selected.ts }}</b>
-          <span>智能体 / 环境</span><b>{{ selected.agent }} · {{ selected.env }}</b>
-          <span>操作人</span><b>{{ selected.actor?.userId }}</b>
-          <span>动作</span><b class="mono">{{ selected.action }}</b>
-          <span>资源</span><b>{{ selected.resource }}</b>
-          <span>风险</span><b><span class="pill nd" :class="RISK[selected.risk!].cls">{{ RISK[selected.risk!].label }}</span></b>
-          <span>结果</span><b><StatusPill v-bind="DECISION[selected.decision!]" /></b>
-          <span>审批人</span><b>{{ selected.approver ?? '—' }}</b>
-          <span>trace</span>
-          <b>
-            <RouterLink v-if="selected.traceId" :to="`/traces/${selected.traceId}`" class="mono" style="color: var(--soft)">{{ selected.traceId }}</RouterLink>
-            <template v-else>—</template>
-          </b>
-          <span>输入摘要</span><b class="mono">{{ selected.inputDigest }}</b>
-          <span>哈希校验</span><b>{{ selected.hashVerified ? '通过' : '未通过' }}</b>
-        </div>
-        <h4 style="margin: 16px 0 8px; color: var(--white); font-size: 13px">payload<small class="mut">（只含 captureFields 白名单字段，已脱敏）</small></h4>
-        <JsonViewer :value="selected.payload" />
+        <div class="mask" :class="{ on: shown }" @click="close" />
+        <aside class="drawer" :class="{ on: shown }" role="dialog" aria-label="审计事件详情">
+          <div class="dh">
+            <h3 style="display: block">审计事件 <span class="mono" style="font-size: 13px; color: var(--mute); font-weight: 400">{{ selected.action }}</span></h3>
+            <span class="sp" />
+            <button class="x" type="button" aria-label="关闭" @click="close">×</button>
+          </div>
+          <div class="db">
+            <div class="kv">
+              <span>时间</span><b class="mono">{{ eventTime(selected.ts) }}</b>
+              <span>智能体</span><b>{{ selected.agent }}</b>
+              <span>操作人</span><b>{{ selected.actor?.userId }}</b>
+              <span>资源</span><b>{{ selected.resource }}</b>
+              <span>风险</span><b><span class="pill nd" :class="RISK[selected.risk!].cls">{{ RISK[selected.risk!].label }}</span></b>
+              <span>trace</span><b class="mono">{{ selected.traceId || '—' }}</b>
+            </div>
+            <h4 style="margin: 16px 0 6px; color: var(--white); font-size: 13px">payload（仅白名单字段，已脱敏）</h4>
+            <pre class="code">{{ payloadText(selected.payload) }}</pre>
+            <h4 style="margin: 16px 0 6px; color: var(--white); font-size: 13px">哈希链</h4>
+            <div class="kv">
+              <span>hash</span><b class="mono">{{ shortHash(selected.hash) }}</b>
+              <span>prev_hash</span><b class="mono">{{ shortHash(selected.prevHash) }}</b>
+              <span>链</span>
+              <b>{{ selected.agent }} · {{ selected.hashVerified ? '校验通过' : '校验未通过' }} <span class="pill" :class="selected.hashVerified ? 'p-ok' : 'p-bad'">{{ selected.hashVerified ? '✓' : '✗' }}</span></b>
+            </div>
+          </div>
+          <div v-if="selected.traceId" class="df">
+            <button class="btn" type="button" @click="openTrace">查看链路</button>
+          </div>
+        </aside>
       </template>
-    </el-drawer>
+    </Teleport>
   </div>
 </template>

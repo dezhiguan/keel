@@ -1145,7 +1145,7 @@ export interface components {
             /** Format: date-time */
             deadline?: string | null;
         };
-        /** @description 与 contracts/audit-event.schema.json 同构，额外带 hashVerified 供列表展示 */
+        /** @description 与 contracts/audit-event.schema.json 同构，额外带 hash、prevHash、hashVerified 供详情展示哈希链 */
         AuditEvent: {
             eventId?: string;
             /** Format: date-time */
@@ -1169,6 +1169,10 @@ export interface components {
             };
             inputDigest?: string;
             hashVerified?: boolean;
+            /** @description 本事件 sha256 hex */
+            hash?: string;
+            /** @description 同智能体链上一条的 hash，链头为空 */
+            prevHash?: string | null;
         };
         ModelGateway: {
             models?: {

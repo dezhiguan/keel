@@ -75,6 +75,8 @@ public class JdbcAuditStore implements AuditStore {
             item.put("payload", Map.of());
             item.put("inputDigest", rs.getString("input_digest"));
             item.put("hashVerified", expected.equals(storedHash));
+            item.put("hash", storedHash);
+            item.put("prevHash", storedPrev == null || storedPrev.isEmpty() ? null : storedPrev);
             return item;
         }, agentFilter, agentFilter, riskFilter, riskFilter, size, Math.max(0, (page - 1) * size));
         var data = new LinkedHashMap<String, Object>();
