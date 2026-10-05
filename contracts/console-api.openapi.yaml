@@ -1459,12 +1459,14 @@ components:
                 modelCostCny: { type: number, format: float }
             stageLatency:
               type: array
-              description: P50 分段耗时，来自 Langfuse retriever 节点的子 span
+              description: 分段耗时。有直方图分位时用 p50Ms；现网只有 sum/count 时用 meanMs。
               items:
                 type: object
                 properties:
                   stage: { type: string, enum: [rewrite, vector, keyword, rerank, other] }
                   p50Ms: { type: integer }
+                  meanMs: { type: integer }
+                  basis: { type: string, enum: [p50, mean] }
             callers:
               type: array
               items:

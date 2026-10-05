@@ -867,11 +867,14 @@ export interface components {
                     /** Format: float */
                     modelCostCny?: number;
                 };
-                /** @description P50 分段耗时，来自 Langfuse retriever 节点的子 span */
+                /** @description 分段耗时。有直方图分位时用 p50Ms；现网只有 sum/count 时用 meanMs。 */
                 stageLatency?: {
                     /** @enum {string} */
                     stage?: "rewrite" | "vector" | "keyword" | "rerank" | "other";
                     p50Ms?: number;
+                    meanMs?: number;
+                    /** @enum {string} */
+                    basis?: "p50" | "mean";
                 }[];
                 callers?: {
                     agent?: string;

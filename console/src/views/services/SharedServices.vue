@@ -22,8 +22,20 @@ const tab = ref<'health' | 'rag'>('health')
 const loading = ref(false)
 
 const rag = computed(() => data.value?.ragforge)
-const stageTotal = computed(() => (rag.value?.stageLatency ?? []).reduce((n, s) => n + (s.p50Ms ?? 0), 0) || 1)
+const stageMs = (stage: { p50Ms?: number; meanMs?: number }) => stage.p50Ms ?? stage.meanMs ?? 0
+const stageTotal = computed(() => (rag.value?.stageLatency ?? []).reduce((n, s) => n + stageMs(s), 0) || 1)
+const stageNote = computed(() => {
+  const rows = rag.value?.stageLatency ?? []
+  return rows.length > 0 && rows.every((s) => s.basis === 'mean' || (s.p50Ms == null && s.meanMs != null))
+    ? '均值 · 进程内分段计时'
+    : 'P50 · Langfuse retriever 子 span'
+})
 const callerMax = computed(() => Math.max(1, ...(rag.value?.callers ?? []).map((c) => c.calls ?? 0)))
+const seconds = (value: number | null | undefined) => (value == null ? '—' : `${value}s`)
+const costText = computed(() => {
+  const cost = rag.value?.kpi?.modelCostCny
+  return cost == null ? '—' : `¥${cost.toFixed(2)}`
+})
 
 onMounted(async () => {
   loading.value = true
@@ -60,7 +72,7 @@ onMounted(async () => {
             <td>{{ s.role }}</td>
             <td class="mono">{{ s.instances }}</td>
             <td class="mono">{{ s.p95 ?? '—' }}</td>
-            <td class="mono">{{ s.errorRate }}</td>
+            <td class="mono">{{ s.errorRate ?? '—' }}</td>
             <td><StatusPill v-bind="agentStatus(s.status)" /></td>
           </tr>
         </tbody>
@@ -69,20 +81,20 @@ onMounted(async () => {
 
     <template v-else-if="rag">
       <div class="kpis">
-        <div class="kpi"><div class="l">rag-forge 24h 检索</div><div class="v">{{ fmtN(rag.kpi?.searches24h) }}</div><div class="d up">▲ {{ rag.kpi?.searchTrendPct }}%</div></div>
-        <div class="kpi"><div class="l">检索 P95</div><div class="v">{{ rag.kpi?.p95Seconds }}s</div><div class="d">P50 {{ rag.kpi?.p50Seconds }}s</div></div>
+        <div class="kpi"><div class="l">rag-forge 24h 检索</div><div class="v">{{ fmtN(rag.kpi?.searches24h) }}</div><div class="d up">{{ rag.kpi?.searchTrendPct == null ? '—' : `▲ ${rag.kpi.searchTrendPct}%` }}</div></div>
+        <div class="kpi"><div class="l">检索 P95</div><div class="v">{{ seconds(rag.kpi?.p95Seconds) }}</div><div class="d">P50 {{ seconds(rag.kpi?.p50Seconds) }}</div></div>
         <div class="kpi"><div class="l">限流 / 超时</div><div class="v" style="color: var(--warn)">{{ fmtPct(rag.kpi?.throttleRate) }}</div><div class="d">429 为主</div></div>
-        <div class="kpi"><div class="l">知识库</div><div class="v">{{ rag.kpi?.kbCount }}</div><div class="d">{{ rag.kpi?.staleKbCount }} 个超过 30 天未更新</div></div>
-        <div class="kpi"><div class="l">今日模型成本</div><div class="v">¥{{ rag.kpi?.modelCostCny?.toFixed(2) }}</div><div class="d">rag-forge 虚拟 Key</div></div>
+        <div class="kpi"><div class="l">知识库</div><div class="v">{{ rag.kpi?.kbCount ?? '—' }}</div><div class="d">{{ rag.kpi?.staleKbCount ?? '—' }} 个超过 30 天未更新</div></div>
+        <div class="kpi"><div class="l">今日模型成本</div><div class="v">{{ costText }}</div><div class="d">rag-forge 计量</div></div>
       </div>
       <div class="row2e">
         <div class="card">
-          <h3>检索分段耗时<small>P50 · Langfuse retriever 子 span</small></h3>
+          <h3>检索分段耗时<small>{{ stageNote }}</small></h3>
           <div class="stack">
-            <i v-for="s in rag.stageLatency" :key="s.stage" :style="{ width: `${((s.p50Ms ?? 0) / stageTotal) * 100}%`, background: STAGES[s.stage!].color }" />
+            <i v-for="s in rag.stageLatency" :key="s.stage" :style="{ width: `${(stageMs(s) / stageTotal) * 100}%`, background: (STAGES[s.stage!] ?? STAGES.other).color }" />
           </div>
           <div class="keys">
-            <span v-for="s in rag.stageLatency" :key="s.stage"><i :style="{ background: STAGES[s.stage!].color }" />{{ STAGES[s.stage!].label }} {{ s.p50Ms }}ms</span>
+            <span v-for="s in rag.stageLatency" :key="s.stage"><i :style="{ background: (STAGES[s.stage!] ?? STAGES.other).color }" />{{ (STAGES[s.stage!] ?? STAGES.other).label }} {{ stageMs(s) }}ms</span>
           </div>
         </div>
         <div class="card">

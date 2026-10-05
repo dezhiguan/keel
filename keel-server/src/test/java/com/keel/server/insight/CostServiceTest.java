@@ -3,7 +3,7 @@ package com.keel.server.insight;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.keel.server.integration.langfuse.LangfuseClient;
 import com.keel.server.integration.litellm.LiteLlmClient;
-import com.keel.server.integration.prometheus.PrometheusClient;
+import com.keel.server.integration.ragforge.RagForgeInsightClient;
 import com.keel.server.registry.service.AgentRegistryService;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
@@ -68,7 +68,7 @@ class CostServiceTest {
         assertThat(overview.costByAgent().stream().mapToDouble(row -> (Double) row.get("costCny")).sum()).isEqualTo(53.0);
         assertThat(paths).noneMatch(path -> path.contains("/spend/logs") || path.contains("/key/generate")
                 || path.equals("/api/public/metrics") || path.equals("/api/public/scores") || path.equals("/api/public/traces"));
-        var monitor = new SharedServiceMonitor(new PrometheusClient("http://127.0.0.1:1"));
+        var monitor = new SharedServiceMonitor(new RagForgeInsightClient("", "", ""), new LiteLlmClient("", ""));
         @SuppressWarnings("unchecked")
         var service = ((List<java.util.Map<String, Object>>) monitor.services().get("services")).get(0);
         assertThat(service.get("p95")).isNull();
