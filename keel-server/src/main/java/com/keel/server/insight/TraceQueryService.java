@@ -175,7 +175,16 @@ public class TraceQueryService {
     }
 
     private static String metadata(JsonNode row, String key) {
-        return row.path("metadata").path(key).asText("");
+        var metadata = row.path("metadata");
+        var direct = metadata.path(key);
+        if (!direct.isMissingNode() && !direct.isNull() && !direct.asText("").isBlank()) {
+            return direct.asText("");
+        }
+        var prefixed = metadata.path("attributes." + key);
+        if (!prefixed.isMissingNode() && !prefixed.isNull()) {
+            return prefixed.asText("");
+        }
+        return "";
     }
 
     private Map<String, Object> summary(String traceId, List<JsonNode> rows) {

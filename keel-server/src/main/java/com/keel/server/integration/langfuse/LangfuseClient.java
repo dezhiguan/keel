@@ -23,7 +23,7 @@ import java.util.HexFormat;
 public class LangfuseClient {
     private final String baseUrl;
     private final String authorization;
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
+    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final ObjectMapper json = new ObjectMapper();
 
     public LangfuseClient(String baseUrl, String publicKey, String secretKey) {
@@ -89,7 +89,8 @@ public class LangfuseClient {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
         }
-        return get("/api/public/v2/observations?limit=100&traceId=" + URLEncoder.encode(traceId, StandardCharsets.UTF_8));
+        return get("/api/public/v2/observations?limit=100&fields=core,basic,io,metadata&traceId="
+                + URLEncoder.encode(traceId, StandardCharsets.UTF_8));
     }
 
     public JsonNode experiments() {
@@ -118,7 +119,7 @@ public class LangfuseClient {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
         }
-        return get("/api/public/v2/observations?limit=100");
+        return get("/api/public/v2/observations?limit=100&fields=core,basic,io,metadata");
     }
 
     public Integer observationCount(Instant from, Instant to) {
@@ -150,7 +151,7 @@ public class LangfuseClient {
     private JsonNode send(String method, String path, JsonNode body, boolean ignoreConflict) {
         try {
             var builder = HttpRequest.newBuilder(URI.create(baseUrl + path))
-                    .timeout(Duration.ofSeconds(5))
+                    .timeout(Duration.ofSeconds(20))
                     .header("Authorization", authorization);
             if (body == null) {
                 builder.method(method, HttpRequest.BodyPublishers.noBody());
