@@ -13,6 +13,9 @@ spec:
     spec:
       imagePullSecrets:
         - name: acr-cred
+      hostAliases:
+        - ip: 172.25.90.183
+          hostnames: ["jp.cloud.langfuse.com"]
       containers:
         - name: echo-agent
           image: PLACEHOLDER_ECHO_IMAGE

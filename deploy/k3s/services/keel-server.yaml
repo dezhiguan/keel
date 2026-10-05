@@ -42,6 +42,9 @@ spec:
     spec:
       imagePullSecrets:
         - name: acr-cred
+      hostAliases:
+        - ip: 172.25.90.183
+          hostnames: ["jp.cloud.langfuse.com"]
       terminationGracePeriodSeconds: 30
       containers:
         - name: keel-server
