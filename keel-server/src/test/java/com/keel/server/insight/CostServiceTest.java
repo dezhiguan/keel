@@ -10,8 +10,6 @@ import org.junit.jupiter.api.Test;
 
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -54,7 +52,7 @@ class CostServiceTest {
         var registry = new AgentRegistryService(null, null, null, new ObjectMapper()) {
             @Override public List<com.keel.server.registry.model.dto.AgentSummary> listAll() { return List.of(); }
         };
-        var overview = new OverviewService(registry, costs, new QualityService(langfuse)).overview("all", "24h");
+        var overview = new OverviewService(registry, costs, new QualityService(langfuse), () -> 0).overview("all", "24h");
         assertThat(overview.kpi().modelCostCny()).isEqualTo(53.0);
         assertThat(overview.kpi().calls()).isEqualTo(51L);
         assertThat(overview.kpi().avgScore()).isEqualTo(0.9);
@@ -62,7 +60,6 @@ class CostServiceTest {
         assertThat(overview.costByAgent().stream().mapToDouble(row -> (Double) row.get("costCny")).sum()).isEqualTo(53.0);
         assertThat(paths).noneMatch(path -> path.contains("/spend/logs") || path.contains("/key/generate")
                 || path.equals("/api/public/metrics") || path.equals("/api/public/scores") || path.equals("/api/public/traces"));
-        assertThat(Files.readString(Path.of("src/main/java/com/keel/server/insight/OverviewService.java"))).contains("TODO(P3-1)");
         var monitor = new SharedServiceMonitor(new PrometheusClient("http://127.0.0.1:1"));
         @SuppressWarnings("unchecked")
         var service = ((List<java.util.Map<String, Object>>) monitor.services().get("services")).get(0);

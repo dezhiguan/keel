@@ -1,6 +1,11 @@
 package com.keel.server.integration.agent;
 
+import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
+
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -16,6 +21,36 @@ class AgentEndpointClientTest {
                 """);
         assertThat(answer.text()).isEqualTo("你好");
         assertThat(answer.traceId()).isEqualTo("abc");
+    }
+
+    @Test void postsTheResumeBodyAndRefusesAFailedAgent() throws Exception {
+        var seen = new AtomicReference<String>();
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/v1/runs/run_1/resume", exchange -> {
+            seen.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            exchange.sendResponseHeaders(204, -1);
+            exchange.close();
+        });
+        server.createContext("/v1/runs/run_down/resume", exchange -> {
+            exchange.sendResponseHeaders(503, -1);
+            exchange.close();
+        });
+        server.start();
+        var base = "http://127.0.0.1:" + server.getAddress().getPort();
+        try {
+            new AgentEndpointClient().resume(base + "/", "run_1", "rt_1", "approve", null);
+            assertThat(seen.get()).contains("\"resume_token\":\"rt_1\"").contains("\"decision\":\"approve\"");
+            new AgentEndpointClient().resume(base, "run_1", null, null, "先修这一台");
+            assertThat(seen.get()).contains("\"text\":\"先修这一台\"");
+            assertThatThrownBy(() -> new AgentEndpointClient().resume(base, "run_down", "rt", null, "x"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("503");
+            assertThatThrownBy(() -> new AgentEndpointClient().resume("http://127.0.0.1:1", "run_1", "rt", null, "x"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("调用智能体恢复失败");
+        } finally {
+            server.stop(0);
+        }
     }
 
     @Test void rejectsAnErrorEvent() {

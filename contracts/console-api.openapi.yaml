@@ -725,6 +725,49 @@ paths:
                               items:
                                 type: array
                                 items: { $ref: "#/components/schemas/Approval" }
+    post:
+      tags: [approvals]
+      operationId: openApproval
+      summary: 发起审批单
+      description: |
+        导出、工具变更、智能体配置与下线都从这里建单。runId 非空时必须已经有对应的 agent_run。
+        命中策略冷却期时不新建单，直接返回上一张 APPROVED。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subjectType, subjectRef, summary, actorUser]
+              properties:
+                subjectType: { type: string, enum: [tool.call, tool.config, agent.config, agent.retire, data.export] }
+                subjectRef: { type: string }
+                summary: { type: string }
+                actorUser: { type: string }
+                agent: { type: string }
+                risk: { $ref: "#/components/schemas/Risk" }
+                runId: { type: string, nullable: true }
+                traceId: { type: string }
+                payloadDigest: { type: string }
+                policyName: { type: string, nullable: true }
+                env: { $ref: "#/components/schemas/EnvName" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/Approval" }
+        "400":
+          description: 参数不合法
+          $ref: "#/components/responses/Error"
+        "404":
+          description: 策略、智能体或 run 不存在
+          $ref: "#/components/responses/Error"
 
   /approvals/{id}/decision:
     parameters:
@@ -765,7 +808,7 @@ paths:
     get:
       tags: [approvals]
       operationId: listSuspendedRuns
-      summary: 挂起等人回话的执行（草案，P3-1 定稿）
+      summary: 挂起等人回话的执行
       description: 只返回 status=SUSPENDED 且 reason 为 input_required / handoff 的 run；reason=approval 的在 /approvals 里。
       parameters:
         - name: agent
@@ -791,6 +834,48 @@ paths:
                               items:
                                 type: array
                                 items: { $ref: "#/components/schemas/SuspendedRun" }
+    post:
+      tags: [approvals]
+      operationId: openSuspendedRun
+      summary: 登记一次等人回话的挂起
+      description: reason 只接受 input_required 或 handoff。同一个 runId 再次登记且仍是同一挂起原因时返回原记录。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [runId, agent, reason, prompt, actorUser]
+              properties:
+                runId: { type: string }
+                agent: { type: string }
+                env: { $ref: "#/components/schemas/EnvName" }
+                traceId: { type: string }
+                reason: { type: string, enum: [input_required, handoff] }
+                prompt: { type: string }
+                actorUser: { type: string }
+                deadline: { type: string, format: date-time, nullable: true }
+                checkpointRef: { type: string, nullable: true }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/SuspendedRun" }
+        "400":
+          description: 参数不合法
+          $ref: "#/components/responses/Error"
+        "404":
+          description: 智能体不存在
+          $ref: "#/components/responses/Error"
+        "409":
+          description: runId 已存在且不能再次挂起
+          $ref: "#/components/responses/Error"
 
   /runs/{runId}/input:
     parameters:
@@ -801,7 +886,7 @@ paths:
     post:
       tags: [approvals]
       operationId: answerSuspendedRun
-      summary: 回复挂起的执行（草案，P3-1 定稿），keel-server 据此调智能体的 /v1/runs/{id}/resume
+      summary: 回复挂起的执行。keel-server 据此调智能体的 /v1/runs/{id}/resume
       requestBody:
         required: true
         content:

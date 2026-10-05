@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntSupplier;
 
 @Service
 public class OverviewService {
@@ -19,11 +20,14 @@ public class OverviewService {
     private final AgentRegistryService agentRegistryService;
     private final CostService costs;
     private final QualityService quality;
+    private final IntSupplier pendingApprovals;
 
-    public OverviewService(AgentRegistryService agentRegistryService, CostService costs, QualityService quality) {
+    public OverviewService(AgentRegistryService agentRegistryService, CostService costs, QualityService quality,
+                           IntSupplier pendingApprovals) {
         this.agentRegistryService = agentRegistryService;
         this.costs = costs;
         this.quality = quality;
+        this.pendingApprovals = pendingApprovals;
     }
 
     public Overview overview(String env, String range) {
@@ -36,8 +40,8 @@ public class OverviewService {
         var byAgent = cost.byAgent().entrySet().stream()
                 .map(entry -> Map.<String, Object>of("agent", entry.getKey(), "costCny", entry.getValue()))
                 .toList();
-        // TODO(P3-1): pendingApprovals stays 0 until the approval table is queryable.
-        var kpi = new Kpi(online, agents.size(), null, null, (long) cost.calls(), null, cost.totalCny(), quality.average(), null, 0);
+        var kpi = new Kpi(online, agents.size(), null, null, (long) cost.calls(), null, cost.totalCny(), quality.average(), null,
+                pendingApprovals.getAsInt());
         return new Overview(kpi, agents, List.of(), byAgent);
     }
 }

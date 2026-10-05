@@ -9,7 +9,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 
-/** Calls an agent's own /v1/health, /v1/manifest, and /v1/invoke. No Dify management API. */
+/** Calls an agent's own /v1/health, /v1/manifest, /v1/invoke, and /v1/runs/{id}/resume. */
 @Component
 public class AgentEndpointClient {
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
@@ -68,6 +68,33 @@ public class AgentEndpointClient {
     }
 
     public record Answer(String text, String traceId) {}
+
+    public void resume(String endpoint, String runId, String resumeToken, String decision, String inputText) {
+        var payload = json.createObjectNode();
+        payload.put("resume_token", resumeToken == null ? "" : resumeToken);
+        if (decision != null) {
+            payload.put("decision", decision);
+        }
+        if (inputText != null) {
+            payload.putObject("input").put("text", inputText);
+        }
+        var base = trim(endpoint);
+        try {
+            var request = HttpRequest.newBuilder(URI.create(base + "/v1/runs/" + runId + "/resume"))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(payload)))
+                    .build();
+            var response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 300) {
+                throw new IllegalStateException("智能体恢复返回 HTTP " + response.statusCode());
+            }
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("调用智能体恢复失败");
+        }
+    }
 
     public String manifestVersion(String endpoint) {
         var response = send(endpoint, "/v1/manifest");
