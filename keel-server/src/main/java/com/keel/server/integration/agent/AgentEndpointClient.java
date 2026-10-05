@@ -21,13 +21,21 @@ public class AgentEndpointClient {
     }
 
     public Answer invoke(String endpoint, String text) {
+        return invoke(endpoint, text, null);
+    }
+
+    public Answer invoke(String endpoint, String text, String bridgeToken) {
         var base = trim(endpoint);
         try {
             var payload = json.createObjectNode();
             payload.putObject("input").put("text", text);
-            var request = HttpRequest.newBuilder(URI.create(base + "/v1/invoke"))
+            var builder = HttpRequest.newBuilder(URI.create(base + "/v1/invoke"))
                     .timeout(Duration.ofSeconds(60))
-                    .header("Content-Type", "application/json")
+                    .header("Content-Type", "application/json");
+            if (bridgeToken != null && !bridgeToken.isBlank()) {
+                builder.header("X-Keel-Bridge", bridgeToken);
+            }
+            var request = builder
                     .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(payload)))
                     .build();
             var response = http.send(request, HttpResponse.BodyHandlers.ofString());

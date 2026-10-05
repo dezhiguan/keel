@@ -34,5 +34,5 @@ export function registerAgent(body: Record<string, unknown>) {
 }
 
 export function chatWithAgent(name: string, text: string) {
-  return post<{ text?: string; traceId?: string | null }>(`/agents/${encodeURIComponent(name)}/chat`, { text })
+  return post<{ text?: string; traceId?: string | null }>(`/agents/${encodeURIComponent(name)}/chat`, { text }, { timeout: 60_000 })
 }

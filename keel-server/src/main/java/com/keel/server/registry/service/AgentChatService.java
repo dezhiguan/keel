@@ -5,6 +5,7 @@ import com.keel.server.common.KeelException;
 import com.keel.server.integration.agent.AgentEndpointClient;
 import com.keel.server.integration.audit.AuditStore;
 import com.keel.server.provisioning.EchoCredentialWriter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -17,13 +18,16 @@ public class AgentChatService {
     private final AgentEndpointClient endpoints;
     private final AuditStore audits;
     private final EchoCredentialWriter credentials;
+    private final String careerMateToken;
 
     public AgentChatService(AgentRegistryService registry, AgentEndpointClient endpoints, AuditStore audits,
-                            EchoCredentialWriter credentials) {
+                            EchoCredentialWriter credentials,
+                            @Value("${KEEL_CAREERMATE_TOKEN:}") String careerMateToken) {
         this.registry = registry;
         this.endpoints = endpoints;
         this.audits = audits;
         this.credentials = credentials;
+        this.careerMateToken = careerMateToken == null ? "" : careerMateToken;
     }
 
     public Map<String, Object> chat(String name, String text) {
@@ -36,7 +40,9 @@ public class AgentChatService {
         }
         AgentEndpointClient.Answer answer;
         try {
-            answer = endpoints.invoke(endpoint, text);
+            answer = "careermate".equals(name)
+                    ? endpoints.invoke(endpoint, text, careerMateToken)
+                    : endpoints.invoke(endpoint, text);
         } catch (RuntimeException e) {
             throw new KeelException(ErrorCode.SERVER_INTERNAL_ERROR,
                     e.getMessage() == null ? ErrorCode.SERVER_INTERNAL_ERROR.message() : e.getMessage());

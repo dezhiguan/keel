@@ -82,6 +82,10 @@ spec:
                   name: keel-server
                   key: LANGFUSE_PROJECT_ID
                   optional: true
+            - name: KEEL_CAREERMATE_ENDPOINT
+              value: http://careermate-backend.careermate.svc.cluster.local:18080
+            - name: KEEL_CAREERMATE_TOKEN
+              value: keel-bridge
             - name: KEEL_AUTH_GATEWAY_URL
               valueFrom:
                 secretKeyRef:
