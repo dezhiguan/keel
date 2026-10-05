@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
@@ -8,14 +8,12 @@ import { listAgents, type AgentPage, type AgentStatus, type ListAgentsQuery } fr
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { agentStatus, fmtN, orDash } from '@/utils/format'
+import { avatarColor, avatarLetter } from './agentDrawer'
 
 const STATUSES: AgentStatus[] = ['DRAFT', 'REGISTERED', 'ONLINE', 'DEGRADED', 'OFFLINE', 'RETIRED']
 const CATEGORIES: [NonNullable<ListAgentsQuery['category']>, string][] = [['all', '全部'], ['biz', '业务'], ['dev', '研发']]
-const COLORS: Record<string, string> = {
-  careermate: '#2ec4b6', askdb: '#5b9cf6', 'offshore-wind': '#34c38f', 'cs-bot': '#b48cf2', 'ops-copilot': '#ff7a45',
-  'prd-agent': '#f1b44c', 'code-review': '#e36fae', 'test-gen': '#6fd3e3', 'ci-doctor': '#f46a6a', 'dev-copilot': '#ffb08f',
-}
 
+const route = useRoute()
 const router = useRouter()
 const envStore = useEnvStore()
 const result = ref<AgentPage | null>(null)
@@ -28,7 +26,10 @@ const filter = reactive<{
   size: NonNullable<ListAgentsQuery['size']>
 }>({ category: 'all', status: '', q: '', page: 1, size: 10 })
 
-const colorOf = (name = '') => COLORS[name] ?? '#8a97ab'
+function open(name?: string) {
+  if (!name) return
+  router.push({ query: { ...route.query, drawer: name } })
+}
 
 async function load() {
   loading.value = true
@@ -88,9 +89,9 @@ watch(() => [filter.page, filter.size], load, { immediate: true })
     </div>
 
     <div v-loading="loading" class="agrid">
-      <div v-for="a in result?.items ?? []" :key="a.name" class="acard" @click="router.push(`/agents/${a.name}`)">
+      <div v-for="a in result?.items ?? []" :key="a.name" class="acard" role="button" tabindex="0" @click="open(a.name)" @keydown.enter="open(a.name)">
         <div class="hd">
-          <div class="av" :style="{ background: `${colorOf(a.name)}22`, color: colorOf(a.name) }">{{ a.displayName?.slice(0, 1) }}</div>
+          <div class="av" :style="{ background: `${avatarColor(a.name)}22`, color: avatarColor(a.name) }">{{ avatarLetter(a.displayName) }}</div>
           <div class="ttl"><b>{{ a.displayName }}</b><small>{{ a.name }}</small></div>
           <span class="sp" />
           <StatusPill v-bind="agentStatus(a.status)" />

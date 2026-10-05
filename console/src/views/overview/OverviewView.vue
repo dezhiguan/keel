@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import KpiCard from '@/components/KpiCard.vue'
 import StatusPill from '@/components/StatusPill.vue'
@@ -9,6 +9,7 @@ import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { agentStatus, orDash } from '@/utils/format'
 
+const route = useRoute()
 const router = useRouter()
 const envStore = useEnvStore()
 const overview = ref<Overview | null>(null)
@@ -46,7 +47,7 @@ watch(() => envStore.env, load, { immediate: true })
       <table class="t">
         <thead><tr><th>智能体</th><th>状态</th><th>负责组织</th><th>24h 调用</th><th>评分</th></tr></thead>
         <tbody>
-          <tr v-for="a in overview?.agents ?? []" :key="a.name" class="click" @click="router.push(`/agents/${a.name}`)">
+          <tr v-for="a in overview?.agents ?? []" :key="a.name" class="click" @click="a.name && router.push({ query: { ...route.query, drawer: a.name } })">
             <td class="nm"><b>{{ a.displayName }}</b><small class="mono">{{ a.name }}</small></td>
             <td><StatusPill v-bind="agentStatus(a.status)" /></td>
             <td>{{ a.ownerOrg }}</td>

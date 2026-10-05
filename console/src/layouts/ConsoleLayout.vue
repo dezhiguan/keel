@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { NAV } from '@/router/nav'
+import AgentDrawer from '@/views/agents/AgentDetail.vue'
 import { useUserStore } from '@/stores/user'
 import { ENV_OPTIONS, useEnvStore } from '@/stores/env'
 import { useApprovalsStore } from '@/stores/approvals'
@@ -74,6 +75,7 @@ onMounted(async () => {
         <RouterView />
       </main>
     </div>
+    <AgentDrawer />
   </div>
 </template>
 

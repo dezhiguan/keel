@@ -15,6 +15,7 @@
 .btn.pri:hover { filter: brightness(1.08); }
 .btn.danger { border-color: #5a2a2e; color: var(--bad); background: #1c1216; }
 .btn.sm { padding: 3px 9px; font-size: 12px; }
+.btn.ghost { background: none; }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
@@ -124,6 +125,41 @@ select.inp {
 .hint.err, .inp.err { color: var(--bad); border-color: var(--bad); }
 .wfoot { display: flex; gap: 8px; margin-top: 16px; }
 .code { white-space: pre-wrap; background: var(--bg); border-radius: 8px; padding: 12px; font-family: var(--mono); font-size: 12px; color: var(--text); }
+
+.mask { position: fixed; inset: 0; background: rgba(3, 6, 12, 0.6); opacity: 0; pointer-events: none; transition: 0.2s; z-index: 40; }
+.mask.on { opacity: 1; pointer-events: auto; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(620px, 92vw); background: var(--panel); border-left: 1px solid var(--line2); transform: translateX(100%); transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); z-index: 50; display: flex; flex-direction: column; }
+.drawer.on { transform: none; }
+.drawer .dh { padding: 16px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
+.drawer .dh h3 { color: var(--white); font-size: 16px; margin: 0; display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.drawer .db { flex: 1; overflow: auto; padding: 16px 20px; }
+.drawer .dbody { min-height: 180px; }
+.drawer .df { padding: 12px 20px; border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: flex-end; }
+.drawer .df .retired { margin-right: auto; font-size: 12px; }
+.drawer h4 { margin: 16px 0 8px; color: var(--white); font-size: 13px; font-weight: 600; }
+.drawer a { color: var(--soft); margin-right: 8px; text-decoration: none; }
+.drawer pre.code { background: #0a0f18; border: 1px solid var(--line); border-radius: 9px; padding: 12px 14px; line-height: 1.65; color: #c9d4e3; overflow: auto; white-space: pre; }
+.drawer pre.code .k { color: #ff9a6b; }
+.drawer pre.code .c { color: #56657d; }
+.x { border: none; background: none; color: var(--mute); font-size: 20px; line-height: 1; padding: 2px 6px; border-radius: 6px; cursor: pointer; }
+.x:hover { background: var(--panel3); color: var(--white); }
+.dtabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: -4px 0 14px; }
+.dtabs button { border: none; background: none; color: var(--mute); padding: 7px 12px; font-size: 12.8px; border-bottom: 2px solid transparent; cursor: pointer; font-family: inherit; }
+.dtabs button.on { color: var(--white); border-bottom-color: var(--acc); }
+.checks { margin: 0; padding: 0; }
+.checks li { list-style: none; display: flex; gap: 10px; align-items: center; padding: 6px 0; font-size: 12.8px; border-bottom: 1px dashed #172235; }
+.checks li:last-child { border-bottom: none; }
+.checks .ic { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; flex: none; background: #1a2438; color: var(--mute); }
+.checks .ic.ok { background: rgba(52, 195, 143, 0.15); color: var(--ok); }
+.checks .ic.no { background: rgba(244, 106, 106, 0.15); color: var(--bad); }
+.checks small { margin-left: auto; color: var(--mute); font-family: var(--mono); font-size: 11px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip b { color: var(--acc); font-weight: 500; }
+.modal { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -46%) scale(0.97); width: min(520px, 92vw); background: var(--panel); border: 1px solid var(--line2); border-radius: 14px; z-index: 60; opacity: 0; pointer-events: none; transition: 0.2s; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5); }
+.modal.on { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%); }
+.modal .mh { padding: 16px 20px 6px; color: var(--white); font-size: 15.5px; font-weight: 600; }
+.modal .mb { padding: 8px 20px 14px; font-size: 13px; }
+.modal .mf { padding: 12px 20px; border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: flex-end; }
 @media (max-width: 900px) { .wz { grid-template-columns: 1fr; } }
 
 @media (max-width: 1100px) {
