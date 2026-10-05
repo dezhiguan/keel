@@ -13,6 +13,18 @@ export function decideApproval(id: string, decision: 'APPROVE' | 'REJECT', comme
   return post<Approval>(`/approvals/${encodeURIComponent(id)}/decision`, { decision, comment })
 }
 
+export function openApproval(body: {
+  subjectType: NonNullable<Approval['subjectType']>
+  subjectRef: string
+  summary: string
+  actorUser: string
+  agent?: string
+  risk?: NonNullable<Approval['risk']>
+  env?: 'dev' | 'staging' | 'prod'
+}) {
+  return post<Approval>('/approvals', body)
+}
+
 export function listSuspendedRuns(query: { page?: number; size?: 10 | 20 | 50 | 100 }) {
   return get<Page<SuspendedRun>>('/runs', { params: query })
 }

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,44 +36,40 @@ public class EvalQueryService {
 
     public Map<String, Object> latest(String agent) {
         var gate = gate(agent);
-        var dataset = gate.dataset();
-        JsonNode experiments;
+        var index = datasetIndex();
+        var datasetIds = index.idsFor(agent, gate.dataset());
+        JsonNode chosen;
         try {
-            experiments = langfuse.experiments();
+            chosen = newest(loadExperiments(datasetIds), agent, gate.dataset(), datasetIds);
+            if (chosen == null && !datasetIds.isEmpty()) {
+                chosen = newest(loadExperiments(List.of()), agent, gate.dataset(), datasetIds);
+            }
         } catch (RuntimeException e) {
             throw new KeelException(ErrorCode.SERVER_NOT_FOUND, "该智能体还没有评测记录");
-        }
-        JsonNode chosen = null;
-        String chosenAt = "";
-        for (var row : experiments.path("data")) {
-            if (!matches(row, agent, dataset)) {
-                continue;
-            }
-            var at = time(row);
-            if (chosen == null || at.compareTo(chosenAt) > 0) {
-                chosen = row;
-                chosenAt = at;
-            }
         }
         if (chosen == null) {
             throw new KeelException(ErrorCode.SERVER_NOT_FOUND, "该智能体还没有评测记录");
         }
-        var items = items(chosen);
-        return result(agent, dataset, gate, chosen, items);
+        var dataset = index.nameOf(chosen.path("datasetId").asText(""));
+        if (dataset.isBlank()) {
+            dataset = gate.dataset();
+        }
+        return result(agent, dataset, gate, chosen, items(chosen));
     }
 
     /** Latest experiment score per agent, the same number the eval page shows. Missing agents are omitted. */
     public Map<String, Double> latestScoreByAgent() {
+        var index = datasetIndex();
         JsonNode experiments;
         try {
-            experiments = langfuse.experiments();
+            experiments = loadExperiments(List.of());
         } catch (RuntimeException e) {
             return Map.of();
         }
         var chosen = new LinkedHashMap<String, JsonNode>();
         var chosenAt = new LinkedHashMap<String, String>();
         for (var row : experiments.path("data")) {
-            var agent = agentOf(row);
+            var agent = agentOf(row, index);
             if (agent == null) {
                 continue;
             }
@@ -148,6 +145,7 @@ public class EvalQueryService {
         double total = 0;
         int counted = 0;
         String exceeded = null;
+        int exceededDrop = 0;
         for (var entry : buckets.entrySet()) {
             var bucket = entry.getValue();
             if (bucket[1] == 0) {
@@ -162,7 +160,10 @@ public class EvalQueryService {
             }
             if (delta != null && delta < -gate.maxRegressionPt()) {
                 verdict = "EXCEEDED";
-                exceeded = entry.getKey();
+                if (exceeded == null || -delta > exceededDrop) {
+                    exceeded = entry.getKey();
+                    exceededDrop = -delta;
+                }
             }
             var row = new LinkedHashMap<String, Object>();
             row.put("tag", entry.getKey());
@@ -186,7 +187,7 @@ public class EvalQueryService {
         body.put("scoreTotal", score);
         body.put("passed", passed);
         body.put("gate", Map.of("minScore", gate.minScore(), "maxRegression", gate.maxRegressionPt(), "byTag", true));
-        body.put("reason", exceeded == null ? null : "「" + exceeded + "」退步超过 " + gate.maxRegressionPt() + "pt");
+        body.put("reason", exceeded == null ? null : "「" + exceeded + "」下降 " + exceededDrop + "pt");
         body.put("ranAt", time(experiment).isBlank() ? Instant.now().toString() : time(experiment));
         body.put("dimensions", dimensions);
         body.put("newFailures", List.of());
@@ -202,16 +203,16 @@ public class EvalQueryService {
             if (name.isBlank()) {
                 return;
             }
-            var value = score.path("value");
-            if (!value.isNumber()) {
+            var value = scoreValue(score);
+            if (value == null) {
                 return;
             }
             var bucket = buckets.computeIfAbsent(name, key -> new double[5]);
             if (experimentLevel) {
-                bucket[2] += value.asDouble();
+                bucket[2] += value;
                 bucket[3] += 1;
             } else {
-                bucket[0] += value.asDouble();
+                bucket[0] += value;
                 bucket[1] += 1;
                 bucket[4] += 1;
             }
@@ -237,25 +238,112 @@ public class EvalQueryService {
         return row.path("experimentScores");
     }
 
-    private static String agentOf(JsonNode row) {
+    private JsonNode loadExperiments(List<String> datasetIds) {
+        try {
+            if (datasetIds.isEmpty()) {
+                return langfuse.experiments();
+            }
+            return langfuse.experiments(datasetIds);
+        } catch (RuntimeException filtered) {
+            if (datasetIds.isEmpty()) {
+                throw filtered;
+            }
+            return langfuse.experiments();
+        }
+    }
+
+    private DatasetIndex datasetIndex() {
+        var idByName = new LinkedHashMap<String, String>();
+        var nameById = new LinkedHashMap<String, String>();
+        try {
+            for (var row : langfuse.datasets().path("data")) {
+                var id = row.path("id").asText("");
+                var name = row.path("name").asText("");
+                if (id.isBlank() || name.isBlank()) {
+                    continue;
+                }
+                idByName.putIfAbsent(name, id);
+                nameById.putIfAbsent(id, name);
+            }
+        } catch (RuntimeException ignored) {
+            return DatasetIndex.empty();
+        }
+        return new DatasetIndex(idByName, nameById);
+    }
+
+    private static JsonNode newest(JsonNode experiments, String agent, String dataset, Collection<String> datasetIds) {
+        JsonNode chosen = null;
+        String chosenAt = "";
+        if (experiments == null) {
+            return null;
+        }
+        for (var row : experiments.path("data")) {
+            if (!matches(row, agent, dataset, datasetIds)) {
+                continue;
+            }
+            var at = time(row);
+            if (chosen == null || at.compareTo(chosenAt) > 0) {
+                chosen = row;
+                chosenAt = at;
+            }
+        }
+        return chosen;
+    }
+
+    private static String agentOf(JsonNode row, DatasetIndex index) {
+        var fromDataset = index.agentOf(row.path("datasetId").asText(""));
+        if (!fromDataset.isBlank()) {
+            return fromDataset;
+        }
         var dataset = text(row, "datasetName", "dataset");
         var slash = dataset.indexOf('/');
         if (slash > 0) {
             return dataset.substring(0, slash);
         }
-        var metadata = row.path("metadata");
-        var metaAgent = metadata.path("agent").asText(metadata.path("keel.agent").asText(""));
-        return metaAgent.isBlank() ? null : metaAgent;
-    }
-
-    private static boolean matches(JsonNode row, String agent, String dataset) {
-        var name = text(row, "datasetName", "dataset");
-        if (!name.isBlank()) {
-            return name.equals(dataset) || name.startsWith(agent + "/");
+        if (!dataset.isBlank()) {
+            return dataset;
         }
         var metadata = row.path("metadata");
         var metaAgent = metadata.path("agent").asText(metadata.path("keel.agent").asText(""));
-        return metaAgent.equals(agent) || text(row, "name", "experimentName").startsWith(agent);
+        if (!metaAgent.isBlank()) {
+            return metaAgent;
+        }
+        var experimentName = row.path("name").asText("");
+        var dash = experimentName.indexOf('-');
+        var slashInName = experimentName.indexOf('/');
+        var cut = dash > 0 && (slashInName < 0 || dash < slashInName) ? dash : slashInName;
+        return cut > 0 ? experimentName.substring(0, cut) : null;
+    }
+
+    private static boolean matches(JsonNode row, String agent, String dataset, Collection<String> datasetIds) {
+        var rowDatasetId = row.path("datasetId").asText("");
+        if (!rowDatasetId.isBlank() && datasetIds.contains(rowDatasetId)) {
+            return true;
+        }
+        var name = text(row, "datasetName", "dataset");
+        if (!name.isBlank()) {
+            return name.equals(dataset) || name.equals(agent) || name.startsWith(agent + "/") || name.startsWith(agent + "-");
+        }
+        var metadata = row.path("metadata");
+        var metaAgent = metadata.path("agent").asText(metadata.path("keel.agent").asText(""));
+        if (metaAgent.equals(agent)) {
+            return true;
+        }
+        var experimentName = row.path("name").asText("");
+        return experimentName.equals(agent)
+                || experimentName.startsWith(agent + "/")
+                || experimentName.startsWith(agent + "-");
+    }
+
+    private static Double scoreValue(JsonNode score) {
+        var value = score.path("value");
+        if (value.isNumber()) {
+            return value.asDouble();
+        }
+        if (value.isBoolean()) {
+            return value.asBoolean() ? 1d : 0d;
+        }
+        return null;
     }
 
     private static String time(JsonNode row) {
@@ -301,6 +389,42 @@ public class EvalQueryService {
     }
 
     private record Gate(String dataset, double minScore, double maxRegressionPt) {}
+
+    private record DatasetIndex(Map<String, String> idByName, Map<String, String> nameById) {
+        private static DatasetIndex empty() {
+            return new DatasetIndex(Map.of(), Map.of());
+        }
+
+        private List<String> idsFor(String agent, String dataset) {
+            var ids = new ArrayList<String>();
+            var exact = idByName.get(dataset);
+            if (exact != null) {
+                ids.add(exact);
+            }
+            idByName.forEach((name, id) -> {
+                if (!ids.contains(id) && (name.equals(agent) || name.startsWith(agent + "/") || name.startsWith(agent + "-"))) {
+                    ids.add(id);
+                }
+            });
+            return ids;
+        }
+
+        private String nameOf(String datasetId) {
+            if (datasetId == null || datasetId.isBlank()) {
+                return "";
+            }
+            return nameById.getOrDefault(datasetId, "");
+        }
+
+        private String agentOf(String datasetId) {
+            var name = nameOf(datasetId);
+            if (name.isBlank()) {
+                return "";
+            }
+            var slash = name.indexOf('/');
+            return slash > 0 ? name.substring(0, slash) : name;
+        }
+    }
 
     private static final class Run {
         private String state = "RUNNING";

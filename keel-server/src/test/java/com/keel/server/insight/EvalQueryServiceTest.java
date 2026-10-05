@@ -82,6 +82,50 @@ class EvalQueryServiceTest {
         server.stop(0);
     }
 
+    @Test void latestMatchesCloudExperimentByDatasetIdWhenTheRunNameDoesNotStartWithTheAgent() throws Exception {
+        var uris = new ArrayList<String>();
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            var path = exchange.getRequestURI().getPath();
+            uris.add(exchange.getRequestURI().toString());
+            String body;
+            if (path.contains("/datasets")) {
+                body = """
+                        {"data":[{"id":"ds-echo","name":"echo/smoke"}],"meta":{"page":1,"totalPages":1}}
+                        """;
+            } else if (path.contains("experiment-items")) {
+                body = """
+                        {"data":[
+                          {"scores":[{"name":"回答是否回声","value":true},{"name":"格式正确","value":0.92}]}
+                        ]}
+                        """;
+            } else {
+                body = """
+                        {"data":[
+                          {"id":"exp-echo","name":"nightly","datasetId":"ds-echo","startTime":"2026-10-05T12:00:00Z",
+                           "scores":[{"name":"回答是否回声","value":0.80},{"name":"格式正确","value":0.70}]}
+                        ]}
+                        """;
+            }
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        var service = new EvalQueryService(new LangfuseClient("http://127.0.0.1:" + server.getAddress().getPort(), "pk", "sk"), name -> null);
+        var result = service.latest("echo");
+        assertThat(uris).anyMatch(uri -> uri.contains("datasetId=ds-echo"));
+        assertThat(result.get("dataset")).isEqualTo("echo/smoke");
+        @SuppressWarnings("unchecked")
+        var dimensions = (List<Map<String, Object>>) result.get("dimensions");
+        assertThat(dimensions).anySatisfy(row -> {
+            assertThat(row.get("tag")).isEqualTo("回答是否回声");
+            assertThat(row.get("candidateScore")).isEqualTo(1.0);
+        });
+        server.stop(0);
+    }
+
     @Test void missingExperimentIsNotFound() {
         var service = new EvalQueryService(new LangfuseClient("", "", ""), name -> null);
         assertThatThrownBy(() -> service.latest("askdb")).isInstanceOf(KeelException.class);

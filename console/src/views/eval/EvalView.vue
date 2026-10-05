@@ -3,9 +3,14 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import StatusPill from '@/components/StatusPill.vue'
 import { getEvalRun, getLatestEval, runEval, type EvalResult } from '@/api/eval'
+import { openApproval } from '@/api/approvals'
 import { listAgents } from '@/api/agents'
 import { toKeelError } from '@/api/http'
+import { useApprovalsStore } from '@/stores/approvals'
+import { useEnvStore } from '@/stores/env'
+import { useUserStore } from '@/stores/user'
 import type { StatusTone } from '@/utils/format'
+import { deltaText, expectedSubject, formatScore, gateRule } from './evalCopy'
 
 const VERDICT: Record<string, { label: string; tone: StatusTone }> = {
   IMPROVED: { label: '提升', tone: 'ok' },
@@ -13,24 +18,37 @@ const VERDICT: Record<string, { label: string; tone: StatusTone }> = {
   EXCEEDED: { label: '超出阈值', tone: 'failed' },
 }
 
+const userStore = useUserStore()
+const envStore = useEnvStore()
+const approvalsStore = useApprovalsStore()
+
 const agent = ref('')
 const agentOptions = ref<string[]>([])
 const result = ref<EvalResult | null>(null)
 const loading = ref(false)
 const progress = ref<number | null>(null)
+const expecting = ref(false)
+const expectReason = ref('')
+const expectInvalid = ref(false)
 let timer: ReturnType<typeof setInterval> | undefined
 let polling = false
+let loadSeq = 0
 
 async function load() {
+  const seq = ++loadSeq
+  const name = agent.value
   loading.value = true
   try {
-    result.value = await getLatestEval(agent.value)
+    const next = await getLatestEval(name)
+    if (seq !== loadSeq) return
+    result.value = next
   } catch (error) {
+    if (seq !== loadSeq) return
     result.value = null
     const keel = toKeelError(error)
     if (keel.code !== 'SERVER_NOT_FOUND') ElMessage.error(`加载评测结果失败：${keel.message}`)
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 
@@ -62,8 +80,38 @@ async function run() {
 }
 
 function markExpected() {
-  // TODO(P2-1): marking an expected regression needs a keel-server endpoint; not in console-api.openapi.yaml yet.
-  ElMessage.info('「标记为预期变化」尚未接入')
+  expectReason.value = ''
+  expectInvalid.value = false
+  expecting.value = true
+}
+
+function closeExpect() {
+  expecting.value = false
+}
+
+async function submitExpected() {
+  const reason = expectReason.value.trim()
+  if (reason.length < 10) {
+    expectInvalid.value = true
+    ElMessage.error('原因至少 10 个字')
+    return
+  }
+  try {
+    await openApproval({
+      subjectType: 'agent.config',
+      subjectRef: expectedSubject(agent.value, result.value),
+      summary: reason,
+      actorUser: userStore.user?.displayName || userStore.user?.userId || 'amy',
+      agent: agent.value,
+      risk: 'HIGH',
+      env: envStore.env === 'all' ? 'prod' : envStore.env,
+    })
+    expecting.value = false
+    ElMessage.warning('已提交，等待平台管理员审批')
+    approvalsStore.refresh().catch(() => undefined)
+  } catch (error) {
+    ElMessage.error(`提交失败：${toKeelError(error).message}`)
+  }
 }
 
 onMounted(async () => {
@@ -86,7 +134,7 @@ watch(agent, () => {
   <div v-loading="loading">
     <div class="vh">
       <h2>评测中心</h2>
-      <span class="sub">Langfuse 数据集 {{ result?.dataset ?? '—' }} · 门禁由 keel-gate 判定</span>
+      <span class="sub">Langfuse 数据集 {{ result?.dataset ?? (agent || '—') }} · 门禁由 keel-gate 判定</span>
       <span class="sp" />
       <select v-model="agent" class="inp">
         <option v-for="a in agentOptions" :key="a" :value="a">{{ a }}</option>
@@ -96,35 +144,60 @@ watch(agent, () => {
 
     <template v-if="result">
       <div class="gate" :class="{ pass: result.passed }">
-        <div class="big">{{ result.scoreTotal }}</div>
+        <div class="big">{{ formatScore(result.scoreTotal) }}</div>
         <div>
           <b>{{ result.passed ? '门禁通过，可以发布' : '门禁未通过，发布到 prod 已被阻止' }}</b><br />
-          <span class="mut">
-            规则：总分 ≥ {{ result.gate?.minScore }}，且任一维度退步不超过 {{ result.gate?.maxRegression }}pt。{{ result.reason ?? '' }}
-          </span>
+          <span class="mut">{{ gateRule(result) }}</span>
         </div>
         <span class="sp" />
-        <button v-if="!result.passed" class="btn" @click="markExpected">标记为预期变化</button>
+        <button v-if="!result.passed" class="btn" type="button" @click="markExpected">标记为预期变化</button>
       </div>
       <div v-if="progress !== null" class="prog"><i :style="{ width: `${progress * 100}%` }" /></div>
 
       <div class="card">
-        <h3>分维度对比<small>prod {{ result.prodVersion }} vs 候选 {{ result.candidateVersion }}</small></h3>
+        <h3>分维度对比<small>prod 当前版本 vs 候选版本</small></h3>
         <table class="t">
           <thead><tr><th>维度（用例标签）</th><th>用例数</th><th>prod</th><th>候选</th><th>变化</th><th>判定</th></tr></thead>
           <tbody>
             <tr v-for="d in result.dimensions ?? []" :key="d.tag">
               <td>{{ d.tag }}</td>
               <td class="mono">{{ d.cases ?? '—' }}</td>
-              <td class="mono">{{ d.prodScore == null ? '—' : d.prodScore.toFixed(2) }}</td>
-              <td class="mono">{{ d.candidateScore == null ? '—' : d.candidateScore.toFixed(2) }}</td>
-              <td class="mono" :class="(d.deltaPt ?? 0) < 0 ? 'down' : 'up'">{{ d.deltaPt == null ? '—' : `${d.deltaPt > 0 ? '+' : ''}${d.deltaPt}pt` }}</td>
+              <td class="mono">{{ formatScore(d.prodScore) }}</td>
+              <td class="mono">{{ formatScore(d.candidateScore) }}</td>
+              <td class="mono" :class="(d.deltaPt ?? 0) < 0 ? 'down' : 'up'">{{ deltaText(d.deltaPt) }}</td>
               <td><StatusPill v-bind="VERDICT[d.verdict ?? 'TOLERATED']" /></td>
             </tr>
           </tbody>
         </table>
       </div>
     </template>
-    <div v-else-if="!loading" class="card empty">{{ agent ? '该智能体还没有评测记录' : '还没有可评测的智能体' }}</div>
+    <template v-else>
+      <div v-if="progress !== null" class="prog"><i :style="{ width: `${progress * 100}%` }" /></div>
+      <div v-if="!loading" class="card empty">{{ agent ? '该智能体还没有评测记录' : '还没有可评测的智能体' }}</div>
+    </template>
+
+    <Teleport to="body">
+      <template v-if="expecting">
+        <div class="mask on" @click="closeExpect" />
+        <div class="modal on" role="dialog" aria-label="标记为预期变化">
+          <div class="mh">标记为预期变化</div>
+          <div class="mb">
+            <p>标记后本次退步不计入门禁，<b>需要写明原因，并记入审计</b>。</p>
+            <div class="field">
+              <label>原因</label>
+              <textarea v-model="expectReason" class="inp" :class="{ err: expectInvalid }" rows="3" placeholder="至少 10 个字" />
+            </div>
+          </div>
+          <div class="mf">
+            <button class="btn" type="button" @click="closeExpect">取消</button>
+            <button class="btn pri" type="button" @click="submitExpected">提交</button>
+          </div>
+        </div>
+      </template>
+    </Teleport>
   </div>
 </template>
+
+<style scoped>
+textarea.inp { width: 100%; box-sizing: border-box; resize: vertical; }
+</style>

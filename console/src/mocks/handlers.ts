@@ -61,6 +61,30 @@ export const handlers = [
     return ok(paged(url, approvals.filter((a) => !status || a.status === status)))
   }),
 
+  http.post(`${BASE}/approvals`, async ({ request }) => {
+    const body = (await request.json()) as {
+      subjectType: (typeof approvals)[number]['subjectType']
+      subjectRef: string
+      summary: string
+      actorUser: string
+      agent?: string
+      risk?: (typeof approvals)[number]['risk']
+    }
+    const created = {
+      id: `ap_${approvals.length + 1000}`,
+      subjectType: body.subjectType,
+      subjectRef: body.subjectRef,
+      summary: body.summary,
+      actorUser: body.actorUser,
+      agent: body.agent,
+      risk: body.risk ?? 'HIGH',
+      status: 'PENDING' as const,
+      createdAt: new Date().toISOString(),
+    }
+    approvals.unshift(created)
+    return ok(created)
+  }),
+
   http.post(`${BASE}/approvals/:id/decision`, async ({ params, request }) => {
     const approval = approvals.find((a) => a.id === params.id)
     if (!approval) return fail(404, 'SERVER_NOT_FOUND', '资源不存在')

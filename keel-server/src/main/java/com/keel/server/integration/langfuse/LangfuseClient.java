@@ -95,19 +95,88 @@ public class LangfuseClient {
                 + URLEncoder.encode(traceId, StandardCharsets.UTF_8));
     }
 
-    public JsonNode experiments() {
+    /** Dataset id/name pairs. v4 lists datasets at /v2/datasets; the unversioned path is the fallback. */
+    public JsonNode datasets() {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
         }
-        return get("/api/public/experiments?fromStartTime=2020-01-01T00:00:00.000Z&limit=50&fields=core,scores");
+        var data = json.createArrayNode();
+        var base = "/api/public/v2/datasets";
+        for (int page = 1; page <= 10; page++) {
+            JsonNode body;
+            try {
+                body = get(base + "?page=" + page + "&limit=100");
+            } catch (RuntimeException e) {
+                if (page > 1 || !base.contains("/v2/")) {
+                    break;
+                }
+                base = "/api/public/datasets";
+                body = get(base + "?page=" + page + "&limit=100");
+            }
+            var rows = body.path("data");
+            if (!rows.isArray() || rows.isEmpty()) {
+                break;
+            }
+            rows.forEach(data::add);
+            var totalPages = body.path("meta").path("totalPages").asInt(page);
+            if (page >= totalPages) {
+                break;
+            }
+        }
+        var body = json.createObjectNode();
+        body.set("data", data);
+        return body;
+    }
+
+    public JsonNode experiments() {
+        return experiments(List.of());
+    }
+
+    /**
+     * Experiments newest-first. Pass dataset ids to ask Langfuse to filter; an empty list reads the project.
+     * Core includes datasetId, not datasetName.
+     */
+    public JsonNode experiments(List<String> datasetIds) {
+        if (baseUrl.isBlank() || authorization.isBlank()) {
+            throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
+        }
+        var filter = "";
+        if (datasetIds != null && !datasetIds.isEmpty()) {
+            filter = "&datasetId=" + URLEncoder.encode(String.join(",", datasetIds), StandardCharsets.UTF_8);
+        }
+        return pages("/api/public/experiments?fromStartTime=2020-01-01T00:00:00.000Z&limit=100&fields=core,metadata,scores" + filter);
     }
 
     public JsonNode experimentItems(String experimentId) {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
         }
-        return get("/api/public/experiment-items?fromStartTime=2020-01-01T00:00:00.000Z&limit=100&fields=scores&experimentId="
+        return pages("/api/public/experiment-items?fromStartTime=2020-01-01T00:00:00.000Z&limit=100&fields=core,scores&experimentId="
                 + URLEncoder.encode(experimentId, StandardCharsets.UTF_8));
+    }
+
+    private JsonNode pages(String path) {
+        var data = json.createArrayNode();
+        String cursor = null;
+        for (int page = 0; page < 10; page++) {
+            var next = path;
+            if (cursor != null) {
+                next += "&cursor=" + URLEncoder.encode(cursor, StandardCharsets.UTF_8);
+            }
+            var body = get(next);
+            var rows = body.path("data");
+            if (rows.isArray()) {
+                rows.forEach(data::add);
+            }
+            var token = body.path("meta").path("cursor").asText("");
+            if (token.isBlank() || token.equals(cursor) || !rows.isArray() || rows.isEmpty()) {
+                break;
+            }
+            cursor = token;
+        }
+        var body = json.createObjectNode();
+        body.set("data", data);
+        return body;
     }
 
     public JsonNode scores() {
