@@ -64,6 +64,27 @@ class TraceQueryServiceTest {
         server.stop(0);
     }
 
+    @Test void aMissingLangfuseTraceFallsBackToTheLocalRecord() throws Exception {
+        var server = server(new ArrayList<>(), "{\"data\":[]}");
+        var service = new TraceQueryService(client(server), "https://jp.cloud.langfuse.com", "proj-1", Map.of(), new SavedTraces() {
+            @Override
+            public void save(String agent, String env, String traceId, String question, int durationMs) {
+            }
+
+            @Override
+            public Map<String, Object> list(int page, int size, String agent) {
+                return Map.of();
+            }
+
+            @Override
+            public Map<String, Object> detail(String traceId) {
+                return "tr-suspended".equals(traceId) ? Map.of("summary", Map.of("traceId", traceId)) : null;
+            }
+        });
+        assertThat(service.detail("tr-suspended").get("summary")).isEqualTo(Map.of("traceId", "tr-suspended"));
+        server.stop(0);
+    }
+
     @Test void unknownTraceIsNotFound() throws Exception {
         var paths = new ArrayList<String>();
         var server = server(paths, "{\"data\":[]}");

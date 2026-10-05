@@ -1,6 +1,7 @@
 package com.keel.server.builtin;
 
 import com.keel.server.insight.SavedTraces;
+import com.keel.server.insight.SuspendedTrace;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -66,7 +67,7 @@ public class LocalTraceLog implements SavedTraces {
                 Integer.toString(rs.getInt("duration_ms")), rs.getString("status")
         }, traceId);
         if (rows.isEmpty()) {
-            return null;
+            return suspended(traceId);
         }
         var row = rows.getFirst();
         var summary = summary(row[0], row[1], row[2], row[3], Integer.parseInt(row[4]), row[5]);
@@ -89,6 +90,28 @@ public class LocalTraceLog implements SavedTraces {
         detail.put("nodes", List.of(node));
         detail.put("edges", List.of());
         return detail;
+    }
+
+    private Map<String, Object> suspended(String traceId) {
+        var now = Instant.now();
+        var runs = jdbc.query("""
+                SELECT run_id, agent_name, prompt, actor_user, status, suspend_reason, created_at
+                FROM agent_run WHERE trace_id = ?
+                ORDER BY created_at DESC LIMIT 1
+                """, (rs, n) -> SuspendedTrace.fromRun(traceId, rs.getString("run_id"), rs.getString("agent_name"),
+                rs.getString("prompt"), rs.getString("actor_user"), rs.getString("status"), rs.getString("suspend_reason"),
+                rs.getTimestamp("created_at").toInstant(), now), traceId);
+        if (!runs.isEmpty()) {
+            return runs.getFirst();
+        }
+        var approvals = jdbc.query("""
+                SELECT id, agent_name, summary, actor_user, subject_ref, created_at
+                FROM approval_request WHERE trace_id = ?
+                ORDER BY created_at DESC LIMIT 1
+                """, (rs, n) -> SuspendedTrace.fromApproval(traceId, "ap_" + rs.getLong("id"), rs.getString("agent_name"),
+                rs.getString("summary"), rs.getString("actor_user"), rs.getString("subject_ref"),
+                rs.getTimestamp("created_at").toInstant(), now), traceId);
+        return approvals.isEmpty() ? null : approvals.getFirst();
     }
 
     private static Map<String, Object> summary(String traceId, String agent, String question, String startedAt, int durationMs, String status) {
