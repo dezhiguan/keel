@@ -26,6 +26,7 @@ public class AgentUsageService {
     private final LangfuseClient langfuse;
     private final LiteLlmClient gateway;
     private final QualityService quality;
+    private final EvalQueryService evaluations;
     private final SavedTraces saved;
     private final Clock clock;
     private Snapshot cached;
@@ -33,14 +34,17 @@ public class AgentUsageService {
     private Instant cachedAt;
 
     @Autowired
-    public AgentUsageService(LangfuseClient langfuse, LiteLlmClient gateway, QualityService quality, SavedTraces saved) {
-        this(langfuse, gateway, quality, saved, Clock.systemUTC());
+    public AgentUsageService(LangfuseClient langfuse, LiteLlmClient gateway, QualityService quality,
+                             EvalQueryService evaluations, SavedTraces saved) {
+        this(langfuse, gateway, quality, evaluations, saved, Clock.systemUTC());
     }
 
-    AgentUsageService(LangfuseClient langfuse, LiteLlmClient gateway, QualityService quality, SavedTraces saved, Clock clock) {
+    AgentUsageService(LangfuseClient langfuse, LiteLlmClient gateway, QualityService quality,
+                      EvalQueryService evaluations, SavedTraces saved, Clock clock) {
         this.langfuse = langfuse;
         this.gateway = gateway;
         this.quality = quality;
+        this.evaluations = evaluations;
         this.saved = saved == null ? SavedTraces.EMPTY : saved;
         this.clock = clock;
     }
@@ -102,10 +106,10 @@ public class AgentUsageService {
                 previous.merge(agent, 1L, Long::sum);
             }
         }
-        Map<String, Long> totals = Map.of();
+        Map<String, Long> totals = new HashMap<>();
         var totalsKnown = false;
         var allTime = langfuse.roots(Instant.parse("2020-01-01T00:00:00Z"), now);
-        if (allTime != null && allTime.complete()) {
+        if (allTime != null) {
             totalsKnown = true;
             var all = new LinkedHashMap<String, String>();
             try {
@@ -115,10 +119,9 @@ public class AgentUsageService {
                     }
                 }
             } catch (RuntimeException ignored) {
-                // 本机表不可用时，总调用只计 Langfuse 里能读全的根节点。
+                // 本机表不可用时，总调用只计 Langfuse 里能读到的根节点。
             }
             counted(allTime, env, all, null);
-            totals = new HashMap<>();
             for (var agent : all.values()) {
                 totals.merge(agent, 1L, Long::sum);
             }
@@ -128,6 +131,13 @@ public class AgentUsageService {
             calls = new HashMap<>();
             for (var agent : traces.values()) {
                 calls.merge(agent, 1L, Long::sum);
+            }
+            if (!totalsKnown) {
+                totalsKnown = true;
+                totals.putAll(calls);
+            }
+            for (var entry : calls.entrySet()) {
+                totals.merge(entry.getKey(), entry.getValue(), Math::max);
             }
         }
         var p95 = new HashMap<String, Double>();
@@ -157,8 +167,15 @@ public class AgentUsageService {
             }
             cost = null;
         }
+        var scores = new HashMap<String, Double>();
+        quality.byAgent().forEach((agent, score) -> {
+            if (score != null) {
+                scores.put(agent, score);
+            }
+        });
+        evaluations.latestScoreByAgent().forEach(scores::put);
         return new Snapshot(callsKnown, calls, prevKnown, previous, totalsKnown, totals, p95,
-                cost != null, cost == null ? Map.of() : cost, budgets, quality.byAgent());
+                cost != null, cost == null ? Map.of() : cost, budgets, scores);
     }
 
     private static boolean counted(LangfuseClient.RootPage page, String env, Map<String, String> traces,

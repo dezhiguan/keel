@@ -153,7 +153,11 @@ public class LangfuseClient {
                     path += "&cursor=" + URLEncoder.encode(cursor, StandardCharsets.UTF_8);
                 }
                 var body = get(path);
-                body.path("data").forEach(row -> rows.add(new RootCall(
+                var data = body.path("data");
+                if (!data.isArray() || data.isEmpty()) {
+                    break;
+                }
+                data.forEach(row -> rows.add(new RootCall(
                         row.path("traceId").asText(""),
                         text(row.path("metadata"), "keel.agent"),
                         text(row.path("metadata"), "keel.llm.key_alias"),

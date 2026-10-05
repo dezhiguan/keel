@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { fmtMoney, fmtScore, fmtSeconds, techLabel, trendText } from './overviewFormat'
 
 describe('overview format', () => {
-  it('rounds a real average score to two decimals', () => {
-    expect(fmtScore(0.9083333333333334)).toBe('0.91')
+  it('keeps the eval score digits the eval page shows', () => {
+    expect(fmtScore(0.915)).toBe('0.915')
+    expect(fmtScore(0.9083333333333334)).toBe('0.908')
     expect(fmtScore(null)).toBe('—')
   })
 

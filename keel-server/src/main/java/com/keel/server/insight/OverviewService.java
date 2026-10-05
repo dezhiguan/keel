@@ -49,7 +49,9 @@ public class OverviewService {
                            IntSupplier pendingApprovals) {
         this(agentRegistryService,
                 new AgentUsageService(new com.keel.server.integration.langfuse.LangfuseClient("", "", ""),
-                        costsGateway(costs), quality, com.keel.server.insight.SavedTraces.EMPTY),
+                        costsGateway(costs), quality,
+                        new EvalQueryService(new com.keel.server.integration.langfuse.LangfuseClient("", "", ""), name -> null),
+                        com.keel.server.insight.SavedTraces.EMPTY),
                 quality, pendingApprovals, new FindingBook(null));
     }
 

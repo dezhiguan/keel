@@ -1,6 +1,6 @@
 export function fmtScore(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—'
-  return value.toFixed(2)
+  return value.toFixed(3).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
 }
 
 export function fmtMoney(value: number | null | undefined): string {

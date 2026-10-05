@@ -48,6 +48,7 @@ class AgentUsageServiceTest {
         assertThat(all).anySatisfy(row -> {
             assertThat(row.name()).isEqualTo("askdb");
             assertThat(row.calls24h()).isEqualTo(2L);
+            assertThat(row.callsTotal()).isGreaterThanOrEqualTo(row.calls24h());
             assertThat(row.costCny()).isEqualTo(12.5);
             assertThat(row.score()).isEqualTo(0.88);
         });
@@ -75,7 +76,8 @@ class AgentUsageServiceTest {
 
     @Test void leavesCostBlankWhenTheGatewayIsNotConfigured() {
         var usage = new AgentUsageService(new LangfuseClient("", "", ""), new LiteLlmClient("", ""),
-                new QualityService(new LangfuseClient("", "", "")), new SavedTraces() {
+                new QualityService(new LangfuseClient("", "", "")),
+                new EvalQueryService(new LangfuseClient("", "", ""), name -> null), new SavedTraces() {
             @Override public void save(String agent, String env, String traceId, String question, int durationMs) {}
             @Override public java.util.Map<String, Object> list(int page, int size, String agent) { return java.util.Map.of(); }
             @Override public java.util.Map<String, Object> detail(String traceId) { return null; }
@@ -91,7 +93,8 @@ class AgentUsageServiceTest {
 
     private static AgentUsageService usage(String base, java.util.function.BiFunction<Instant, String, List<SavedTraces.TraceHit>> hits) {
         return new AgentUsageService(new LangfuseClient(base, "pk", "sk"), new LiteLlmClient(base, "admin"),
-                new QualityService(new LangfuseClient(base, "pk", "sk")), new SavedTraces() {
+                new QualityService(new LangfuseClient(base, "pk", "sk")),
+                new EvalQueryService(new LangfuseClient(base, "pk", "sk"), name -> null), new SavedTraces() {
             @Override public void save(String agent, String env, String traceId, String question, int durationMs) {}
             @Override public java.util.Map<String, Object> list(int page, int size, String agent) { return java.util.Map.of(); }
             @Override public java.util.Map<String, Object> detail(String traceId) { return null; }

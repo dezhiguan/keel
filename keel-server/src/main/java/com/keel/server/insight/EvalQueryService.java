@@ -61,6 +61,38 @@ public class EvalQueryService {
         return result(agent, dataset, gate, chosen, items);
     }
 
+    /** Latest experiment score per agent, the same number the eval page shows. Missing agents are omitted. */
+    public Map<String, Double> latestScoreByAgent() {
+        JsonNode experiments;
+        try {
+            experiments = langfuse.experiments();
+        } catch (RuntimeException e) {
+            return Map.of();
+        }
+        var chosen = new LinkedHashMap<String, JsonNode>();
+        var chosenAt = new LinkedHashMap<String, String>();
+        for (var row : experiments.path("data")) {
+            var agent = agentOf(row);
+            if (agent == null) {
+                continue;
+            }
+            var at = time(row);
+            if (!chosen.containsKey(agent) || at.compareTo(chosenAt.getOrDefault(agent, "")) > 0) {
+                chosen.put(agent, row);
+                chosenAt.put(agent, at);
+            }
+        }
+        var scores = new LinkedHashMap<String, Double>();
+        chosen.forEach((agent, row) -> {
+            var gate = gate(agent);
+            var score = result(agent, gate.dataset(), gate, row, items(row)).get("scoreTotal");
+            if (score instanceof Number number) {
+                scores.put(agent, number.doubleValue());
+            }
+        });
+        return scores;
+    }
+
     public String start(String agent) {
         var id = "ev_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         var run = new Run();
@@ -203,6 +235,17 @@ public class EvalQueryService {
             return row.path("scores");
         }
         return row.path("experimentScores");
+    }
+
+    private static String agentOf(JsonNode row) {
+        var dataset = text(row, "datasetName", "dataset");
+        var slash = dataset.indexOf('/');
+        if (slash > 0) {
+            return dataset.substring(0, slash);
+        }
+        var metadata = row.path("metadata");
+        var metaAgent = metadata.path("agent").asText(metadata.path("keel.agent").asText(""));
+        return metaAgent.isBlank() ? null : metaAgent;
     }
 
     private static boolean matches(JsonNode row, String agent, String dataset) {

@@ -55,6 +55,33 @@ class EvalQueryServiceTest {
         server.stop(0);
     }
 
+    @Test void overviewUsesTheSameExperimentScoreAsTheEvalPage() throws Exception {
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            var path = exchange.getRequestURI().getPath();
+            String body = path.contains("experiment-items")
+                    ? """
+                    {"data":[
+                      {"scores":[{"name":"格式正确","value":0.90},{"name":"回答是否回声","value":0.93}]}
+                    ]}
+                    """
+                    : """
+                    {"data":[
+                      {"id":"exp-echo","name":"echo-smoke-20261005","datasetName":"echo/smoke","createdAt":"2026-10-05T12:00:00Z",
+                       "scores":[{"name":"格式正确","value":0.91},{"name":"回答是否回声","value":0.88}]}
+                    ]}
+                    """;
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        var service = new EvalQueryService(new LangfuseClient("http://127.0.0.1:" + server.getAddress().getPort(), "pk", "sk"), name -> null);
+        assertThat(service.latestScoreByAgent().get("echo")).isEqualTo(0.915);
+        server.stop(0);
+    }
+
     @Test void missingExperimentIsNotFound() {
         var service = new EvalQueryService(new LangfuseClient("", "", ""), name -> null);
         assertThatThrownBy(() -> service.latest("askdb")).isInstanceOf(KeelException.class);
