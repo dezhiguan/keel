@@ -13,12 +13,13 @@ const VERDICT: Record<string, { label: string; tone: StatusTone }> = {
   EXCEEDED: { label: '超出阈值', tone: 'failed' },
 }
 
-const agent = ref('offshore-wind')
-const agentOptions = ref<string[]>(['offshore-wind'])
+const agent = ref('')
+const agentOptions = ref<string[]>([])
 const result = ref<EvalResult | null>(null)
 const loading = ref(false)
 const progress = ref<number | null>(null)
 let timer: ReturnType<typeof setInterval> | undefined
+let polling = false
 
 async function load() {
   loading.value = true
@@ -34,18 +35,25 @@ async function load() {
 }
 
 async function run() {
+  if (!agent.value) return
   try {
     const { runId } = await runEval(agent.value)
     progress.value = 0
+    clearInterval(timer)
     timer = setInterval(async () => {
-      const r = await getEvalRun(runId!)
-      progress.value = r.progress ?? 0
-      if (r.state !== 'RUNNING') {
+      if (polling) return
+      polling = true
+      try {
+        const r = await getEvalRun(runId!)
+        progress.value = r.progress ?? 0
+        if (r.state === 'RUNNING') return
         clearInterval(timer)
         progress.value = null
         if (r.result) result.value = r.result
         if (r.state === 'FAILED') ElMessage.warning('还没有可展示的评测记录')
         else ElMessage[r.result?.passed ? 'success' : 'warning'](`回归完成：总分 ${r.result?.scoreTotal ?? '—'}`)
+      } finally {
+        polling = false
       }
     }, 400)
   } catch (error) {
@@ -61,14 +69,17 @@ function markExpected() {
 onMounted(async () => {
   try {
     const page = await listAgents({ size: 100 })
-    const names = (page.items ?? []).filter((a) => a.status !== 'DRAFT').map((a) => a.name!)
-    if (names.length) agentOptions.value = names
-  } catch {
-    // keel-server unavailable: keep the default option so the page still renders.
+    const names = (page.items ?? []).filter((a) => a.status !== 'DRAFT' && a.name).map((a) => a.name!)
+    agentOptions.value = names
+    if (names.length && !names.includes(agent.value)) agent.value = names[0]
+  } catch (error) {
+    ElMessage.error(`加载智能体失败：${toKeelError(error).message}`)
   }
 })
 onBeforeUnmount(() => clearInterval(timer))
-watch(agent, load, { immediate: true })
+watch(agent, () => {
+  if (agent.value) load()
+})
 </script>
 
 <template>
@@ -80,7 +91,7 @@ watch(agent, load, { immediate: true })
       <select v-model="agent" class="inp">
         <option v-for="a in agentOptions" :key="a" :value="a">{{ a }}</option>
       </select>
-      <button class="btn pri" :disabled="progress !== null" @click="run">▶ 运行回归</button>
+      <button class="btn pri" :disabled="!agent || progress !== null" @click="run">▶ 运行回归</button>
     </div>
 
     <template v-if="result">
@@ -114,6 +125,6 @@ watch(agent, load, { immediate: true })
         </table>
       </div>
     </template>
-    <div v-else-if="!loading" class="card empty">该智能体还没有评测记录</div>
+    <div v-else-if="!loading" class="card empty">{{ agent ? '该智能体还没有评测记录' : '还没有可评测的智能体' }}</div>
   </div>
 </template>
