@@ -74,6 +74,15 @@ public class AgentRegistryService {
         return endpoint;
     }
 
+    public JsonNode manifestOrEmpty(String name) {
+        var agent = agentMapper.selectOne(new LambdaQueryWrapper<Agent>().eq(Agent::getName, name));
+        if (agent == null || !Agent.KIND_AGENT.equals(agent.getKind())) {
+            return null;
+        }
+        var versions = versionMapper.listByAgent(name);
+        return readManifest(versions.isEmpty() ? null : versions.get(0));
+    }
+
     public AgentDetail detail(String name) {
         var agent = require(name);
         var versions = versionMapper.listByAgent(name);

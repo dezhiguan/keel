@@ -1,6 +1,5 @@
 import { http, HttpResponse } from 'msw'
 import { sharedServices } from './data/services'
-import { latestEval } from './data/eval'
 import { dependentsOf, toolDetail, tools } from './data/tools'
 import { approvals, suspendedRuns } from './data/approvals'
 
@@ -18,29 +17,8 @@ function paged<T>(url: URL, list: T[]) {
   return { page, size, total: list.length, items: list.slice((page - 1) * size, page * size) }
 }
 
-const evalRuns = new Map<string, { agent: string; startedAt: number }>()
-
 export const handlers = [
   http.get(`${BASE}/insight/services`, () => ok(sharedServices)),
-
-  http.get(`${BASE}/eval/:agent/latest`, ({ params }) => {
-    const result = latestEval(String(params.agent))
-    return result ? ok(result) : fail(404, 'SERVER_NOT_FOUND', '该智能体还没有评测记录')
-  }),
-
-  http.post(`${BASE}/eval/:agent/runs`, ({ params }) => {
-    const runId = `ev_${Date.now().toString(36)}`
-    evalRuns.set(runId, { agent: String(params.agent), startedAt: Date.now() })
-    return ok({ runId }, 202)
-  }),
-
-  http.get(`${BASE}/eval/runs/:runId`, ({ params }) => {
-    const run = evalRuns.get(String(params.runId))
-    if (!run) return fail(404, 'SERVER_NOT_FOUND', '资源不存在')
-    const progress = Math.min(1, (Date.now() - run.startedAt) / 3000)
-    const done = progress >= 1
-    return ok({ runId: params.runId, state: done ? 'DONE' : 'RUNNING', progress, result: done ? latestEval(run.agent) : null })
-  }),
 
   http.get(`${BASE}/tools`, ({ request }) => {
     const url = new URL(request.url)

@@ -45,15 +45,7 @@ describe('mock handlers', () => {
     expect((await call('POST', '/runs/r_7b4a/input', { text: 'again' })).json.code).toBe('RUN_NOT_RESUMABLE')
   })
 
-  it('starts an eval run and reports progress', async () => {
-    const started = await call('POST', '/eval/offshore-wind/runs')
-    expect(started.status).toBe(202)
-    const run = await call('GET', `/eval/runs/${started.json.data.runId}`)
-    expect(run.json.data.state).toBe('RUNNING')
-    expect(run.json.data.progress).toBeGreaterThanOrEqual(0)
-  })
-
-  it('still mocks shared services while traces, audit and costs are real', async () => {
+  it('still mocks shared services while traces, audit, costs and eval are real', async () => {
     const services = await call('GET', '/insight/services')
     expect(services.status).toBe(200)
     expect(services.json.data.services.length).toBeGreaterThan(0)
@@ -63,5 +55,7 @@ describe('mock handlers', () => {
     await expect(call('GET', '/insight/costs')).rejects.toThrow()
     await expect(call('POST', '/audit/verify')).rejects.toThrow()
     await expect(call('POST', '/audit/exports')).rejects.toThrow()
+    await expect(call('GET', '/eval/offshore-wind/latest')).rejects.toThrow()
+    await expect(call('POST', '/eval/offshore-wind/runs')).rejects.toThrow()
   })
 })

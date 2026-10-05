@@ -26,7 +26,8 @@ async function load() {
     result.value = await getLatestEval(agent.value)
   } catch (error) {
     result.value = null
-    ElMessage.error(`加载评测结果失败：${toKeelError(error).message}`)
+    const keel = toKeelError(error)
+    if (keel.code !== 'SERVER_NOT_FOUND') ElMessage.error(`加载评测结果失败：${keel.message}`)
   } finally {
     loading.value = false
   }
@@ -43,7 +44,8 @@ async function run() {
         clearInterval(timer)
         progress.value = null
         if (r.result) result.value = r.result
-        ElMessage[r.result?.passed ? 'success' : 'warning'](`回归完成：总分 ${r.result?.scoreTotal}`)
+        if (r.state === 'FAILED') ElMessage.warning('还没有可展示的评测记录')
+        else ElMessage[r.result?.passed ? 'success' : 'warning'](`回归完成：总分 ${r.result?.scoreTotal ?? '—'}`)
       }
     }, 400)
   } catch (error) {
@@ -100,12 +102,12 @@ watch(agent, load, { immediate: true })
         <table class="t">
           <thead><tr><th>维度（用例标签）</th><th>用例数</th><th>prod</th><th>候选</th><th>变化</th><th>判定</th></tr></thead>
           <tbody>
-            <tr v-for="d in result.dimensions" :key="d.tag">
+            <tr v-for="d in result.dimensions ?? []" :key="d.tag">
               <td>{{ d.tag }}</td>
-              <td class="mono">{{ d.cases }}</td>
-              <td class="mono">{{ d.prodScore?.toFixed(2) }}</td>
-              <td class="mono">{{ d.candidateScore?.toFixed(2) }}</td>
-              <td class="mono" :class="(d.deltaPt ?? 0) < 0 ? 'down' : 'up'">{{ (d.deltaPt ?? 0) > 0 ? '+' : '' }}{{ d.deltaPt }}pt</td>
+              <td class="mono">{{ d.cases ?? '—' }}</td>
+              <td class="mono">{{ d.prodScore == null ? '—' : d.prodScore.toFixed(2) }}</td>
+              <td class="mono">{{ d.candidateScore == null ? '—' : d.candidateScore.toFixed(2) }}</td>
+              <td class="mono" :class="(d.deltaPt ?? 0) < 0 ? 'down' : 'up'">{{ d.deltaPt == null ? '—' : `${d.deltaPt > 0 ? '+' : ''}${d.deltaPt}pt` }}</td>
               <td><StatusPill v-bind="VERDICT[d.verdict ?? 'TOLERATED']" /></td>
             </tr>
           </tbody>
