@@ -46,7 +46,11 @@ export function scoreText(value?: number | null) {
 }
 
 export function cardCost(value?: number | null) {
-  return value == null ? '—' : `¥${value.toFixed(1)}`
+  if (value == null || Number.isNaN(value)) return '—'
+  if (value === 0) return '¥0.0'
+  if (Math.abs(value) >= 0.1) return `¥${value.toFixed(1)}`
+  const digits = Math.abs(value) >= 0.01 ? 2 : 4
+  return `¥${value.toFixed(digits)}`
 }
 
 /** 原型卡片：业务/研发、语言、环境、版本，有编排时再加一枚。 */

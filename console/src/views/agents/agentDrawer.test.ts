@@ -14,6 +14,7 @@ describe('agent drawer', () => {
     expect(scoreText(null)).toBe('—')
     expect(cardCost(31.24)).toBe('¥31.2')
     expect(cardCost(0)).toBe('¥0.0')
+    expect(cardCost(0.00342)).toBe('¥0.0034')
     expect(cardCost(null)).toBe('—')
   })
 
