@@ -5,6 +5,7 @@ import com.keel.server.insight.CostService;
 import com.keel.server.insight.OverviewService;
 import com.keel.server.insight.SharedServiceMonitor;
 import com.keel.server.insight.TraceQueryService;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import jakarta.validation.constraints.Min;
@@ -53,7 +54,24 @@ public class InsightController {
                 "model", model.name(),
                 "costCny", cost.byModel().getOrDefault(model.name(), 0d),
                 "priceConfigured", model.priceConfigured())).toList();
-        return R.ok(Map.of("models", models, "totalCny", cost.totalCny()));
+        var keys = cost.keys().stream()
+                .filter(key -> "all".equals(env) || env.equals(key.env()))
+                .map(key -> {
+                    var row = new LinkedHashMap<String, Object>();
+                    row.put("alias", key.alias());
+                    row.put("agent", key.agent());
+                    row.put("env", key.env());
+                    row.put("models", key.models());
+                    row.put("dailyBudgetCny", key.dailyBudgetCny());
+                    row.put("spentCny", key.spentCny());
+                    row.put("status", key.blocked() ? "BLOCKED" : "ACTIVE");
+                    return row;
+                }).toList();
+        var body = new LinkedHashMap<String, Object>();
+        body.put("models", models);
+        body.put("totalCny", cost.totalCny());
+        body.put("keys", keys);
+        return R.ok(body);
     }
 
     @GetMapping("/services")

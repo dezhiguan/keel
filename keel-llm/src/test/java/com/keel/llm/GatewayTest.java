@@ -24,6 +24,19 @@ class GatewayTest {
                 .hasMessageContaining("缺单价");
     }
 
+    @Test void listsKeysWithoutTheSecret() {
+        var gateway = gateway(echoServer());
+        var created = gateway.create("echo-dev", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false);
+        var listed = gateway.listed();
+        assertThat(listed).anySatisfy(key -> {
+            assertThat(key.alias()).isEqualTo("echo-dev");
+            assertThat(key.dailyBudgetCny()).isEqualByComparingTo("30");
+            assertThat(key.spentCny()).isEqualByComparingTo("0");
+            assertThat(key.blocked()).isFalse();
+        });
+        assertThat(listed.toString()).doesNotContain(created.key());
+    }
+
     @Test void rejectsAliasOutsideAgentEnv() {
         var gateway = gateway(echoServer());
         assertThatThrownBy(() -> gateway.create("CodeReview", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false))

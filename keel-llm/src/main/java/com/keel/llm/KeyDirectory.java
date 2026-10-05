@@ -4,6 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.sync.RedisCommands;
 
+import io.lettuce.core.KeyScanCursor;
+import io.lettuce.core.ScanArgs;
+import io.lettuce.core.ScanCursor;
+
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,6 +38,17 @@ public final class KeyDirectory {
     public void save(Gateway.VirtualKey key) {
         backend.put(ALIAS_PREFIX + key.alias(), encode(key));
         backend.put(TOKEN_PREFIX + key.token(), key.alias());
+    }
+
+    public List<Gateway.VirtualKey> list() {
+        var found = new ArrayList<Gateway.VirtualKey>();
+        for (var raw : backend.values(ALIAS_PREFIX)) {
+            var key = decode(raw);
+            if (key != null) {
+                found.add(key);
+            }
+        }
+        return List.copyOf(found);
     }
 
     public Gateway.VirtualKey byAlias(String alias) {
@@ -91,6 +106,8 @@ public final class KeyDirectory {
         void put(String key, String value);
 
         String get(String key);
+
+        List<String> values(String prefix);
     }
 
     static final class MapBackend implements Backend {
@@ -109,6 +126,14 @@ public final class KeyDirectory {
         public String get(String key) {
             return data.get(key);
         }
+
+        @Override
+        public List<String> values(String prefix) {
+            return data.entrySet().stream()
+                    .filter(entry -> entry.getKey().startsWith(prefix))
+                    .map(java.util.Map.Entry::getValue)
+                    .toList();
+        }
     }
 
     static final class RedisBackend implements Backend {
@@ -126,6 +151,24 @@ public final class KeyDirectory {
         @Override
         public String get(String key) {
             return redis.get(key);
+        }
+
+        @Override
+        public List<String> values(String prefix) {
+            var found = new ArrayList<String>();
+            ScanCursor cursor = ScanCursor.INITIAL;
+            var args = ScanArgs.Builder.matches(prefix + "*").limit(200);
+            do {
+                KeyScanCursor<String> page = redis.scan(cursor, args);
+                for (var key : page.getKeys()) {
+                    var value = redis.get(key);
+                    if (value != null) {
+                        found.add(value);
+                    }
+                }
+                cursor = page;
+            } while (!cursor.isFinished());
+            return found;
         }
     }
 }

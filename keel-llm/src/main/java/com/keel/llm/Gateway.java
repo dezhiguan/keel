@@ -57,6 +57,12 @@ public final class Gateway {
         keys.save(key.asBlocked());
     }
 
+    public List<ListedKey> listed() {
+        return keys.list().stream()
+                .map(key -> new ListedKey(key.alias(), key.models(), key.dailyBudgetCny(), budget.spent(key.alias()), key.blocked()))
+                .toList();
+    }
+
     public synchronized VirtualKey requireAlias(String alias) {
         var key = keys.byAlias(alias);
         if (key == null) {
@@ -163,6 +169,8 @@ public final class Gateway {
             return new VirtualKey(alias, token, models, fallback, dailyBudgetCny, allowFallback, true);
         }
     }
+
+    public record ListedKey(String alias, List<String> models, BigDecimal dailyBudgetCny, BigDecimal spentCny, boolean blocked) {}
 
     public record Spend(String alias, String model, int inputTokens, int outputTokens, BigDecimal costCny, String requestId, Instant ts) {}
 

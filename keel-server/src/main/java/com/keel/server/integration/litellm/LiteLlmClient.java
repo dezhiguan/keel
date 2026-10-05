@@ -106,6 +106,17 @@ public class LiteLlmClient {
         return rows;
     }
 
+    public List<VirtualKey> keys() {
+        var rows = new ArrayList<VirtualKey>();
+        get("/admin/v1/keys").path("data").forEach(row -> rows.add(new VirtualKey(
+                row.path("alias").asText(""),
+                texts(row.path("models")),
+                row.path("dailyBudgetCny").asDouble(),
+                row.path("spentCny").asDouble(),
+                row.path("blocked").asBoolean(false))));
+        return rows;
+    }
+
     public List<Model> models() {
         var rows = new ArrayList<Model>();
         get("/admin/v1/models").path("data").forEach(row -> rows.add(new Model(
@@ -113,6 +124,8 @@ public class LiteLlmClient {
                 row.path("priceConfigured").asBoolean(false))));
         return rows;
     }
+
+    public record VirtualKey(String alias, List<String> models, double dailyBudgetCny, double spentCny, boolean blocked) {}
 
     public record Spend(String alias, String model, double costCny) {}
 
@@ -141,6 +154,12 @@ public class LiteLlmClient {
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private static List<String> texts(JsonNode node) {
+        var values = new ArrayList<String>();
+        node.forEach(item -> values.add(item.asText()));
+        return List.copyOf(values);
     }
 
     private JsonNode send(String path, Object body) {

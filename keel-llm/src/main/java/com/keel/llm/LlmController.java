@@ -56,6 +56,21 @@ public class LlmController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/admin/v1/keys")
+    Map<String, Object> keys(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        admin(authorization);
+        var rows = gateway.listed().stream().map(key -> {
+            var view = new LinkedHashMap<String, Object>();
+            view.put("alias", key.alias());
+            view.put("models", key.models());
+            view.put("dailyBudgetCny", key.dailyBudgetCny());
+            view.put("spentCny", key.spentCny());
+            view.put("blocked", key.blocked());
+            return view;
+        }).toList();
+        return Map.of("data", rows);
+    }
+
     @GetMapping("/admin/v1/keys/{alias}")
     Map<String, Object> key(@RequestHeader(value = "Authorization", required = false) String authorization,
                             @PathVariable String alias) {

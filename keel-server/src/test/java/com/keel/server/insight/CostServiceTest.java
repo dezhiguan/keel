@@ -28,6 +28,7 @@ class CostServiceTest {
                         : query.contains("page=2") ? page(1, "wind-prod", "deepseek-v3", 3)
                         : "{\"data\":[]}";
                 case "/admin/v1/models" -> "{\"data\":[{\"name\":\"qwen-plus\",\"priceConfigured\":true},{\"name\":\"draft\",\"priceConfigured\":false}]}";
+                case "/admin/v1/keys" -> "{\"data\":[{\"alias\":\"askdb-dev\",\"models\":[\"qwen-plus\"],\"dailyBudgetCny\":30,\"spentCny\":1.5,\"blocked\":false}]}";
                 case "/api/public/v3/scores" -> "{\"data\":[{\"name\":\"askdb\",\"value\":0.8},{\"name\":\"wind\",\"value\":1.0}]}";
                 default -> "{\"data\":[]}";
             };
@@ -44,6 +45,13 @@ class CostServiceTest {
         var result = costs.cost();
         assertThat(result.totalCny()).isEqualTo(53.0);
         assertThat(result.byAgent().get("askdb") + result.byAgent().get("wind")).isEqualTo(result.totalCny());
+        assertThat(result.keys()).anySatisfy(key -> {
+            assertThat(key.alias()).isEqualTo("askdb-dev");
+            assertThat(key.agent()).isEqualTo("askdb");
+            assertThat(key.env()).isEqualTo("dev");
+            assertThat(key.dailyBudgetCny()).isEqualTo(30);
+            assertThat(key.spentCny()).isEqualTo(1.5);
+        });
         assertThat(result.models()).anySatisfy(model -> {
             if ("draft".equals(model.name())) {
                 assertThat(model.priceConfigured()).isFalse();

@@ -20,7 +20,7 @@ public class CostService {
             return load();
         } catch (IllegalStateException e) {
             if (e.getMessage() != null && e.getMessage().contains("未配置")) {
-                return new Result(0, 0, Map.of(), Map.of(), List.of());
+                return new Result(0, 0, Map.of(), Map.of(), List.of(), List.of());
             }
             throw e;
         }
@@ -36,7 +36,11 @@ public class CostService {
             byAgent.merge(agentOf(row.alias()), row.costCny(), Double::sum);
             byModel.merge(row.model(), row.costCny(), Double::sum);
         }
-        return new Result(total, rows.size(), byAgent, byModel, gateway.models());
+        var keys = gateway.keys().stream()
+                .map(key -> new Key(key.alias(), agentOf(key.alias()), envOf(key.alias()), key.models(),
+                        key.dailyBudgetCny(), key.spentCny(), key.blocked()))
+                .toList();
+        return new Result(total, rows.size(), byAgent, byModel, gateway.models(), keys);
     }
 
     static String agentOf(String alias) {
@@ -48,5 +52,17 @@ public class CostService {
         return alias;
     }
 
-    public record Result(double totalCny, int calls, Map<String, Double> byAgent, Map<String, Double> byModel, List<LiteLlmClient.Model> models) {}
+    static String envOf(String alias) {
+        for (var env : List.of("prod", "staging", "dev")) {
+            if (alias.endsWith("-" + env)) {
+                return env;
+            }
+        }
+        return "";
+    }
+
+    public record Key(String alias, String agent, String env, List<String> models, double dailyBudgetCny, double spentCny, boolean blocked) {}
+
+    public record Result(double totalCny, int calls, Map<String, Double> byAgent, Map<String, Double> byModel,
+                         List<LiteLlmClient.Model> models, List<Key> keys) {}
 }
