@@ -54,4 +54,4 @@ cd console && npx vue-tsc --noEmit && npx vitest related src/views/trace src/api
 
 - 不改 `TraceQueryService`（P1-13）
 - 不实现评测中心（P2-12）
-- 不在图里展示用户原文
+- 节点详情展示 Langfuse observation 的 input / output，也就是这次调用的问题和回复

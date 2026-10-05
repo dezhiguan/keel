@@ -126,8 +126,8 @@ public class TraceQueryService {
             node.put("model", row.path("metadata").path("gen_ai.request.model").asText(null));
             node.put("startMs", (int) nodeStart);
             node.put("durationMs", duration);
-            node.put("inputSummary", row.path("name").asText());
-            node.put("outputSummary", row.path("name").asText());
+            node.put("inputSummary", textOrName(row, "input"));
+            node.put("outputSummary", textOrName(row, "output"));
             node.put("auditIds", auditIds(row));
             node.put("approvalId", null);
             node.put("humanWaitLabel", null);
@@ -188,8 +188,41 @@ public class TraceQueryService {
         });
         var item = new LinkedHashMap<String, Object>();
         item.put("traceId", traceId);
+        item.put("question", questionOf(rows));
         item.put("agents", new ArrayList<>(agents));
         item.put("multiAgent", agents.size() > 1);
+        if (!agents.isEmpty()) {
+            item.put("rootAgent", agents.getFirst());
+        }
         return item;
+    }
+
+    private static String questionOf(List<JsonNode> rows) {
+        for (JsonNode row : rows) {
+            var text = observationText(row, "input");
+            if (!text.isBlank()) {
+                return text;
+            }
+        }
+        return "";
+    }
+
+    private static String textOrName(JsonNode row, String field) {
+        var text = observationText(row, field);
+        return text.isBlank() ? row.path("name").asText() : text;
+    }
+
+    private static String observationText(JsonNode row, String field) {
+        var node = row.path(field);
+        if (node.isMissingNode() || node.isNull() || (node.isTextual() && node.asText().isBlank())) {
+            node = row.path("metadata").path("langfuse.observation." + field);
+        }
+        if (node.isMissingNode() || node.isNull()) {
+            return "";
+        }
+        if (node.isTextual()) {
+            return node.asText();
+        }
+        return node.toString();
     }
 }

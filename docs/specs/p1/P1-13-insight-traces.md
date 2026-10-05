@@ -34,7 +34,7 @@ GET /api/v1/insight/traces/{traceId}
 - `edges` 的 `from`、`to` 都存在于 `nodes`
 - `latencyBreakdown` 各项 `ms` 之和等于 `summary.durationMs`
 - `langfuseUrl` 形如 `{langfuse}/project/{id}/traces/{traceId}`
-- `inputSummary` / `outputSummary` 是摘要。span 属性和这个接口都不返回用户原文
+- `inputSummary` / `outputSummary` 取 Langfuse observation 的 input / output。没有这两项时回退到节点名
 
 ## 实现要点
 

@@ -115,8 +115,8 @@ watch(() => route.params.id, load, { immediate: true })
           <div><span>tokens{{ node.aggregated ? '（含子节点）' : '' }}</span><b>{{ fmtN(tokensOf) }}</b></div>
           <div><span>成本{{ node.aggregated ? '（含子节点）' : '' }}</span><b>{{ fmtCny(node.costCny) }}</b></div>
           <div v-if="node.llmKeyAlias" class="full"><span>模型网关</span><b>经薄网关 · 虚拟 Key {{ node.llmKeyAlias }} · 花费计入该智能体的日预算</b></div>
-          <div class="full"><span>输入摘要</span><b>{{ node.inputSummary }}</b></div>
-          <div class="full"><span>输出摘要</span><b>{{ node.outputSummary }}</b></div>
+          <div class="full"><span>输入</span><b style="white-space: pre-wrap">{{ node.inputSummary }}</b></div>
+          <div class="full"><span>输出</span><b style="white-space: pre-wrap">{{ node.outputSummary }}</b></div>
           <div class="full">
             <span>关联</span>
             <div class="acts">

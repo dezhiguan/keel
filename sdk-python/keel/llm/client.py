@@ -3,6 +3,7 @@
 The LiteLLM Langfuse callback must stay disabled: this SDK owns generation spans.
 """
 
+import json
 import logging
 import os
 
@@ -21,6 +22,17 @@ def _openai_base(url: str | None) -> str:
     if base and not base.endswith("/v1"):
         base += "/v1"
     return base
+
+
+def _observation_input(messages: list[dict]) -> str:
+    parts = []
+    for message in messages:
+        content = message.get("content")
+        if isinstance(content, str):
+            parts.append(content)
+        else:
+            parts.append(json.dumps(message, ensure_ascii=False))
+    return "\n".join(parts)
 
 
 class LlmClient:
@@ -44,6 +56,7 @@ class LlmClient:
         with self.tracer.start_as_current_span("llm.chat", attributes={
             attrs.OBSERVATION_TYPE: "generation", attrs.AGENT: self.agent,
             attrs.MODEL: chosen, attrs.STATUS: "ok",
+            attrs.OBSERVATION_INPUT: _observation_input(messages),
         }) as span:
             try:
                 response = await self.client.chat.completions.create(
@@ -69,7 +82,9 @@ class LlmClient:
             if token_count and not cost:
                 logger.warning("LiteLLM reported zero cost for nonzero tokens trace_id=%s agent=%s",
                                self.trace_id, self.agent)
-            return response.choices[0].message.content or ""
+            reply = response.choices[0].message.content or ""
+            span.set_attribute(attrs.OBSERVATION_OUTPUT, reply)
+            return reply
 
     async def aclose(self):
         await self.client.close()

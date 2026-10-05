@@ -32,7 +32,7 @@ Keel 是智能体平台底座。设计文档在 `docs/` 下按包分类，冲突
 - 审计 payload 只允许 manifest `audit.captureFields` 白名单里的字段，其余一律丢弃。
 
 ### 追踪与日志
-- span 属性里不放用户原文。原文只按审计白名单进审计。
+- 模型调用的问题和回复写在 generation 的 `langfuse.observation.input` / `output`，控制台从 Langfuse 读回展示。其他 span 属性不放用户原文。审计仍只收白名单字段。
 - 所有日志必须带 `trace_id` 和 `agent`。
 - Keel 服务自身的服务级追踪进 SkyWalking，智能体语义追踪进 Langfuse，两者不要混写。
 

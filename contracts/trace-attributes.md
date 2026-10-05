@@ -14,6 +14,8 @@ Python SDK 和 Java starter 产生的属性键集合必须完全一致。这份�
 | 属性 | 取值 | 说明 |
 |---|---|---|
 | `langfuse.observation.type` | `agent` \| `generation` \| `tool` \| `retriever` \| `guardrail` \| `event` | 节点类型 |
+| `langfuse.observation.input` | 字符串 | 这次模型调用的输入。控制台从 Langfuse observation 读回 |
+| `langfuse.observation.output` | 字符串 | 这次模型调用的回复 |
 | `langfuse.session.id` | 字符串 | 多轮对话归到同一会话 |
 | `langfuse.user.id` | 字符串 | |
 | `langfuse.trace.tags` | 字符串数组 | |
@@ -53,6 +55,6 @@ generation span **只由 Keel SDK 上报一次**。薄网关不向 Langfuse 上�
 
 ## 禁止事项
 
-- **span 属性里不放用户原文。** 原文只按 manifest `audit.captureFields` 白名单进审计。契约里不给原文留字段，避免有人往里塞
-- 不放厂商 API Key、不放完整 prompt、不放检索到的文档全文（只放 citations 的标识）
+- generation 的 `langfuse.observation.input` / `output` 带这次调用的问题和回复。控制台链路页从 Langfuse 读回这两项并展示
+- 其他 span 属性不放用户原文，也不放厂商 API Key 和检索到的文档全文（只放 citations 的标识）。审计仍只收 manifest `audit.captureFields` 白名单
 - 所有日志必须带 `trace_id` 和 `agent`

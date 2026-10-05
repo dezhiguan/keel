@@ -1,6 +1,5 @@
 package com.keel.server.insight;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.keel.server.common.KeelException;
 import com.keel.server.integration.langfuse.LangfuseClient;
 import com.sun.net.httpserver.HttpServer;
@@ -16,9 +15,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TraceQueryServiceTest {
-    private final ObjectMapper json = new ObjectMapper();
 
-    @Test void detailUsesOneObservationsCallAndHidesRawInput() throws Exception {
+    @Test void detailShowsObservationInputAndOutput() throws Exception {
         var paths = new ArrayList<String>();
         var server = server(paths, """
                 {"data":[
@@ -53,7 +51,16 @@ class TraceQueryServiceTest {
                 assertThat(node.get("costCny")).isNull();
             }
         });
-        assertThat(json.writeValueAsString(detail)).doesNotContain("RAW_USER_TEXT_SHOULD_NOT_LEAK");
+        assertThat(nodes).anySatisfy(node -> {
+            if ("askdb".equals(node.get("name"))) {
+                assertThat(node.get("inputSummary")).isEqualTo("RAW_USER_TEXT_SHOULD_NOT_LEAK");
+            }
+        });
+        assertThat(nodes).anySatisfy(node -> {
+            if ("retrieve".equals(node.get("name"))) {
+                assertThat(node.get("inputSummary")).isEqualTo("retrieve");
+            }
+        });
         server.stop(0);
     }
 

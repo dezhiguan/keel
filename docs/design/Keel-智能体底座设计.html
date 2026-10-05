@@ -1145,7 +1145,7 @@ POST /v1/feedback    # SDK 自动挂载，点赞点踩写成 Langfuse 分数</pr
     "keel.llm.key_alias": "offshore-wind-prod",   // 经 薄网关 的哪个虚拟 Key
     "keel.llm.request_id": "chatcmpl-…"           // 和 薄网关 花费日志对得上
   }
-}</pre><aside><h5>追踪设计要点</h5><ul><li>三个服务、一个 trace：委派时通过 W3C <code>traceparent</code> 传播，子智能体不需要知道自己被谁编排</li><li>节点类型用 <b>agent / tool / retriever</b> 等，Langfuse 据此自动画出 Agent Graph</li><li><code>keel.*</code> 是 Keel 的扩展属性：委派关系、状态口径、审计关联</li><li>Java 必须用 <b>OTLP/HTTP</b>，Langfuse 不收 gRPC</li><li>generation 只由 SDK 上报；薄网关 的 Langfuse 回调关闭，否则每次调用会记两条</li><li>属性里不放原文，原文只按审计白名单记录</li></ul></aside></div>
+}</pre><aside><h5>追踪设计要点</h5><ul><li>三个服务、一个 trace：委派时通过 W3C <code>traceparent</code> 传播，子智能体不需要知道自己被谁编排</li><li>节点类型用 <b>agent / tool / retriever</b> 等，Langfuse 据此自动画出 Agent Graph</li><li><code>keel.*</code> 是 Keel 的扩展属性：委派关系、状态口径、审计关联</li><li>Java 必须用 <b>OTLP/HTTP</b>，Langfuse 不收 gRPC</li><li>generation 只由 SDK 上报；薄网关 的 Langfuse 回调关闭，否则每次调用会记两条</li><li>generation 的 input / output 上报到 Langfuse，链路页再从 observation 读回展示</li></ul></aside></div>
     <div class="pane"><pre data-lang="json">{
   "event_id": "ae_20260929_123930_7d21",
   "ts": "2026-09-29T12:39:30+08:00",

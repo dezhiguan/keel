@@ -66,7 +66,7 @@ cd sdk-python && pytest tests/tracing -q
 - [ ] 缓冲超过上限时丢弃最旧的追踪，且打印一条 WARNING，进程不崩
 - [ ] 源码扫描：`keel/` 下除 `eval/`、`gate/` 外没有 `import langfuse`
 - [ ] 源码扫描：没有 `OtlpGrpcSpanExporter`
-- [ ] 任意一条 span 的属性里不包含用户输入原文（用例构造一句特征串，断言不出现在上报体里）
+- [ ] generation 的 input / output 带这次调用的问题和回复；其他 span 的属性里不包含用户输入原文
 - [ ] 所有日志行都带 `trace_id` 和 `agent`
 
 ## 明确不做

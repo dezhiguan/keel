@@ -1,6 +1,8 @@
 """Allowed span attribute keys from contracts/trace-attributes.md."""
 
 OBSERVATION_TYPE = "langfuse.observation.type"
+OBSERVATION_INPUT = "langfuse.observation.input"
+OBSERVATION_OUTPUT = "langfuse.observation.output"
 SESSION_ID = "langfuse.session.id"
 USER_ID = "langfuse.user.id"
 TRACE_TAGS = "langfuse.trace.tags"

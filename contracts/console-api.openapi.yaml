@@ -1496,8 +1496,8 @@ components:
         tokensOut: { type: integer, nullable: true }
         tokens: { type: integer, nullable: true }
         costCny: { type: number, format: float, nullable: true }
-        inputSummary: { type: string, description: 摘要，不含原文 }
-        outputSummary: { type: string }
+        inputSummary: { type: string, description: Langfuse observation 的 input，没有时用节点名 }
+        outputSummary: { type: string, description: Langfuse observation 的 output，没有时用节点名 }
         auditIds:
           type: array
           items: { type: string }
