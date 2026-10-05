@@ -7,8 +7,8 @@ export const ENV_OPTIONS: { value: EnvFilter; label: string }[] = [
   { value: 'all', label: '全部环境' },
   { value: 'prod', label: 'prod' },
   { value: 'staging', label: 'staging' },
-  { value: 'dev', label: 'dev' },
   { value: 'test', label: 'test' },
+  { value: 'dev', label: 'dev' },
 ]
 
 export const useEnvStore = defineStore('env', () => {
