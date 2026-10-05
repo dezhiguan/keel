@@ -15,9 +15,11 @@ import java.net.URLEncoder;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.HexFormat;
+import java.util.List;
 
 /** Langfuse public API. Does not call the removed dataset-run-items route. */
 public class LangfuseClient {
@@ -122,6 +124,69 @@ public class LangfuseClient {
         return get("/api/public/v2/observations?limit=100&fields=core,basic,io,metadata");
     }
 
+    /**
+     * Root observations in the window. Null when Langfuse cannot be read.
+     * One page is not enough once a project has more than 100 roots, so follow the cursor.
+     */
+    public List<RootCall> rootCalls(Instant from, Instant to) {
+        var page = roots(from, to);
+        return page == null ? null : page.rows();
+    }
+
+    /**
+     * Root observations in the window. Null when Langfuse cannot be read.
+     * {@code complete} is false when the scan stops at 2000 rows, so a total derived from it would be short.
+     */
+    public RootPage roots(Instant from, Instant to) {
+        if (baseUrl.isBlank() || authorization.isBlank()) {
+            return null;
+        }
+        try {
+            var rows = new ArrayList<RootCall>();
+            String cursor = null;
+            var complete = true;
+            for (int page = 0; page < 20; page++) {
+                var path = "/api/public/v2/observations?fields=core,time,metadata&isRootObservation=true&limit=100"
+                        + "&fromStartTime=" + URLEncoder.encode(from.toString(), StandardCharsets.UTF_8)
+                        + "&toStartTime=" + URLEncoder.encode(to.toString(), StandardCharsets.UTF_8);
+                if (cursor != null) {
+                    path += "&cursor=" + URLEncoder.encode(cursor, StandardCharsets.UTF_8);
+                }
+                var body = get(path);
+                body.path("data").forEach(row -> rows.add(new RootCall(
+                        row.path("traceId").asText(""),
+                        text(row.path("metadata"), "keel.agent"),
+                        text(row.path("metadata"), "keel.llm.key_alias"),
+                        seconds(row))));
+                var next = body.path("meta").path("cursor").asText("");
+                if (next.isBlank() || next.equals(cursor)) {
+                    break;
+                }
+                if (page == 19) {
+                    complete = false;
+                }
+                cursor = next;
+            }
+            return new RootPage(rows, complete);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static Double seconds(JsonNode row) {
+        var start = row.path("startTime").asText("");
+        var end = row.path("endTime").asText("");
+        if (start.isBlank() || end.isBlank()) {
+            return null;
+        }
+        try {
+            var millis = java.time.Duration.between(java.time.Instant.parse(start), java.time.Instant.parse(end)).toMillis();
+            return millis < 0 ? null : millis / 1000.0;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     public Integer observationCount(Instant from, Instant to) {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             return null;
@@ -176,6 +241,18 @@ public class LangfuseClient {
             throw new IllegalStateException(e);
         }
     }
+
+    private static String text(JsonNode metadata, String key) {
+        var direct = metadata.path(key).asText("");
+        if (!direct.isBlank()) {
+            return direct;
+        }
+        return metadata.path("attributes." + key).asText("");
+    }
+
+    public record RootCall(String traceId, String agent, String keyAlias, Double latencySeconds) {}
+
+    public record RootPage(List<RootCall> rows, boolean complete) {}
 
     private static String sha256(String text) throws Exception {
         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)));

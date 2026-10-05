@@ -1278,6 +1278,9 @@ components:
         score: { type: number, format: float, nullable: true }
         instances: { type: string, example: "2/2", description: 就绪/期望；Dify 为探活结果 }
         multiAgent: { type: boolean }
+        delegateCount:
+          type: integer
+          description: spec.delegates 的个数，列表卡片用来显示「编排 N 个」
 
     AgentDetail:
       allOf:

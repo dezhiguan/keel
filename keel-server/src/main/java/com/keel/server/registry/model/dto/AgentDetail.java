@@ -24,7 +24,7 @@ public record AgentDetail(
 
     public static AgentDetail of(Agent agent, AgentVersion latest, String instances,
                                  List<AgentInstance> rows, JsonNode manifest) {
-        var summary = AgentSummary.of(agent, latest == null ? null : latest.getVersion(), instances);
+        var summary = AgentSummary.of(agent, latest, instances, manifest);
         return new AgentDetail(summary, null, latest == null ? null : latest.getManifestHash(),
                 texts(manifest, "knowledge", "kb"),
                 texts(manifest, "tools", "name"),
@@ -72,6 +72,11 @@ public record AgentDetail(
         var values = new java.util.ArrayList<String>();
         manifest.path("spec").path("delegates").forEach(item -> values.add(item.asText()));
         return values;
+    }
+
+    public AgentDetail withSummary(AgentSummary summary) {
+        return new AgentDetail(summary, manifestYaml, manifestHash, knowledgeBases, tools, models, delegates,
+                instanceList, resources, versions, findings);
     }
 
     public record InstanceRow(String instanceId, String source, String version, boolean ready, String lastSeenAt) {

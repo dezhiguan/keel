@@ -1,7 +1,6 @@
 package com.keel.server.registry.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.keel.common.error.ErrorCode;
@@ -19,8 +18,11 @@ import com.keel.server.registry.model.enums.AgentStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class AgentRegistryService {
@@ -38,16 +40,14 @@ public class AgentRegistryService {
     }
 
     /**
-     * category 不在 V1 表上，manifest schema 里也没有这个字段。筛选值不是 all 时返回空页。
-     * TODO(P1-4): 分类规则还没定，不要为了筛选去改已经执行过的 V1。
+     * 分类写在 manifest 的 metadata.category，老数据按技术文档里的名单识别。
+     * 名单和 manifest 都对不上时分类为 null，业务/研发筛选里不出现。
      */
     public PageResult<AgentSummary> page(String env, String category, AgentStatus status, String q, int page, int size) {
-        if (category != null && !"all".equals(category)) {
-            return new PageResult<>(page, size, 0, List.of());
-        }
+        var scope = env == null || env.isBlank() ? "all" : env;
         var query = agentsOnly().eq(status != null, Agent::getStatus, status);
-        if (env != null && !"all".equals(env)) {
-            var names = versionMapper.agentNamesInEnv(env);
+        if (!"all".equals(scope)) {
+            var names = versionMapper.agentNamesInEnv(scope);
             if (names.isEmpty()) {
                 return new PageResult<>(page, size, 0, List.of());
             }
@@ -55,12 +55,25 @@ public class AgentRegistryService {
         }
         if (StringUtils.hasText(q)) {
             var pattern = q.trim();
-            query.and(w -> w.like(Agent::getName, pattern).or().like(Agent::getDisplayName, pattern)
-                    .or().like(Agent::getOwnerUser, pattern));
+            query.and(w -> w.like(Agent::getName, pattern).or().like(Agent::getDisplayName, pattern));
         }
-        var result = agentMapper.selectPage(Page.of(page, size), query.orderByAsc(Agent::getName));
-        var items = result.getRecords().stream().map(agent -> AgentSummary.of(agent, null, null)).toList();
-        return new PageResult<>(result.getCurrent(), result.getSize(), result.getTotal(), items);
+        var versions = versionMapper.latestByAgent(scope).stream()
+                .collect(Collectors.toMap(AgentVersion::getAgentName, Function.identity(), (left, right) -> left));
+        var matched = new ArrayList<AgentSummary>();
+        for (var agent : agentMapper.selectList(query.orderByAsc(Agent::getName))) {
+            var version = versions.get(agent.getName());
+            var summary = AgentSummary.of(agent, version, null, readManifest(version));
+            if (category != null && !"all".equals(category) && !category.equals(summary.category())) {
+                continue;
+            }
+            matched.add(summary);
+        }
+        int from = Math.max(0, (page - 1) * size);
+        if (from >= matched.size()) {
+            return new PageResult<>(page, size, matched.size(), List.of());
+        }
+        int to = Math.min(matched.size(), from + size);
+        return new PageResult<>(page, size, matched.size(), List.copyOf(matched.subList(from, to)));
     }
 
     public String invokeEndpoint(String name) {
@@ -111,7 +124,17 @@ public class AgentRegistryService {
     }
 
     public List<AgentSummary> listAll() {
-        return agentMapper.selectList(agentsOnly().orderByAsc(Agent::getName)).stream().map(AgentSummary::of).toList();
+        var versions = versionMapper.latestByAgent("all").stream()
+                .collect(Collectors.toMap(AgentVersion::getAgentName, Function.identity(), (left, right) -> left));
+        var instances = instanceMapper.selectList(new LambdaQueryWrapper<>()).stream()
+                .collect(Collectors.groupingBy(AgentInstance::getAgentName));
+        return agentMapper.selectList(agentsOnly().orderByAsc(Agent::getName)).stream().map(agent -> {
+            var rows = instances.getOrDefault(agent.getName(), List.of());
+            var ready = rows.stream().filter(AgentInstance::isReady).count();
+            var label = rows.isEmpty() ? null : ready + "/" + rows.size();
+            var version = versions.get(agent.getName());
+            return AgentSummary.of(agent, version, label, readManifest(version));
+        }).toList();
     }
 
     private Agent require(String name) {

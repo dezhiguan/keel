@@ -1,13 +1,13 @@
 import type { AgentStatus } from '@/api/agents'
 import type { components } from '@/api/schema'
 
-export type StatusTone = 'ok' | 'degraded' | 'failed' | 'idle'
+export type StatusTone = 'ok' | 'degraded' | 'failed' | 'idle' | 'soft'
 type Risk = components['schemas']['Risk']
 type NodeStatus = components['schemas']['NodeStatus']
 
 const AGENT_STATUS: Record<AgentStatus, { label: string; tone: StatusTone }> = {
   DRAFT: { label: '草稿', tone: 'idle' },
-  REGISTERED: { label: '已注册', tone: 'idle' },
+  REGISTERED: { label: '已注册', tone: 'soft' },
   ONLINE: { label: '正常', tone: 'ok' },
   DEGRADED: { label: '降级', tone: 'degraded' },
   OFFLINE: { label: '离线', tone: 'failed' },

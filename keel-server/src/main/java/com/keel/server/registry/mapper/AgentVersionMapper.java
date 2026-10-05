@@ -22,4 +22,13 @@ public interface AgentVersionMapper extends BaseMapper<AgentVersion> {
             SELECT DISTINCT agent_name FROM agent_version WHERE env = #{env}
             """)
     List<String> agentNamesInEnv(String env);
+
+    @Select("""
+            SELECT DISTINCT ON (agent_name) id, agent_name, version, env, manifest_json::text AS manifest_json,
+                   manifest_hash, image, gate_run_id, released_by, released_at
+            FROM agent_version
+            WHERE (#{env} = 'all' OR env = #{env})
+            ORDER BY agent_name, released_at DESC, id DESC
+            """)
+    List<AgentVersion> latestByAgent(String env);
 }

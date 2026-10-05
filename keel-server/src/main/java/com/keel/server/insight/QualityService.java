@@ -19,7 +19,7 @@ public class QualityService {
         if (scores.isEmpty()) {
             return null;
         }
-        return scores.values().stream().mapToDouble(Double::doubleValue).average().orElseThrow();
+        return round2(scores.values().stream().mapToDouble(Double::doubleValue).average().orElseThrow());
     }
 
     /** Kept for the quality page in P2-12. */
@@ -33,10 +33,14 @@ public class QualityService {
                 bucket[1] += 1;
             });
             var averages = new LinkedHashMap<String, Double>();
-            totals.forEach((agent, bucket) -> averages.put(agent, bucket[1] == 0 ? null : bucket[0] / bucket[1]));
+            totals.forEach((agent, bucket) -> averages.put(agent, bucket[1] == 0 ? null : round2(bucket[0] / bucket[1])));
             return averages;
         } catch (RuntimeException e) {
             return Map.of();
         }
+    }
+
+    private static double round2(double value) {
+        return Math.round(value * 100.0) / 100.0;
     }
 }

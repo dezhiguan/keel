@@ -1,6 +1,7 @@
 package com.keel.server.builtin;
 
 import com.keel.server.insight.SavedTraces;
+import com.keel.server.insight.SavedTraces.TraceHit;
 import com.keel.server.insight.SuspendedTrace;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -54,6 +55,16 @@ public class LocalTraceLog implements SavedTraces {
         data.put("total", total == null ? 0 : total);
         data.put("items", rows);
         return data;
+    }
+
+    @Override
+    public List<TraceHit> since(Instant from, String env) {
+        var scoped = env != null && !env.isBlank() && !"all".equals(env) ? env : "";
+        return jdbc.query("""
+                SELECT trace_id, agent FROM invoke_trace
+                WHERE started_at >= ? AND (? = '' OR env = ?)
+                """, (rs, n) -> new TraceHit(rs.getString("trace_id"), rs.getString("agent")),
+                Timestamp.from(from), scoped, scoped);
     }
 
     @Override

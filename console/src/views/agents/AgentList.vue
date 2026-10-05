@@ -7,8 +7,8 @@ import StatusPill from '@/components/StatusPill.vue'
 import { listAgents, type AgentPage, type AgentStatus, type ListAgentsQuery } from '@/api/agents'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
-import { agentStatus, fmtN, orDash } from '@/utils/format'
-import { avatarColor, avatarLetter } from './agentDrawer'
+import { agentStatus, fmtN } from '@/utils/format'
+import { avatarColor, avatarLetter, cardChips, cardCost, scoreText } from './agentDrawer'
 
 const STATUSES: AgentStatus[] = ['DRAFT', 'REGISTERED', 'ONLINE', 'DEGRADED', 'OFFLINE', 'RETIRED']
 const CATEGORIES: [NonNullable<ListAgentsQuery['category']>, string][] = [['all', '全部'], ['biz', '业务'], ['dev', '研发']]
@@ -78,7 +78,7 @@ watch(() => [filter.page, filter.size], load, { immediate: true })
       <button class="btn pri" @click="router.push('/agents/new')">+ 新建智能体</button>
     </div>
     <div class="toolbar">
-      <input v-model="filter.q" class="inp" placeholder="搜索名称、ID 或负责人" style="width: 220px" @input="onInput" />
+      <input v-model="filter.q" class="inp" placeholder="搜索名称或 ID" style="width: 220px" @input="onInput" />
       <div class="chipsel">
         <button v-for="[k, n] in CATEGORIES" :key="k" :class="{ on: filter.category === k }" @click="setCategory(k)">{{ n }}</button>
       </div>
@@ -97,16 +97,12 @@ watch(() => [filter.page, filter.size], load, { immediate: true })
           <StatusPill v-bind="agentStatus(a.status)" />
         </div>
         <div class="meta">
-          <span v-if="a.category" class="chip">{{ a.category === 'biz' ? '业务' : '研发' }}</span>
-          <span class="chip">{{ a.runtime === 'dify' ? 'Dify' : orDash(a.language) }}</span>
-          <span v-if="a.env" class="chip">{{ a.env }}</span>
-          <span v-if="a.version" class="chip">{{ a.version }}</span>
-          <span class="chip">{{ a.ownerOrg }} · {{ a.ownerUser }}</span>
+          <span v-for="chip in cardChips(a)" :key="chip" class="chip">{{ chip }}</span>
         </div>
         <div class="stats">
           <div>24h 调用<b>{{ fmtN(a.calls24h) }}</b></div>
-          <div>评测分<b :style="a.score !== null && a.score !== undefined && a.score < 0.85 ? { color: 'var(--bad)' } : undefined">{{ orDash(a.score) }}</b></div>
-          <div>成本<b>{{ a.costCny === null || a.costCny === undefined ? '—' : `¥${a.costCny.toFixed(1)}` }}</b></div>
+          <div>评测分<b :style="a.score != null && a.score < 0.85 ? { color: 'var(--bad)' } : undefined">{{ scoreText(a.score) }}</b></div>
+          <div>成本<b>{{ cardCost(a.costCny) }}</b></div>
         </div>
       </div>
       <div class="acard new" @click="router.push('/agents/new')">

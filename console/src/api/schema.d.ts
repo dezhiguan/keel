@@ -735,6 +735,8 @@ export interface components {
              */
             instances?: string;
             multiAgent?: boolean;
+            /** @description spec.delegates 的个数，列表卡片用来显示「编排 N 个」 */
+            delegateCount?: number;
         };
         AgentDetail: components["schemas"]["AgentSummary"] & {
             manifestYaml?: string;

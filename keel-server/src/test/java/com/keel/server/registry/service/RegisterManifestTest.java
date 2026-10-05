@@ -17,6 +17,11 @@ class RegisterManifestTest {
                 .isEqualTo("http://echo-agent.keel-system.svc.cluster.local:8000");
         assertThat(manifest.path("spec").path("models").path("budget").path("dailyCny").asInt()).isEqualTo(30);
         assertThat(manifest.path("spec").path("eval").path("dataset").asText()).isEqualTo("echo/smoke");
+        var categorized = json.readTree("""
+                {"name":"echo","displayName":"回声","ownerOrg":"研发效能组","ownerUser":"amy","category":"dev","template":"echo"}
+                """);
+        assertThat(RegisterManifest.toNode(json, categorized, 8080).path("metadata").path("category").asText()).isEqualTo("dev");
+        assertThat(RegisterManifest.render(categorized, 8080).yaml()).contains("category: dev");
         assertThat(RegisterManifest.missingExternal("KEEL_JWKS_BASE 未配置")).isTrue();
         assertThat(RegisterManifest.missingExternal("名称冲突")).isFalse();
     }

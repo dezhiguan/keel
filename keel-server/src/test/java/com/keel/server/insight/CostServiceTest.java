@@ -61,11 +61,12 @@ class CostServiceTest {
             @Override public List<com.keel.server.registry.model.dto.AgentSummary> listAll() { return List.of(); }
         };
         var overview = new OverviewService(registry, costs, new QualityService(langfuse), () -> 0).overview("all", "24h");
-        assertThat(overview.kpi().modelCostCny()).isEqualTo(53.0);
-        assertThat(overview.kpi().calls()).isEqualTo(51L);
+        assertThat(overview.kpi().modelCostCny()).isEqualTo(1.5);
+        assertThat(overview.kpi().calls()).isZero();
         assertThat(overview.kpi().avgScore()).isEqualTo(0.9);
+        assertThat(overview.kpi().gateThreshold()).isEqualTo(0.85);
         assertThat(overview.kpi().pendingApprovals()).isZero();
-        assertThat(overview.costByAgent().stream().mapToDouble(row -> (Double) row.get("costCny")).sum()).isEqualTo(53.0);
+        assertThat(overview.costByAgent().stream().mapToDouble(row -> (Double) row.get("costCny")).sum()).isEqualTo(1.5);
         assertThat(paths).noneMatch(path -> path.contains("/spend/logs") || path.contains("/key/generate")
                 || path.equals("/api/public/metrics") || path.equals("/api/public/scores") || path.equals("/api/public/traces"));
         var monitor = new SharedServiceMonitor(new RagForgeInsightClient("", "", ""), new LiteLlmClient("", ""));

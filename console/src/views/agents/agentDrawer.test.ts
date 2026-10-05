@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { avatarLetter, canRelease, highlightYaml, readyPill, versionRows } from './agentDrawer'
+import { avatarLetter, canRelease, cardChips, cardCost, highlightYaml, readyPill, scoreText, versionRows } from './agentDrawer'
 
 describe('agent drawer', () => {
+  it('matches the registry card chips', () => {
+    expect(cardChips({ category: 'biz', language: 'java', env: 'prod', version: 'v2.4.1' })).toEqual(['业务', 'Java', 'prod', 'v2.4.1'])
+    expect(cardChips({ category: 'dev', language: 'python', runtime: 'code', delegateCount: 2 })).toEqual([
+      '研发',
+      'Python · 多智能体',
+      '编排 2 个',
+    ])
+    expect(cardChips({ runtime: 'dify' })).toEqual(['Dify'])
+    expect(scoreText(0.912)).toBe('0.91')
+    expect(scoreText(null)).toBe('—')
+    expect(cardCost(31.24)).toBe('¥31.2')
+    expect(cardCost(0)).toBe('¥0.0')
+    expect(cardCost(null)).toBe('—')
+  })
+
   it('takes the character after the middle dot', () => {
     expect(avatarLetter('小职 · 求职助手')).toBe('求')
     expect(avatarLetter('风机维检')).toBe('风')

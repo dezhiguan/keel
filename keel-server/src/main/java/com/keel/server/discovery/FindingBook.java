@@ -66,6 +66,15 @@ public class FindingBook {
         }
     }
 
+    public record OpenFinding(String agent, String env, String kind, Instant firstSeen) {}
+
+    public List<OpenFinding> openFindings() {
+        return rows.stream()
+                .filter(row -> row.resolvedAt == null)
+                .map(row -> new OpenFinding(row.agent, row.env, row.kind, row.firstSeen))
+                .toList();
+    }
+
     public List<Row> open(String agent, String env) {
         return rows.stream()
                 .filter(row -> row.agent.equals(agent) && row.env.equals(env) && row.resolvedAt == null)

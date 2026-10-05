@@ -3,6 +3,7 @@ package com.keel.server.registry.controller;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.keel.server.common.PageResult;
 import com.keel.server.common.R;
+import com.keel.server.insight.AgentUsageService;
 import com.keel.server.registry.model.dto.AgentDetail;
 import com.keel.server.registry.model.dto.AgentSummary;
 import com.keel.server.registry.model.enums.AgentStatus;
@@ -26,12 +27,14 @@ public class AgentController {
     private final AgentRegistryService agentRegistryService;
     private final LifecycleService lifecycleService;
     private final AgentChatService chats;
+    private final AgentUsageService usage;
 
     public AgentController(AgentRegistryService agentRegistryService, LifecycleService lifecycleService,
-                           AgentChatService chats) {
+                           AgentChatService chats, AgentUsageService usage) {
         this.agentRegistryService = agentRegistryService;
         this.lifecycleService = lifecycleService;
         this.chats = chats;
+        this.usage = usage;
     }
 
     @GetMapping
@@ -42,7 +45,8 @@ public class AgentController {
             @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "10") @Pattern(regexp = "10|20|50|100") String size) {
-        return R.ok(agentRegistryService.page(env, category, status, q, page, Integer.parseInt(size)));
+        var pageResult = agentRegistryService.page(env, category, status, q, page, Integer.parseInt(size));
+        return R.ok(new PageResult<>(pageResult.page(), pageResult.size(), pageResult.total(), usage.apply(pageResult.items(), env)));
     }
 
     @PostMapping
@@ -63,7 +67,9 @@ public class AgentController {
 
     @GetMapping("/{name}")
     public R<AgentDetail> detail(@PathVariable String name) {
-        return R.ok(agentRegistryService.detail(name));
+        var detail = agentRegistryService.detail(name);
+        var scope = detail.summary().env() == null ? "all" : detail.summary().env();
+        return R.ok(detail.withSummary(usage.apply(detail.summary(), scope)));
     }
 
     @PostMapping("/{name}/chat")

@@ -1,5 +1,6 @@
 package com.keel.server.insight;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -18,6 +19,11 @@ public interface SavedTraces {
         public Map<String, Object> detail(String traceId) {
             return null;
         }
+
+        @Override
+        public List<TraceHit> since(Instant from, String env) {
+            return List.of();
+        }
     };
 
     void save(String agent, String env, String traceId, String question, int durationMs);
@@ -25,4 +31,11 @@ public interface SavedTraces {
     Map<String, Object> list(int page, int size, String agent);
 
     Map<String, Object> detail(String traceId);
+
+    /** Invocations at or after {@code from}. {@code env} is {@code all} or a single environment. */
+    default List<TraceHit> since(Instant from, String env) {
+        return List.of();
+    }
+
+    record TraceHit(String traceId, String agent) {}
 }

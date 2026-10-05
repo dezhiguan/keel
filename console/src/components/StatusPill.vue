@@ -29,4 +29,5 @@ defineProps<{ tone: StatusTone; label: string }>()
 .ok { color: var(--ok); background: rgba(52, 195, 143, 0.1); }
 .degraded { color: var(--warn); background: rgba(241, 180, 76, 0.1); }
 .failed { color: var(--bad); background: rgba(244, 106, 106, 0.1); }
+.soft { color: var(--soft); background: rgba(91, 156, 246, 0.1); }
 </style>

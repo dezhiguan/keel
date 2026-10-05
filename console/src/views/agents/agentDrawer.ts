@@ -45,6 +45,37 @@ export function scoreText(value?: number | null) {
   return value == null ? '—' : value.toFixed(2)
 }
 
+export function cardCost(value?: number | null) {
+  return value == null ? '—' : `¥${value.toFixed(1)}`
+}
+
+/** 原型卡片：业务/研发、语言、环境、版本，有编排时再加一枚。 */
+export function cardChips(agent: {
+  category?: string | null
+  runtime?: string | null
+  language?: string | null
+  env?: string | null
+  version?: string | null
+  delegateCount?: number | null
+}) {
+  const chips: string[] = []
+  if (agent.category === 'biz') chips.push('业务')
+  else if (agent.category === 'dev') chips.push('研发')
+  const language = agent.runtime === 'dify' ? 'Dify' : languageName(agent.language)
+  chips.push(agent.delegateCount ? `${language} · 多智能体` : language)
+  if (agent.env) chips.push(agent.env)
+  if (agent.version) chips.push(agent.version)
+  if (agent.delegateCount) chips.push(`编排 ${agent.delegateCount} 个`)
+  return chips
+}
+
+function languageName(language?: string | null) {
+  const raw = (language ?? '').toLowerCase()
+  if (raw === 'java') return 'Java'
+  if (raw === 'python') return 'Python'
+  return language || '—'
+}
+
 export function stamp(iso?: string | null) {
   if (!iso) return '—'
   const date = new Date(iso)

@@ -27,13 +27,19 @@ public final class RegisterManifest {
         var owner = owner(form);
         var model = model(form);
         var budget = budget(form);
-        var yaml = """
+        var category = category(form);
+        var metadata = """
                 apiVersion: keel/v1
                 kind: Agent
                 metadata:
                   name: %s
                   displayName: %s
                   owner: %s
+                """.formatted(name, text(form, "displayName"), owner);
+        if (!category.isBlank()) {
+            metadata = metadata + "  category: " + category + "\n";
+        }
+        var yaml = metadata + """
                 spec:
                   runtime:
                     type: %s
@@ -48,7 +54,7 @@ public final class RegisterManifest {
                       dailyCny: %s
                   eval:
                     dataset: %s/smoke
-                """.formatted(name, text(form, "displayName"), owner, runtime, language, endpoint,
+                """.formatted(runtime, language, endpoint,
                 "dify".equals(runtime) ? "probe" : "k8s", name.isBlank() ? "agent" : name, model,
                 budget.stripTrailingZeros().toPlainString(), name.isBlank() ? "agent" : name);
         return new ManifestPreview.Result(yaml.stripTrailing() + "\n", List.copyOf(warnings));
@@ -66,6 +72,10 @@ public final class RegisterManifest {
         metadata.put("name", name);
         metadata.put("displayName", text(body, "displayName").isBlank() ? name : text(body, "displayName"));
         metadata.put("owner", owner(body));
+        var category = category(body);
+        if (!category.isBlank()) {
+            metadata.put("category", category);
+        }
         var spec = manifest.putObject("spec");
         var runtime = spec.putObject("runtime");
         var runtimeType = runtime(body);
@@ -119,6 +129,15 @@ public final class RegisterManifest {
             return "";
         }
         return org + " / " + user;
+    }
+
+    private static String category(JsonNode form) {
+        if (form.has("apiVersion")) {
+            var value = text(form.path("metadata"), "category");
+            return "biz".equals(value) || "dev".equals(value) ? value : "";
+        }
+        var value = text(form, "category");
+        return "biz".equals(value) || "dev".equals(value) ? value : "";
     }
 
     private static String runtime(JsonNode form) {

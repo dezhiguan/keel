@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { NAV } from '@/router/nav'
 import AgentDrawer from '@/views/agents/AgentDetail.vue'
+import CommandPalette from '@/components/CommandPalette.vue'
 import { useUserStore } from '@/stores/user'
 import { ENV_OPTIONS, useEnvStore } from '@/stores/env'
 import { useApprovalsStore } from '@/stores/approvals'
@@ -13,6 +14,7 @@ const route = useRoute()
 const userStore = useUserStore()
 const envStore = useEnvStore()
 const approvalsStore = useApprovalsStore()
+const palette = ref(false)
 
 const groups = computed(() => {
   const byGroup = new Map<string, typeof NAV>()
@@ -58,8 +60,9 @@ onMounted(async () => {
     </aside>
     <div class="body">
       <header class="top">
-        <div class="crumb">Keel / <b>{{ title }}</b></div>
+        <div class="crumb">Keel 控制台 / <b>{{ title }}</b></div>
         <div class="sp" />
+        <button class="search" type="button" @click="palette = true"><span>⌕</span>搜索智能体、工具、页面<kbd>⌘K</kbd></button>
         <div class="envsel">
           <button
             v-for="option in ENV_OPTIONS"
@@ -76,6 +79,7 @@ onMounted(async () => {
       </main>
     </div>
     <AgentDrawer />
+    <CommandPalette v-model="palette" />
   </div>
 </template>
 
@@ -125,6 +129,22 @@ onMounted(async () => {
 .crumb { color: var(--mute); font-size: 13px; }
 .crumb b { color: var(--white); font-weight: 500; }
 .sp { flex: 1; }
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 10px;
+  color: var(--mute);
+  font-size: 12.5px;
+  width: 260px;
+  cursor: pointer;
+  margin-right: 12px;
+  font-family: inherit;
+}
+.search kbd { margin-left: auto; font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line2); border-radius: 4px; padding: 0 5px; }
 .envsel { display: flex; border: 1px solid var(--line2); border-radius: 6px; overflow: hidden; }
 .envsel button {
   background: transparent;
