@@ -6,7 +6,7 @@ import java.util.Map;
 public interface AuditStore {
     void append(String agent, String env, String action, String risk, String decision, String resource, String traceId);
 
-    Map<String, Object> page(String agent, String risk, int page, int size);
+    Map<String, Object> page(String agent, String risk, String env, int page, int size);
 
     Map<String, Object> verify(String agent);
 }

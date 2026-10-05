@@ -32,14 +32,20 @@ public class LocalTraceLog implements SavedTraces {
 
     @Override
     public Map<String, Object> list(int page, int size, String agent) {
+        return list(page, size, agent, "all");
+    }
+
+    @Override
+    public Map<String, Object> list(int page, int size, String agent, String env) {
         var filter = agent == null ? "" : agent;
+        var envFilter = env == null || env.isBlank() || "all".equals(env) ? "" : env;
         var total = jdbc.queryForObject("""
-                SELECT count(*) FROM invoke_trace WHERE (? = '' OR agent = ?)
-                """, Integer.class, filter, filter);
+                SELECT count(*) FROM invoke_trace WHERE (? = '' OR agent = ?) AND (? = '' OR env = ?)
+                """, Integer.class, filter, filter, envFilter, envFilter);
         var rows = jdbc.query("""
                 SELECT trace_id, agent, question, started_at, duration_ms, status
                 FROM invoke_trace
-                WHERE (? = '' OR agent = ?)
+                WHERE (? = '' OR agent = ?) AND (? = '' OR env = ?)
                 ORDER BY started_at DESC
                 LIMIT ? OFFSET ?
                 """, (rs, n) -> summary(
@@ -48,7 +54,7 @@ public class LocalTraceLog implements SavedTraces {
                 rs.getString("question"),
                 rs.getTimestamp("started_at").toInstant().toString(),
                 rs.getInt("duration_ms"),
-                rs.getString("status")), filter, filter, size, Math.max(0, (page - 1) * size));
+                rs.getString("status")), filter, filter, envFilter, envFilter, size, Math.max(0, (page - 1) * size));
         var data = new LinkedHashMap<String, Object>();
         data.put("page", page);
         data.put("size", size);

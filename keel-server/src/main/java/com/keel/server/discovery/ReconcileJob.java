@@ -50,7 +50,7 @@ public class ReconcileJob {
             }
         });
         for (var agent : agents.entrySet()) {
-            for (var env : new String[] {"dev", "staging", "prod"}) {
+            for (var env : new String[] {"dev", "test", "staging", "prod"}) {
                 var version = versions.get(agent.getKey() + "/" + env);
                 var instance = seen.get(agent.getKey() + "/" + env);
                 if (version == null && instance == null) {

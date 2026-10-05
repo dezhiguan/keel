@@ -39,7 +39,7 @@ public class InsightController {
 
     @GetMapping("/overview")
     public R<OverviewService.Overview> overview(
-            @RequestParam(defaultValue = "all") @Pattern(regexp = "all|dev|staging|prod") String env,
+            @RequestParam(defaultValue = "all") @Pattern(regexp = "all|dev|test|staging|prod") String env,
             @RequestParam(defaultValue = "24h") @Pattern(regexp = "24h|7d|30d") String range) {
         return R.ok(overviewService.overview(env, range));
     }
@@ -47,13 +47,14 @@ public class InsightController {
     @GetMapping("/traces")
     public R<Map<String, Object>> traces(@RequestParam(defaultValue = "1") @Min(1) int page,
                                          @RequestParam(defaultValue = "10") int size,
-                                         @RequestParam(required = false) String agent) {
-        return R.ok(traces.list(page, size, agent == null ? "" : agent));
+                                         @RequestParam(required = false) String agent,
+                                         @RequestParam(defaultValue = "all") @Pattern(regexp = "all|dev|test|staging|prod") String env) {
+        return R.ok(traces.list(page, size, agent == null ? "" : agent, env));
     }
 
     @GetMapping("/costs")
     public R<Map<String, Object>> costs(
-            @RequestParam(defaultValue = "all") @Pattern(regexp = "all|dev|staging|prod") String env,
+            @RequestParam(defaultValue = "all") @Pattern(regexp = "all|dev|test|staging|prod") String env,
             @RequestParam(defaultValue = "24h") @Pattern(regexp = "24h|7d|30d") String range) {
         var cost = costs.cost(env, range);
         var models = cost.stats().stream().map(model -> {
@@ -101,8 +102,9 @@ public class InsightController {
     }
 
     @GetMapping("/services")
-    public R<Map<String, Object>> services() {
-        return R.ok(services.services());
+    public R<Map<String, Object>> services(
+            @RequestParam(defaultValue = "all") @Pattern(regexp = "all|dev|test|staging|prod") String env) {
+        return R.ok(services.services(env));
     }
 
     @GetMapping("/traces/{traceId}")

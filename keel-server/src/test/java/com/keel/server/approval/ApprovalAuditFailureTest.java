@@ -58,7 +58,7 @@ class ApprovalAuditFailureTest {
                 }
 
                 @Override
-                public Map<String, Object> page(String agent, String risk, int page, int size) {
+                public Map<String, Object> page(String agent, String risk, String env, int page, int size) {
                     return Map.of("page", page, "size", size, "total", 0, "items", List.of());
                 }
 

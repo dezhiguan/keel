@@ -9,7 +9,7 @@ export interface WizardForm {
   template: string
   model: string
   dailyBudgetCny: number
-  env: 'dev' | 'staging' | 'prod'
+  env: 'dev' | 'test' | 'staging' | 'prod'
 }
 
 export function nameError(name: string, taken = false): string {

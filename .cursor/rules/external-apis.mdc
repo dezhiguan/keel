@@ -27,7 +27,7 @@ alwaysApply: true
 
 - 调用：`POST /v1/chat/completions`、`POST /v1/embeddings`，Bearer 虚拟 Key。
 - 管理：`POST /admin/v1/keys`、`POST /admin/v1/keys/{alias}/block`、`GET /admin/v1/keys/{alias}`、`GET /admin/v1/spend`、`GET /admin/v1/models`。下线只 block。
-- 别名 `{agent}-{env}`，必须匹配 `^[a-z][a-z0-9-]{1,38}[a-z0-9]-(dev|staging|prod)$`。
+- 别名 `{agent}-{env}`，必须匹配 `^[a-z][a-z0-9-]{1,38}[a-z0-9]-(dev|test|staging|prod)$`。
 - **预算按人民币计**，字段 `dailyBudgetCny`，与 manifest 的 `budget.dailyCny` 相同，开通时原样下发。
 - 单价写在网关配置里。缺单价拒绝启动，不允许成本静默记 0。Langfuse Model Definitions 配同一组价格；控制台金额以网关的 `costCny` 为准。
 - 向量化 Key 的 `allowFallback` 为 false。网关没有 `/rerank`。

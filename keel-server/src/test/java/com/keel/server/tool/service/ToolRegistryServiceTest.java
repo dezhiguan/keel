@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -33,5 +35,13 @@ class ToolRegistryServiceTest {
     @Test void breakingVersionMustUseANewName() {
         assertThat(ToolRegistryService.breakingRejection(true)).contains("新名字");
         assertThat(ToolRegistryService.breakingRejection(false)).isNull();
+    }
+
+    @Test void visibleOnlyWhenDeclaredOrOwnedInThatEnv() {
+        assertThat(ToolRegistryService.visibleInEnv("all", "echo", null, Map.of(), Set.of())).isTrue();
+        assertThat(ToolRegistryService.visibleInEnv("prod", "echo", null, Map.of("echo", 1), Set.of())).isTrue();
+        assertThat(ToolRegistryService.visibleInEnv("test", "echo", "askdb", Map.of(), Set.of("askdb"))).isTrue();
+        assertThat(ToolRegistryService.visibleInEnv("dev", "echo", "askdb", Map.of(), Set.of("wind"))).isFalse();
+        assertThat(ToolRegistryService.visibleInEnv(null, "echo", null, Map.of(), Set.of())).isTrue();
     }
 }

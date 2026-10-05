@@ -174,7 +174,7 @@ components:
       name: X-Keel-Env
       in: header
       required: false
-      schema: { enum: [dev, staging, prod] }
+      schema: { enum: [dev, test, staging, prod] }
     KeelBudget:
       name: X-Keel-Budget
       in: header

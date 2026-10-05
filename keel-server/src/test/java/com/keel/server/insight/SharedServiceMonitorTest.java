@@ -89,6 +89,31 @@ class SharedServiceMonitorTest {
         assertThat(PrometheusExposition.parse("# comment\nup 1\n").get(0).value()).isEqualTo(1d);
     }
 
+    @Test void oneEnvironmentDropsCallersFromOtherAgents() throws Exception {
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/actuator/prometheus", exchange -> write(exchange, 200, """
+                ragforge_retrieval_requests_total{caller_agent="askdb",strategy="hybrid"} 4
+                ragforge_retrieval_requests_total{caller_agent="wind",strategy="hybrid"} 2
+                """));
+        server.createContext("/", exchange -> write(exchange, 404, ""));
+        server.start();
+        var base = "http://127.0.0.1:" + server.getAddress().getPort();
+        var monitor = new SharedServiceMonitor(
+                new RagForgeInsightClient(base, "metrics-reader", "secret"),
+                new LiteLlmClient("", ""),
+                env -> List.of("wind"));
+        var body = monitor.services("test");
+        @SuppressWarnings("unchecked")
+        var rag = (Map<String, Object>) body.get("ragforge");
+        @SuppressWarnings("unchecked")
+        var callers = (List<Map<String, Object>>) rag.get("callers");
+        assertThat(callers).containsExactly(Map.of("agent", "wind", "calls", 2));
+        @SuppressWarnings("unchecked")
+        var kpi = (Map<String, Object>) rag.get("kpi");
+        assertThat(kpi.get("modelCostCny")).isNull();
+        server.stop(0);
+    }
+
     private static void write(com.sun.net.httpserver.HttpExchange exchange, int status, String body) throws java.io.IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.sendResponseHeaders(status, bytes.length);

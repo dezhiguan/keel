@@ -4,24 +4,49 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.keel.server.integration.litellm.LiteLlmClient;
 import com.keel.server.integration.prometheus.PrometheusExposition;
 import com.keel.server.integration.ragforge.RagForgeInsightClient;
+import com.keel.server.registry.service.AgentRegistryService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 @Service
 public class SharedServiceMonitor {
     private final RagForgeInsightClient ragforge;
     private final LiteLlmClient gateway;
+    private final Function<String, List<String>> namesInEnv;
 
     public SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway) {
+        this(ragforge, gateway, (Function<String, List<String>>) null);
+    }
+
+    @Autowired
+    public SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway, AgentRegistryService registry) {
+        this(ragforge, gateway, registry == null ? null : registry::namesInEnv);
+    }
+
+    SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway, Function<String, List<String>> namesInEnv) {
         this.ragforge = ragforge;
         this.gateway = gateway;
+        this.namesInEnv = namesInEnv;
     }
 
     public Map<String, Object> services() {
+        return services("all");
+    }
+
+    public Map<String, Object> services(String env) {
+        var scope = env == null || env.isBlank() ? "all" : env;
+        Set<String> allowed = null;
+        if (!"all".equals(scope) && namesInEnv != null) {
+            allowed = new HashSet<>(namesInEnv.apply(scope));
+        }
         JsonNode insight = ragforge.configured() ? ragforge.insight() : null;
         var scrape = ragforge.configured() ? ragforge.prometheus() : new RagForgeInsightClient.Scrape(List.of(), 0);
         boolean up = ragforge.configured() && (insight != null || !scrape.bodies().isEmpty() || ragforge.up());
@@ -48,12 +73,17 @@ public class SharedServiceMonitor {
         var bases = insight == null ? List.<JsonNode>of() : children(insight.path("knowledgeBases"));
         kpi.put("kbCount", insight == null ? null : bases.size());
         kpi.put("staleKbCount", insight == null ? null : bases.stream().filter(row -> row.path("stale").asBoolean(false)).count());
-        kpi.put("modelCostCny", cost(insight));
+        kpi.put("modelCostCny", cost(insight, scope));
 
+        var callers = PrometheusExposition.callers(samples);
+        if (allowed != null) {
+            var names = allowed;
+            callers = callers.stream().filter(row -> names.contains(String.valueOf(row.get("agent")))).toList();
+        }
         var rag = new LinkedHashMap<String, Object>();
         rag.put("kpi", kpi);
         rag.put("stageLatency", PrometheusExposition.stageMeans(samples));
-        rag.put("callers", PrometheusExposition.callers(samples));
+        rag.put("callers", callers);
         rag.put("knowledgeBases", bases.stream().map(SharedServiceMonitor::kb).toList());
 
         var body = new LinkedHashMap<String, Object>();
@@ -62,18 +92,24 @@ public class SharedServiceMonitor {
         return body;
     }
 
-    private Double cost(JsonNode insight) {
-        Double fromGateway = gatewayCost();
+    private Double cost(JsonNode insight, String env) {
+        Double fromGateway = gatewayCost(env);
         if (fromGateway != null) {
             return fromGateway;
+        }
+        if (env != null && !env.isBlank() && !"all".equals(env)) {
+            return null;
         }
         return number(insight, "modelCostCny");
     }
 
-    /** Present only when a rag-forge virtual key exists. Zero spend then replaces the daily table. */
-    private Double gatewayCost() {
+    /** Present only when a rag-forge virtual key exists in this environment. */
+    private Double gatewayCost(String env) {
         try {
-            var keys = gateway.keys().stream().filter(key -> key.alias().startsWith("rag-forge-")).toList();
+            var keys = gateway.keys().stream()
+                    .filter(key -> key.alias().startsWith("rag-forge-"))
+                    .filter(key -> env == null || env.isBlank() || "all".equals(env) || env.equals(CostService.envOf(key.alias())))
+                    .toList();
             if (keys.isEmpty()) {
                 return null;
             }

@@ -6,12 +6,14 @@ import Pager from '@/components/Pager.vue'
 import ToolStatusPill from './ToolStatusPill.vue'
 import { listTools, registerTool as createTool, type ListToolsQuery, type ToolPage } from '@/api/tools'
 import { toKeelError } from '@/api/http'
+import { useEnvStore } from '@/stores/env'
 import { RISK, fmtN } from '@/utils/format'
 
 const ACCESS = { READ: '读', WRITE: '写', EXEC: '执行' } as const
 const SCOPE = { PRIVATE: '私有', SHARED: '共享' } as const
 
 const router = useRouter()
+const envStore = useEnvStore()
 const result = ref<ToolPage | null>(null)
 const loading = ref(false)
 const registering = ref(false)
@@ -34,7 +36,7 @@ const filter = reactive<{ scope: NonNullable<ListToolsQuery['scope']>; page: num
 async function load() {
   loading.value = true
   try {
-    result.value = await listTools({ scope: filter.scope, page: filter.page, size: filter.size })
+    result.value = await listTools({ scope: filter.scope, env: envStore.env, page: filter.page, size: filter.size })
   } catch (error) {
     ElMessage.error(`加载工具失败：${toKeelError(error).message}`)
   } finally {
@@ -91,7 +93,11 @@ async function submitRegister() {
   }
 }
 
-watch(() => [filter.page, filter.size], load, { immediate: true })
+watch(() => [filter.page, filter.size], load)
+watch(() => envStore.env, () => {
+  if (filter.page === 1) load()
+  else filter.page = 1
+}, { immediate: true })
 </script>
 
 <template>

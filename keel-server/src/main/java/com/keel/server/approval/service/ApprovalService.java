@@ -48,7 +48,7 @@ public class ApprovalService {
     }
 
     @Transactional
-    public PageResult<ApprovalView> page(String status, String agent, int page, int size) {
+    public PageResult<ApprovalView> page(String status, String agent, String env, int page, int size) {
         if (page < 1 || (size != 10 && size != 20 && size != 50 && size != 100)) {
             throw invalid();
         }
@@ -58,21 +58,24 @@ public class ApprovalService {
         expireDue();
         var statusFilter = status == null ? "" : status;
         var agentFilter = agent == null ? "" : agent;
+        var envFilter = ApprovalPolicyEngine.scope(env);
         var total = jdbc.queryForObject("""
                 SELECT count(*) FROM approval_request
-                WHERE (? = '' OR status = ?) AND (? = '' OR agent_name = ?)
-                """, Long.class, statusFilter, statusFilter, agentFilter, agentFilter);
+                WHERE (? = '' OR status = ?) AND (? = '' OR agent_name = ?) AND (? = '' OR env = ?)
+                """, Long.class, statusFilter, statusFilter, agentFilter, agentFilter, envFilter, envFilter);
         var items = jdbc.query(selectSql() + """
-                 WHERE (? = '' OR r.status = ?) AND (? = '' OR r.agent_name = ?)
+                 WHERE (? = '' OR r.status = ?) AND (? = '' OR r.agent_name = ?) AND (? = '' OR r.env = ?)
                  ORDER BY r.created_at DESC, r.id DESC
                  LIMIT ? OFFSET ?
-                """, this::map, statusFilter, statusFilter, agentFilter, agentFilter, size, (page - 1L) * size);
+                """, this::map, statusFilter, statusFilter, agentFilter, agentFilter, envFilter, envFilter, size, (page - 1L) * size);
         return new PageResult<>(page, size, total == null ? 0 : total, items);
     }
 
-    public int pendingCount() {
+    public int pendingCount(String env) {
+        var envFilter = ApprovalPolicyEngine.scope(env);
         var total = jdbc.queryForObject(
-                "SELECT count(*) FROM approval_request WHERE status = 'PENDING'", Long.class);
+                "SELECT count(*) FROM approval_request WHERE status = 'PENDING' AND (? = '' OR env = ?)",
+                Long.class, envFilter, envFilter);
         return total == null ? 0 : Math.toIntExact(total);
     }
 
@@ -117,11 +120,12 @@ public class ApprovalService {
         var id = jdbc.queryForObject("""
                 INSERT INTO approval_request
                     (subject_type, subject_ref, agent_name, run_id, trace_id, actor_user, payload_digest,
-                     summary, status, risk, policy_id, expires_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?)
+                     summary, status, risk, policy_id, expires_at, env)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?)
                 RETURNING id
                 """, Long.class, request.subjectType(), subjectRef, agent, runId, traceId, actor,
-                clip(request.payloadDigest(), 64), summary, risk, policy == null ? null : Long.valueOf(policy.id()), Timestamp.from(expires));
+                clip(request.payloadDigest(), 64), summary, risk, policy == null ? null : Long.valueOf(policy.id()),
+                Timestamp.from(expires), env);
         return load(id);
     }
 
@@ -143,17 +147,18 @@ public class ApprovalService {
     @Transactional
     public void expireDue() {
         var due = jdbc.query("""
-                SELECT id, run_id, agent_name, risk, subject_ref, trace_id
+                SELECT id, run_id, agent_name, risk, subject_ref, trace_id, env
                 FROM approval_request
                 WHERE status = 'PENDING' AND expires_at IS NOT NULL AND expires_at <= ?
                 """, (rs, row) -> new Due(rs.getLong("id"), rs.getString("run_id"), rs.getString("agent_name"),
-                rs.getString("risk"), rs.getString("subject_ref"), rs.getString("trace_id")), Timestamp.from(clock.instant()));
+                rs.getString("risk"), rs.getString("subject_ref"), rs.getString("trace_id"), rs.getString("env")),
+                Timestamp.from(clock.instant()));
         for (var item : due) {
             if (!mark(item.id(), "EXPIRED", PLATFORM_AGENT)) {
                 continue;
             }
             expireRun(item.runId(), "EXPIRED", 0);
-            audit(agentOrPlatform(item.agent()), "prod", item.risk().toLowerCase(), "denied", item.subjectRef(), item.traceId());
+            audit(agentOrPlatform(item.agent()), item.env(), item.risk().toLowerCase(), "denied", item.subjectRef(), item.traceId());
         }
     }
 
@@ -415,6 +420,6 @@ public class ApprovalService {
         }
     }
 
-    private record Due(long id, String runId, String agent, String risk, String subjectRef, String traceId) {}
+    private record Due(long id, String runId, String agent, String risk, String subjectRef, String traceId, String env) {}
 
 }

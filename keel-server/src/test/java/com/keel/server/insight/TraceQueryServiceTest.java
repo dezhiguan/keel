@@ -114,6 +114,20 @@ class TraceQueryServiceTest {
         assertThat(service.list(1, 10).get("total")).isEqualTo(1);
     }
 
+    @Test void listKeepsOnlyTheSelectedEnvironment() throws Exception {
+        var server = server(new ArrayList<>(), """
+                {"data":[
+                  {"id":"a","traceId":"tr-dev","name":"ask","startTime":"2026-10-04T03:00:00.000Z","endTime":"2026-10-04T03:00:01.000Z","metadata":{"keel.agent":"askdb","keel.llm.key_alias":"askdb-dev"}},
+                  {"id":"b","traceId":"tr-test","name":"ask","startTime":"2026-10-04T03:00:00.000Z","endTime":"2026-10-04T03:00:01.000Z","metadata":{"keel.agent":"askdb","keel.env":"test"}}
+                ]}
+                """);
+        var service = new TraceQueryService(client(server), "https://jp.cloud.langfuse.com", "proj-1", Map.of());
+        @SuppressWarnings("unchecked")
+        var items = (List<Map<String, Object>>) service.list(1, 10, "", "test").get("items");
+        assertThat(items).extracting(item -> item.get("traceId")).containsExactly("tr-test");
+        server.stop(0);
+    }
+
     private LangfuseClient client(HttpServer server) {
         return new LangfuseClient("http://127.0.0.1:" + server.getAddress().getPort(), "pk", "sk");
     }

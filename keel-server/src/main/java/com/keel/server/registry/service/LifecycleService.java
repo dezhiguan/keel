@@ -47,7 +47,7 @@ public class LifecycleService {
         validator.validate(manifest, java.util.Set.of());
         var name = manifest.path("metadata").path("name").asText();
         var env = body.path("env").asText("dev");
-        if (!env.equals("dev") && !env.equals("staging") && !env.equals("prod")) {
+        if (!env.equals("dev") && !env.equals("test") && !env.equals("staging") && !env.equals("prod")) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, ErrorCode.SERVER_INVALID_PARAM.message());
         }
         var existing = agents.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Agent>()

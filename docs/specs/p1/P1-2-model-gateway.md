@@ -45,7 +45,7 @@ GET  /admin/v1/models
 alias, models, fallback, dailyBudgetCny, allowFallback
 ```
 
-`alias` 必须匹配 `^[a-z][a-z0-9-]{1,38}[a-z0-9]-(dev|staging|prod)$`。响应里的 `key` 只返回这一次。
+`alias` 必须匹配 `^[a-z][a-z0-9-]{1,38}[a-z0-9]-(dev|test|staging|prod)$`。响应里的 `key` 只返回这一次。
 
 `GET /admin/v1/spend` 必须能分页拉完。一条明细至少含 `alias`、`model`、`inputTokens`、`outputTokens`、`costCny`、`requestId`、`ts`。
 

@@ -42,17 +42,18 @@ public class JdbcAuditStore implements AuditStore {
     }
 
     @Override
-    public Map<String, Object> page(String agent, String risk, int page, int size) {
+    public Map<String, Object> page(String agent, String risk, String env, int page, int size) {
         var agentFilter = agent == null ? "" : agent;
         var riskFilter = risk == null ? "" : risk.toLowerCase(Locale.ROOT);
+        var envFilter = env == null || env.isBlank() || "all".equals(env) ? "" : env;
         var total = jdbc.queryForObject("""
                 SELECT count(*) FROM console_audit_event
-                WHERE (? = '' OR agent = ?) AND (? = '' OR risk = ?)
-                """, Integer.class, agentFilter, agentFilter, riskFilter, riskFilter);
+                WHERE (? = '' OR agent = ?) AND (? = '' OR risk = ?) AND (? = '' OR env = ?)
+                """, Integer.class, agentFilter, agentFilter, riskFilter, riskFilter, envFilter, envFilter);
         var rows = jdbc.query("""
                 SELECT event_id, agent, env, ts, action, risk, decision, resource, trace_id, actor_user, input_digest, prev_hash, hash
                 FROM console_audit_event
-                WHERE (? = '' OR agent = ?) AND (? = '' OR risk = ?)
+                WHERE (? = '' OR agent = ?) AND (? = '' OR risk = ?) AND (? = '' OR env = ?)
                 ORDER BY ts DESC, event_id DESC
                 LIMIT ? OFFSET ?
                 """, (rs, n) -> {
@@ -78,7 +79,7 @@ public class JdbcAuditStore implements AuditStore {
             item.put("hash", storedHash);
             item.put("prevHash", storedPrev == null || storedPrev.isEmpty() ? null : storedPrev);
             return item;
-        }, agentFilter, agentFilter, riskFilter, riskFilter, size, Math.max(0, (page - 1) * size));
+        }, agentFilter, agentFilter, riskFilter, riskFilter, envFilter, envFilter, size, Math.max(0, (page - 1) * size));
         var data = new LinkedHashMap<String, Object>();
         data.put("page", page);
         data.put("size", size);

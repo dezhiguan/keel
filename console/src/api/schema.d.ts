@@ -198,7 +198,7 @@ export interface paths {
         };
         /**
          * 共享服务页全部数据
-         * @description 服务健康来自 K8s 探测，指标来自 Prometheus，知识库来自 rag-forge。
+         * @description 服务健康来自 K8s 探测，指标来自 Prometheus，知识库来自 rag-forge。调用方和模型成本按环境过滤。知识库没有环境字段，不按环境拆开。
          */
         get: operations["getSharedServices"];
         put?: never;
@@ -636,7 +636,7 @@ export interface components {
             total: number;
         };
         /** @enum {string} */
-        EnvName: "dev" | "staging" | "prod";
+        EnvName: "dev" | "test" | "staging" | "prod";
         /** @enum {string} */
         Risk: "LOW" | "MID" | "HIGH";
         /**
@@ -1286,7 +1286,7 @@ export interface components {
         };
     };
     parameters: {
-        Env: "all" | "dev" | "staging" | "prod";
+        Env: "all" | "dev" | "test" | "staging" | "prod";
         Page: number;
         Size: 10 | 20 | 50 | 100;
         AgentName: string;
@@ -1609,7 +1609,9 @@ export interface operations {
     };
     getSharedServices: {
         parameters: {
-            query?: never;
+            query?: {
+                env?: components["parameters"]["Env"];
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1775,6 +1777,7 @@ export interface operations {
     listTools: {
         parameters: {
             query?: {
+                env?: components["parameters"]["Env"];
                 scope?: "all" | "PRIVATE" | "SHARED";
                 status?: components["schemas"]["ToolStatus"];
                 risk?: components["schemas"]["Risk"];
@@ -1973,6 +1976,7 @@ export interface operations {
     listApprovals: {
         parameters: {
             query?: {
+                env?: components["parameters"]["Env"];
                 status?: components["schemas"]["ApprovalStatus"];
                 agent?: string;
                 page?: components["parameters"]["Page"];
@@ -2079,6 +2083,7 @@ export interface operations {
     listSuspendedRuns: {
         parameters: {
             query?: {
+                env?: components["parameters"]["Env"];
                 agent?: string;
                 page?: components["parameters"]["Page"];
                 size?: components["parameters"]["Size"];

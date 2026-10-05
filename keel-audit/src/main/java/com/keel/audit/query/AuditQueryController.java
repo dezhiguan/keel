@@ -31,17 +31,18 @@ public class AuditQueryController {
                                       @RequestParam(required = false) String action,
                                       @RequestParam(required = false) String risk,
                                       @RequestParam(required = false) String traceId,
+                                      @RequestParam(required = false) String env,
                                       @RequestParam(required = false) String from,
                                       @RequestParam(required = false) String to,
                                       @RequestParam(defaultValue = "1") int page,
                                       @RequestParam(defaultValue = "10") int size) {
         Instant fromInstant = from == null || from.isBlank() ? null : Instant.parse(from);
         Instant toInstant = to == null || to.isBlank() ? null : Instant.parse(to);
-        var items = log.filter(agent, action, risk, traceId, fromInstant, toInstant, page, size);
+        var items = log.filter(env, agent, action, risk, traceId, fromInstant, toInstant, page, size);
         var data = new LinkedHashMap<String, Object>();
         data.put("page", page);
         data.put("size", size);
-        data.put("total", log.total(agent, action, risk, traceId, fromInstant, toInstant));
+        data.put("total", log.total(env, agent, action, risk, traceId, fromInstant, toInstant));
         data.put("items", items);
         return envelope(data);
     }

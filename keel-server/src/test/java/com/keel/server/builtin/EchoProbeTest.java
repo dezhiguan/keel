@@ -35,7 +35,7 @@ class EchoProbeTest {
             }
 
             @Override
-            public Map<String, Object> page(String agent, String risk, int page, int size) {
+            public Map<String, Object> page(String agent, String risk, String env, int page, int size) {
                 return Map.of();
             }
 

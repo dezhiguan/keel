@@ -25,8 +25,11 @@ public class ToolRegistryService {
         this.json = json;
     }
 
-    public PageResult<Map<String, Object>> page(String scope, String status, String risk, int page, int size) {
+    public PageResult<Map<String, Object>> page(String scope, String status, String risk, String env, int page, int size) {
         syncFromManifests();
+        var scopeEnv = env == null || env.isBlank() || "all".equals(env) ? "all" : env;
+        var declared = dependentCounts(scopeEnv);
+        var owners = "all".equals(scopeEnv) ? java.util.Set.<String>of() : ownersInEnv(scopeEnv);
         var rows = jdbc.query("""
                 SELECT t.name, t.scope, t.owner_agent, t.owner_org, t.provider, t.status,
                        t.replaced_by, t.deprecate_deadline::date AS deadline,
@@ -39,7 +42,6 @@ public class ToolRegistryService {
                 LEFT JOIN approval_policy p ON p.id = v.approval_policy_id
                 ORDER BY t.name
                 """, (rs, n) -> row(rs));
-        var dependents = dependentCounts();
         var filtered = new ArrayList<Map<String, Object>>();
         for (var row : rows) {
             if (!"all".equals(scope) && !scope.equals(row.get("scope"))) {
@@ -51,7 +53,12 @@ public class ToolRegistryService {
             if (risk != null && !risk.isBlank() && !risk.equals(row.get("risk"))) {
                 continue;
             }
-            row.put("dependentCount", dependents.getOrDefault(String.valueOf(row.get("name")), 0));
+            var name = String.valueOf(row.get("name"));
+            var owner = row.get("ownerAgent") == null ? null : String.valueOf(row.get("ownerAgent"));
+            if (!visibleInEnv(scopeEnv, name, owner, declared, owners)) {
+                continue;
+            }
+            row.put("dependentCount", declared.getOrDefault(name, 0));
             row.put("calls24h", 0);
             filtered.add(row);
         }
@@ -195,6 +202,17 @@ public class ToolRegistryService {
         return envs.stream().anyMatch("prod"::equals);
     }
 
+    /** A tool belongs to an environment when a manifest there declares it, or its owner is registered there. */
+    static boolean visibleInEnv(String env, String toolName, String owner, Map<String, Integer> declared, java.util.Set<String> owners) {
+        if (env == null || env.isBlank() || "all".equals(env)) {
+            return true;
+        }
+        if (declared.containsKey(toolName)) {
+            return true;
+        }
+        return owner != null && owners.contains(owner);
+    }
+
     private void syncFromManifests() {
         var manifests = jdbc.query("""
                 SELECT a.name AS agent, a.owner_org, v.env, v.manifest_json::text AS manifest
@@ -248,14 +266,27 @@ public class ToolRegistryService {
         }
     }
 
-    private Map<String, Integer> dependentCounts() {
+    private Map<String, Integer> dependentCounts(String env) {
         var counts = new LinkedHashMap<String, Integer>();
         for (var row : declarationRows()) {
+            if (!"all".equals(env) && !env.equals(row.env())) {
+                continue;
+            }
             for (var tool : declaredTools(json, row.manifest())) {
                 counts.merge(tool.name(), 1, Integer::sum);
             }
         }
         return counts;
+    }
+
+    private java.util.Set<String> ownersInEnv(String env) {
+        var names = new java.util.HashSet<String>();
+        for (var row : declarationRows()) {
+            if (env.equals(row.env())) {
+                names.add(row.agent());
+            }
+        }
+        return names;
     }
 
     private List<Map<String, Object>> dependentsOf(String toolName) {

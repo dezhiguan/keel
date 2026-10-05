@@ -43,6 +43,13 @@ public class AgentRegistryService {
      * 分类写在 manifest 的 metadata.category，老数据按技术文档里的名单识别。
      * 名单和 manifest 都对不上时分类为 null，业务/研发筛选里不出现。
      */
+    public List<String> namesInEnv(String env) {
+        if (env == null || env.isBlank() || "all".equals(env)) {
+            return List.of();
+        }
+        return versionMapper.agentNamesInEnv(env);
+    }
+
     public PageResult<AgentSummary> page(String env, String category, AgentStatus status, String q, int page, int size) {
         var scope = env == null || env.isBlank() ? "all" : env;
         var query = agentsOnly().eq(status != null, Agent::getStatus, status);

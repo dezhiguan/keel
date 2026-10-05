@@ -30,9 +30,10 @@ public class ToolController {
             @RequestParam(defaultValue = "all") @Pattern(regexp = "all|PRIVATE|SHARED") String scope,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String risk,
+            @RequestParam(defaultValue = "all") @Pattern(regexp = "all|dev|test|staging|prod") String env,
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "10") @Pattern(regexp = "10|20|50|100") String size) {
-        return R.ok(tools.page(scope, status, risk, page, Integer.parseInt(size)));
+        return R.ok(tools.page(scope, status, risk, env, page, Integer.parseInt(size)));
     }
 
     @PostMapping

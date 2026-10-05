@@ -24,7 +24,7 @@ litellm_settings:
   failure_callback: []
   callbacks: []
   # {agent}-{env}。agent 段与 manifest 的 name 规则一致。
-  key_alias_pattern: "^[a-z][a-z0-9-]{1,38}[a-z0-9]-(dev|staging|prod)$"
+  key_alias_pattern: "^[a-z][a-z0-9-]{1,38}[a-z0-9]-(dev|test|staging|prod)$"
   cache: true
   cache_params:
     type: redis

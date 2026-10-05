@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { NAV } from '@/router/nav'
@@ -25,7 +25,6 @@ const groups = computed(() => {
 const title = computed(() => String(route.meta.title ?? ''))
 
 onMounted(async () => {
-  approvalsStore.refresh().catch(() => undefined)
   try {
     await userStore.load()
   } catch (error) {
@@ -33,6 +32,10 @@ onMounted(async () => {
     ElMessage.error(`获取当前用户失败：${e.message}`)
   }
 })
+
+watch(() => envStore.env, (env) => {
+  approvalsStore.refresh(env).catch(() => undefined)
+}, { immediate: true })
 </script>
 
 <template>

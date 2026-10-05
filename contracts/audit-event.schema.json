@@ -13,7 +13,7 @@
       "description": "RFC 3339 且必须以 Z 结尾。+00:00 写法与 Z 的规范化 JSON 不同，会导致哈希链跨语言验不过"
     },
     "agent": { "type": "string", "minLength": 1 },
-    "env": { "enum": ["dev", "staging", "prod"] },
+    "env": { "enum": ["dev", "test", "staging", "prod"] },
     "trace_id": { "type": "string" },
     "run_id": { "type": "string", "description": "有执行在等时非空；由人直接发起的审批、导出为空" },
     "actor": {

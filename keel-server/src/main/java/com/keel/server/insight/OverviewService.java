@@ -14,7 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.IntSupplier;
+import java.util.function.Function;
 
 @Service
 public class OverviewService {
@@ -31,12 +31,12 @@ public class OverviewService {
     private final AgentRegistryService agentRegistryService;
     private final AgentUsageService usage;
     private final QualityService quality;
-    private final IntSupplier pendingApprovals;
+    private final Function<String, Integer> pendingApprovals;
     private final FindingBook findings;
 
     @Autowired
     public OverviewService(AgentRegistryService agentRegistryService, AgentUsageService usage, QualityService quality,
-                           IntSupplier pendingApprovals, FindingBook findings) {
+                           Function<String, Integer> pendingApprovals, FindingBook findings) {
         this.agentRegistryService = agentRegistryService;
         this.usage = usage;
         this.quality = quality;
@@ -46,7 +46,7 @@ public class OverviewService {
 
     /** Spend-ledger tests construct the service without a usage cache or finding book. */
     public OverviewService(AgentRegistryService agentRegistryService, CostService costs, QualityService quality,
-                           IntSupplier pendingApprovals) {
+                           Function<String, Integer> pendingApprovals) {
         this(agentRegistryService,
                 new AgentUsageService(new com.keel.server.integration.langfuse.LangfuseClient("", "", ""),
                         costsGateway(costs), quality,
@@ -73,7 +73,7 @@ public class OverviewService {
         if (!scored.isEmpty()) {
             avg = Math.round(scored.stream().mapToDouble(Double::doubleValue).average().orElseThrow() * 100.0) / 100.0;
         }
-        var kpi = new Kpi(online, agents.size(), biz, dev, calls, snap.trendPct(), cost, avg, GATE, pendingApprovals.getAsInt());
+        var kpi = new Kpi(online, agents.size(), biz, dev, calls, snap.trendPct(), cost, avg, GATE, pendingApprovals.apply(scope));
         var costByAgent = new ArrayList<Map<String, Object>>();
         if (snap.costKnown()) {
             snap.cost().forEach((agent, amount) -> {

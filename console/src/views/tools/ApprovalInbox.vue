@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { answerSuspendedRun, decideApproval, listApprovals, listSuspendedRuns, type Approval, type SuspendedRun } from '@/api/approvals'
 import { toKeelError } from '@/api/http'
 import { useApprovalsStore } from '@/stores/approvals'
+import { useEnvStore } from '@/stores/env'
 import { RISK, ago } from '@/utils/format'
 
 type Group = 'all' | 'tool' | 'agent' | 'data' | 'human'
@@ -22,6 +23,7 @@ const RUN_REASON: Record<NonNullable<SuspendedRun['reason']>, { label: string; o
 const GROUPS: [Group, string][] = [['all', '全部'], ['tool', '工具审批'], ['agent', '智能体审批'], ['data', '数据导出'], ['human', '人工介入']]
 
 const approvalsStore = useApprovalsStore()
+const envStore = useEnvStore()
 const approvals = ref<Approval[]>([])
 const runs = ref<SuspendedRun[]>([])
 const group = ref<Group>('all')
@@ -41,10 +43,13 @@ const shownRuns = computed(() => (group.value === 'all' || group.value === 'huma
 async function load() {
   loading.value = true
   try {
-    const [a, r] = await Promise.all([listApprovals({ status: 'PENDING', size: 100 }), listSuspendedRuns({ size: 100 })])
+    const [a, r] = await Promise.all([
+      listApprovals({ status: 'PENDING', size: 100, env: envStore.env }),
+      listSuspendedRuns({ size: 100, env: envStore.env }),
+    ])
     approvals.value = a.items ?? []
     runs.value = r.items ?? []
-    approvalsStore.pending = approvals.value.length + runs.value.length
+    approvalsStore.pending = (a.total ?? 0) + (r.total ?? 0)
   } catch (error) {
     ElMessage.error(`加载审批失败：${toKeelError(error).message}`)
   } finally {
@@ -82,7 +87,7 @@ function terminate(run: SuspendedRun) {
   ElMessage.info(`终止 ${run.runId} 尚未接入`)
 }
 
-onMounted(load)
+watch(() => envStore.env, load, { immediate: true })
 </script>
 
 <template>

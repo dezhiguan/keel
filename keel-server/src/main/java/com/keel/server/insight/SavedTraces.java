@@ -12,6 +12,11 @@ public interface SavedTraces {
 
         @Override
         public Map<String, Object> list(int page, int size, String agent) {
+            return list(page, size, agent, "all");
+        }
+
+        @Override
+        public Map<String, Object> list(int page, int size, String agent, String env) {
             return Map.of("page", page, "size", size, "total", 0, "items", List.of());
         }
 
@@ -29,6 +34,11 @@ public interface SavedTraces {
     void save(String agent, String env, String traceId, String question, int durationMs);
 
     Map<String, Object> list(int page, int size, String agent);
+
+    /** {@code env} is {@code all} or a single environment. */
+    default Map<String, Object> list(int page, int size, String agent, String env) {
+        return list(page, size, agent);
+    }
 
     Map<String, Object> detail(String traceId);
 

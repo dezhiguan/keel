@@ -58,6 +58,12 @@ class AuditMaskQueryTest {
         assertThat(page.get(0).path("trace_id").asText()).isEqualTo("t1");
         assertThat(log.filter("askdb", null, null, null, null, null, 2, 1)).hasSize(1);
         assertThat(log.total("askdb", null, null, null, null, null)).isEqualTo(2);
+        log.add(json.readTree("""
+                {"agent":"askdb","env":"test","action":"invoke","risk":"low","trace_id":"t3","ts":"2026-10-05T04:00:00Z"}
+                """));
+        assertThat(log.filter("test", "askdb", null, null, null, null, null, 1, 10)).hasSize(1);
+        assertThat(log.filter("all", "askdb", null, null, null, null, null, 1, 10)).hasSize(3);
+        assertThat(log.total("prod", "askdb", null, null, null, null, null)).isZero();
     }
 
     @Test void exportHasNoFileUntilApproval() {

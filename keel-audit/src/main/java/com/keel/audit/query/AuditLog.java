@@ -15,7 +15,11 @@ public class AuditLog {
     }
 
     public List<JsonNode> filter(String agent, String action, String risk, String traceId, Instant from, Instant to, int page, int size) {
-        var matched = events.stream().filter(event -> matches(event, agent, action, risk, traceId, from, to)).toList();
+        return filter(null, agent, action, risk, traceId, from, to, page, size);
+    }
+
+    public List<JsonNode> filter(String env, String agent, String action, String risk, String traceId, Instant from, Instant to, int page, int size) {
+        var matched = events.stream().filter(event -> matches(event, env, agent, action, risk, traceId, from, to)).toList();
         int start = Math.max(0, (page - 1) * size);
         if (start >= matched.size()) {
             return List.of();
@@ -24,10 +28,17 @@ public class AuditLog {
     }
 
     public int total(String agent, String action, String risk, String traceId, Instant from, Instant to) {
-        return (int) events.stream().filter(event -> matches(event, agent, action, risk, traceId, from, to)).count();
+        return total(null, agent, action, risk, traceId, from, to);
     }
 
-    private static boolean matches(JsonNode event, String agent, String action, String risk, String traceId, Instant from, Instant to) {
+    public int total(String env, String agent, String action, String risk, String traceId, Instant from, Instant to) {
+        return (int) events.stream().filter(event -> matches(event, env, agent, action, risk, traceId, from, to)).count();
+    }
+
+    private static boolean matches(JsonNode event, String env, String agent, String action, String risk, String traceId, Instant from, Instant to) {
+        if (env != null && !env.isBlank() && !"all".equals(env) && !env.equals(event.path("env").asText())) {
+            return false;
+        }
         if (agent != null && !agent.isBlank() && !agent.equals(event.path("agent").asText())) {
             return false;
         }

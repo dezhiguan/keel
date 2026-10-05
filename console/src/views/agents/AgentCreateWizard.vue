@@ -32,7 +32,7 @@ const form = reactive<WizardForm>({
   template: 'echo',
   model: 'qwen-plus',
   dailyBudgetCny: 30,
-  env: envStore.env === 'prod' || envStore.env === 'staging' ? envStore.env : 'dev',
+  env: envStore.env === 'all' ? 'dev' : envStore.env,
 })
 
 const idError = computed(() => (form.name ? nameError(form.name, taken.value) : ''))

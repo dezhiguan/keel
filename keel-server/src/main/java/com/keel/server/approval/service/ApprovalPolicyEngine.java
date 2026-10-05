@@ -13,6 +13,7 @@ public final class ApprovalPolicyEngine {
     private static final Set<String> SUBJECTS = Set.of(
             "tool.call", "tool.config", "agent.config", "agent.retire", "data.export");
     private static final Set<String> HUMAN_REASONS = Set.of("input_required", "handoff");
+    private static final Set<String> ENVS = Set.of("dev", "test", "staging", "prod");
 
     public enum Verdict { APPROVE, REJECT, EXPIRE, CLOSED, INVALID }
 
@@ -105,7 +106,18 @@ public final class ApprovalPolicyEngine {
         if (raw == null || raw.isBlank()) {
             return "prod";
         }
-        if (!Set.of("dev", "staging", "prod").contains(raw)) {
+        if (!ENVS.contains(raw)) {
+            throw invalid();
+        }
+        return raw;
+    }
+
+    /** Query scope. {@code all}, blank, and null mean no environment filter. */
+    public static String scope(String raw) {
+        if (raw == null || raw.isBlank() || "all".equals(raw)) {
+            return "";
+        }
+        if (!ENVS.contains(raw)) {
             throw invalid();
         }
         return raw;

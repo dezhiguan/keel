@@ -253,6 +253,37 @@ class ApprovalFlowTest {
                 .andExpect(jsonPath("$.code").value("RUN_NOT_FOUND"));
     }
 
+    @Test void listsApprovalsAndRunsForOneEnvironment() throws Exception {
+        var devRef = id("dev-ticket");
+        var stagingRef = id("staging-ticket");
+        mvc.perform(post("/api/v1/approvals").contentType("application/json").content("""
+                {"subjectType":"data.export","subjectRef":"%s","summary":"dev 导出","actorUser":"amy","env":"dev"}
+                """.formatted(devRef))).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/approvals").contentType("application/json").content("""
+                {"subjectType":"data.export","subjectRef":"%s","summary":"staging 导出","actorUser":"amy","env":"staging"}
+                """.formatted(stagingRef))).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/approvals").param("env", "dev").param("size", "100"))
+                .andExpect(jsonPath("$.data.items[*].subjectRef", hasItem(devRef)))
+                .andExpect(jsonPath("$.data.items[*].subjectRef", not(hasItem(stagingRef))));
+        mvc.perform(get("/api/v1/insight/overview").param("env", "dev"))
+                .andExpect(jsonPath("$.data.kpi.pendingApprovals").value(
+                        jdbc.queryForObject("SELECT count(*) FROM approval_request WHERE status = 'PENDING' AND env = 'dev'", Long.class)));
+
+        var devRun = id("dev-run");
+        var testRun = id("test-run");
+        mvc.perform(post("/api/v1/runs").contentType("application/json").content("""
+                {"runId":"%s","agent":"inbox-agent","env":"dev","reason":"input_required","prompt":"dev 里等人","actorUser":"amy"}
+                """.formatted(devRun))).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/runs").contentType("application/json").content("""
+                {"runId":"%s","agent":"inbox-agent","env":"test","reason":"handoff","prompt":"test 里转人工","actorUser":"amy"}
+                """.formatted(testRun))).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/runs").param("env", "test").param("size", "100"))
+                .andExpect(jsonPath("$.data.items[*].runId", hasItem(testRun)))
+                .andExpect(jsonPath("$.data.items[*].runId", not(hasItem(devRun))));
+        mvc.perform(get("/api/v1/approvals").param("env", "nope"))
+                .andExpect(status().isBadRequest());
+    }
+
     private String open(String subject, String ref, String agent) throws Exception {
         return open(subject, ref, agent, null);
     }

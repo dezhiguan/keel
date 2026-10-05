@@ -4,12 +4,12 @@ import com.keel.server.approval.service.ApprovalService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.function.IntSupplier;
+import java.util.function.Function;
 
 @Configuration
 public class InsightConfiguration {
     @Bean
-    IntSupplier pendingApprovals(ApprovalService approvals) {
+    Function<String, Integer> pendingApprovals(ApprovalService approvals) {
         return approvals::pendingCount;
     }
 }

@@ -108,22 +108,30 @@ async function submitExpected() {
     })
     expecting.value = false
     ElMessage.warning('已提交，等待平台管理员审批')
-    approvalsStore.refresh().catch(() => undefined)
+    approvalsStore.refresh(envStore.env).catch(() => undefined)
   } catch (error) {
     ElMessage.error(`提交失败：${toKeelError(error).message}`)
   }
 }
 
 onMounted(async () => {
+  await loadAgents()
+})
+watch(() => envStore.env, loadAgents)
+
+async function loadAgents() {
   try {
-    const page = await listAgents({ size: 100 })
+    const page = await listAgents({ env: envStore.env, size: 100 })
     const names = (page.items ?? []).filter((a) => a.status !== 'DRAFT' && a.name).map((a) => a.name!)
     agentOptions.value = names
-    if (names.length && !names.includes(agent.value)) agent.value = names[0]
+    if (!names.includes(agent.value)) {
+      agent.value = names[0] ?? ''
+      if (!agent.value) result.value = null
+    }
   } catch (error) {
     ElMessage.error(`加载智能体失败：${toKeelError(error).message}`)
   }
-})
+}
 onBeforeUnmount(() => clearInterval(timer))
 watch(agent, () => {
   if (agent.value) load()

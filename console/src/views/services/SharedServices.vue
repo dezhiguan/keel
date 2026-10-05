@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import StatusPill from '@/components/StatusPill.vue'
 import { getSharedServices, type SharedServices } from '@/api/services'
 import { toKeelError } from '@/api/http'
+import { useEnvStore } from '@/stores/env'
 import { agentStatus, ago, fmtN, fmtPct } from '@/utils/format'
 
 const STAGES: Record<string, { label: string; color: string }> = {
@@ -17,6 +18,7 @@ const CALLER_COLORS: Record<string, string> = {
   'offshore-wind': '#34c38f', careermate: '#2ec4b6', 'cs-bot': '#b48cf2', askdb: '#5b9cf6', 'code-review': '#e36fae',
 }
 
+const envStore = useEnvStore()
 const data = ref<SharedServices | null>(null)
 const tab = ref<'health' | 'rag'>('health')
 const loading = ref(false)
@@ -37,16 +39,18 @@ const costText = computed(() => {
   return cost == null ? '—' : `¥${cost.toFixed(2)}`
 })
 
-onMounted(async () => {
+async function load() {
   loading.value = true
   try {
-    data.value = await getSharedServices()
+    data.value = await getSharedServices(envStore.env)
   } catch (error) {
     ElMessage.error(`加载共享服务失败：${toKeelError(error).message}`)
   } finally {
     loading.value = false
   }
-})
+}
+
+watch(() => envStore.env, load, { immediate: true })
 </script>
 
 <template>

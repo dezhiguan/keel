@@ -49,35 +49,58 @@ public class TraceQueryService {
     }
 
     public Map<String, Object> list(int page, int size, String agent) {
+        return list(page, size, agent, "all");
+    }
+
+    public Map<String, Object> list(int page, int size, String agent, String env) {
         try {
-            var remote = remoteList(page, size);
-            @SuppressWarnings("unchecked")
-            var items = (java.util.List<?>) remote.get("items");
-            if (items != null && !items.isEmpty()) {
-                return remote;
+            JsonNode body = langfuse.observationsPage();
+            var byTrace = new LinkedHashMap<String, List<JsonNode>>();
+            body.path("data").forEach(row -> byTrace.computeIfAbsent(row.path("traceId").asText(""), key -> new ArrayList<>()).add(row));
+            if (!byTrace.isEmpty()) {
+                var ids = new ArrayList<String>();
+                for (var entry : byTrace.entrySet()) {
+                    if (matches(entry.getValue(), agent, env)) {
+                        ids.add(entry.getKey());
+                    }
+                }
+                int from = Math.max(0, (page - 1) * size);
+                var items = new ArrayList<Map<String, Object>>();
+                for (int i = from; i < Math.min(ids.size(), from + size); i++) {
+                    items.add(summary(ids.get(i), byTrace.get(ids.get(i))));
+                }
+                var data = new LinkedHashMap<String, Object>();
+                data.put("page", page);
+                data.put("size", size);
+                data.put("total", ids.size());
+                data.put("items", items);
+                return data;
             }
         } catch (RuntimeException ignored) {
             // Langfuse 没配好或读失败时，改看本机探针写下的 trace。
         }
-        return saved.list(page, size, agent);
+        return saved.list(page, size, agent, env);
     }
 
-    private Map<String, Object> remoteList(int page, int size) {
-        JsonNode body = langfuse.observationsPage();
-        var byTrace = new LinkedHashMap<String, List<JsonNode>>();
-        body.path("data").forEach(row -> byTrace.computeIfAbsent(row.path("traceId").asText(""), key -> new ArrayList<>()).add(row));
-        var ids = new ArrayList<>(byTrace.keySet());
-        int from = Math.max(0, (page - 1) * size);
-        var items = new ArrayList<Map<String, Object>>();
-        for (int i = from; i < Math.min(ids.size(), from + size); i++) {
-            items.add(summary(ids.get(i), byTrace.get(ids.get(i))));
+    private boolean matches(List<JsonNode> rows, String agent, String env) {
+        if (agent != null && !agent.isBlank()) {
+            var hit = rows.stream().anyMatch(row -> agent.equals(metadata(row, "keel.agent")));
+            if (!hit) {
+                return false;
+            }
         }
-        var data = new LinkedHashMap<String, Object>();
-        data.put("page", page);
-        data.put("size", size);
-        data.put("total", ids.size());
-        data.put("items", items);
-        return data;
+        if (env == null || env.isBlank() || "all".equals(env)) {
+            return true;
+        }
+        return rows.stream().anyMatch(row -> env.equals(observationEnv(row)));
+    }
+
+    private String observationEnv(JsonNode row) {
+        var explicit = metadata(row, "keel.env");
+        if (!explicit.isBlank()) {
+            return explicit;
+        }
+        return CostService.envOf(metadata(row, "keel.llm.key_alias"));
     }
 
     public Map<String, Object> detail(String traceId) {

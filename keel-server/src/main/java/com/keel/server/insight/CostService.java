@@ -134,9 +134,16 @@ public class CostService {
             }
         }
         var names = new LinkedHashSet<String>();
-        catalog.forEach(model -> names.add(model.name()));
+        if ("all".equals(env)) {
+            catalog.forEach(model -> names.add(model.name()));
+        }
         names.addAll(calls.keySet());
         names.addAll(cost.keySet());
+        for (var key : keys) {
+            if (key.models() != null) {
+                names.addAll(key.models());
+            }
+        }
         var roles = roles(keys);
         var providers = new LinkedHashMap<String, String>();
         var priced = new LinkedHashMap<String, Boolean>();
@@ -302,7 +309,7 @@ public class CostService {
     }
 
     static String agentOf(String alias) {
-        for (var suffix : List.of("-prod", "-staging", "-dev")) {
+        for (var suffix : List.of("-prod", "-staging", "-test", "-dev")) {
             if (alias.endsWith(suffix)) {
                 return alias.substring(0, alias.length() - suffix.length());
             }
@@ -311,7 +318,7 @@ public class CostService {
     }
 
     static String envOf(String alias) {
-        for (var env : List.of("prod", "staging", "dev")) {
+        for (var env : List.of("prod", "staging", "test", "dev")) {
             if (alias.endsWith("-" + env)) {
                 return env;
             }

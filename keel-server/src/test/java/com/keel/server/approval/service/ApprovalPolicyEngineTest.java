@@ -69,7 +69,13 @@ class ApprovalPolicyEngineTest {
         assertThatThrownBy(() -> ApprovalPolicyEngine.risk("urgent")).isInstanceOf(KeelException.class);
         assertThat(ApprovalPolicyEngine.env(null)).isEqualTo("prod");
         assertThat(ApprovalPolicyEngine.env("dev")).isEqualTo("dev");
+        assertThat(ApprovalPolicyEngine.env("test")).isEqualTo("test");
         assertThatThrownBy(() -> ApprovalPolicyEngine.env("local")).isInstanceOf(KeelException.class);
+        assertThat(ApprovalPolicyEngine.scope(null)).isEmpty();
+        assertThat(ApprovalPolicyEngine.scope(" ")).isEmpty();
+        assertThat(ApprovalPolicyEngine.scope("all")).isEmpty();
+        assertThat(ApprovalPolicyEngine.scope("staging")).isEqualTo("staging");
+        assertThatThrownBy(() -> ApprovalPolicyEngine.scope("local")).isInstanceOf(KeelException.class);
         assertThat(ApprovalPolicyEngine.runId("run_1")).isTrue();
         assertThat(ApprovalPolicyEngine.runId(null)).isFalse();
         assertThat(ApprovalPolicyEngine.runId("bad/id")).isFalse();

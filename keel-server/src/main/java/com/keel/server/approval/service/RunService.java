@@ -49,23 +49,24 @@ public class RunService {
     }
 
     @Transactional
-    public PageResult<SuspendedRunView> page(String agent, int page, int size) {
+    public PageResult<SuspendedRunView> page(String agent, String env, int page, int size) {
         if (page < 1 || (size != 10 && size != 20 && size != 50 && size != 100)) {
             throw invalid();
         }
         expireDue();
         var agentFilter = agent == null ? "" : agent;
+        var envFilter = ApprovalPolicyEngine.scope(env);
         var total = jdbc.queryForObject("""
                 SELECT count(*) FROM agent_run
                 WHERE status = 'SUSPENDED' AND suspend_reason IN ('input_required', 'handoff')
-                  AND (? = '' OR agent_name = ?)
-                """, Long.class, agentFilter, agentFilter);
+                  AND (? = '' OR agent_name = ?) AND (? = '' OR env = ?)
+                """, Long.class, agentFilter, agentFilter, envFilter, envFilter);
         var items = jdbc.query(selectSql() + """
                  WHERE status = 'SUSPENDED' AND suspend_reason IN ('input_required', 'handoff')
-                   AND (? = '' OR agent_name = ?)
+                   AND (? = '' OR agent_name = ?) AND (? = '' OR env = ?)
                  ORDER BY created_at DESC, run_id DESC
                  LIMIT ? OFFSET ?
-                """, this::map, agentFilter, agentFilter, size, (page - 1L) * size);
+                """, this::map, agentFilter, agentFilter, envFilter, envFilter, size, (page - 1L) * size);
         return new PageResult<>(page, size, total == null ? 0 : total, items);
     }
 

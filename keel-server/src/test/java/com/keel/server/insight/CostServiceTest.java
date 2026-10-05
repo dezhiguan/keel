@@ -88,7 +88,7 @@ class CostServiceTest {
         var registry = new AgentRegistryService(null, null, null, new ObjectMapper()) {
             @Override public List<com.keel.server.registry.model.dto.AgentSummary> listAll() { return List.of(); }
         };
-        var overview = new OverviewService(registry, costs, new QualityService(langfuse), () -> 0).overview("all", "24h");
+        var overview = new OverviewService(registry, costs, new QualityService(langfuse), env -> 0).overview("all", "24h");
         assertThat(overview.kpi().modelCostCny()).isEqualTo(1.5);
         assertThat(overview.kpi().calls()).isZero();
         assertThat(overview.kpi().avgScore()).isEqualTo(0.9);
@@ -175,6 +175,12 @@ class CostServiceTest {
                 .extracting(error -> ((KeelException) error).code())
                 .isEqualTo(ErrorCode.SERVER_NOT_FOUND);
         server.stop(0);
+    }
+
+    @Test void testAliasIsItsOwnEnvironment() {
+        assertThat(CostService.envOf("askdb-test")).isEqualTo("test");
+        assertThat(CostService.agentOf("askdb-test")).isEqualTo("askdb");
+        assertThat(CostService.envOf("askdb-dev")).isEqualTo("dev");
     }
 
     private static String page(int count, String alias, String model, double cost) {

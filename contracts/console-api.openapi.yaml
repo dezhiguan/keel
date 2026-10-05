@@ -343,7 +343,9 @@ paths:
       tags: [services]
       operationId: getSharedServices
       summary: 共享服务页全部数据
-      description: 服务健康来自 K8s 探测，指标来自 Prometheus，知识库来自 rag-forge。
+      description: 服务健康来自 K8s 探测，指标来自 Prometheus，知识库来自 rag-forge。调用方和模型成本按环境过滤。知识库没有环境字段，不按环境拆开。
+      parameters:
+        - $ref: "#/components/parameters/Env"
       responses:
         "200":
           description: OK
@@ -519,6 +521,7 @@ paths:
       operationId: listTools
       summary: 工具注册表
       parameters:
+        - $ref: "#/components/parameters/Env"
         - name: scope
           in: query
           schema: { type: string, enum: [all, PRIVATE, SHARED], default: all }
@@ -699,6 +702,7 @@ paths:
       summary: 审批单列表
       description: 审批人只看得到分给自己的单子，由后端按当前用户过滤。
       parameters:
+        - $ref: "#/components/parameters/Env"
         - name: status
           in: query
           schema: { $ref: "#/components/schemas/ApprovalStatus" }
@@ -811,6 +815,7 @@ paths:
       summary: 挂起等人回话的执行
       description: 只返回 status=SUSPENDED 且 reason 为 input_required / handoff 的 run；reason=approval 的在 /approvals 里。
       parameters:
+        - $ref: "#/components/parameters/Env"
         - name: agent
           in: query
           schema: { type: string }
@@ -1092,7 +1097,7 @@ components:
     Env:
       name: env
       in: query
-      schema: { type: string, enum: [all, dev, staging, prod], default: all }
+      schema: { type: string, enum: [all, dev, test, staging, prod], default: all }
     Page:
       name: page
       in: query
@@ -1152,7 +1157,7 @@ components:
 
     EnvName:
       type: string
-      enum: [dev, staging, prod]
+      enum: [dev, test, staging, prod]
 
     Risk:
       type: string

@@ -39,7 +39,7 @@ public class AgentController {
 
     @GetMapping
     public R<PageResult<AgentSummary>> list(
-            @RequestParam(defaultValue = "all") @Pattern(regexp = "all|dev|staging|prod") String env,
+            @RequestParam(defaultValue = "all") @Pattern(regexp = "all|dev|test|staging|prod") String env,
             @RequestParam(defaultValue = "all") @Pattern(regexp = "all|biz|dev") String category,
             @RequestParam(required = false) AgentStatus status,
             @RequestParam(required = false) String q,
