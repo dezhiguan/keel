@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -44,7 +45,7 @@ public class AgentUsageService {
     private final Map<String, Snapshot> cache = new HashMap<>();
     private final Map<String, Instant> cachedAt = new HashMap<>();
     private final Set<String> refreshing = new HashSet<>();
-    private final ConcurrentHashMap<String, Object> locks = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, CompletableFuture<Snapshot>> inflight = new ConcurrentHashMap<>();
 
     @Autowired
     public AgentUsageService(LangfuseClient langfuse, LiteLlmClient gateway, QualityService quality,
@@ -97,19 +98,26 @@ public class AgentUsageService {
                 return ready;
             }
         }
-        synchronized (locks.computeIfAbsent(env, key -> new Object())) {
-            synchronized (this) {
-                var ready = freshOrStale(env, clock.instant());
-                if (ready != null) {
-                    return ready;
-                }
-            }
+        // Load outside the monitor. Blocking on Langfuse while holding synchronized
+        // pins the virtual thread and stalls every other request on a one-CPU pod.
+        var created = new CompletableFuture<Snapshot>();
+        var existing = inflight.putIfAbsent(env, created);
+        if (existing != null) {
+            return existing.join();
+        }
+        try {
             var loaded = load(env, clock.instant());
             synchronized (this) {
                 cache.put(env, loaded);
                 cachedAt.put(env, clock.instant());
             }
+            created.complete(loaded);
             return loaded;
+        } catch (RuntimeException e) {
+            created.completeExceptionally(e);
+            throw e;
+        } finally {
+            inflight.remove(env, created);
         }
     }
 
