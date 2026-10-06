@@ -89,7 +89,7 @@ class PromptFlowTest {
                 INSERT INTO agent_version (agent_name, version, env, manifest_json, manifest_hash, released_by)
                 VALUES ('prompt-agent', 'v1', 'dev', ?::jsonb, 'hash', 'test')
                 """, """
-                {"spec":{"prompts":{"items":[{"name":"answer","type":"text"},{"name":"route","type":"text"}]}}}
+                {"spec":{"prompts":{"items":[{"name":"answer","type":"text"}]}}}
                 """);
     }
 
@@ -164,6 +164,8 @@ class PromptFlowTest {
     }
 
     @Test void aFailedSecondProductionMoveIsReverted() throws Exception {
+        jdbc.update("UPDATE agent_version SET manifest_json = ?::jsonb WHERE agent_name = 'prompt-agent'",
+                "{\"spec\":{\"prompts\":{\"items\":[{\"name\":\"answer\",\"type\":\"text\"},{\"name\":\"route\",\"type\":\"text\"}]}}}");
         save("answer", "one");
         save("route", "two");
         promote("answer", "staging", 1);
@@ -260,7 +262,7 @@ class PromptFlowTest {
         var method = exchange.getRequestMethod();
         var raw = exchange.getRequestURI().getRawPath();
         var query = exchange.getRequestURI().getRawQuery();
-        CALLS.add(method + " " + raw);
+        CALLS.add(method + " " + raw + (query == null ? "" : "?" + query));
         var body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
         if ("GET".equals(method) && "/api/public/v2/prompts".equals(raw)) {
             send(exchange, 200, list(query));
