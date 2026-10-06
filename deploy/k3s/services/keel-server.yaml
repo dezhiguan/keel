@@ -27,6 +27,31 @@ roleRef:
   name: keel-agent-secrets
   apiGroup: rbac.authorization.k8s.io
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: keel-read-endpoints
+  namespace: keel-system
+rules:
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    resourceNames: ["keel-gateway", "keel-server", "keel-audit", "keel-llm"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: keel-server-read-endpoints
+  namespace: keel-system
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: keel-system
+roleRef:
+  kind: Role
+  name: keel-read-endpoints
+  apiGroup: rbac.authorization.k8s.io
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
