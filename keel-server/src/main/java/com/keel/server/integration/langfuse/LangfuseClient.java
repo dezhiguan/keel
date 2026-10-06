@@ -113,7 +113,7 @@ public class LangfuseClient {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
         }
-        return get("/api/public/v2/observations?limit=100&fields=core,basic,io,metadata&traceId="
+        return get("/api/public/v2/observations?limit=100&fields=core,basic,io,metadata,model,usage&traceId="
                 + URLEncoder.encode(traceId, StandardCharsets.UTF_8));
     }
 
@@ -213,21 +213,22 @@ public class LangfuseClient {
     }
 
     /**
-     * One page of root observations in {@code [from, to)}.
-     * The trace list uses this so 100 rows are 100 user calls, not 100 internal spans.
+     * Observations in {@code [from, to)}, including child spans.
+     * A trace's question, tokens and cost live on the generation, not the root, so the list groups these by traceId.
+     * Follows the cursor for at most ten pages.
      */
     public JsonNode observationsBetween(Instant from, Instant to) {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
         }
-        var path = "/api/public/v2/observations?limit=100&fields=core,basic,io,metadata&isRootObservation=true";
+        var path = "/api/public/v2/observations?limit=100&fields=core,basic,io,metadata,model,usage";
         if (from != null) {
             path += "&fromStartTime=" + URLEncoder.encode(from.toString(), StandardCharsets.UTF_8);
         }
         if (to != null) {
             path += "&toStartTime=" + URLEncoder.encode(to.toString(), StandardCharsets.UTF_8);
         }
-        return get(path);
+        return pages(path);
     }
 
     /**
@@ -616,7 +617,15 @@ public class LangfuseClient {
         if (!direct.isBlank()) {
             return direct;
         }
-        return metadata.path("attributes." + key).asText("");
+        var dotted = metadata.path("attributes." + key).asText("");
+        if (!dotted.isBlank()) {
+            return dotted;
+        }
+        var nested = metadata.path("attributes").path(key).asText("");
+        if (!nested.isBlank()) {
+            return nested;
+        }
+        return metadata.path("resourceAttributes").path(key).asText("");
     }
 
     public record RootCall(String traceId, String agent, String keyAlias, Double latencySeconds) {}

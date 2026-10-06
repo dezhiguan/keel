@@ -48,6 +48,14 @@ public class TracingMdcFilter extends OncePerRequestFilter {
                 .setAttribute(SpanAttributes.AGENT, agent)
                 .setAttribute(SpanAttributes.STATUS, "ok")
                 .startSpan();
+        String env = request.getHeader("X-Keel-Env");
+        if (!StringUtils.hasText(env)) {
+            env = System.getenv("KEEL_ENV");
+        }
+        if (StringUtils.hasText(env)) {
+            span.setAttribute(SpanAttributes.ENVIRONMENT, env.trim());
+            span.setAttribute(SpanAttributes.ENV, env.trim());
+        }
         try (Scope ignored = span.makeCurrent()) {
             MDC.put(MdcKeys.REQUEST_ID, requestId);
             MDC.put(MdcKeys.SERVICE, serviceName);

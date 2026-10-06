@@ -145,7 +145,9 @@ public class LiteLlmClient {
         get("/admin/v1/models").path("data").forEach(row -> rows.add(new Model(
                 row.path("name").asText(""),
                 row.path("priceConfigured").asBoolean(false),
-                row.path("provider").asText(""))));
+                row.path("provider").asText(""),
+                decimal(row.path("inputCnyPerToken")),
+                decimal(row.path("outputCnyPerToken")))));
         return rows;
     }
 
@@ -157,7 +159,25 @@ public class LiteLlmClient {
 
     public record Spend(String alias, String model, double costCny, String ts, Long latencyMs, boolean timedOut) {}
 
-    public record Model(String name, boolean priceConfigured, String provider) {}
+    public record Model(String name, boolean priceConfigured, String provider,
+                        double inputCnyPerToken, double outputCnyPerToken) {}
+
+    private static double decimal(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return 0;
+        }
+        if (node.isNumber()) {
+            return node.asDouble();
+        }
+        if (node.isTextual()) {
+            try {
+                return Double.parseDouble(node.asText(""));
+            } catch (NumberFormatException e) {
+                return 0;
+            }
+        }
+        return 0;
+    }
 
     private JsonNode get(String path) {
         if (baseUrl.isBlank() || masterKey.isBlank()) {

@@ -134,7 +134,8 @@ class TraceQueryServiceTest {
         service.list(1, 10, "", "prod", "ok", java.time.Instant.parse("2026-10-06T00:00:00Z"), java.time.Instant.parse("2026-10-08T00:00:00Z"), false, null);
         service.list(1, 20, "askdb", "prod", "failed", java.time.Instant.parse("2026-10-07T00:00:00Z"), java.time.Instant.parse("2026-10-07T02:00:00Z"), true, null);
         assertThat(queries).hasSize(1);
-        assertThat(queries.getFirst()).contains("isRootObservation=true");
+        assertThat(queries.getFirst()).contains("fields=core,basic,io,metadata,model,usage");
+        assertThat(queries.getFirst()).doesNotContain("isRootObservation");
         server.stop(0);
     }
 
@@ -208,6 +209,33 @@ class TraceQueryServiceTest {
                 assertThat(node.get("llmKeyAlias")).isEqualTo("askdb-prod");
             }
         });
+        server.stop(0);
+    }
+
+    @Test void listReadsTheQuestionAgentUsageAndCostFromChildObservations() throws Exception {
+        var server = server(new ArrayList<>(), """
+                {"data":[
+                  {"id":"root","traceId":"tr-wind","name":"agent.run","type":"AGENT","startTime":"2026-10-07T01:00:00.000Z","endTime":"2026-10-07T01:00:11.200Z","environment":"staging","userId":"u_88","metadata":{"attributes":{"keel.agent":"ops-copilot","keel.status":"ok","langfuse.observation.type":"agent"},"resourceAttributes":{"service.name":"keel-agent"}}},
+                  {"id":"ask","traceId":"tr-wind","parentObservationId":"root","name":"askdb","type":"AGENT","startTime":"2026-10-07T01:00:01.000Z","endTime":"2026-10-07T01:00:04.000Z","metadata":{"attributes":{"keel.agent":"askdb","keel.parent_agent":"ops-copilot","langfuse.observation.type":"agent"}}},
+                  {"id":"gen","traceId":"tr-wind","parentObservationId":"ask","name":"llm.chat","type":"GENERATION","startTime":"2026-10-07T01:00:01.100Z","endTime":"2026-10-07T01:00:11.200Z","model":"qwen-plus","inputUsage":8000,"outputUsage":2578,"input":[{"role":"system","content":"你是助手"},{"role":"user","content":"WT-07 最近一周告警频繁，查一下同批次风机的故障率"}],"metadata":{"attributes":{"keel.agent":"askdb","keel.llm.key_alias":"askdb-staging","langfuse.observation.type":"generation","keel.status":"fallback"}}}
+                ]}
+                """);
+        var service = new TraceQueryService(client(server), "https://jp.cloud.langfuse.com", "proj-1",
+                Map.of("qwen-plus", new double[] {0.0000008, 0.000002}));
+        @SuppressWarnings("unchecked")
+        var items = (List<Map<String, Object>>) service.list(1, 10).get("items");
+        assertThat(items).hasSize(1);
+        var row = items.getFirst();
+        assertThat(row.get("question")).isEqualTo("WT-07 最近一周告警频繁，查一下同批次风机的故障率");
+        assertThat(row.get("rootAgent")).isEqualTo("ops-copilot");
+        assertThat(row.get("agents")).isEqualTo(List.of("ops-copilot", "askdb"));
+        assertThat(row.get("multiAgent")).isEqualTo(true);
+        assertThat(row.get("env")).isEqualTo("staging");
+        assertThat(row.get("userId")).isEqualTo("u_88");
+        assertThat(row.get("tokens")).isEqualTo(10578);
+        assertThat(((Number) row.get("costCny")).doubleValue()).isEqualTo(8000 * 0.0000008 + 2578 * 0.000002);
+        assertThat(row.get("status")).isEqualTo("fallback");
+        assertThat(row.get("durationMs")).isEqualTo(11200);
         server.stop(0);
     }
 

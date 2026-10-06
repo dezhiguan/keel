@@ -124,17 +124,18 @@ loadAgents()
         <tbody>
           <tr v-for="t in result?.items ?? []" :key="t.traceId" class="click" @click="router.push(`/traces/${t.traceId}`)">
             <td class="nm" style="max-width: 420px">
-              <b style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ t.question }}</b>
+              <b v-if="t.question" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ t.question }}</b>
               <small class="mono">{{ t.traceId }}<template v-if="userLine(t.userId, t.userRole)"> · {{ userLine(t.userId, t.userRole) }}</template></small>
             </td>
             <td>
-              <template v-if="t.multiAgent">
+              <template v-if="t.multiAgent && (t.agents?.length ?? 0) > 1">
                 <span class="pill nd p-acc">多智能体 · {{ t.agents?.length }}</span>
                 <div class="mut" style="font-size: 11px; margin-top: 2px">{{ agentChain(t.agents) }}</div>
               </template>
-              <template v-else>
+              <template v-else-if="t.rootAgent">
                 <span class="dot" :style="{ background: avatarColor(t.rootAgent) }" /> {{ t.rootAgent }}
               </template>
+              <template v-else>—</template>
             </td>
             <td>{{ t.env || '—' }}</td>
             <td class="mono">{{ ago(t.startedAt) }}</td>
@@ -160,7 +161,7 @@ loadAgents()
         </tbody>
       </table>
       <Pager v-model:page="filter.page" v-model:size="filter.size" :total="result?.total ?? 0" />
-      <div class="srcnote">列表由 keel-server 读 Langfuse Observations API v2 的根节点（按时间窗翻页），智能体、状态、时间筛选和分页都在服务端完成；每行只带摘要，不带节点。点开一行才请求一次详情。</div>
+      <div class="srcnote">列表由 keel-server 读 Langfuse Observations API v2，按 trace 收成一行摘要（问题、用量和成本在同一次调用的生成节点上）。智能体、状态、时间筛选和分页都在服务端完成；每行只带摘要，不带节点。点开一行才请求一次详情。</div>
     </div>
   </div>
 </template>

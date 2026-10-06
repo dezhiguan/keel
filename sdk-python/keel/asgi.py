@@ -38,6 +38,19 @@ def _error(code: ErrorCode, trace_id: str = "", run_id: str = "", message: str |
             "run_id": run_id, "retryable": code.retryable}
 
 
+def _stamp_call(span, data: dict, env: str | None) -> None:
+    """Environment, user and session live on the root span. The question stays on the generation."""
+    if env:
+        span.set_attribute(attrs.ENVIRONMENT, env)
+        span.set_attribute(attrs.ENV, env)
+    context = data.get("context") if isinstance(data, dict) else None
+    if isinstance(context, dict) and isinstance(context.get("user_id"), str) and context["user_id"]:
+        span.set_attribute(attrs.USER_ID, context["user_id"])
+    session = data.get("session_id") if isinstance(data, dict) else None
+    if isinstance(session, str) and session:
+        span.set_attribute(attrs.SESSION_ID, session)
+
+
 def _trace_id(request: Request) -> str:
     parts = request.headers.get("traceparent", "").split("-")
     if len(parts) == 4 and len(parts[1]) == 32:
@@ -70,6 +83,7 @@ def create_app(agent) -> Starlette:
             attrs.OBSERVATION_TYPE: "agent", attrs.AGENT: agent.name,
             attrs.RUN_ID: run_id, attrs.STATUS: "ok",
         })
+        _stamp_call(root, data, request.headers.get("X-Keel-Env") or os.environ.get("KEEL_ENV"))
         if root.get_span_context().is_valid:
             trace_id = f"{root.get_span_context().trace_id:032x}"
         events: asyncio.Queue = asyncio.Queue()
@@ -232,6 +246,7 @@ def create_app(agent) -> Starlette:
             attrs.OBSERVATION_TYPE: "agent", attrs.AGENT: agent.name,
             attrs.RUN_ID: run_id, attrs.STATUS: "ok",
         })
+        _stamp_call(root, data, request.headers.get("X-Keel-Env") or os.environ.get("KEEL_ENV"))
 
         async def execute():
             try:

@@ -1,6 +1,7 @@
 package com.keel.server.insight;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -16,6 +17,7 @@ import java.util.Set;
  * Durations, tokens and cost come only from the observations and the configured unit prices.
  */
 public final class TraceAssembly {
+    private static final ObjectMapper JSON = new ObjectMapper();
     private static final Map<String, String> COLORS = Map.ofEntries(
             Map.entry("careermate", "#2ec4b6"),
             Map.entry("askdb", "#5b9cf6"),
@@ -406,11 +408,23 @@ public final class TraceAssembly {
     }
 
     private static String env(List<Span> spans) {
-        var explicit = firstMeta(spans, "keel.env");
+        var explicit = normalizeEnv(firstMeta(spans, "keel.env"));
         if (!explicit.isBlank()) {
             return explicit;
         }
         return CostService.envOf(firstMeta(spans, "keel.llm.key_alias"));
+    }
+
+    /** Langfuse writes `production`; the console environment name is `prod`. Anything else is not an environment. */
+    private static String normalizeEnv(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        return switch (raw.trim()) {
+            case "dev", "test", "staging", "prod" -> raw.trim();
+            case "production" -> "prod";
+            default -> "";
+        };
     }
 
     private static String status(List<Span> spans) {
@@ -624,17 +638,39 @@ public final class TraceAssembly {
     private static Map<String, String> meta(JsonNode row) {
         var values = new LinkedHashMap<String, String>();
         var metadata = row.path("metadata");
-        if (!metadata.isObject()) {
-            return values;
+        if (metadata.isObject()) {
+            absorb(values, metadata);
+            absorb(values, metadata.path("attributes"));
+            absorb(values, metadata.path("resourceAttributes"));
         }
-        metadata.properties().forEach(entry -> {
-            var key = entry.getKey().startsWith("attributes.") ? entry.getKey().substring("attributes.".length()) : entry.getKey();
+        putIfBlank(values, "langfuse.user.id", row.path("userId").asText(""));
+        putIfBlank(values, "langfuse.session.id", row.path("sessionId").asText(""));
+        putIfBlank(values, "keel.env", normalizeEnv(row.path("environment").asText("")));
+        return values;
+    }
+
+    /** Top-level metadata wins. OTEL attributes that Langfuse did not promote sit under metadata.attributes. */
+    private static void absorb(Map<String, String> values, JsonNode object) {
+        if (object == null || !object.isObject()) {
+            return;
+        }
+        object.properties().forEach(entry -> {
+            var key = entry.getKey().startsWith("attributes.")
+                    ? entry.getKey().substring("attributes.".length()) : entry.getKey();
+            if ("attributes".equals(key) || "resourceAttributes".equals(key)) {
+                return;
+            }
             var node = entry.getValue();
             if (node.isValueNode() && !node.isNull() && !node.asText("").isBlank()) {
                 values.putIfAbsent(key, node.asText());
             }
         });
-        return values;
+    }
+
+    private static void putIfBlank(Map<String, String> values, String key, String value) {
+        if (value != null && !value.isBlank()) {
+            values.putIfAbsent(key, value);
+        }
     }
 
     private static String observationType(JsonNode row, Map<String, String> meta) {
@@ -691,12 +727,25 @@ public final class TraceAssembly {
         if (fromMeta > 0) {
             return fromMeta;
         }
-        var usage = row.path("usage").path(usageField);
-        if (usage.isNumber()) {
-            return usage.asInt(0);
+        var named = "input".equals(usageField) ? row.path("inputUsage") : row.path("outputUsage");
+        if (named.isNumber() && named.asInt(0) > 0) {
+            return named.asInt();
         }
-        var details = row.path("usageDetails").path(usageField);
-        return details.isNumber() ? details.asInt(0) : 0;
+        var usage = row.path("usage").path(usageField);
+        if (usage.isNumber() && usage.asInt(0) > 0) {
+            return usage.asInt();
+        }
+        var details = row.path("usageDetails");
+        var keys = "input".equals(usageField)
+                ? List.of("input", "input_tokens", "prompt_tokens")
+                : List.of("output", "output_tokens", "completion_tokens");
+        for (var key : keys) {
+            var value = details.path(key);
+            if (value.isNumber() && value.asInt(0) > 0) {
+                return value.asInt();
+            }
+        }
+        return 0;
     }
 
     private static int number(String text) {
@@ -738,16 +787,82 @@ public final class TraceAssembly {
             return "";
         }
         if (node.isTextual()) {
-            return node.asText();
+            var text = node.asText().trim();
+            if (text.startsWith("{") || text.startsWith("[")) {
+                try {
+                    var parsed = JSON.readTree(text);
+                    if (parsed.isObject() || parsed.isArray()) {
+                        var inner = textValue(parsed);
+                        if (!inner.isBlank()) {
+                            return inner;
+                        }
+                    }
+                } catch (java.io.IOException ignored) {
+                    // The observation input is ordinary text that happens to start with a bracket.
+                }
+            }
+            return text;
+        }
+        if (node.isArray()) {
+            return userMessage(node);
         }
         if (node.isObject()) {
             for (var key : List.of("text", "question", "query", "input")) {
-                var value = node.path(key);
-                if (value.isTextual() && !value.asText().isBlank()) {
-                    return value.asText();
+                var extracted = textValue(node.path(key));
+                if (!extracted.isBlank()) {
+                    return extracted;
+                }
+            }
+            var messages = node.path("messages");
+            if (messages.isArray()) {
+                var user = userMessage(messages);
+                if (!user.isBlank()) {
+                    return user;
                 }
             }
         }
-        return node.toString();
+        return "";
+    }
+
+    /** The list shows the user's question, which is the last user turn inside a chat payload. */
+    private static String userMessage(JsonNode messages) {
+        var lastUser = "";
+        var last = "";
+        for (var item : messages) {
+            var content = item.isTextual() ? item.asText().trim() : contentOf(item);
+            if (content.isBlank()) {
+                continue;
+            }
+            last = content;
+            var role = item.path("role").asText("");
+            if (role.isBlank() || "user".equalsIgnoreCase(role) || "human".equalsIgnoreCase(role)) {
+                lastUser = content;
+            }
+        }
+        return lastUser.isBlank() ? last : lastUser;
+    }
+
+    private static String contentOf(JsonNode item) {
+        var content = item.path("content");
+        if (content.isTextual()) {
+            return content.asText().trim();
+        }
+        if (content.isArray()) {
+            var parts = new StringBuilder();
+            for (var part : content) {
+                var text = part.isTextual() ? part.asText() : part.path("text").asText("");
+                if (!text.isBlank()) {
+                    if (!parts.isEmpty()) {
+                        parts.append('\n');
+                    }
+                    parts.append(text.trim());
+                }
+            }
+            return parts.toString();
+        }
+        if (content.isObject()) {
+            return content.path("text").asText("").trim();
+        }
+        return "";
     }
 }

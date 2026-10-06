@@ -18,6 +18,7 @@ Python SDK 和 Java starter 产生的属性键集合必须完全一致。这份�
 | `langfuse.observation.output` | 字符串 | 这次模型调用的回复 |
 | `langfuse.session.id` | 字符串 | 多轮对话归到同一会话 |
 | `langfuse.user.id` | 字符串 | |
+| `langfuse.environment` | `dev` \| `test` \| `staging` \| `prod` | 写到 observation 的 environment。和 `keel.env` 同一个值 |
 | `langfuse.trace.tags` | 字符串数组 | |
 | `langfuse.observation.prompt.name` | 字符串，如 `offshore-wind/answer` | 只用在 generation 上。用的是 Langfuse 版本时写 |
 | `langfuse.observation.prompt.version` | 整数 | 只用在 generation 上。用的是 Langfuse 版本时写 |
@@ -30,6 +31,7 @@ Python SDK 和 Java starter 产生的属性键集合必须完全一致。这份�
 | 属性 | 取值 | 说明 |
 |---|---|---|
 | `keel.agent` | 字符串 | |
+| `keel.env` | `dev` \| `test` \| `staging` \| `prod` | 这次调用的环境。控制台按它筛选；没有这个值时再从 `keel.llm.key_alias` 的后缀认 |
 | `keel.agent.version` | 字符串 | |
 | `keel.parent_agent` | 字符串 | 被委派时填上游智能体名 |
 | `keel.status` | `ok` \| `fallback` \| `failed` | **只有三档**，和 SSE 事件同一套口径 |

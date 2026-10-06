@@ -5,6 +5,7 @@ import com.keel.common.error.ErrorCode;
 import com.keel.server.common.KeelException;
 import com.keel.server.integration.langfuse.LangfuseClient;
 import com.keel.server.integration.langfuse.LangfuseRateLimit;
+import com.keel.server.integration.litellm.LiteLlmClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -20,35 +21,76 @@ import java.util.Map;
 @Service
 public class TraceQueryService {
     private static final Duration LIST_TTL = Duration.ofSeconds(30);
+    private static final Duration PRICE_TTL = Duration.ofMinutes(5);
     private static final Duration LIST_WINDOW = Duration.ofDays(7);
     private final LangfuseClient langfuse;
     private final String host;
     private final String projectId;
     private final Map<String, double[]> pricesCnyPerToken;
+    private final LiteLlmClient pricesSource;
     private final SavedTraces saved;
     private final Object listCache = new Object();
     private List<JsonNode> cachedRoots = List.of();
     private Instant cachedAt = Instant.EPOCH;
+    private final Object priceCache = new Object();
+    private Map<String, double[]> cachedPrices = Map.of();
+    private Instant cachedPricesAt = Instant.EPOCH;
 
     @Autowired
     public TraceQueryService(LangfuseClient langfuse,
                              @Value("${LANGFUSE_HOST:}") String host,
                              @Value("${LANGFUSE_PROJECT_ID:}") String projectId,
-                             SavedTraces saved) {
-        this(langfuse, host, projectId, Map.of(), saved);
+                             SavedTraces saved,
+                             LiteLlmClient pricesSource) {
+        this(langfuse, host, projectId, Map.of(), saved, pricesSource);
     }
 
     public TraceQueryService(LangfuseClient langfuse, String host, String projectId, Map<String, double[]> pricesCnyPerToken) {
-        this(langfuse, host, projectId, pricesCnyPerToken, SavedTraces.EMPTY);
+        this(langfuse, host, projectId, pricesCnyPerToken, SavedTraces.EMPTY, null);
     }
 
     public TraceQueryService(LangfuseClient langfuse, String host, String projectId, Map<String, double[]> pricesCnyPerToken,
                              SavedTraces saved) {
+        this(langfuse, host, projectId, pricesCnyPerToken, saved, null);
+    }
+
+    public TraceQueryService(LangfuseClient langfuse, String host, String projectId, Map<String, double[]> pricesCnyPerToken,
+                             SavedTraces saved, LiteLlmClient pricesSource) {
         this.langfuse = langfuse;
         this.host = host == null ? "" : host.replaceAll("/$", "");
         this.projectId = projectId == null ? "" : projectId;
-        this.pricesCnyPerToken = pricesCnyPerToken;
+        this.pricesCnyPerToken = pricesCnyPerToken == null ? Map.of() : pricesCnyPerToken;
+        this.pricesSource = pricesSource;
         this.saved = saved == null ? SavedTraces.EMPTY : saved;
+    }
+
+    /** Tests pass a price map. Production reads the thin gateway's CNY-per-token catalog. */
+    private Map<String, double[]> prices() {
+        if (!pricesCnyPerToken.isEmpty()) {
+            return pricesCnyPerToken;
+        }
+        if (pricesSource == null) {
+            return Map.of();
+        }
+        var now = Instant.now();
+        synchronized (priceCache) {
+            if (!cachedPricesAt.equals(Instant.EPOCH) && cachedPricesAt.plus(PRICE_TTL).isAfter(now)) {
+                return cachedPrices;
+            }
+            var loaded = new LinkedHashMap<String, double[]>();
+            try {
+                for (var model : pricesSource.models()) {
+                    if (model.inputCnyPerToken() > 0 || model.outputCnyPerToken() > 0) {
+                        loaded.put(model.name(), new double[] {model.inputCnyPerToken(), model.outputCnyPerToken()});
+                    }
+                }
+            } catch (RuntimeException ignored) {
+                // No catalog means the row shows no cost, rather than a zero that looks billed.
+            }
+            cachedPrices = Map.copyOf(loaded);
+            cachedPricesAt = now;
+            return cachedPrices;
+        }
     }
 
     public Map<String, Object> list(int page, int size) {
@@ -74,7 +116,7 @@ public class TraceQueryService {
             if (!byTrace.isEmpty()) {
                 var items = new ArrayList<Map<String, Object>>();
                 for (var entry : byTrace.entrySet()) {
-                    var summary = TraceAssembly.summary(entry.getKey(), entry.getValue(), pricesCnyPerToken);
+                    var summary = TraceAssembly.summary(entry.getKey(), entry.getValue(), prices());
                     if (summary != null) {
                         items.add(summary);
                     }
@@ -225,7 +267,7 @@ public class TraceQueryService {
             throw new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message());
         }
         var url = host.isBlank() || projectId.isBlank() ? "" : host + "/project/" + projectId + "/traces/" + traceId;
-        var detail = TraceAssembly.detail(traceId, rows, url, pricesCnyPerToken);
+        var detail = TraceAssembly.detail(traceId, rows, url, prices());
         if (detail == null) {
             throw new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message());
         }
