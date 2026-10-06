@@ -3,6 +3,8 @@ package com.keel.starter.tracing;
 /** Attribute keys from contracts/trace-attributes.md. Same set as the Python SDK. */
 public final class SpanAttributes {
     public static final String OBSERVATION_TYPE = "langfuse.observation.type";
+    public static final String OBSERVATION_INPUT = "langfuse.observation.input";
+    public static final String OBSERVATION_OUTPUT = "langfuse.observation.output";
     public static final String SESSION_ID = "langfuse.session.id";
     public static final String USER_ID = "langfuse.user.id";
     public static final String TRACE_TAGS = "langfuse.trace.tags";
