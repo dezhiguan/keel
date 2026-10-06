@@ -44,6 +44,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/insight/agent-usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 智能体调用、成本和评测分
+         * @description 列表和抽屉先拿注册信息，再补这三项。24 小时调用来自 Langfuse 根节点，
+         *     成本来自薄网关日花费，评测分来自一份实验汇总。累计调用和环比用本机 trace 记录，
+         *     不在这条接口里翻 Langfuse 全量历史。
+         */
+        get: operations["getAgentUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agents": {
         parameters: {
             query?: never;
@@ -1355,6 +1377,32 @@ export interface operations {
             };
         };
     };
+    getAgentUsage: {
+        parameters: {
+            query?: {
+                env?: components["parameters"]["Env"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            items?: components["schemas"]["AgentSummary"][];
+                        };
+                    };
+                };
+            };
+        };
+    };
     listAgents: {
         parameters: {
             query?: {
@@ -1363,6 +1411,8 @@ export interface operations {
                 status?: components["schemas"]["AgentStatus"];
                 /** @description 按 id、名称、负责人模糊匹配 */
                 q?: string;
+                /** @description 为 true 时在本页附带调用、成本和评测分。默认 false，页面另请求 /insight/agent-usage。 */
+                usage?: boolean;
                 page?: components["parameters"]["Page"];
                 size?: components["parameters"]["Size"];
             };

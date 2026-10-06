@@ -7,7 +7,26 @@ export type ListAgentsQuery = NonNullable<operations['listAgents']['parameters']
 export type AgentPage = components['schemas']['PageMeta'] & { items?: AgentSummary[] }
 
 export function listAgents(query: ListAgentsQuery) {
-  return get<AgentPage>('/agents', { params: query })
+  return get<AgentPage>('/agents', { params: { usage: false, ...query } })
+}
+
+export function getAgentUsage(env: string) {
+  return get<{ items?: AgentSummary[] }>('/insight/agent-usage', { params: { env } })
+}
+
+/** Registry row first, usage numbers when the separate request returns. */
+export function mergeUsage<T extends AgentSummary>(agent: T, usage?: AgentSummary | null): T {
+  if (!usage) return agent
+  return {
+    ...agent,
+    calls24h: usage.calls24h,
+    callsTotal: usage.callsTotal,
+    p95Seconds: usage.p95Seconds,
+    costCny: usage.costCny,
+    dailyBudgetCny: usage.dailyBudgetCny ?? agent.dailyBudgetCny,
+    score: usage.score,
+    gatePassed: usage.score == null ? agent.gatePassed : usage.score >= 0.85,
+  }
 }
 
 export type AgentDetail = components['schemas']['AgentDetail']

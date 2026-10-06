@@ -43,10 +43,12 @@ public class AgentController {
             @RequestParam(defaultValue = "all") @Pattern(regexp = "all|biz|dev") String category,
             @RequestParam(required = false) AgentStatus status,
             @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "false") boolean usage,
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "10") @Pattern(regexp = "10|20|50|100") String size) {
         var pageResult = agentRegistryService.page(env, category, status, q, page, Integer.parseInt(size));
-        return R.ok(new PageResult<>(pageResult.page(), pageResult.size(), pageResult.total(), usage.apply(pageResult.items(), env)));
+        var items = usage ? this.usage.apply(pageResult.items(), env) : pageResult.items();
+        return R.ok(new PageResult<>(pageResult.page(), pageResult.size(), pageResult.total(), items));
     }
 
     @PostMapping
@@ -67,9 +69,7 @@ public class AgentController {
 
     @GetMapping("/{name}")
     public R<AgentDetail> detail(@PathVariable String name) {
-        var detail = agentRegistryService.detail(name);
-        var scope = detail.summary().env() == null ? "all" : detail.summary().env();
-        return R.ok(detail.withSummary(usage.apply(detail.summary(), scope)));
+        return R.ok(agentRegistryService.detail(name));
     }
 
     @PostMapping("/{name}/chat")

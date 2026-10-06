@@ -90,6 +90,34 @@ paths:
                     properties:
                       data: { $ref: "#/components/schemas/Overview" }
 
+  /insight/agent-usage:
+    get:
+      tags: [agents]
+      operationId: getAgentUsage
+      summary: 智能体调用、成本和评测分
+      description: |
+        列表和抽屉先拿注册信息，再补这三项。24 小时调用来自 Langfuse 根节点，
+        成本来自薄网关日花费，评测分来自一份实验汇总。累计调用和环比用本机 trace 记录，
+        不在这条接口里翻 Langfuse 全量历史。
+      parameters:
+        - $ref: "#/components/parameters/Env"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items: { $ref: "#/components/schemas/AgentSummary" }
+
   # ---------------------------------------------------------------- 智能体
   /agents:
     get:
@@ -108,6 +136,10 @@ paths:
           in: query
           description: 按 id、名称、负责人模糊匹配
           schema: { type: string }
+        - name: usage
+          in: query
+          description: 为 true 时在本页附带调用、成本和评测分。默认 false，页面另请求 /insight/agent-usage。
+          schema: { type: boolean, default: false }
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/Size"
       responses:

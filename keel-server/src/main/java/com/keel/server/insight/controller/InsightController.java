@@ -4,10 +4,12 @@ import com.keel.common.error.ErrorCode;
 import com.keel.server.common.Audited;
 import com.keel.server.common.KeelException;
 import com.keel.server.common.R;
+import com.keel.server.insight.AgentUsageService;
 import com.keel.server.insight.CostService;
 import com.keel.server.insight.OverviewService;
 import com.keel.server.insight.SharedServiceMonitor;
 import com.keel.server.insight.TraceQueryService;
+import com.keel.server.registry.service.AgentRegistryService;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -30,12 +32,17 @@ public class InsightController {
     private final TraceQueryService traces;
     private final CostService costs;
     private final SharedServiceMonitor services;
+    private final AgentRegistryService agents;
+    private final AgentUsageService usage;
 
-    public InsightController(OverviewService overviewService, TraceQueryService traces, CostService costs, SharedServiceMonitor services) {
+    public InsightController(OverviewService overviewService, TraceQueryService traces, CostService costs,
+                             SharedServiceMonitor services, AgentRegistryService agents, AgentUsageService usage) {
         this.overviewService = overviewService;
         this.traces = traces;
         this.costs = costs;
         this.services = services;
+        this.agents = agents;
+        this.usage = usage;
     }
 
     @GetMapping("/overview")
@@ -43,6 +50,16 @@ public class InsightController {
             @RequestParam(defaultValue = "all") @Pattern(regexp = "all|dev|test|staging|prod") String env,
             @RequestParam(defaultValue = "24h") @Pattern(regexp = "24h|7d|30d") String range) {
         return R.ok(overviewService.overview(env, range));
+    }
+
+    @GetMapping("/agent-usage")
+    public R<Map<String, Object>> agentUsage(
+            @RequestParam(defaultValue = "all") @Pattern(regexp = "all|dev|test|staging|prod") String env) {
+        var scope = env == null || env.isBlank() ? "all" : env;
+        var listed = agents.listAll().stream()
+                .filter(agent -> "all".equals(scope) || scope.equals(agent.env()))
+                .toList();
+        return R.ok(Map.of("items", usage.apply(listed, scope)));
     }
 
     @GetMapping("/traces")

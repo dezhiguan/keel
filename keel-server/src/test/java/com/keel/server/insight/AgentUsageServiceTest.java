@@ -11,10 +11,15 @@ import org.junit.jupiter.api.Test;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -25,7 +30,7 @@ class AgentUsageServiceTest {
         server.createContext("/", exchange -> {
             var path = exchange.getRequestURI().getPath();
             var query = exchange.getRequestURI().getQuery() == null ? "" : exchange.getRequestURI().getQuery();
-            paths.add(path);
+            paths.add(path + (query.isBlank() ? "" : "?" + query));
             String body = switch (path) {
                 case "/api/public/v2/observations" -> query.contains("cursor=")
                         ? "{\"data\":[{\"traceId\":\"t3\",\"metadata\":{\"keel.agent\":\"echo\",\"keel.llm.key_alias\":\"echo-dev\"}}],\"meta\":{}}"
@@ -69,8 +74,38 @@ class AgentUsageServiceTest {
             assertThat(row.calls24h()).isEqualTo(0L);
             assertThat(row.costCny()).isEqualTo(0.0);
         });
-        assertThat(paths).noneMatch(path -> path.equals("/api/public/metrics") || path.equals("/api/public/traces")
-                || path.equals("/api/public/scores") || path.contains("/spend/logs"));
+        assertThat(paths).noneMatch(path -> path.startsWith("/api/public/metrics") || path.startsWith("/api/public/traces")
+                || path.startsWith("/api/public/scores") || path.contains("/spend/logs"));
+        assertThat(paths).filteredOn(path -> path.startsWith("/api/public/v2/observations"))
+                .isNotEmpty()
+                .allMatch(path -> path.contains("fromStartTime=2026-10-04"))
+                .noneMatch(path -> path.contains("2020-01-01"));
+        server.stop(0);
+    }
+
+    @Test void servesThePreviousSnapshotWhileRefreshing() throws Exception {
+        var bodies = new AtomicReference<>("""
+                {"data":[{"traceId":"t1","metadata":{"keel.agent":"echo"}}],"meta":{}}
+                """);
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/public/v2/observations", exchange -> write(exchange, bodies.get()));
+        server.createContext("/", exchange -> write(exchange, "{\"data\":[]}"));
+        server.start();
+        var base = "http://127.0.0.1:" + server.getAddress().getPort();
+        var later = new Later();
+        var clock = new MutableClock(Instant.parse("2026-10-05T08:00:00Z"));
+        var usage = new AgentUsageService(new LangfuseClient(base, "pk", "sk"), new LiteLlmClient("", ""),
+                new QualityService(new LangfuseClient("", "", "")),
+                new EvalQueryService(new LangfuseClient(base, "pk", "sk"), name -> null),
+                SavedTraces.EMPTY, clock, Executors.newVirtualThreadPerTaskExecutor(), later);
+        assertThat(usage.apply(summary("echo"), "all").calls24h()).isEqualTo(1L);
+        bodies.set("""
+                {"data":[{"traceId":"t8","metadata":{"keel.agent":"echo"}},{"traceId":"t9","metadata":{"keel.agent":"echo"}}],"meta":{}}
+                """);
+        clock.advance(Duration.ofMinutes(4));
+        assertThat(usage.apply(summary("echo"), "all").calls24h()).isEqualTo(1L);
+        later.flush();
+        assertThat(usage.apply(summary("echo"), "all").calls24h()).isEqualTo(2L);
         server.stop(0);
     }
 
@@ -100,6 +135,55 @@ class AgentUsageServiceTest {
             @Override public java.util.Map<String, Object> detail(String traceId) { return null; }
             @Override public List<SavedTraces.TraceHit> since(Instant from, String env) { return hits.apply(from, env); }
         }, Clock.fixed(Instant.parse("2026-10-05T08:00:00Z"), ZoneOffset.UTC));
+    }
+
+    private static void write(com.sun.net.httpserver.HttpExchange exchange, String body) throws java.io.IOException {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        exchange.sendResponseHeaders(200, bytes.length);
+        exchange.getResponseBody().write(bytes);
+        exchange.close();
+    }
+
+    private static final class Later implements Executor {
+        private final List<Runnable> tasks = new ArrayList<>();
+
+        @Override
+        public void execute(Runnable command) {
+            tasks.add(command);
+        }
+
+        void flush() {
+            var pending = List.copyOf(tasks);
+            tasks.clear();
+            pending.forEach(Runnable::run);
+        }
+    }
+
+    private static final class MutableClock extends Clock {
+        private Instant now;
+
+        MutableClock(Instant now) {
+            this.now = now;
+        }
+
+        void advance(Duration step) {
+            now = now.plus(step);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
     }
 
     private static AgentSummary summary(String name) {

@@ -132,12 +132,16 @@ class SharedServiceMonitorTest {
                 """));
         server.createContext("/api/v1/eval/summary", exchange -> write(exchange, 200,
                 "{\"recallAt5\":0.91,\"zeroResultRate\":0.012,\"evaluatedAt\":\"2026-10-01T00:00:00Z\"}"));
-        server.createContext("/api/public/v2/observations", exchange -> write(exchange, 200, """
+        var observationHits = new java.util.concurrent.atomic.AtomicInteger();
+        server.createContext("/api/public/v2/observations", exchange -> {
+            observationHits.incrementAndGet();
+            write(exchange, 200, """
                 {"data":[
                   {"type":"RETRIEVER","name":"rag.search","startTime":"%s","endTime":"%s","metadata":{"keel.agent":"askdb"}},
                   {"type":"SPAN","name":"rerank","startTime":"%s","endTime":"%s","metadata":{"keel.agent":"askdb"}}
                 ],"meta":{}}
-                """.formatted(start, end, start, end)));
+                """.formatted(start, end, start, end));
+        });
         server.createContext("/actuator/prometheus", exchange -> write(exchange, 200, """
                 ragforge_retrieval_requests_total{status="429",caller_agent=""} 3
                 ragforge_retrieval_requests_total{status="ok"} 97
@@ -174,6 +178,9 @@ class SharedServiceMonitorTest {
         var bases = (List<Map<String, Object>>) rag.get("knowledgeBases");
         assertThat(bases.get(0)).containsEntry("recallAt5", 0.91).containsEntry("zeroHitRate", 0.012);
         assertThat(body.get("consoleUrl")).isEqualTo("https://ragforge.net");
+        assertThat(observationHits).hasValue(1);
+        monitor.services("all");
+        assertThat(observationHits).hasValue(1);
         server.stop(0);
     }
 

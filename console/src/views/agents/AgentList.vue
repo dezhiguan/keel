@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
-import { listAgents, type AgentPage, type AgentStatus, type ListAgentsQuery } from '@/api/agents'
+import { getAgentUsage, listAgents, mergeUsage, type AgentPage, type AgentStatus, type ListAgentsQuery } from '@/api/agents'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { agentStatus, fmtN } from '@/utils/format'
@@ -31,21 +31,40 @@ function open(name?: string) {
   router.push({ query: { ...route.query, drawer: name } })
 }
 
+let ticket = 0
 async function load() {
+  const current = ++ticket
+  const env = envStore.env
   loading.value = true
   try {
-    result.value = await listAgents({
-      env: envStore.env,
+    const page = await listAgents({
+      env,
       category: filter.category,
       status: filter.status || undefined,
       q: filter.q.trim() || undefined,
       page: filter.page,
       size: filter.size,
     })
+    if (current !== ticket) return
+    result.value = page
   } catch (error) {
+    if (current !== ticket) return
     ElMessage.error(`加载智能体失败：${toKeelError(error).message}`)
+    return
   } finally {
-    loading.value = false
+    if (current === ticket) loading.value = false
+  }
+  try {
+    const usage = await getAgentUsage(env)
+    if (current !== ticket || !result.value) return
+    const byName = new Map((usage.items ?? []).map((item) => [item.name, item]))
+    result.value = {
+      ...result.value,
+      items: (result.value.items ?? []).map((item) => mergeUsage(item, item.name ? byName.get(item.name) : undefined)),
+    }
+  } catch (error) {
+    if (current !== ticket) return
+    ElMessage.error(`加载用量失败：${toKeelError(error).message}`)
   }
 }
 

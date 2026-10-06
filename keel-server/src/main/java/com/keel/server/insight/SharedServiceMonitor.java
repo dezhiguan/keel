@@ -24,11 +24,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 @Service
 public class SharedServiceMonitor {
     private static final ExecutorService PROBES = Executors.newVirtualThreadPerTaskExecutor();
+    private static final Duration RETRIEVAL_TTL = Duration.ofMinutes(3);
 
     private final RagForgeInsightClient ragforge;
     private final LiteLlmClient gateway;
@@ -36,6 +38,9 @@ public class SharedServiceMonitor {
     private final AuthGatewayClient authGateway;
     private final KubernetesClient kubernetes;
     private final Function<String, List<String>> namesInEnv;
+    private final AtomicBoolean retrievalRefresh = new AtomicBoolean();
+    private List<LangfuseClient.Retrieval> retrievalCache;
+    private Instant retrievalCachedAt;
 
     public SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway) {
         this(ragforge, gateway, (Function<String, List<String>>) null, new LangfuseClient("", "", ""));
@@ -235,10 +240,47 @@ public class SharedServiceMonitor {
         }
     }
 
+    /**
+     * Retrieval P95 is a 24h aggregate. Serve a few minutes of cache, and keep the previous
+     * sample on screen while a refresh runs, so opening the page does not wait on Langfuse.
+     */
+    private List<LangfuseClient.Retrieval> retrievals(Instant now) {
+        synchronized (this) {
+            if (retrievalCache != null && retrievalCachedAt != null && retrievalCachedAt.plus(RETRIEVAL_TTL).isAfter(now)) {
+                return retrievalCache;
+            }
+            if (retrievalCache != null) {
+                if (retrievalRefresh.compareAndSet(false, true)) {
+                    PROBES.execute(() -> {
+                        try {
+                            storeRetrievals(langfuse.retrievals(Instant.now().minus(Duration.ofHours(24)), Instant.now()));
+                        } finally {
+                            retrievalRefresh.set(false);
+                        }
+                    });
+                }
+                return retrievalCache;
+            }
+        }
+        var rows = langfuse.retrievals(now.minus(Duration.ofHours(24)), now);
+        storeRetrievals(rows);
+        return rows;
+    }
+
+    private void storeRetrievals(List<LangfuseClient.Retrieval> rows) {
+        if (rows == null) {
+            return;
+        }
+        synchronized (this) {
+            retrievalCache = rows;
+            retrievalCachedAt = Instant.now();
+        }
+    }
+
     private void fillFromLangfuse(Map<String, Object> kpi, Map<String, Object> service, List<Map<String, Object>> stages,
                                   List<Map<String, Object>> callers, Set<String> allowed) {
         var now = Instant.now();
-        var rows = langfuse.retrievals(now.minus(Duration.ofHours(24)), now);
+        var rows = retrievals(now);
         if (rows == null || rows.isEmpty()) {
             return;
         }

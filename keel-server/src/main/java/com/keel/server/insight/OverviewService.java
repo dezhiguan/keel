@@ -69,9 +69,13 @@ public class OverviewService {
         Long calls = snap.callsKnown() ? snap.callTotal() : null;
         Double cost = snap.costKnown() ? snap.costTotal() : null;
         var scored = agents.stream().map(AgentSummary::score).filter(score -> score != null).toList();
-        Double avg = quality.average();
+        Double avg;
         if (!scored.isEmpty()) {
             avg = Math.round(scored.stream().mapToDouble(Double::doubleValue).average().orElseThrow() * 100.0) / 100.0;
+        } else if (!snap.scores().isEmpty()) {
+            avg = Math.round(snap.scores().values().stream().mapToDouble(Double::doubleValue).average().orElseThrow() * 100.0) / 100.0;
+        } else {
+            avg = quality.average();
         }
         var kpi = new Kpi(online, agents.size(), biz, dev, calls, snap.trendPct(), cost, avg, GATE, pendingApprovals.apply(scope));
         var costByAgent = new ArrayList<Map<String, Object>>();

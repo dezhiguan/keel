@@ -3,8 +3,9 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import StatusPill from '@/components/StatusPill.vue'
-import { getAgent, type AgentDetail } from '@/api/agents'
+import { getAgent, getAgentUsage, mergeUsage, type AgentDetail } from '@/api/agents'
 import { toKeelError } from '@/api/http'
+import { useEnvStore } from '@/stores/env'
 import { agentStatus, orDash } from '@/utils/format'
 import {
   avatarColor,
@@ -30,6 +31,7 @@ type Tab = (typeof TABS)[number][0]
 
 const route = useRoute()
 const router = useRouter()
+const envStore = useEnvStore()
 const detail = ref<AgentDetail | null>(null)
 const loading = ref(false)
 const tab = ref<Tab>('ov')
@@ -63,6 +65,7 @@ function yuan(value?: number | null, digits = 2) {
 let ticket = 0
 async function load(agent: string) {
   const current = ++ticket
+  const env = envStore.env
   loading.value = true
   detail.value = null
   try {
@@ -72,8 +75,18 @@ async function load(agent: string) {
   } catch (error) {
     if (current !== ticket) return
     ElMessage.error(`加载智能体失败：${toKeelError(error).message}`)
+    return
   } finally {
     if (current === ticket) loading.value = false
+  }
+  try {
+    const usage = await getAgentUsage(env)
+    if (current !== ticket || !detail.value) return
+    const row = (usage.items ?? []).find((item) => item.name === agent)
+    detail.value = mergeUsage(detail.value, row)
+  } catch (error) {
+    if (current !== ticket) return
+    ElMessage.error(`加载用量失败：${toKeelError(error).message}`)
   }
 }
 
