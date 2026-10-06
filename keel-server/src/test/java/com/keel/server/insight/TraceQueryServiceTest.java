@@ -2,6 +2,7 @@ package com.keel.server.insight;
 
 import com.keel.server.common.KeelException;
 import com.keel.server.integration.langfuse.LangfuseClient;
+import com.keel.server.integration.langfuse.LangfuseRateLimit;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 
@@ -112,6 +113,62 @@ class TraceQueryServiceTest {
             }
         });
         assertThat(service.list(1, 10).get("total")).isEqualTo(1);
+    }
+
+    @Test void listReusesOneLangfuseReadAcrossFilters() throws Exception {
+        var queries = new ArrayList<String>();
+        var server = HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            queries.add(exchange.getRequestURI().getQuery() == null ? "" : exchange.getRequestURI().getQuery());
+            byte[] bytes = """
+                    {"data":[
+                      {"id":"root","traceId":"tr-ok","name":"agent.run","startTime":"2026-10-07T01:00:00.000Z","endTime":"2026-10-07T01:00:01.000Z","input":{"text":"华东退货率"},"metadata":{"keel.agent":"askdb","keel.env":"prod","keel.status":"ok","langfuse.observation.type":"agent"}}
+                    ]}
+                    """.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        var service = new TraceQueryService(client(server), "https://jp.cloud.langfuse.com", "proj-1", Map.of());
+        service.list(1, 10, "", "prod", "ok", java.time.Instant.parse("2026-10-06T00:00:00Z"), java.time.Instant.parse("2026-10-08T00:00:00Z"), false, null);
+        service.list(1, 20, "askdb", "prod", "failed", java.time.Instant.parse("2026-10-07T00:00:00Z"), java.time.Instant.parse("2026-10-07T02:00:00Z"), true, null);
+        assertThat(queries).hasSize(1);
+        assertThat(queries.getFirst()).contains("isRootObservation=true");
+        server.stop(0);
+    }
+
+    @Test void rateLimitIsNotReplacedByTheLocalProbe() throws Exception {
+        var server = HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            exchange.getResponseHeaders().add("Retry-After", "12");
+            exchange.sendResponseHeaders(429, -1);
+            exchange.close();
+        });
+        server.start();
+        var saved = new SavedTraces() {
+            @Override
+            public void save(String agent, String env, String traceId, String question, int durationMs) {
+            }
+
+            @Override
+            public Map<String, Object> list(int page, int size, String agent) {
+                throw new AssertionError("local list");
+            }
+
+            @Override
+            public Map<String, Object> detail(String traceId) {
+                return Map.of("summary", Map.of("traceId", traceId, "question", "local"));
+            }
+        };
+        var service = new TraceQueryService(client(server), "https://jp.cloud.langfuse.com", "proj-1", Map.of(), saved);
+        assertThatThrownBy(() -> service.list(1, 10))
+                .isInstanceOf(LangfuseRateLimit.class)
+                .extracting(error -> ((LangfuseRateLimit) error).retryAfterSeconds())
+                .isEqualTo(12);
+        assertThatThrownBy(() -> service.detail("tr-cloud"))
+                .isInstanceOf(LangfuseRateLimit.class);
+        server.stop(0);
     }
 
     @Test void listFiltersUseRealObservationFields() throws Exception {

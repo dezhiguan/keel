@@ -4,10 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.keel.common.error.ErrorCode;
 import com.keel.server.common.KeelException;
 import com.keel.server.integration.langfuse.LangfuseClient;
+import com.keel.server.integration.langfuse.LangfuseRateLimit;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -17,11 +19,16 @@ import java.util.Map;
 
 @Service
 public class TraceQueryService {
+    private static final Duration LIST_TTL = Duration.ofSeconds(30);
+    private static final Duration LIST_WINDOW = Duration.ofDays(7);
     private final LangfuseClient langfuse;
     private final String host;
     private final String projectId;
     private final Map<String, double[]> pricesCnyPerToken;
     private final SavedTraces saved;
+    private final Object listCache = new Object();
+    private List<JsonNode> cachedRoots = List.of();
+    private Instant cachedAt = Instant.EPOCH;
 
     @Autowired
     public TraceQueryService(LangfuseClient langfuse,
@@ -59,9 +66,11 @@ public class TraceQueryService {
     public Map<String, Object> list(int page, int size, String agent, String env, String status,
                                     Instant from, Instant to, boolean multiOnly, Integer minDurationMs) {
         try {
-            JsonNode body = from == null && to == null ? langfuse.observationsPage() : langfuse.observationsBetween(from, to);
+            var rows = rootObservations();
             var byTrace = new LinkedHashMap<String, List<JsonNode>>();
-            body.path("data").forEach(row -> byTrace.computeIfAbsent(row.path("traceId").asText(""), key -> new ArrayList<>()).add(row));
+            for (var row : rows) {
+                byTrace.computeIfAbsent(row.path("traceId").asText(""), key -> new ArrayList<>()).add(row);
+            }
             if (!byTrace.isEmpty()) {
                 var items = new ArrayList<Map<String, Object>>();
                 for (var entry : byTrace.entrySet()) {
@@ -83,10 +92,30 @@ public class TraceQueryService {
                 var matched = items.stream().filter(item -> matches(item, agent, env, status, from, to, multiOnly, minDurationMs)).toList();
                 return page(page, size, matched);
             }
+        } catch (LangfuseRateLimit limited) {
+            throw limited;
         } catch (RuntimeException ignored) {
-            // Langfuse 没配好或读失败时，改看本机探针写下的 trace。
+            // Langfuse 没配好或读失败时，改看本机探针写下的 trace。限流不走这条，否则会把直接上报的调用藏起来。
         }
         return saved.list(page, size, agent, env, status, from, to, multiOnly, minDurationMs);
+    }
+
+    /** One Langfuse read of the last 7 days, reused for 30 seconds. Narrower windows are filtered in memory. */
+    private List<JsonNode> rootObservations() {
+        var now = Instant.now();
+        synchronized (listCache) {
+            if (!cachedAt.equals(Instant.EPOCH) && cachedAt.plus(LIST_TTL).isAfter(now)) {
+                return cachedRoots;
+            }
+        }
+        var body = langfuse.observationsBetween(now.minus(LIST_WINDOW), now);
+        var loaded = new ArrayList<JsonNode>();
+        body.path("data").forEach(loaded::add);
+        synchronized (listCache) {
+            cachedRoots = List.copyOf(loaded);
+            cachedAt = now;
+            return cachedRoots;
+        }
     }
 
     private Map<String, Object> page(int page, int size, List<Map<String, Object>> matched) {
@@ -177,6 +206,8 @@ public class TraceQueryService {
     public Map<String, Object> detail(String traceId) {
         try {
             return remoteDetail(traceId);
+        } catch (LangfuseRateLimit limited) {
+            throw limited;
         } catch (RuntimeException e) {
             var local = saved.detail(traceId);
             if (local != null) {

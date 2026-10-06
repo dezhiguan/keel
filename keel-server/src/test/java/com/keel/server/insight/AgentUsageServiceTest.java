@@ -59,7 +59,7 @@ class AgentUsageServiceTest {
         });
         assertThat(all).anySatisfy(row -> {
             assertThat(row.name()).isEqualTo("echo");
-            assertThat(row.calls24h()).isEqualTo(2L);
+            assertThat(row.calls24h()).isEqualTo(1L);
             assertThat(row.costCny()).isEqualTo(0.4);
             assertThat(row.score()).isNull();
         });
@@ -79,7 +79,7 @@ class AgentUsageServiceTest {
         assertThat(paths).filteredOn(path -> path.startsWith("/api/public/v2/observations"))
                 .isNotEmpty()
                 .allMatch(path -> path.contains("fromStartTime=2026-10-04"))
-                .noneMatch(path -> path.contains("2020-01-01"));
+                .noneMatch(path -> path.contains("2020-01-01") || path.contains("cursor="));
         server.stop(0);
     }
 

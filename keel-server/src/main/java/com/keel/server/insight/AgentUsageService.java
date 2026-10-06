@@ -33,6 +33,7 @@ import java.util.concurrent.Future;
 @Service
 public class AgentUsageService {
     private static final Duration TTL = Duration.ofMinutes(3);
+    private static final Duration SCORE_TTL = Duration.ofMinutes(10);
     private static final Instant EPOCH = Instant.parse("2020-01-01T00:00:00Z");
     private final LangfuseClient langfuse;
     private final LiteLlmClient gateway;
@@ -46,6 +47,10 @@ public class AgentUsageService {
     private final Map<String, Instant> cachedAt = new HashMap<>();
     private final Set<String> refreshing = new HashSet<>();
     private final ConcurrentHashMap<String, CompletableFuture<Snapshot>> inflight = new ConcurrentHashMap<>();
+    private final Object scores = new Object();
+    private Map<String, Double> qualityCache = Map.of();
+    private Map<String, Double> experimentCache = Map.of();
+    private Instant scoresAt = Instant.EPOCH;
 
     @Autowired
     public AgentUsageService(LangfuseClient langfuse, LiteLlmClient gateway, QualityService quality,
@@ -160,8 +165,9 @@ public class AgentUsageService {
         var prevFrom = now.minus(Duration.ofHours(48));
         var rootsF = parallel.submit(() -> langfuse.roots(since, now));
         var keysF = parallel.submit(this::loadKeys);
-        var qualityF = parallel.submit(this::qualityScores);
-        var experimentF = parallel.submit(this::experimentScores);
+        var freshScores = scoresFresh(now);
+        var qualityF = freshScores ? null : parallel.submit(this::qualityScores);
+        var experimentF = freshScores ? null : parallel.submit(this::experimentScores);
         var recentF = parallel.submit(() -> localHits(since, env));
         var spanF = parallel.submit(() -> localHits(prevFrom, env));
         var allF = parallel.submit(() -> localHits(EPOCH, env));
@@ -248,15 +254,24 @@ public class AgentUsageService {
                 budgets.merge(agent, key.dailyBudgetCny(), Double::sum);
             }
         }
-        var scores = new HashMap<String, Double>();
-        join(qualityF).forEach((agent, score) -> {
+        var scoreRows = freshScores ? cachedQuality() : join(qualityF);
+        var experimentRows = freshScores ? cachedExperiments() : join(experimentF);
+        if (!freshScores) {
+            synchronized (scores) {
+                qualityCache = scoreRows;
+                experimentCache = experimentRows;
+                scoresAt = now;
+            }
+        }
+        var scoreMap = new HashMap<String, Double>();
+        scoreRows.forEach((agent, score) -> {
             if (score != null) {
-                scores.put(agent, score);
+                scoreMap.put(agent, score);
             }
         });
-        join(experimentF).forEach(scores::put);
+        experimentRows.forEach(scoreMap::put);
         return new Snapshot(callsKnown, calls, prevKnown, localCalls, previous, totalsKnown, totals, p95,
-                cost != null, cost == null ? Map.of() : cost, budgets, scores);
+                cost != null, cost == null ? Map.of() : cost, budgets, scoreMap);
     }
 
     private static Map<String, Long> countHits(List<SavedTraces.TraceHit> hits) {
@@ -283,6 +298,24 @@ public class AgentUsageService {
                 return null;
             }
             throw e;
+        }
+    }
+
+    private boolean scoresFresh(Instant now) {
+        synchronized (scores) {
+            return !scoresAt.equals(Instant.EPOCH) && scoresAt.plus(SCORE_TTL).isAfter(now);
+        }
+    }
+
+    private Map<String, Double> cachedQuality() {
+        synchronized (scores) {
+            return qualityCache;
+        }
+    }
+
+    private Map<String, Double> cachedExperiments() {
+        synchronized (scores) {
+            return experimentCache;
         }
     }
 

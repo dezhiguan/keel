@@ -212,12 +212,15 @@ public class LangfuseClient {
         return observationsBetween(null, null);
     }
 
-    /** Observations whose start time falls in {@code [from, to)}. Follows the cursor for a few pages. */
+    /**
+     * One page of root observations in {@code [from, to)}.
+     * The trace list uses this so 100 rows are 100 user calls, not 100 internal spans.
+     */
     public JsonNode observationsBetween(Instant from, Instant to) {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
         }
-        var path = "/api/public/v2/observations?limit=100&fields=core,basic,io,metadata";
+        var path = "/api/public/v2/observations?limit=100&fields=core,basic,io,metadata&isRootObservation=true";
         if (from != null) {
             path += "&fromStartTime=" + URLEncoder.encode(from.toString(), StandardCharsets.UTF_8);
         }
@@ -237,44 +240,29 @@ public class LangfuseClient {
     }
 
     /**
-     * Root observations in the window. Null when Langfuse cannot be read.
-     * {@code complete} is false when the scan stops at 2000 rows, so a total derived from it would be short.
+     * First page of root observations. Hobby allows 30 general reads a minute, so overview does not follow the cursor.
+     * {@code complete} is false when Langfuse still has another page.
      */
     public RootPage roots(Instant from, Instant to) {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             return null;
         }
         try {
+            var path = "/api/public/v2/observations?fields=core,time,metadata&isRootObservation=true&limit=100"
+                    + "&fromStartTime=" + URLEncoder.encode(from.toString(), StandardCharsets.UTF_8)
+                    + "&toStartTime=" + URLEncoder.encode(to.toString(), StandardCharsets.UTF_8);
+            var body = get(path);
+            var data = body.path("data");
             var rows = new ArrayList<RootCall>();
-            String cursor = null;
-            var complete = true;
-            for (int page = 0; page < 20; page++) {
-                var path = "/api/public/v2/observations?fields=core,time,metadata&isRootObservation=true&limit=100"
-                        + "&fromStartTime=" + URLEncoder.encode(from.toString(), StandardCharsets.UTF_8)
-                        + "&toStartTime=" + URLEncoder.encode(to.toString(), StandardCharsets.UTF_8);
-                if (cursor != null) {
-                    path += "&cursor=" + URLEncoder.encode(cursor, StandardCharsets.UTF_8);
-                }
-                var body = get(path);
-                var data = body.path("data");
-                if (!data.isArray() || data.isEmpty()) {
-                    break;
-                }
+            if (data.isArray()) {
                 data.forEach(row -> rows.add(new RootCall(
                         row.path("traceId").asText(""),
                         text(row.path("metadata"), "keel.agent"),
                         text(row.path("metadata"), "keel.llm.key_alias"),
                         seconds(row))));
-                var next = body.path("meta").path("cursor").asText("");
-                if (next.isBlank() || next.equals(cursor)) {
-                    break;
-                }
-                if (page == 19) {
-                    complete = false;
-                }
-                cursor = next;
             }
-            return new RootPage(rows, complete);
+            var more = !body.path("meta").path("cursor").asText("").isBlank();
+            return new RootPage(rows, !more);
         } catch (RuntimeException e) {
             return null;
         }
@@ -481,6 +469,9 @@ public class LangfuseClient {
             if (response.statusCode() == 409 && ignoreConflict) {
                 return json.createObjectNode();
             }
+            if (response.statusCode() == 429) {
+                throw new LangfuseRateLimit(retryAfter(response));
+            }
             if (response.statusCode() >= 300) {
                 throw new IllegalStateException("Langfuse " + path + " " + response.statusCode());
             }
@@ -488,10 +479,22 @@ public class LangfuseClient {
                 return json.createObjectNode();
             }
             return json.readTree(response.body());
+        } catch (LangfuseRateLimit e) {
+            throw e;
         } catch (IllegalStateException e) {
             throw e;
         } catch (Exception e) {
             throw new IllegalStateException(e);
+        }
+    }
+
+    private static int retryAfter(HttpResponse<String> response) {
+        var header = response.headers().firstValue("Retry-After").orElse("");
+        try {
+            var seconds = Integer.parseInt(header.trim());
+            return seconds > 0 ? seconds : 60;
+        } catch (NumberFormatException e) {
+            return 60;
         }
     }
 
