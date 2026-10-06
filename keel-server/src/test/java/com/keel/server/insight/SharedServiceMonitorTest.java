@@ -1,5 +1,6 @@
 package com.keel.server.insight;
 
+import com.keel.server.integration.langfuse.LangfuseClient;
 import com.keel.server.integration.litellm.LiteLlmClient;
 import com.keel.server.integration.prometheus.PrometheusExposition;
 import com.keel.server.integration.ragforge.RagForgeInsightClient;
@@ -111,6 +112,62 @@ class SharedServiceMonitorTest {
         @SuppressWarnings("unchecked")
         var kpi = (Map<String, Object>) rag.get("kpi");
         assertThat(kpi.get("modelCostCny")).isNull();
+        server.stop(0);
+    }
+
+    @Test void langfuseAndEvalSummaryFillMissingRetrievalFigures() throws Exception {
+        var start = java.time.Instant.now().minusSeconds(1);
+        var end = java.time.Instant.now();
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/actuator/keel", exchange -> write(exchange, 200, """
+                {"searches24h":0,"searchesPrev24h":0,"p50Ms":null,"p95Ms":null,"knowledgeBases":[
+                  {"kb":"fault-manual","owner":"电力运维组","documents":1,"updatedAt":"2026-10-01T00:00:00Z",
+                   "searches24h":0,"zeroHitRate":null,"recallAt5":null,"stale":false}]}
+                """));
+        server.createContext("/api/v1/eval/summary", exchange -> write(exchange, 200,
+                "{\"recallAt5\":0.91,\"zeroResultRate\":0.012,\"evaluatedAt\":\"2026-10-01T00:00:00Z\"}"));
+        server.createContext("/api/public/v2/observations", exchange -> write(exchange, 200, """
+                {"data":[
+                  {"type":"RETRIEVER","name":"rag.search","startTime":"%s","endTime":"%s","metadata":{"keel.agent":"askdb"}},
+                  {"type":"SPAN","name":"rerank","startTime":"%s","endTime":"%s","metadata":{"keel.agent":"askdb"}}
+                ],"meta":{}}
+                """.formatted(start, end, start, end)));
+        server.createContext("/actuator/prometheus", exchange -> write(exchange, 200, """
+                ragforge_retrieval_requests_total{status="429",caller_agent=""} 3
+                ragforge_retrieval_requests_total{status="ok"} 97
+                """));
+        server.createContext("/", exchange -> write(exchange, 404, ""));
+        server.start();
+        var base = "http://127.0.0.1:" + server.getAddress().getPort();
+        var monitor = new SharedServiceMonitor(
+                new RagForgeInsightClient(base, "metrics-reader", "secret"),
+                new LiteLlmClient("", ""),
+                env -> List.of(),
+                new LangfuseClient(base, "pk", "sk"));
+        var body = monitor.services("all");
+        @SuppressWarnings("unchecked")
+        var rag = (Map<String, Object>) body.get("ragforge");
+        @SuppressWarnings("unchecked")
+        var kpi = (Map<String, Object>) rag.get("kpi");
+        assertThat(kpi.get("searches24h")).isEqualTo(1L);
+        assertThat(kpi.get("p95Seconds")).isEqualTo(1.0);
+        assertThat(kpi.get("throttleRate")).isEqualTo(0.03);
+        @SuppressWarnings("unchecked")
+        var service = ((List<Map<String, Object>>) body.get("services")).get(0);
+        assertThat(service.get("errorRate")).isEqualTo("3.0%");
+        @SuppressWarnings("unchecked")
+        var callers = (List<Map<String, Object>>) rag.get("callers");
+        assertThat(callers).containsExactly(Map.of("agent", "askdb", "calls", 1));
+        @SuppressWarnings("unchecked")
+        var stages = (List<Map<String, Object>>) rag.get("stageLatency");
+        assertThat(stages).anySatisfy(stage -> {
+            assertThat(stage.get("stage")).isEqualTo("rerank");
+            assertThat(stage.get("basis")).isEqualTo("p50");
+        });
+        @SuppressWarnings("unchecked")
+        var bases = (List<Map<String, Object>>) rag.get("knowledgeBases");
+        assertThat(bases.get(0)).containsEntry("recallAt5", 0.91).containsEntry("zeroHitRate", 0.012);
+        assertThat(body.get("consoleUrl")).isEqualTo("https://ragforge.net");
         server.stop(0);
     }
 

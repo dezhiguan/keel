@@ -311,6 +311,71 @@ public class LangfuseClient {
         }
     }
 
+    /**
+     * Retriever observations and their stage children in the window. Null when Langfuse cannot be read.
+     */
+    public List<Retrieval> retrievals(Instant from, Instant to) {
+        if (baseUrl.isBlank() || authorization.isBlank()) {
+            return null;
+        }
+        try {
+            var rows = new ArrayList<Retrieval>();
+            String cursor = null;
+            for (int page = 0; page < 20; page++) {
+                var path = "/api/public/v2/observations?fields=core,basic,time,metadata&limit=100"
+                        + "&fromStartTime=" + URLEncoder.encode(from.toString(), StandardCharsets.UTF_8)
+                        + "&toStartTime=" + URLEncoder.encode(to.toString(), StandardCharsets.UTF_8);
+                if (cursor != null) {
+                    path += "&cursor=" + URLEncoder.encode(cursor, StandardCharsets.UTF_8);
+                }
+                var body = get(path);
+                var data = body.path("data");
+                if (!data.isArray() || data.isEmpty()) {
+                    break;
+                }
+                data.forEach(row -> {
+                    if (!retrieval(row)) {
+                        return;
+                    }
+                    rows.add(new Retrieval(
+                            row.path("name").asText(""),
+                            text(row.path("metadata"), "keel.agent"),
+                            stageOf(row),
+                            seconds(row)));
+                });
+                var next = body.path("meta").path("cursor").asText("");
+                if (next.isBlank() || next.equals(cursor)) {
+                    break;
+                }
+                cursor = next;
+            }
+            return rows;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static boolean retrieval(JsonNode row) {
+        if (!stageOf(row).isBlank()) {
+            return true;
+        }
+        var type = row.path("type").asText("");
+        if (type.equalsIgnoreCase("RETRIEVER")) {
+            return true;
+        }
+        return "retriever".equals(text(row.path("metadata"), "langfuse.observation.type"));
+    }
+
+    private static String stageOf(JsonNode row) {
+        var name = row.path("name").asText("").toLowerCase(Locale.ROOT);
+        for (String stage : List.of("rewrite", "vector", "keyword", "rerank")) {
+            if (name.equals(stage) || name.endsWith("." + stage) || name.endsWith("/" + stage)) {
+                return stage;
+            }
+        }
+        return "";
+    }
+
     private static boolean generation(JsonNode row) {
         var type = row.path("type").asText("");
         if (type.equalsIgnoreCase("GENERATION")) {
@@ -408,6 +473,8 @@ public class LangfuseClient {
     public record RootCall(String traceId, String agent, String keyAlias, Double latencySeconds) {}
 
     public record Generation(String model, String keyAlias, Double latencySeconds, boolean timedOut, String fallbackFrom) {}
+
+    public record Retrieval(String name, String agent, String stage, Double latencySeconds) {}
 
     public record RootPage(List<RootCall> rows, boolean complete) {}
 

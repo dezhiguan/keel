@@ -1,6 +1,7 @@
 package com.keel.server.insight;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.keel.server.integration.langfuse.LangfuseClient;
 import com.keel.server.integration.litellm.LiteLlmClient;
 import com.keel.server.integration.prometheus.PrometheusExposition;
 import com.keel.server.integration.ragforge.RagForgeInsightClient;
@@ -8,10 +9,14 @@ import com.keel.server.registry.service.AgentRegistryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -20,21 +25,29 @@ import java.util.function.Function;
 public class SharedServiceMonitor {
     private final RagForgeInsightClient ragforge;
     private final LiteLlmClient gateway;
+    private final LangfuseClient langfuse;
     private final Function<String, List<String>> namesInEnv;
 
     public SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway) {
-        this(ragforge, gateway, (Function<String, List<String>>) null);
+        this(ragforge, gateway, (Function<String, List<String>>) null, new LangfuseClient("", "", ""));
     }
 
     @Autowired
-    public SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway, AgentRegistryService registry) {
-        this(ragforge, gateway, registry == null ? null : registry::namesInEnv);
+    public SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway, AgentRegistryService registry,
+                                LangfuseClient langfuse) {
+        this(ragforge, gateway, registry == null ? null : registry::namesInEnv, langfuse);
     }
 
     SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway, Function<String, List<String>> namesInEnv) {
+        this(ragforge, gateway, namesInEnv, new LangfuseClient("", "", ""));
+    }
+
+    SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway, Function<String, List<String>> namesInEnv,
+                         LangfuseClient langfuse) {
         this.ragforge = ragforge;
         this.gateway = gateway;
         this.namesInEnv = namesInEnv;
+        this.langfuse = langfuse == null ? new LangfuseClient("", "", "") : langfuse;
     }
 
     public Map<String, Object> services() {
@@ -58,8 +71,9 @@ public class SharedServiceMonitor {
         service.put("role", "知识检索");
         service.put("instances", instances(scrape));
         Double p95Seconds = seconds(number(insight, "p95Ms"));
+        Double throttle = PrometheusExposition.throttleRate(samples);
         service.put("p95", p95Seconds == null ? null : trim(p95Seconds) + "s");
-        service.put("errorRate", null);
+        service.put("errorRate", throttle == null ? null : percent(throttle));
         service.put("status", status(up, scrape));
 
         var kpi = new LinkedHashMap<String, Object>();
@@ -69,27 +83,152 @@ public class SharedServiceMonitor {
         kpi.put("searchTrendPct", trend(searches, previous));
         kpi.put("p95Seconds", p95Seconds);
         kpi.put("p50Seconds", seconds(number(insight, "p50Ms")));
-        kpi.put("throttleRate", null);
+        kpi.put("throttleRate", throttle);
         var bases = insight == null ? List.<JsonNode>of() : children(insight.path("knowledgeBases"));
         kpi.put("kbCount", insight == null ? null : bases.size());
         kpi.put("staleKbCount", insight == null ? null : bases.stream().filter(row -> row.path("stale").asBoolean(false)).count());
-        kpi.put("modelCostCny", cost(insight, scope));
+        var gatewaySpent = gatewayCost(scope);
+        kpi.put("modelCostCny", gatewaySpent != null ? gatewaySpent : cost(insight, scope));
+        kpi.put("costSource", gatewaySpent != null ? "gateway" : "ragforge");
 
         var callers = PrometheusExposition.callers(samples);
         if (allowed != null) {
             var names = allowed;
             callers = callers.stream().filter(row -> names.contains(String.valueOf(row.get("agent")))).toList();
         }
+        callers = new ArrayList<>(callers);
+        var stages = new ArrayList<>(PrometheusExposition.stageMeans(samples));
+        var knowledge = new ArrayList<Map<String, Object>>();
+        bases.stream().map(SharedServiceMonitor::kb).forEach(knowledge::add);
+        fillRecall(knowledge);
+        fillFromLangfuse(kpi, service, stages, callers, allowed);
+        callers = sortCallers(callers);
+
         var rag = new LinkedHashMap<String, Object>();
         rag.put("kpi", kpi);
-        rag.put("stageLatency", PrometheusExposition.stageMeans(samples));
+        rag.put("stageLatency", stages);
         rag.put("callers", callers);
-        rag.put("knowledgeBases", bases.stream().map(SharedServiceMonitor::kb).toList());
+        rag.put("knowledgeBases", knowledge);
 
         var body = new LinkedHashMap<String, Object>();
         body.put("services", List.of(service));
         body.put("ragforge", rag);
+        body.put("consoleUrl", "https://ragforge.net");
         return body;
+    }
+
+    private void fillRecall(List<Map<String, Object>> knowledge) {
+        var available = true;
+        for (var row : knowledge) {
+            if (!available || row.get("recallAt5") != null) {
+                continue;
+            }
+            var summary = ragforge.evalSummary(String.valueOf(row.get("kb")));
+            if (summary == null) {
+                available = false;
+                continue;
+            }
+            var recall = number(summary, "recallAt5");
+            if (recall != null) {
+                row.put("recallAt5", recall);
+            }
+            if (row.get("zeroHitRate") == null) {
+                var zero = number(summary, "zeroResultRate");
+                if (zero != null) {
+                    row.put("zeroHitRate", zero);
+                }
+            }
+        }
+    }
+
+    private void fillFromLangfuse(Map<String, Object> kpi, Map<String, Object> service, List<Map<String, Object>> stages,
+                                  List<Map<String, Object>> callers, Set<String> allowed) {
+        var now = Instant.now();
+        var rows = langfuse.retrievals(now.minus(Duration.ofHours(24)), now);
+        if (rows == null || rows.isEmpty()) {
+            return;
+        }
+        var parents = new ArrayList<Double>();
+        var byStage = new LinkedHashMap<String, List<Double>>();
+        var byAgent = new LinkedHashMap<String, Integer>();
+        for (var row : rows) {
+            if (!row.stage().isBlank()) {
+                if (row.latencySeconds() != null) {
+                    byStage.computeIfAbsent(row.stage(), key -> new ArrayList<>()).add(row.latencySeconds());
+                }
+                continue;
+            }
+            if (row.latencySeconds() != null) {
+                parents.add(row.latencySeconds());
+            }
+            if (!row.agent().isBlank() && (allowed == null || allowed.contains(row.agent()))) {
+                byAgent.merge(row.agent(), 1, Integer::sum);
+            }
+        }
+        if (kpi.get("p95Seconds") == null && !parents.isEmpty()) {
+            var p95 = percentile(parents, 0.95);
+            var p50 = percentile(parents, 0.50);
+            kpi.put("p95Seconds", p95);
+            if (kpi.get("p50Seconds") == null) {
+                kpi.put("p50Seconds", p50);
+            }
+            service.put("p95", p95 == null ? null : trim(p95) + "s");
+        }
+        if (kpi.get("searches24h") instanceof Number count && count.longValue() == 0 && !parents.isEmpty()) {
+            kpi.put("searches24h", (long) parents.size());
+            kpi.put("searchTrendPct", null);
+        }
+        if (callers.isEmpty() && !byAgent.isEmpty()) {
+            callers.clear();
+            byAgent.forEach((agent, calls) -> callers.add(Map.of("agent", agent, "calls", calls)));
+        }
+        var present = new HashSet<String>();
+        stages.forEach(stage -> present.add(String.valueOf(stage.get("stage"))));
+        for (String stage : List.of("rewrite", "vector", "keyword", "rerank", "other")) {
+            if (present.contains(stage) || !byStage.containsKey(stage)) {
+                continue;
+            }
+            var p50 = percentile(byStage.get(stage), 0.50);
+            if (p50 == null) {
+                continue;
+            }
+            var row = new LinkedHashMap<String, Object>();
+            row.put("stage", stage);
+            row.put("p50Ms", (int) Math.round(p50 * 1000));
+            row.put("basis", "p50");
+            stages.add(row);
+        }
+        var order = List.of("rewrite", "vector", "keyword", "rerank", "other");
+        stages.sort(Comparator.comparingInt(row -> {
+            int index = order.indexOf(String.valueOf(row.get("stage")));
+            return index < 0 ? order.size() : index;
+        }));
+    }
+
+    private static List<Map<String, Object>> sortCallers(List<Map<String, Object>> callers) {
+        var sorted = new ArrayList<>(callers);
+        sorted.sort((left, right) -> Integer.compare(callsOf(right), callsOf(left)));
+        return sorted;
+    }
+
+    private static int callsOf(Map<String, Object> row) {
+        var value = row.get("calls");
+        return value instanceof Number number ? number.intValue() : 0;
+    }
+
+    private static Double percentile(List<Double> samples, double quantile) {
+        if (samples == null || samples.isEmpty()) {
+            return null;
+        }
+        var sorted = new ArrayList<>(samples);
+        sorted.sort(Double::compareTo);
+        var index = (int) Math.ceil(sorted.size() * quantile) - 1;
+        var value = sorted.get(Math.max(index, 0));
+        return Math.round(value * 1000d) / 1000d;
+    }
+
+    private static String percent(double rate) {
+        return String.format(Locale.US, "%.1f%%", rate * 100);
     }
 
     private Double cost(JsonNode insight, String env) {

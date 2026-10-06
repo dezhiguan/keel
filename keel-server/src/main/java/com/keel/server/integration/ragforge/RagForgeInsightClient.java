@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
+import java.net.URLEncoder;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -46,6 +47,14 @@ public class RagForgeInsightClient {
             return null;
         }
         return getJson(baseUrl + "/actuator/keel");
+    }
+
+    /** Retrieval-eval summary for one knowledge base. Null when rag-forge has no score for it. */
+    public JsonNode evalSummary(String kb) {
+        if (authorization.isBlank() || kb == null || kb.isBlank()) {
+            return null;
+        }
+        return getJson(baseUrl + "/api/v1/eval/summary?kb=" + URLEncoder.encode(kb, StandardCharsets.UTF_8));
     }
 
     public boolean up() {

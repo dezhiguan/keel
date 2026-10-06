@@ -100,6 +100,52 @@ public final class PrometheusExposition {
         return rows;
     }
 
+    /**
+     * Share of retrievals that were throttled or timed out. Null when the exposition has no status label,
+     * so a lifetime counter is not reported as a 24h error rate.
+     */
+    public static Double throttleRate(List<Sample> samples) {
+        double requests = 0;
+        double throttled = 0;
+        var labeled = false;
+        for (Sample sample : samples) {
+            if (!sample.name().equals("ragforge_retrieval_requests_total")
+                    && !sample.name().equals("ragforge_retrieval_errors_total")) {
+                continue;
+            }
+            if (sample.name().equals("ragforge_retrieval_requests_total")) {
+                requests += sample.value();
+            }
+            String code = statusOf(sample);
+            if (code == null) {
+                continue;
+            }
+            labeled = true;
+            if (throttled(code)) {
+                throttled += sample.value();
+            }
+        }
+        if (!labeled || requests <= 0) {
+            return null;
+        }
+        return throttled / requests;
+    }
+
+    private static String statusOf(Sample sample) {
+        for (String key : List.of("status", "outcome", "result", "code", "http_status")) {
+            String value = sample.labels().get(key);
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private static boolean throttled(String code) {
+        var text = code.toLowerCase(java.util.Locale.ROOT);
+        return text.equals("429") || text.contains("timeout") || text.contains("throttle") || text.contains("限流");
+    }
+
     private static Map<String, String> labels(String text) {
         var labels = new LinkedHashMap<String, String>();
         for (String part : text.split(",")) {
