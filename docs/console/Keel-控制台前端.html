@@ -121,6 +121,27 @@ select.inp{padding:5px 8px}
 .pager .pages button:disabled{opacity:.35;cursor:not-allowed}
 .pager .ell{padding:0 4px;font-family:var(--mono)}
 
+/* prompts */
+.pgrid{display:grid;grid-template-columns:300px 1fr;gap:14px;align-items:start}
+.vlist .vi{padding:9px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:12px;transition:.12s}
+.vlist .vi:hover{border-color:#3d5070}
+.vlist .vi.on{border-color:var(--acc);background:#1a2233}
+.vlist .vi b{color:var(--white);font-family:var(--mono);font-weight:600;margin-right:6px}
+.vlist .vi .m{color:var(--mute);font-size:11px;margin-top:3px;line-height:1.45}
+.pmsg{border:1px solid var(--line);border-radius:8px;margin-bottom:8px;overflow:hidden}
+.pmsg .r{font-size:11px;font-family:var(--mono);color:var(--mute);padding:4px 10px;background:var(--panel2);border-bottom:1px solid var(--line)}
+.pmsg pre{margin:0;padding:10px 12px;font-family:var(--mono);font-size:12px;line-height:1.65;color:#c9d4e3;white-space:pre-wrap}
+.pvar{color:var(--acc)}
+.diff div{font-family:var(--mono);font-size:12px;line-height:1.65;padding:0 10px;white-space:pre-wrap}
+.diff .add{background:rgba(52,195,143,.12);color:#9ee6c4}
+.diff .del{background:rgba(244,106,106,.12);color:#f3a5a5;text-decoration:line-through}
+.diff .same{color:#8fa0b8}
+.pbanner{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12.8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pbanner.bad{border-color:#5a2a2e;background:#1c1216}
+.pbanner.warn{border-color:#5a4a26;background:#1c1810}
+.pbanner.ok{border-color:#24483c;background:#0f1a16}
+.pedit textarea{width:100%;font-family:var(--mono);font-size:12px;line-height:1.6;min-height:110px;resize:vertical}
+
 /* agents grid */
 .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
 .agrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
@@ -335,6 +356,7 @@ input[type=range]{accent-color:var(--acc);width:100%}
       <a href="#/trace" data-r="trace"><i>≋</i>链路追踪</a>
       <a href="#/eval" data-r="eval"><i>✓</i>评测中心</a>
       <div class="grp">治理</div>
+      <a href="#/prompts" data-r="prompts"><i>✎</i>提示词</a>
       <a href="#/tools" data-r="tools"><i>⚙</i>工具</a>
       <a href="#/approvals" data-r="approvals"><i>⊜</i>审批中心<span class="cnt" id="apprCnt"></span></a>
       <a href="#/audit" data-r="audit"><i>▤</i>审计中心</a>
@@ -411,7 +433,7 @@ const S={
     {t:'12:22:19',a:'cs-bot',u:'访客 v_8812',act:'data.export',res:'对话记录导出',risk:'高',dec:'denied',tr:'tr_c20f5a11',payload:{range:'7d',reason:'未登录用户无导出权限'}},
     {t:'11:58:40',a:'code-review',u:'ci_bot',act:'tool.call',res:'git.pr.comment',risk:'中',dec:'allowed',tr:'tr_19ab7e02',payload:{pr:'order-service#142',findings:4}},
     {t:'11:20:05',a:'careermate',u:'u_2031',act:'tool.call',res:'resume.update',risk:'中',dec:'allowed',tr:'tr_77aa01d4',payload:{resume_id:88213,fields:['project_exp']}},
-    {t:'10:20:33',a:'offshore-wind',u:'amy',act:'config.change',res:'prompt v12 → v13',risk:'中',dec:'allowed',tr:'—',payload:{prompt:'answer',from:12,to:13}},
+    {t:'10:20:33',a:'offshore-wind',u:'amy',act:'config.change',res:'prompt:offshore-wind/answer staging v12 → v13',risk:'中',dec:'allowed',tr:'—',payload:{project:'staging',label:'staging',from:12,to:13,triggered:'keel gate · 实验 #218'}},
     {t:'09:05:12',a:'prd-agent',u:'amy',act:'agent.register',res:'prd-agent v0.3.0 · staging',risk:'低',dec:'allowed',tr:'—',payload:{selfcheck:'7/7'}}
   ],
   keysUsed:{}
@@ -484,7 +506,7 @@ function closeModal(){$('#modal').classList.remove('on');if(!$('#drawer').classL
 $('#mask').onclick=()=>{closeModal();closeDrawer()};
 
 /* ================= router ================= */
-const TITLES={overview:'总览',agents:'智能体',create:'新建智能体',services:'共享服务',trace:'链路追踪',eval:'评测中心',tools:'工具',approvals:'审批中心',audit:'审计中心',models:'模型网关'};
+const TITLES={overview:'总览',agents:'智能体',create:'新建智能体',services:'共享服务',trace:'链路追踪',eval:'评测中心',prompts:'提示词',tools:'工具',approvals:'审批中心',audit:'审计中心',models:'模型网关'};
 function render(){
   const r=(location.hash.replace(/^#\//,'')||'overview').split('/')[0];
   const route=TITLES[r]?r:'overview';
@@ -721,17 +743,17 @@ const N_M=[
   {id:'gw',ag:'platform',type:'SPAN',name:'gateway.auth',s:0,t:15,st:'ok',d:0,svc:'keel-gateway',in:'Bearer JWT（auth-gateway 签发，aud=keel-api）',out:'角色 ops_engineer 可调用 ops-copilot，配额剩余 91%，已换票为 aud=ops-copilot，路由到 v0.2.0'},
   {id:'gin',ag:'platform',type:'GUARDRAIL',name:'guard.input',s:15,t:30,st:'ok',d:0,svc:'keel-sdk（ops-copilot 入口）',in:'用户问题原文',out:'提示词注入检测未命中'},
   {id:'sup',ag:'sup',type:'AGENT',name:'ops-copilot',s:45,t:10625,st:'ok',d:0,svc:'ops-copilot',agg:true,tok:10578,cost:.0214,in:'WT-07 最近一周告警频繁，查同批次故障率，给检修建议，需要时建工单',out:'同批次 F203 故障率 18%，是全场平均的 3 倍；给出 4 条检修建议，已创建工单 WO-20260929-031',rel:'评测：ops-copilot v0.2.0 门禁 0.87 通过'},
-  {id:'plan',ag:'sup',type:'GENERATION',name:'plan',short:'规划',s:45,t:1405,st:'ok',d:1,crit:true,svc:'ops-copilot',model:'qwen-plus',tin:860,tout:142,cost:.0021,in:'用户问题 + manifest 中声明的可委派智能体（askdb、offshore-wind）',out:'拆成两个子任务并行执行：① askdb 查同批次故障率；② offshore-wind 给处理建议'},
+  {id:'plan',ag:'sup',type:'GENERATION',name:'plan',pr:'ops-copilot/plan',pv:5,short:'规划',s:45,t:1405,st:'ok',d:1,crit:true,svc:'ops-copilot',model:'qwen-plus',tin:860,tout:142,cost:.0021,in:'用户问题 + manifest 中声明的可委派智能体（askdb、offshore-wind）',out:'拆成两个子任务并行执行：① askdb 查同批次故障率；② offshore-wind 给处理建议'},
   {id:'askdb',ag:'askdb',type:'AGENT',name:'askdb',s:1480,t:3720,st:'ok',d:1,svc:'askdb（跨服务）',agg:true,tok:1850,cost:.0036,in:'查询与 WT-07 同批次（2021-B3）风机近 90 天 F203 故障率',out:'返回 12 行：同批次 F203 故障率 18%，全场平均 6%',rel:'评测：askdb v1.9.0 门禁 0.88 通过'},
   {id:'a1',ag:'askdb',type:'RETRIEVER',name:'schema_recall',short:'schema 召回',s:1500,t:400,st:'ok',d:2,svc:'askdb',in:'子任务文本',out:'命中表 turbines、alarms、work_orders'},
-  {id:'a2',ag:'askdb',type:'GENERATION',name:'sql.generate',short:'SQL 生成',s:1900,t:2000,st:'ok',d:2,svc:'askdb',model:'qwen-plus',tin:1640,tout:210,cost:.0036,in:'schema + 子任务',out:'SELECT batch, count(*) FILTER (WHERE code = \'F203\') …（原文在审计回放中查看）'},
+  {id:'a2',ag:'askdb',type:'GENERATION',name:'sql.generate',pr:'askdb/sql-generate',pv:6,short:'SQL 生成',s:1900,t:2000,st:'ok',d:2,svc:'askdb',model:'qwen-plus',tin:1640,tout:210,cost:.0036,in:'schema + 子任务',out:'SELECT batch, count(*) FILTER (WHERE code = \'F203\') …（原文在审计回放中查看）'},
   {id:'a3',ag:'askdb',type:'TOOL',name:'sql.execute',short:'SQL 执行',s:3900,t:700,st:'ok',d:2,svc:'askdb',in:'只读连接 dw_prod，风险中',out:'返回 12 行',rel:'审计事件 ae_…b7e2（SQL 原文需审批后查看）'},
   {id:'a4',ag:'askdb',type:'GUARDRAIL',name:'result.check',short:'结果校验',s:4600,t:600,st:'ok',d:2,svc:'askdb',in:'结果集',out:'行数、统计口径校验通过'},
   {id:'wind',ag:'wind',type:'AGENT',name:'offshore-wind',s:1480,t:4920,st:'fallback',d:1,crit:true,svc:'offshore-wind（跨服务）',agg:true,tok:3950,cost:.0105,in:'WT-07 变桨系统 F203 频发，给出处理建议',out:'4 条处理建议，引用故障处理手册 §4.7、安全规程 §5.1',rel:'评测：offshore-wind v0.7.1 门禁 0.86 通过'},
-  {id:'w1',ag:'wind',type:'GENERATION',name:'route',short:'路由',s:1500,t:700,st:'ok',d:2,crit:true,svc:'offshore-wind',model:'qwen-flash',tin:380,tout:30,cost:.0004,in:'子任务文本',out:'需要：故障处理手册 + 安全规程'},
+  {id:'w1',ag:'wind',type:'GENERATION',name:'route',pr:'offshore-wind/route',pv:3,short:'路由',s:1500,t:700,st:'ok',d:2,crit:true,svc:'offshore-wind',model:'qwen-flash',tin:380,tout:30,cost:.0004,in:'子任务文本',out:'需要：故障处理手册 + 安全规程'},
   {id:'w2',ag:'wind',type:'RETRIEVER',name:'rag.fault-manual',short:'检索手册',s:2200,t:700,st:'ok',d:2,crit:true,svc:'rag-forge',in:'F203 变桨',out:'top5，命中 §4.7 变桨系统故障（改写 90ms · 向量 220ms · 关键词 70ms · 重排 280ms）',rel:'rag-forge 知识库 fault-manual · recall@5 0.91'},
   {id:'w3',ag:'wind',type:'RETRIEVER',name:'rag.safety-procedures',short:'检索规程',s:2200,t:600,st:'ok',d:2,row:1,svc:'rag-forge',in:'登机检修',out:'top3，命中 §5.1 停机作业'},
-  {id:'w4',ag:'wind',type:'GENERATION',name:'answer',short:'生成回答',s:2950,t:3050,st:'fallback',d:2,crit:true,svc:'offshore-wind',model:'deepseek-v3（降级）',tin:2980,tout:560,cost:.0101,in:'子任务 + 检索到的 8 个片段',out:'qwen-plus 超时 5s，薄网关 按降级规则切到 deepseek-v3 后完成'},
+  {id:'w4',ag:'wind',type:'GENERATION',name:'answer',pr:'offshore-wind/answer',pv:7,short:'生成回答',s:2950,t:3050,st:'fallback',d:2,crit:true,svc:'offshore-wind',model:'deepseek-v3（降级）',tin:2980,tout:560,cost:.0101,in:'子任务 + 检索到的 8 个片段',out:'qwen-plus 超时 5s，薄网关 按降级规则切到 deepseek-v3 后完成'},
   {id:'w5',ag:'wind',type:'GUARDRAIL',name:'grounding',short:'接地校验',s:6000,t:400,st:'ok',d:2,crit:true,svc:'offshore-wind',in:'回答中的 6 条陈述',out:'6 条全部能在引用片段中找到依据'},
   {id:'syn',ag:'sup',type:'GENERATION',name:'synthesize',short:'汇总',s:6450,t:3350,st:'ok',d:1,crit:true,svc:'ops-copilot',model:'qwen-plus',tin:2310,tout:486,cost:.0048,in:'askdb 的统计结果 + offshore-wind 的处理建议',out:'结论：同批次故障率偏高 3 倍，建议整批排查；需要创建 P1 工单'},
   {id:'tool',ag:'sup',type:'TOOL',name:'work_order_create',short:'建工单',s:9800,t:600,st:'ok',d:1,crit:true,svc:'ops-copilot',in:'WT-07 · 变桨 F203 · P1 · 同批次排查',out:'工单 WO-20260929-031 已创建',rel:'审计事件 ae_…c31a · 审批记录 ap_…0912'},
@@ -764,7 +786,7 @@ const TRACES=[
   {id:'tr_19ab7e02',ag:'code-review',env:'prod',min:61,ms:12840,tok:9450,cost:.0187,st:'ok',q:'评审 order-service#142',user:'ci_bot'},
   {id:'tr_6e44d8c3',ag:'careermate',env:'prod',min:72,ms:30500,tok:1210,cost:.0012,st:'failed',err:'qwen-plus 超时 30s，降级模型 deepseek-v3 也超时，SSE 发出 event: error',q:'根据这份 JD 帮我写一封求职信',user:'u_1877'},
   {id:'tr_77aa01d4',ag:'careermate',env:'prod',min:79,ms:4210,tok:2950,cost:.0061,st:'ok',q:'把第二段项目经历改成 STAR 格式',user:'u_2031'},
-  {id:'tr_f5a0c9e2',ag:'offshore-wind',env:'staging',min:95,ms:6120,tok:4020,cost:.0097,st:'fallback',q:'变桨电机温度高报警怎么处理？',user:'u_88 张工'},
+  {id:'tr_f5a0c9e2',ag:'offshore-wind',env:'staging',min:95,ms:6120,tok:4020,cost:.0097,st:'fallback',prFb:true,q:'变桨电机温度高报警怎么处理？',user:'u_88 张工'},
   {id:'tr_2b8d1f63',ag:'prd-agent',env:'staging',min:130,ms:9870,tok:7340,cost:.0152,st:'ok',q:'把这段会议纪要整理成 PRD 草稿',user:'amy'},
   {id:'tr_9d3a6c04',ag:'cs-bot',env:'prod',min:144,ms:2310,tok:1420,cost:.0018,st:'ok',q:'订单显示已签收但我没收到',user:'u_5520'},
   {id:'tr_47e1b8a5',ag:'askdb',env:'prod',min:180,ms:4470,tok:1720,cost:.0034,st:'ok',q:'昨天新增注册用户数',user:'analyst@org_7'},
@@ -779,6 +801,7 @@ const TRF={agent:'',st:'all',range:'24h',multi:false};
 const trState=r=>r.blocked?'blocked':r.pend?'pending':r.st;
 const agoTxt=m=>m<60?m+' 分钟前':m<1440?Math.floor(m/60)+' 小时前':Math.floor(m/1440)+' 天前';
 const RETR_OF={askdb:['RETRIEVER','schema_recall','schema 召回','命中表 orders、returns、regions'],careermate:['RETRIEVER','rag.jd-kb','检索 JD 库','top5 岗位描述片段'],'cs-bot':['RETRIEVER','rag.cs-faq','检索 FAQ','top3 FAQ 条目'],'offshore-wind':['RETRIEVER','rag.fault-manual','检索手册','top5，命中故障处理手册相关章节'],'code-review':['TOOL','git.pr.diff','读 PR 变更','改动 6 个文件，+182 −40'],'prd-agent':['RETRIEVER','rag.dev-standards','检索规范','top4 PRD 模板与规范片段'],'dev-copilot':['TOOL','git.pr.diff','读代码','定位到 PageQuery.offset 计算'],'test-gen':['TOOL','git.pr.diff','读代码','—']};
+const PR_OF={'offshore-wind':'offshore-wind/answer',askdb:'askdb/sql-generate',careermate:'careermate/resume-rewrite','code-review':'code-review/review','prd-agent':'prd-agent/prd-draft'};
 const TOOL_OF={askdb:['sql.execute','中','只读连接 dw_prod','返回 3 行'],'code-review':['git.pr.comment','中','4 条评审意见','已发表到 PR'],'dev-copilot':['git.pr.create','高','order-service 分页越界修复，改动 3 个文件','等待审批'],'offshore-wind':['alarm_query','低','SCADA 告警查询','返回 18 条告警'],careermate:['resume.update','中','resume_id 88213 · project_exp','已更新']};
 
 /* 单智能体链路：按列表行生成节点，真实实现由 TraceQueryService 一次组装 nodes / edges */
@@ -804,7 +827,8 @@ function buildSingle(r){
     const [rt,rn,rs,ro]=RETR_OF[r.ag]||RETR_OF['prd-agent'];
     step({id:'r1',type:rt,name:rn,short:rs,svc:rt==='RETRIEVER'?'rag-forge':r.ag,in:'问题文本',out:ro},.14);
     const tool=!r.err&&TOOL_OF[r.ag],tin=Math.round(r.tok*.82),fb=r.st==='fallback';
-    step({id:'gen',type:'GENERATION',name:'answer',short:'生成回答',st:r.err?'failed':fb?'fallback':'ok',model:fb?'deepseek-v3（降级）':'qwen-plus',tin,tout:r.tok-tin,cost:r.cost,in:'问题 + 检索结果',out:r.err||(fb?'qwen-plus 超时 5s，薄网关按降级规则切到 deepseek-v3 后完成':'生成回答草稿')},r.err?.82:tool?.62:.74);
+    const prn=PR_OF[r.ag],prp=prn&&PROMPTS.find(x=>x.ag+'/'+x.name===prn);
+    step({id:'gen',type:'GENERATION',name:'answer',short:'生成回答',st:r.err?'failed':fb?'fallback':'ok',pr:prn,pv:prp?(r.env==='prod'?prp.prod?.v:prp.staging):null,pfb:!!r.prFb,model:fb?'deepseek-v3（降级）':'qwen-plus',tin,tout:r.tok-tin,cost:r.cost,in:'问题 + 检索结果',out:r.err||(fb?'qwen-plus 超时 5s，薄网关按降级规则切到 deepseek-v3 后完成':'生成回答草稿')},r.err?.82:tool?.62:.74);
     if(tool){
       const [tn,risk,ti,to]=tool,hi=risk==='高';
       step({id:'tool',type:'TOOL',name:tn,short:tn,in:ti+'，风险'+risk,out:r.pend&&hi?'已提交审批单，等待中':to,rel:'审计事件 ae_…'+r.id.slice(-4)+(hi?' · 审批记录 ap_…0915':'')},.12);
@@ -957,6 +981,7 @@ function showNode(id){
     '<div><span>模型</span><b>'+(n.model||'—')+'</b></div>'+
     '<div><span>tokens'+(n.agg?'（含子节点）':'')+'</span><b>'+(tk?tk.toLocaleString():'—')+'</b></div>'+
     '<div><span>成本'+(n.agg?'（含子节点）':'')+'</span><b>'+(n.cost?'¥'+n.cost.toFixed(4):'—')+'</b></div>'+
+    (n.pr?'<div class="full"><span>提示词</span><b>'+(n.pfb?'<span class="pill p-warn">本地兜底副本</span> '+n.pr+'（Langfuse 读取失败，链路上没有关联版本）':'<a href="#/prompts/'+n.pr+'" style="color:var(--soft)">'+n.pr+' v'+n.pv+' →</a>')+'</b></div>':'')+
     (n.model?'<div class="full"><span>模型网关</span><b>经薄网关 · 虚拟 Key '+LKEY[n.ag]+' · 花费计入该智能体的日预算</b></div>':'')+
     '<div class="full"><span>输入摘要</span><b>'+n.in+'</b></div>'+
     '<div class="full"><span>输出摘要</span><b>'+n.out+'</b></div>'+
@@ -981,6 +1006,139 @@ VIEWS.eval=v=>{
   </tbody></table></div>`;
   $('#evalSel').onchange=e=>{evalAgent=e.target.value;VIEWS.eval($('#view'))};
 };
+
+/* prompts：内容存 Langfuse staging / prod 两个项目，keel-server 代写；本库只记版本号、哈希和门禁结论 */
+const SYS_ANSWER='你是海上风电运维助手，回答检修问题。\n只依据下面的检索片段作答，每条建议标注出处。\n涉及登机、停机作业时，必须先提醒对应的安全规程条款。\n不确定时直接说"无法确认"，不要编造。';
+const PROMPTS=[
+  {ag:'offshore-wind',name:'answer',type:'chat',cfg:{temperature:.2,max_tokens:800},
+   vers:[
+    {v:11,by:'刘工',at:'09-08 15:20',msg:'补充引用格式要求',body:[['system','你是海上风电运维助手，回答检修问题。\n只依据下面的检索片段作答。\n涉及登机、停机作业时，必须先提醒对应的安全规程条款。'],['user','问题：{{question}}\n路由：{{route}}\n检索片段：\n{{docs}}']]},
+    {v:12,by:'刘工',at:'09-18 10:02',msg:'要求每条建议标注出处；不确定时明确说无法确认',body:[['system',SYS_ANSWER],['user','问题：{{question}}\n路由：{{route}}\n检索片段：\n{{docs}}']]},
+    {v:13,by:'amy',at:'09-29 10:20',msg:'精简安全提示，缩短回答',body:[['system','你是海上风电运维助手，回答检修问题。\n只依据下面的检索片段作答，每条建议标注出处。\n回答控制在 5 条以内。\n不确定时直接说"无法确认"，不要编造。'],['user','问题：{{question}}\n路由：{{route}}\n检索片段：\n{{docs}}']]}],
+   staging:13,gate:'failed',gateNote:'安全规程合规 −6pt（实验 #218）',prod:{v:7,from:12},prodVers:[{v:5,from:9,gate:'#171',at:'08-30'},{v:6,from:11,gate:'#197',at:'09-10'},{v:7,from:12,gate:'#209',at:'09-22'}]},
+  {ag:'offshore-wind',name:'route',type:'text',cfg:{temperature:0,max_tokens:60},
+   vers:[{v:3,by:'刘工',at:'09-02 09:11',msg:'初版迁入',body:'判断这个检修问题需要哪些资料，只输出资料名，用逗号分隔。\n可选：故障处理手册、安全规程、备件清单\n问题：{{question}}'},
+    {v:4,by:'刘工',at:'09-15 16:40',msg:'加入备件清单的判定条件',body:'判断这个检修问题需要哪些资料，只输出资料名，用逗号分隔。\n可选：故障处理手册、安全规程、备件清单\n涉及更换部件时才选备件清单。\n问题：{{question}}'}],
+   staging:4,gate:'passed',prod:{v:3,from:4},prodVers:[{v:2,from:3,gate:'#160',at:'09-03'},{v:3,from:4,gate:'#203',at:'09-16'}]},
+  {ag:'askdb',name:'sql-generate',type:'chat',cfg:{temperature:0,max_tokens:600},
+   vers:[{v:8,by:'陈工',at:'09-20 11:05',msg:'限定只读查询',body:[['system','根据表结构写一条 PostgreSQL 查询。只允许 SELECT。\n表结构：\n{{schema}}'],['user','{{question}}']]},
+    {v:9,by:'陈工',at:'今天 00:52',msg:'口径：退货率 = 退货单数 / 签收单数',body:[['system','根据表结构写一条 PostgreSQL 查询。只允许 SELECT。\n退货率 = 退货单数 / 签收单数，不要用下单数做分母。\n表结构：\n{{schema}}'],['user','{{question}}']]}],
+   staging:9,gate:'pending',prod:{v:6,from:8},prodVers:[{v:6,from:8,gate:'#205',at:'09-21'}]},
+  {ag:'askdb',name:'answer-explain',type:'text',cfg:{temperature:.3,max_tokens:300},
+   vers:[{v:2,by:'陈工',at:'09-12 14:30',msg:'用业务语言解释结果',body:'用一两句业务语言解释查询结果，给出数字，不要复述 SQL。\n问题：{{question}}\n结果：{{rows}}'}],
+   staging:2,gate:'passed',prod:{v:2,from:2},prodVers:[{v:2,from:2,gate:'#188',at:'09-12'}]},
+  {ag:'careermate',name:'resume-rewrite',type:'chat',cfg:{temperature:.5,max_tokens:1200},
+   vers:[{v:4,by:'王工',at:'09-05 10:00',msg:'STAR 格式',body:[['system','把用户的项目经历改写成 STAR 格式，保留原有数字，不要编造成果。'],['user','简历：{{resume}}\n目标岗位 JD：{{jd}}']]},
+    {v:5,by:'王工',at:'09-24 17:12',msg:'贴合 JD 关键词，限制每段 120 字',body:[['system','把用户的项目经历改写成 STAR 格式，保留原有数字，不要编造成果。\n优先使用 JD 里出现的关键词，每段不超过 120 字。'],['user','简历：{{resume}}\n目标岗位 JD：{{jd}}']]}],
+   staging:5,gate:'passed',prod:{v:4,from:4,released:5},drift:'今天 00:40 有人在 Langfuse 界面把 production 标签挪回了 prod v4，最近一次发布是 v5',prodVers:[{v:4,from:4,gate:'#150',at:'09-06'},{v:5,from:5,gate:'#211',at:'09-25'}]},
+  {ag:'code-review',name:'review',type:'chat',cfg:{temperature:.1,max_tokens:1500},
+   vers:[{v:6,by:'赵工',at:'09-19 09:30',msg:'按团队规范分级',body:[['system','你是代码评审助手。按 dev-standards 指出问题，分为 必须修改 / 建议 两级。\n规范：{{rules}}'],['user','{{diff}}']]},
+    {v:7,by:'赵工',at:'10-05 18:22',msg:'忽略纯格式改动',body:[['system','你是代码评审助手。按 dev-standards 指出问题，分为 必须修改 / 建议 两级。\n只有格式变化的行不要评论。\n规范：{{rules}}'],['user','{{diff}}']]}],
+   staging:7,gate:'passed',prod:{v:4,from:6},prodVers:[{v:4,from:6,gate:'#199',at:'09-20'}]},
+  {ag:'ops-copilot',name:'plan',type:'chat',cfg:{temperature:.2,max_tokens:400},
+   vers:[{v:5,by:'amy',at:'09-26 11:00',msg:'并行委派',body:[['system','把运维问题拆成子任务。可委派：askdb（查数）、offshore-wind（检修建议）。能并行的子任务并行。'],['user','{{question}}']]}],
+   staging:5,gate:'passed',prod:null,prodVers:[]},
+  {ag:'prd-agent',name:'prd-draft',type:'text',cfg:{temperature:.4,max_tokens:2000},
+   vers:[{v:2,by:'amy',at:'09-27 15:45',msg:'按公司 PRD 模板',body:'把会议纪要整理成 PRD 草稿，章节按模板：背景、目标、范围、需求列表、验收标准、不做什么。\n纪要：{{notes}}\n模板：{{template}}'}],
+   staging:2,gate:'passed',prod:null,prodVers:[]}
+];
+const PRF={agent:'',st:'all'};
+let prEnv='staging',prSel=null,prCmp='',prCur='';
+const prOf=(ag,name)=>PROMPTS.find(p=>p.ag===ag&&p.name===name);
+const prVer=(p,v)=>p.vers.find(x=>x.v===v);
+const prLines=b=>typeof b==='string'?b.split('\n'):b.flatMap(([r,c])=>['['+r+']',...c.split('\n')]);
+const prVars=b=>[...new Set((typeof b==='string'?b:b.map(m=>m[1]).join('\n')).match(/\{\{\s*(\w+)\s*\}\}/g)?.map(x=>x.replace(/[{}\s]/g,''))||[])];
+const prHi=t=>t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\{\{\s*(\w+)\s*\}\}/g,'<span class="pvar">{{$1}}</span>');
+const prSha=b=>'sha256:'+Math.abs([...JSON.stringify(b)].reduce((s,c)=>s*31+c.charCodeAt(0)|0,7)).toString(16).padStart(8,'0').slice(0,8);
+function prState(p){
+  if(p.drift)return['drift','漂移','p-bad'];
+  if(p.gate==='pending')return['pending','回归中','p-warn'];
+  if(p.gate==='failed')return['failed','回归未过','p-bad'];
+  if(!p.prod)return['unreleased','未发布','p-soft'];
+  if(p.prod.from!==p.staging)return['ready','待发布','p-acc'];
+  return['same','一致','p-ok'];
+}
+const gatePill=g=>({passed:'<span class="pill p-ok">回归通过</span>',pending:'<span class="pill p-warn">回归中</span>',failed:'<span class="pill p-bad">回归未过</span>'}[g]||'<span class="pill p-mute">未回归</span>');
+function prDiff(a,b){
+  const n=a.length,m=b.length,L=[...Array(n+1)].map(()=>Array(m+1).fill(0));
+  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)L[i][j]=a[i]===b[j]?L[i+1][j+1]+1:Math.max(L[i+1][j],L[i][j+1]);
+  const out=[];let i=0,j=0;
+  while(i<n&&j<m){if(a[i]===b[j]){out.push(['same',a[i]]);i++;j++}else if(L[i+1][j]>=L[i][j+1])out.push(['del',a[i++]]);else out.push(['add',b[j++]])}
+  while(i<n)out.push(['del',a[i++]]);while(j<m)out.push(['add',b[j++]]);
+  return out;
+}
+const prBody=b=>typeof b==='string'?`<div class="pmsg"><div class="r">text</div><pre>${prHi(b)}</pre></div>`:b.map(([r,c])=>`<div class="pmsg"><div class="r">${r}</div><pre>${prHi(c)}</pre></div>`).join('');
+
+VIEWS.prompts=v=>{
+  const seg=location.hash.replace(/^#\//,'').split('/');
+  if(seg[1]&&seg[2])promptDetail(v,decodeURIComponent(seg[1]),decodeURIComponent(seg[2]));else promptList(v);
+};
+function promptList(v){
+  PGR.pr=()=>VIEWS.prompts($('#view'));
+  const rows=PROMPTS.filter(p=>(!PRF.agent||p.ag===PRF.agent)&&(PRF.st==='all'||prState(p)[0]===PRF.st));
+  const chip=(val,n)=>`<button data-act="prF" data-v="${val}" class="${PRF.st===val?'on':''}">${n}</button>`;
+  v.innerHTML=`<div class="vh"><h2>提示词</h2><span class="sub">内容和版本存在 Langfuse；在这里改 staging，<code>keel release</code> 过门禁后同步到 prod</span><span class="sp"></span><button class="btn" data-act="ext" data-n="Langfuse staging 项目的 Prompts 页（仅平台管理员）">在 Langfuse 中打开 ↗</button></div>
+  <div class="toolbar">
+    <select class="inp" id="prAg"><option value="">全部智能体</option>${[...new Set(PROMPTS.map(p=>p.ag))].map(a=>`<option ${PRF.agent===a?'selected':''}>${a}</option>`).join('')}</select>
+    <div class="chipsel">${chip('all','全部')}${chip('ready','待发布')}${chip('pending','回归中')}${chip('failed','回归未过')}${chip('drift','漂移')}${chip('same','一致')}${chip('unreleased','未发布')}</div>
+  </div>
+  <div class="card"><h3>提示词<small>一行一个提示词，Langfuse 里的名字是 智能体/名称</small></h3>
+  <table class="t"><thead><tr><th>提示词</th><th>类型</th><th>staging 当前</th><th>prod 当前</th><th>最近修改</th><th>状态</th></tr></thead><tbody>
+  ${pageOf('pr',rows).map(p=>{const s=prState(p),cur=prVer(p,p.staging),last=p.vers[p.vers.length-1];return `<tr class="click" data-act="prOpen" data-ag="${p.ag}" data-n="${p.name}">
+    <td class="nm"><b class="mono">${p.ag}/${p.name}</b><small>${cur.msg}</small></td>
+    <td><span class="pill nd p-soft">${p.type}</span></td>
+    <td class="mono">v${p.staging} ${gatePill(p.gate)}</td>
+    <td class="mono">${p.prod?`v${p.prod.v} <span class="mut">← staging v${p.prod.from}</span>`:'<span class="mut">—</span>'}</td>
+    <td>${last.by} · <span class="mono mut">${last.at}</span></td>
+    <td><span class="pill ${s[2]}">${s[1]}</span>${p.drift?'<div class="mut" style="font-size:11px">production 标签被手动改过</div>':''}</td></tr>`}).join('')||'<tr><td colspan="6" class="empty">没有符合条件的提示词</td></tr>'}
+  </tbody></table>${pager('pr',rows.length)}
+  <div class="srcnote">只列 manifest <code>prompts.items</code> 里声明过的提示词。cs-bot 是 Dify 应用，提示词在 Dify 里管，这里不显示。版本号在 staging、prod 两个 Langfuse 项目里各自递增，"← staging v12"表示 prod 这一版是从 staging v12 复制过去的（按内容哈希对应）。</div></div>`;
+  $('#prAg').onchange=e=>{PRF.agent=e.target.value;resetPage('pr');promptList(v)};
+}
+function promptDetail(v,ag,name){
+  const p=prOf(ag,name);
+  $('#crumb').innerHTML='Keel 控制台 / <a href="#/prompts" style="color:inherit">提示词</a> / <b class="mono">'+ag+'/'+name+'</b>';
+  const head=`<div class="vh"><button class="btn sm" data-act="prBack">← 提示词列表</button><h2 class="mono">${ag}/${name}</h2>${p?`<span class="pill nd p-soft">${p.type}</span>`:''}<span class="sp"></span>${p?`<button class="btn" data-act="ext" data-n="Langfuse 提示词 ${ag}/${name} 的 Metrics 页">按版本看指标 ↗</button>`:''}</div>`;
+  if(!p){v.innerHTML=head+'<div class="card empty">这个提示词没有在智能体的 manifest 里声明</div>';return}
+  const key=ag+'/'+name;if(prCur!==key){prCur=key;prEnv='staging';prSel=null;prCmp=''}
+  const isProd=prEnv==='prod';
+  const list=isProd?[...p.prodVers].reverse().map(x=>({v:x.v,from:x.from,gate:x.gate,at:x.at,body:prVer(p,x.from)?.body,msg:'from staging v'+x.from+' · gate '+x.gate,by:'keel release'})):[...p.vers].reverse();
+  const curV=isProd?p.prod?.v:p.staging;
+  if(prSel==null||!list.find(x=>x.v===prSel))prSel=curV??list[0]?.v;
+  const sel=list.find(x=>x.v===prSel),cmp=prCmp?list.find(x=>x.v===+prCmp):null;
+  const s=prState(p);
+  let banner='';
+  if(!isProd){
+    banner=p.gate==='failed'?`<div class="pbanner bad"><span class="pill p-bad">回归未过</span><span>staging v${p.staging}：${p.gateNote}。<code>keel release</code> 会被拒绝（PROMPT_NOT_GATED），prod 继续用 v${p.prod.v}。改好后保存新版本并在 staging 生效，会重新回归。</span></div>`
+     :p.gate==='pending'?`<div class="pbanner warn"><span class="pill p-warn">回归中</span><span>staging v${p.staging} 已生效，回归实验正在跑。实验里只要有一条模型调用用的不是 v${p.staging}，这次实验作废并在 1 分钟后重跑。</span></div>`
+     :!p.prod?`<div class="pbanner"><span class="pill p-soft">未发布</span><span>${ag} 还没有发布到 prod。第一次 <code>keel release</code> 会把 staging v${p.staging} 复制到 prod 项目。</span></div>`
+     :p.prod.from!==p.staging?`<div class="pbanner ok"><span class="pill p-acc">待发布</span><span>staging v${p.staging} 回归已通过。下一次 <code>keel release</code> 会把它复制到 prod 项目并打 production 标签。</span></div>`
+     :`<div class="pbanner ok"><span class="pill p-ok">一致</span><span>prod v${p.prod.v} 就是 staging v${p.staging} 的内容。</span></div>`;
+  }else{
+    banner=!p.prod?`<div class="pbanner"><span class="pill p-soft">未发布</span><span>prod 项目里还没有这个提示词。</span></div>`
+     :p.drift?`<div class="pbanner bad"><span class="pill p-bad">漂移</span><span>${p.drift}。Keel 不会自动改回，已告警并写审计。</span><span class="sp"></span><button class="btn sm" data-act="prRollback" data-v="${p.prod.released}">回到发布版本 v${p.prod.released}</button></div>`
+     :`<div class="pbanner"><span>prod 只读。只能通过 <code>keel release</code> 从 staging 同步，或回滚到发布过的版本。线上调用读 <code>production</code> 标签，缓存 60 秒。</span></div>`;
+  }
+  const others=list.filter(x=>x.v!==prSel);
+  const content=cmp&&sel?`<div class="diff">${prDiff(prLines(cmp.body),prLines(sel.body)).map(([op,t])=>`<div class="${op}">${op==='add'?'+ ':op==='del'?'− ':'  '}${t.replace(/</g,'&lt;')||' '}</div>`).join('')}</div>`:sel?prBody(sel.body):'<div class="empty">没有版本</div>';
+  const vars=sel?prVars(sel.body):[];
+  v.innerHTML=head+banner+`
+  <div class="card"><h3><div class="vtabs" id="prTabs">${[['staging','staging（可编辑）'],['prod','prod（只读）']].map(([k,n])=>`<button data-t="${k}" class="${prEnv===k?'on':''}">${n}</button>`).join('')}</div><span class="sp"></span>
+    ${isProd?'':`<button class="btn pri sm" data-act="prEdit">编辑并保存新版本</button>`}</h3>
+  <div class="pgrid"><div class="vlist">${list.map(x=>`<div class="vi ${x.v===prSel?'on':''}" data-act="prPick" data-v="${x.v}"><b>v${x.v}</b>${x.v===curV?`<span class="pill nd ${isProd?'p-ok':'p-acc'}">${isProd?'production':'staging'}</span>`:''}${!isProd&&x.v===p.vers[p.vers.length-1].v?' <span class="pill nd p-mute">latest</span>':''}<div class="m">${x.msg}<br>${x.by} · ${x.at}</div></div>`).join('')||'<div class="mut">还没有版本</div>'}</div>
+  <div>${sel?`<div class="toolbar" style="margin-bottom:10px"><b class="mono" style="color:var(--white)">v${sel.v}</b><span class="mut mono" style="font-size:11.5px">${prSha(sel.body)}</span>
+      <select class="inp" id="prCmp"><option value="">不对比</option>${others.map(x=>`<option value="${x.v}" ${+prCmp===x.v?'selected':''}>对比 v${x.v} → v${sel.v}</option>`).join('')}</select><span class="sp"></span>
+      ${!isProd&&sel.v!==p.staging?`<button class="btn sm" data-act="prPromote" data-v="${sel.v}">在 staging 生效</button>`:''}
+      ${isProd&&p.prod&&sel.v!==p.prod.v?`<button class="btn sm danger" data-act="prRollback" data-v="${sel.v}">回滚到此版本</button>`:''}</div>`:''}
+    ${content}
+    <div class="kv" style="margin-top:12px"><span>变量</span><b>${vars.map(x=>`<span class="chip mono">{{${x}}}</span>`).join(' ')||'—'}</b><span>config</span><b class="mono">${Object.entries(p.cfg).map(([k,x])=>k+'='+x).join(' · ')}</b><span>代码里怎么用</span><b class="mono" style="font-size:11.5px">p = await ctx.prompt("${name}")<br>await ctx.llm.chat(messages=p.compile(${vars.map(x=>x+'=…').join(', ')}), prompt=p)</b></div>
+  </div></div>
+  <div class="srcnote">config 只认 temperature、max_tokens、top_p，模型由 manifest 决定。保存、在 staging 生效、发布同步、回滚都会写 <code>config.change</code> 审计，审计里只有版本号、内容哈希和改动行数，不含提示词原文。</div></div>`;
+  $('#prTabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{prEnv=b.dataset.t;prSel=null;prCmp='';promptDetail(v,ag,name)});
+  const c=$('#prCmp');if(c)c.onchange=e=>{prCmp=e.target.value;promptDetail(v,ag,name)};
+}
+const prRerender=()=>VIEWS.prompts($('#view'));
+const prCurP=()=>{const [ag,name]=prCur.split('/');return prOf(ag,name)};
 
 /* tools */
 VIEWS.tools=v=>{
@@ -1068,6 +1226,36 @@ const ACT={
   trOpen:d=>go('trace/'+d.id),
   trBack:()=>go('trace'),
   trF:d=>{TRF[d.k]=d.k==='multi'?d.v==='true':d.v;resetPage('tr');VIEWS.trace($('#view'))},
+  /* prompts */
+  prF:d=>{PRF.st=d.v;resetPage('pr');prRerender()},
+  prOpen:d=>go('prompts/'+d.ag+'/'+d.n),
+  prBack:()=>go('prompts'),
+  prPick:d=>{prSel=+d.v;prCmp='';prRerender()},
+  prEdit:()=>{const p=prCurP(),cur=prVer(p,prSel)||prVer(p,p.staging);const msgs=typeof cur.body==='string'?[['text',cur.body]]:cur.body;
+    openModal(`编辑 <span class="mono">${p.ag}/${p.name}</span> · 基于 v${cur.v}`,`<div class="pedit">${msgs.map(([r,c],i)=>`<div class="field"><label class="mono">${r}</label><textarea class="inp" data-role="${r}" id="pe${i}">${c.replace(/</g,'&lt;')}</textarea></div>`).join('')}
+      <div class="field"><label>提交说明（必填）</label><input class="inp" id="peMsg" style="width:100%" placeholder="改了什么、为什么改"></div>
+      <p class="mut" style="font-size:12px">保存后在 staging 项目新建一个版本，<b>不会立即生效</b>。在版本上点"在 staging 生效"才会切换，并自动跑回归。变量用 <code>{{name}}</code>。</p></div>`,
+      `<button class="btn" data-act="closeModal">取消</button><button class="btn pri" data-act="prSave" data-base="${cur.v}">保存为新版本</button>`)},
+  prSave:d=>{const p=prCurP(),base=prVer(p,+d.base);const msg=$('#peMsg').value.trim();
+    if(!msg){$('#peMsg').classList.add('err');toast('请填写提交说明','bad');return}
+    const tas=[...document.querySelectorAll('.pedit textarea')];
+    const body=typeof base.body==='string'?tas[0].value:tas.map(t=>[t.dataset.role,t.value]);
+    if(JSON.stringify(body)===JSON.stringify(base.body)){toast('内容没有变化','info');return}
+    const nv=Math.max(...p.vers.map(x=>x.v))+1,dl=prDiff(prLines(base.body),prLines(body)).filter(x=>x[0]!=='same');
+    p.vers.push({v:nv,by:'amy',at:'刚刚',msg,body});prSel=nv;prCmp=String(base.v);
+    addAudit({a:p.ag,u:'amy',act:'config.change',res:`prompt:${p.ag}/${p.name} 新建 staging v${nv}`,risk:'低',dec:'allowed',payload:{project:'staging',version:nv,sha256:prSha(body),diff_lines:`+${dl.filter(x=>x[0]==='add').length} / -${dl.filter(x=>x[0]==='del').length}`}});
+    closeModal();prRerender();toast(`已保存为 staging <b>v${nv}</b>，还没有生效`)},
+  prPromote:d=>{const p=prCurP(),nv=+d.v,from=p.staging;p.staging=nv;p.gate='pending';p.gateNote='';
+    addAudit({a:p.ag,u:'amy',act:'config.change',res:`prompt:${p.ag}/${p.name} staging v${from} → v${nv}`,risk:'中',dec:'allowed',payload:{project:'staging',label:'staging',from,to:nv,triggered:'keel gate'}});
+    prRerender();toast(`staging 标签已挪到 <b>v${nv}</b>，60 秒内生效；已触发回归实验`,'info');
+    setTimeout(()=>{if(p.staging!==nv)return;p.gate='passed';if(location.hash.startsWith('#/prompts'))prRerender();toast(`<b>${p.ag}/${p.name}</b> v${nv} 回归通过，下一次 keel release 会同步到 prod`)},2600)},
+  prRollback:d=>{const p=prCurP(),pv=p.prodVers.find(x=>x.v===+d.v);
+    openModal(`回滚 prod · <span class="mono">${p.ag}/${p.name}</span>`,`<p>把 prod 项目的 <code>production</code> 标签从 <b>v${p.prod.v}</b> 挪到 <b>v${pv.v}</b>（当初从 staging v${pv.from} 发布，门禁 ${pv.gate}）。</p><p class="mut" style="margin-top:6px">只能回滚到发布过的版本，不重跑门禁。线上 60 秒内生效，写发布记录和审计。</p><div class="field"><label>原因</label><input class="inp" id="rbWhy" style="width:100%" placeholder="如：v7 上线后点踩率升高"></div>`,
+      `<button class="btn" data-act="closeModal">取消</button><button class="btn danger" data-act="prRollbackGo" data-v="${pv.v}">确认回滚</button>`)},
+  prRollbackGo:d=>{const p=prCurP(),pv=p.prodVers.find(x=>x.v===+d.v),from=p.prod.v;
+    p.prod.v=pv.v;p.prod.from=pv.from;if(p.drift&&pv.v===p.prod.released)p.drift=null;p.prod.released=pv.v;prSel=pv.v;
+    addAudit({a:p.ag,u:'amy',act:'config.change',res:`prompt:${p.ag}/${p.name} prod v${from} → v${pv.v}（回滚）`,risk:'中',dec:'allowed',payload:{project:'prod',label:'production',from,to:pv.v,reason:$('#rbWhy').value||'未填写'}});
+    closeModal();prRerender();toast(`prod 已回滚到 <b>v${pv.v}</b>`,'warn')},
   ext:d=>toast(`原型中不跳转：实际会带上下文深链到 <b>${d.n}</b>`,'info'),
   release:d=>{const a=agentOf(d.id);openModal('发布到 prod',`<p>将 <b class="mono">${a.id} ${a.ver}</b> 发布到 prod。依次执行：</p><ul class="checks" id="relChecks">${['keel gate：跑实验并逐维度对比','提示词打 production 标签','更新路由与 agent_version','写审计 release'].map(n=>`<li><span class="ic"></span>${n}</li>`).join('')}</ul>`,`<button class="btn" data-act="closeModal">取消</button><button class="btn pri" id="relGo" data-act="releaseGo" data-id="${a.id}">开始发布</button>`)},
   releaseGo:d=>{const a=agentOf(d.id);$('#relGo').disabled=true;runChecks('#relChecks',()=>{a.env='prod';a.st='ONLINE';addAudit({a:a.id,u:'amy',act:'release',res:a.ver+' → prod',risk:'中',dec:'allowed'});closeModal();openAgent(a.id);toast(`<b>${a.id}</b> 已发布到 prod`);render()})},

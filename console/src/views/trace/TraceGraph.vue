@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import type { TraceDetail, TraceNode } from '@/api/traces'
 import { fmtCny, fmtMs } from '@/utils/format'
-import { NODE_STATUS_COLOR, agentMap, childrenOf, nodeMap } from './traceView'
+import { NODE_STATUS_COLOR, agentMap, childrenOf, graphEdges, isGraphLandmark, nodeMap } from './traceView'
 
 const props = defineProps<{ detail: TraceDetail; selected: string | null }>()
 const emit = defineEmits<{ select: [id: string] }>()
@@ -21,17 +21,16 @@ const agents = computed(() => agentMap(props.detail))
 const byId = computed(() => nodeMap(props.detail))
 
 const edges = computed(() => {
-  const list = props.detail.edges ?? []
+  const list = graphEdges(props.detail)
   if (list.length) return list
-  // No edges (e.g. a request blocked at the gate): chain the top-level steps in start order.
-  const steps = (props.detail.nodes ?? []).filter((n) => !n.aggregated && (n.depth ?? 0) <= 1)
+  const steps = (props.detail.nodes ?? []).filter((n) => isGraphLandmark(n))
   return steps.slice(1).map((n, i) => ({ from: steps[i].id!, to: n.id!, label: null, atMs: n.startMs, parallel: false }))
 })
 
 const graphIds = computed(() => {
   const ids = new Set<string>()
   edges.value.forEach((e) => ids.add(e.from!).add(e.to!))
-  if (!ids.size) (props.detail.nodes ?? []).slice(0, 1).forEach((n) => ids.add(n.id!))
+  if (!ids.size) (props.detail.nodes ?? []).filter((n) => isGraphLandmark(n)).forEach((n) => ids.add(n.id!))
   return [...ids].filter((id) => byId.value[id])
 })
 

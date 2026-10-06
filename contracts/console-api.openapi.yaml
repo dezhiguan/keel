@@ -375,7 +375,12 @@ paths:
           schema: { type: string }
         - name: status
           in: query
-          schema: { $ref: "#/components/schemas/NodeStatus" }
+          description: ok / fallback / failed 按三档状态筛；blocked、pending 按拦截和未结束的挂起筛
+          schema: { $ref: "#/components/schemas/TraceListStatus" }
+        - name: multi
+          in: query
+          description: 为 true 时只返回参与智能体多于一个的 trace
+          schema: { type: boolean }
         - name: minDurationMs
           in: query
           schema: { type: integer }
@@ -402,6 +407,9 @@ paths:
                           - $ref: "#/components/schemas/PageMeta"
                           - type: object
                             properties:
+                              langfuseUrl:
+                                type: string
+                                description: Langfuse 项目的 Traces 页。项目未配置时省略
                               items:
                                 type: array
                                 items: { $ref: "#/components/schemas/TraceSummary" }
@@ -1175,6 +1183,11 @@ components:
       description: 三档口径，来自 askdb trace.py。degraded 归入 fallback，不单列。
       enum: [ok, fallback, failed]
 
+    TraceListStatus:
+      type: string
+      description: 列表筛选项。blocked 与 pending 不是 keel.status 的第四档，由护栏拦截和未结束的挂起推导。
+      enum: [ok, fallback, failed, blocked, pending]
+
     ObservationType:
       type: string
       description: 与 langfuse.observation.type 一致
@@ -1556,6 +1569,9 @@ components:
         status: { $ref: "#/components/schemas/NodeStatus" }
         blocked: { type: boolean, description: 被护栏或准入拦截 }
         cached: { type: boolean }
+        pendingReason: { type: string, nullable: true, description: 仍在挂起时的原因。空表示当前没有等人 }
+        runId: { type: string, nullable: true }
+        suspendCount: { type: integer, nullable: true, description: 这次调用挂起过的次数。没有挂起则省略 }
 
     TraceDetail:
       type: object

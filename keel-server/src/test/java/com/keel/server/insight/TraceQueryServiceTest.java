@@ -114,6 +114,46 @@ class TraceQueryServiceTest {
         assertThat(service.list(1, 10).get("total")).isEqualTo(1);
     }
 
+    @Test void listFiltersUseRealObservationFields() throws Exception {
+        var server = server(new ArrayList<>(), """
+                {"data":[
+                  {"id":"ok1","traceId":"tr-ok","name":"askdb","type":"AGENT","startTime":"2026-10-07T01:00:00.000Z","endTime":"2026-10-07T01:00:01.000Z","input":{"text":"华东退货率"},"metadata":{"keel.agent":"askdb","keel.env":"prod","keel.status":"ok","langfuse.observation.type":"agent","langfuse.user.id":"u_7"}},
+                  {"id":"gen","traceId":"tr-ok","parentObservationId":"ok1","name":"answer","type":"GENERATION","startTime":"2026-10-07T01:00:00.100Z","endTime":"2026-10-07T01:00:00.900Z","metadata":{"keel.agent":"askdb","langfuse.observation.type":"generation","gen_ai.request.model":"qwen-plus","gen_ai.usage.input_tokens":"100","gen_ai.usage.output_tokens":"20","keel.llm.key_alias":"askdb-prod"}},
+                  {"id":"block","traceId":"tr-block","name":"guard.input","startTime":"2026-10-07T01:10:00.000Z","endTime":"2026-10-07T01:10:00.200Z","metadata":{"keel.agent":"askdb","keel.env":"prod","keel.status":"failed","langfuse.observation.type":"guardrail"}},
+                  {"id":"old","traceId":"tr-old","name":"askdb","startTime":"2026-10-01T01:00:00.000Z","endTime":"2026-10-01T01:00:01.000Z","metadata":{"keel.agent":"askdb","keel.env":"prod","keel.status":"ok","langfuse.observation.type":"agent"}}
+                ]}
+                """);
+        var service = new TraceQueryService(client(server), "https://jp.cloud.langfuse.com", "proj-1", Map.of("qwen-plus", new double[] {0.001, 0.002}));
+        @SuppressWarnings("unchecked")
+        var blocked = (List<Map<String, Object>>) service.list(1, 10, "", "prod", "blocked", null, null, false, null).get("items");
+        assertThat(blocked).extracting(item -> item.get("traceId")).containsExactly("tr-block");
+        @SuppressWarnings("unchecked")
+        var ok = (List<Map<String, Object>>) service.list(1, 10, "askdb", "prod", "ok",
+                java.time.Instant.parse("2026-10-06T00:00:00Z"), java.time.Instant.parse("2026-10-08T00:00:00Z"), false, null).get("items");
+        assertThat(ok).extracting(item -> item.get("traceId")).containsExactly("tr-ok");
+        assertThat(ok.getFirst().get("question")).isEqualTo("华东退货率");
+        assertThat(ok.getFirst().get("userId")).isEqualTo("u_7");
+        assertThat(ok.getFirst().get("tokens")).isEqualTo(120);
+        assertThat(ok.getFirst().get("costCny")).isEqualTo(100 * 0.001 + 20 * 0.002);
+        assertThat(ok.getFirst().get("durationMs")).isEqualTo(1000);
+        var detail = service.detail("tr-ok");
+        @SuppressWarnings("unchecked")
+        var summary = (Map<String, Object>) detail.get("summary");
+        @SuppressWarnings("unchecked")
+        var breakdown = (List<Map<String, Object>>) detail.get("latencyBreakdown");
+        assertThat(breakdown.stream().mapToInt(item -> (Integer) item.get("ms")).sum()).isEqualTo(summary.get("durationMs"));
+        @SuppressWarnings("unchecked")
+        var nodes = (List<Map<String, Object>>) detail.get("nodes");
+        assertThat(nodes).anySatisfy(node -> {
+            if ("answer".equals(node.get("name"))) {
+                assertThat(node.get("model")).isEqualTo("qwen-plus");
+                assertThat(node.get("tokens")).isEqualTo(120);
+                assertThat(node.get("llmKeyAlias")).isEqualTo("askdb-prod");
+            }
+        });
+        server.stop(0);
+    }
+
     @Test void listKeepsOnlyTheSelectedEnvironment() throws Exception {
         var server = server(new ArrayList<>(), """
                 {"data":[

@@ -332,7 +332,7 @@ footer{margin-top:60px;padding-top:16px;border-top:1px solid var(--line);font-si
 │   ├── AuthClientProvisioner  <span class="c"># 生成 RSA 密钥对；调 auth-gateway 新增的客户端注册 API（aud、scopes、token-exchange 授权）</span>
 │   ├── AgentJwksController    <span class="c"># GET /agents/{name}/jwks.json：托管智能体公钥，作为 auth-gateway 里的 jwks_uri</span>
 │   ├── LiteLlmProvisioner     <span class="c"># 虚拟 Key、预算、路由规则</span>
-│   ├── LangfuseProvisioner    <span class="c"># 数据集导入、提示词标签</span>
+│   ├── LangfuseProvisioner    <span class="c"># 数据集导入；注册时用 prompts/ 兜底副本在 staging 项目建初始版本（已有同名提示词则跳过）</span>
 │   └── SecretWriter           <span class="c"># 写 keel-{agent} Secret（fabric8）</span>
 ├── discovery/                 <span class="c"># 在线探测与对账</span>
 │   ├── K8sAgentWatcher        <span class="c"># Informer 监听标签 keel.io/agent、keel.io/service</span>
@@ -348,10 +348,14 @@ footer{margin-top:60px;padding-top:16px;border-top:1px solid var(--line);font-si
 │   │                          <span class="c"># ApprovalNotifier（企业微信 / 钉钉 / 站内）</span>
 │   │                          <span class="c"># RunService（agent_run 状态机）、RunTimeoutJob（过 deadline 置 EXPIRED）</span>
 │   ├── mapper/ model/
+├── prompt/                    <span class="c"># 提示词：控制台编辑、staging 生效、回滚；内容存 Langfuse，本库不存原文</span>
+│   ├── controller/            <span class="c"># PromptController</span>
+│   ├── PromptService          <span class="c"># 新建版本（只写 staging 项目）、挪 staging 标签并触发回归、prod 回滚；每个写操作 @Audited</span>
+│   └── PromptSyncService      <span class="c"># 发布时把 staging 版本复制到 prod 项目：内容哈希相同就只挪标签，不重复建版本</span>
 ├── release/                   <span class="c"># 发布记录、门禁结果回写、提示词标签漂移检查</span>
-│   ├── ReleaseService
-│   ├── GateResultController   <span class="c"># keel gate 在 CI 里回写结论</span>
-│   └── PromptDriftJob         <span class="c"># production 标签 ≠ 最近通过门禁的版本 → 告警 + 审计</span>
+│   ├── ReleaseService         <span class="c"># 校验门禁实测的提示词版本 = 当前 staging 版本，再调 PromptSyncService</span>
+│   ├── GateResultController   <span class="c"># keel gate 在 CI 里回写结论（含实测用到的提示词版本）</span>
+│   └── PromptDriftJob         <span class="c"># 每 10 分钟：prod 项目 production 标签的内容哈希 ≠ 最近发布记录 → 告警 + config.change 审计（payload.kind=drift）</span>
 ├── insight/                   <span class="c"># 控制台只读 API（聚合外部数据）</span>
 │   ├── OverviewService        <span class="c"># 总览 KPI</span>
 │   ├── TraceQueryService      <span class="c"># 调 Langfuse Observations API v2（按 traceId 取全部节点），组装协作图 / 泳道 / 调用树 + 叠加审计、审批</span>
@@ -561,7 +565,8 @@ prd-agent/
       <tr><td><code>approval_policy</code></td><td>id、name、subject_type、approver_type(ROLE/USER/OWNER)、approver_ref、condition_expr、timeout_minutes、cooldown_hours</td><td>审批策略，如"班组长审批"、"敏感表需审批"；按 subject_type 适用于不同类型的审批</td></tr>
       <tr><td><code>approval_request</code></td><td>id、<b>subject_type</b>(tool.call/tool.config/agent.config/agent.retire/data.export)、<b>subject_ref</b>、agent_name、<b>run_id（可空）</b>、trace_id、actor_user、payload_digest、summary、status(PENDING/APPROVED/REJECTED/EXPIRED)、decided_by、decided_at</td><td>审批单。<b>不是只有工具调用要审批</b>：工具风险调低、智能体配置变更与下线、审计导出都走同一张表。<code>run_id</code> 非空表示有一次执行正挂起等它，批准后调该智能体的 <code>/v1/runs/{id}/resume</code>；为空表示由人直接发起，没有执行在等</td></tr>
       <tr><td><code>agent_run</code></td><td>run_id(pk)、agent_name、env、trace_id、session_id、status(RUNNING/SUSPENDED/DONE/FAILED/EXPIRED)、suspend_reason(approval/input_required/handoff)、suspend_ref、checkpoint_ref、idempotency_key、actor_user、deadline、resumed_count</td><td>一次执行的外部生命周期；中断与恢复的唯一账本。<code>checkpoint_ref</code> 只是引用，现场内容不进此库</td></tr>
-      <tr><td><code>release_record</code></td><td>agent_name、version、env、gate_passed、score_total、score_by_tag_json、prompt_versions_json、ci_run_url</td><td>发布和门禁结论</td></tr>
+      <tr><td><code>release_record</code></td><td>agent_name、version、env、gate_passed、score_total、score_by_tag_json、prompt_versions_json、ci_run_url</td><td>发布和门禁结论。<code>prompt_versions_json</code> 形如 <code>{"answer":{"staging":13,"prod":7,"sha256":"…"}}</code>：两个项目的版本号各自递增，靠内容哈希对应。提示词原文不进本库</td></tr>
+      <tr><td><code>prompt_promotion</code></td><td>agent_name、prompt_name、staging_version、sha256、promoted_by、promoted_at、gate_run_id、gate_status(PENDING/PASSED/FAILED/INVALID)</td><td>每次"在 staging 生效"一条，发布时据此判断 staging 版本是否过了门禁</td></tr>
       <tr><td><code>route_snapshot</code></td><td>version(自增)、changed_agent、created_at</td><td>路由变更版本号，keel-gateway 长轮询用</td></tr>
     </tbody>
   </table></div>
@@ -604,7 +609,11 @@ X-Keel-Eval-Run: &lt;run_id&gt;                 <span class="c"># 评测流量�
     <thead><tr><th>接口</th><th>调用方</th><th>说明</th></tr></thead>
     <tbody>
       <tr><td><code>POST /api/v1/agents</code></td><td>keel register</td><td>注册：校验 manifest → 自检 → 开通资源，返回自检报告</td></tr>
-      <tr><td><code>POST /api/v1/agents/{name}/releases</code></td><td>keel release</td><td>发布：要求携带通过的 gate_run_id；更新提示词标签；写发布记录</td></tr>
+      <tr><td><code>POST /api/v1/agents/{name}/releases</code></td><td>keel release</td><td>发布：要求携带通过的 gate_run_id，且门禁实测的提示词版本等于当前 staging 版本；把提示词复制到 prod 项目并打 production 标签；写发布记录</td></tr>
+      <tr><td><code>GET /api/v1/prompts?env&amp;agent</code> · <code>GET /api/v1/agents/{name}/prompts/{prompt}</code></td><td>控制台</td><td>列表：每个提示词的 staging / prod 当前版本、是否待回归、是否漂移。详情：版本列表、某一版内容、两版 diff（服务端算）</td></tr>
+      <tr><td><code>POST /api/v1/agents/{name}/prompts/{prompt}/versions</code></td><td>控制台 · <code>keel prompts push</code></td><td>在 staging 项目新建版本，必须带提交说明；只建版本，不挪标签</td></tr>
+      <tr><td><code>POST /api/v1/agents/{name}/prompts/{prompt}/promote</code></td><td>控制台</td><td>把 staging 标签挪到指定版本，触发回归实验</td></tr>
+      <tr><td><code>POST /api/v1/agents/{name}/prompts/{prompt}/rollback</code></td><td>控制台</td><td>prod 的 production 标签挪回某个发布记录里出现过的版本；不重跑门禁，写发布记录和审计</td></tr>
       <tr><td><code>POST /api/v1/agents/{name}/retire</code></td><td>keel retire</td><td>下线：吊销 Key、删 Secret、状态置 RETIRED</td></tr>
       <tr><td><code>GET /api/v1/agents</code> · <code>/{name}</code></td><td>控制台</td><td>列表、详情（含实例、资源、版本、对账问题）</td></tr>
       <tr><td><code>POST /api/v1/instances/heartbeat</code></td><td>SDK</td><td>非 K8s 实例心跳</td></tr>
@@ -638,11 +647,14 @@ X-Keel-Eval-Run: &lt;run_id&gt;                 <span class="c"># 评测流量�
       <tr><td><code>POST /admin/v1/keys</code></td><td>注册时建虚拟 Key：alias=<code>{agent}-{env}</code>、models、fallback、dailyBudgetCny、allowFallback。别名必须带 dev、staging 或 prod 后缀。向量化 Key 的 allowFallback 为 false</td></tr>
       <tr><td><code>POST /admin/v1/keys/{alias}/block</code></td><td>下线只 block</td></tr>
       <tr><td><code>GET /admin/v1/keys/{alias}</code> · <code>/admin/v1/spend</code> · <code>/admin/v1/models</code></td><td>预算、分页花费明细（人民币 costCny）、模型单价。缺单价的模型拒绝启动</td></tr>
-      <tr><td rowspan="5">Langfuse v4</td><td><code>POST /api/public/otel/v1/traces</code></td><td>OTLP/HTTP 上报；Basic Auth（公钥:私钥）；<b>必须带请求头 <code>x-langfuse-ingestion-version: 4</code></b>，否则数据约 15 分钟后才可见</td></tr>
+      <tr><td rowspan="8">Langfuse v4</td><td><code>POST /api/public/otel/v1/traces</code></td><td>OTLP/HTTP 上报；Basic Auth（公钥:私钥）；<b>必须带请求头 <code>x-langfuse-ingestion-version: 4</code></b>，否则数据约 15 分钟后才可见</td></tr>
       <tr><td><code>GET /api/public/v2/observations</code> · <code>/v2/metrics</code> · <code>/v3/scores</code></td><td>控制台追踪、总览、质量。旧的 <code>/api/public/traces</code> 等接口不要用；2026-09-16 及之后创建的云端组织上，<code>GET /api/public/traces</code> 返回 410</td></tr>
       <tr><td><code>GET /api/public/experiments</code> · <code>/experiment-items</code></td><td>读实验结果（门禁对比）；写实验用 Python SDK 的实验运行器，<b>不用</b>已废弃的 <code>dataset-run-items</code></td></tr>
       <tr><td><code>/api/public/datasets</code> · <code>/dataset-items</code></td><td>注册时导入用例、坏案例回流</td></tr>
-      <tr><td><code>PATCH /api/public/v2/prompts/{name}/versions/{version}</code></td><td>发布时给提示词版本打 production 标签</td></tr>
+      <tr><td><code>PATCH /api/public/v2/prompts/{name}/versions/{version}</code></td><td>挪标签：body <code>{"newLabels":[…]}</code>。一个标签同时只在一个版本上，挪过去旧版本自动失去它；<code>latest</code> 由 Langfuse 维护，不能手动设</td></tr>
+      <tr><td><code>GET /api/public/v2/prompts/{name}?label=</code> · <code>?version=</code></td><td>SDK 运行时取提示词、keel-server 复制前读原文。<code>label</code> 和 <code>version</code> 互斥；标签不存在返回 404，不会退回 production。名字带 <code>/</code> 时整体 URL 编码</td></tr>
+      <tr><td><code>GET /api/public/v2/prompts</code></td><td>列表：每个提示词的 versions、labels（不含内容），支持 name、label、page、limit</td></tr>
+      <tr><td><code>POST /api/public/v2/prompts</code></td><td>新建版本：同名即追加版本。body 有 type（text / chat，建了不能改）、name、prompt，可带 labels。响应里有 config、commitMessage，请求里怎么传以 API 参考为准，P2-16 开工时核对</td></tr>
       <tr><td rowspan="3">auth-gateway</td><td><code>GET /.well-known/jwks.json</code></td><td>验签；响应缓存 1 小时</td></tr>
       <tr><td><code>POST /oauth/token-exchange</code>（表单）</td><td>换票。字段是 <code>requested_audience</code>、<code>requested_scopes</code>（不是 RFC 8693 的 audience / scope）；客户端用 private_key_jwt 认证</td></tr>
       <tr><td><code>POST /oauth/consents</code> · <code>/oauth/delegation-token</code></td><td>长流程智能体用：用户授权一次，智能体凭委托 token 异步执行</td></tr>
@@ -656,7 +668,7 @@ X-Keel-Eval-Run: &lt;run_id&gt;                 <span class="c"># 评测流量�
 <!-- 08 -->
 <section id="t8">
   <h2><span class="no">08</span>关键流程实现</h2>
-  <div class="tabs" data-tabs="flow"><button class="on">注册 keel register</button><button>高风险工具审批</button><button>发布与门禁</button><button>工具变更与下线</button><button>对账</button></div>
+  <div class="tabs" data-tabs="flow"><button class="on">注册 keel register</button><button>高风险工具审批</button><button>发布与门禁</button><button>提示词</button><button>工具变更与下线</button><button>对账</button></div>
   <div class="pane on" data-pane="flow">
   <div class="seq">
     <div><i>1</i><b>CLI</b><span>本地校验 agent.yaml（JSON Schema），打包 manifest + evals/seed.jsonl 发给 keel-server</span></div>
@@ -681,8 +693,18 @@ X-Keel-Eval-Run: &lt;run_id&gt;                 <span class="c"># 评测流量�
     <div><i>2</i><b>keel gate</b><span>用 Langfuse SDK 对数据集跑实验：逐条调用候选版本的 <code>/v1/invoke</code>（带 X-Keel-Eval-Run）→ 大模型裁判 + 代码评分器打分</span></div>
     <div><i>3</i><b>对比</b><span>读当前 prod 版本最近一次实验分数，按用例 tags 逐维度对比：总分 &lt; minScore 或任一维度退步 &gt; maxRegression → 失败</span></div>
     <div><i>4</i><b>回写</b><span><code>POST /api/v1/gate-results</code>，CI 按退出码决定是否继续</span></div>
-    <div><i>5</i><b>keel release</b><span>keel-server 校验 gate_run_id 已通过 → 提示词打 production 标签 → 更新 agent_version、路由 → 审计</span></div>
+    <div><i>5</i><b>keel release</b><span>keel-server 校验 gate_run_id 已通过，且门禁实测的提示词版本 = 当前 staging 版本 → 提示词复制到 prod 项目并打 production 标签 → 更新 agent_version、路由 → 审计</span></div>
   </div></div>
+  <div class="pane" data-pane="flow">
+  <div class="seq">
+    <div><i>1</i><b>SDK 启动</b><span>按 manifest <code>prompts.items</code> 预取全部提示词：prod 读 <code>prompts.label</code>（默认 production），staging 读 <code>staging</code>，dev / test 读 <code>prompts/</code> 本地文件。prod 预取失败且没有本地副本 → <code>/v1/health</code> 不就绪</span></div>
+    <div><i>2</i><b>运行时</b><span><code>ctx.prompt("answer")</code> 解析为 <code>{agent}/answer</code>，未声明的直接报错；进程内缓存 60 秒，过期后先返回旧值再后台刷新；Langfuse 不可用且无缓存时读本地副本。<code>p.compile(...)</code> 缺变量直接报错，不留 <code>{{x}}</code> 发给模型</span></div>
+    <div><i>3</i><b>上报</b><span><code>ctx.llm.chat(..., prompt=p)</code> 在 generation 上写 <code>langfuse.observation.prompt.name</code>、<code>langfuse.observation.prompt.version</code>（整数）；用的是本地副本时只写 <code>keel.prompt.fallback=true</code>，不写版本号</span></div>
+    <div><i>4</i><b>控制台改</b><span>保存 → keel-server <code>POST /api/public/v2/prompts</code> 到 staging 项目，写 <code>config.change</code> 审计（版本号、哈希、改动行数，不含原文）。点"在 staging 生效" → <code>PATCH</code> 挪 staging 标签 → 触发该智能体的回归实验</span></div>
+    <div><i>5</i><b>发布</b><span>门禁回写时带上实验里 generation 实际记录的提示词版本。<code>keel release</code> 对比这组版本与当前 staging 标签，不一致就拒绝。一致则逐个提示词：读 staging 原文 → 算哈希 → prod 项目已有同哈希版本就只挪 production 标签，没有就新建版本并带上 production 标签，提交说明写 <code>from staging v13 · gate #218</code></span></div>
+    <div><i>6</i><b>回滚与漂移</b><span>回滚只能挪到发布记录里出现过的 prod 版本。<code>PromptDriftJob</code> 每 10 分钟读 prod 项目 production 版本，哈希和最近发布记录对不上就告警，写 <code>config.change</code> 审计（<code>payload.kind=drift</code>，不新增 action 取值），不自动改回</span></div>
+  </div>
+  <div class="note info"><b>为什么不让 staging 直接读 <code>latest</code>：</b>保存草稿就会改变 staging 行为，回归结果对不上版本。只有"在 staging 生效"才挪标签。Langfuse 文档建议非生产环境把缓存设 0 秒；staging 仍用 60 秒，门禁靠第 5 步"实测版本"兜底：实验里只要有一条 generation 用的不是目标版本，这次实验判无效，1 分钟后重跑。</div></div>
   <div class="pane" data-pane="flow">
   <table>
     <thead><tr><th>变更</th><th>系统动作</th></tr></thead>
@@ -921,6 +943,7 @@ keel eval run --dataset code-review/findings <span class="c"># 和 CI 同一套�
       <tr><td>新建智能体</td><td><code>/agents/new</code></td><td>四步向导：方式 → 基本信息 → 模板与资源 → 预览 agent.yaml 并模拟注册</td><td><code>POST agents</code></td></tr>
       <tr><td>共享服务</td><td><code>/services</code></td><td>服务健康、rag-forge 分段耗时、知识库</td><td><code>insight/services</code></td></tr>
       <tr><td>链路追踪</td><td><code>/traces</code> · <code>/traces/:id</code></td><td>列表：按智能体、状态、时间窗筛选，服务端分页，一行一个 trace。详情：只请求一次，泳道时间线和调用树对所有 trace 都有；trace 里有两个以上智能体时才多出协作图和按智能体拆分的耗时、成本。点节点看详情，跳 Langfuse</td><td><code>insight/traces</code> · <code>insight/traces/{id}</code></td></tr>
+      <tr><td>提示词</td><td><code>/prompts</code> · <code>/prompts/:agent/:name</code></td><td>列表：按智能体筛选，看 staging / prod 当前版本、待回归、漂移。详情：版本列表、内容、任意两版 diff、编辑（保存新版本、在 staging 生效）、prod 回滚。prod 只读，没有编辑入口</td><td><code>prompts</code></td></tr>
       <tr><td>工具与审批</td><td><code>/tools</code> · <code>/approvals</code></td><td>工具注册表（版本、状态、依赖方）、废弃工具弹窗、审批批准 / 驳回</td><td><code>tools</code> · <code>approvals</code></td></tr>
       <tr><td>审计中心</td><td><code>/audit</code></td><td>筛选、详情抽屉、哈希链校验</td><td><code>audit/events</code></td></tr>
       <tr><td>模型网关</td><td><code>/models</code></td><td>模型、虚拟 Key 与预算</td><td><code>insight/costs</code></td></tr>
@@ -962,6 +985,7 @@ keel eval run --dataset code-review/findings <span class="c"># 和 CI 同一套�
     <li>每个智能体一个 Secret <code>keel-{agent}</code>，由 keel-server 创建和回收，智能体 Deployment 用 <code>envFrom</code> 引用</li>
     <li>Keel 服务自身的配置走 ConfigMap；数据库密码走 Secret</li>
     <li>Langfuse 界面在云端日本节点，用邮箱密码。薄网关没有对外管理界面，模型与花费在 Keel 控制台看</li>
+    <li>keel-server 目前只配了一个 Langfuse 项目的 Key。提示词同步要同时读 staging、写 prod，改成按环境配置：<code>LANGFUSE_{ENV}_PUBLIC_KEY</code>、<code>LANGFUSE_{ENV}_SECRET_KEY</code>、<code>LANGFUSE_{ENV}_PROJECT_ID</code>，ENV 为 STAGING、PROD（P2-16）</li>
   </ul>
 </section>
 
@@ -1040,6 +1064,7 @@ keel eval run --dataset code-review/findings <span class="c"># 和 CI 同一套�
       <tr><td>Langfuse 版本与接口</td><td>v3；读 <code>/api/public/traces</code> 等</td><td>当前是 v4：旧的 traces、observations、sessions、scores、metrics、dataset runs 读接口全部返回 404；替代为 Observations API v2、Metrics API v2、Scores API v3、experiments API；trace 级在线评估器在 v4 不再运行</td><td><span class="tag t-mod">已改</span> 直接部署 v4；在线评估器配成 observation 级（挂在根 agent 节点上）</td></tr>
       <tr><td>Langfuse OTLP</td><td>OTLP/HTTP 上报</td><td>端点 <code>/api/public/otel/v1/traces</code>，Basic Auth，只支持 HTTP（JSON / protobuf），不支持 gRPC；要带 <code>x-langfuse-ingestion-version: 4</code></td><td><span class="tag t-mod">已补请求头</span></td></tr>
       <tr><td>Langfuse 提示词标签</td><td>发布时更新标签</td><td><code>PATCH /api/public/v2/prompts/{name}/versions/{version}</code> 存在</td><td><span class="tag t-reuse">可用</span></td></tr>
+      <tr><td>Langfuse 提示词管理（2026-10-07，按官方文档核实，未实测）</td><td>staging / production 标签区分线上和测试</td><td>提示词按<b>项目</b>隔离，三个项目之间不共享，官方建议用 API 自己同步；标签不存在时 404，不退回；保护标签只有 Enterprise 有；SDK 默认缓存 60 秒；用兜底提示词时不建关联；OTel 关联属性是 <code>langfuse.observation.prompt.name</code> / <code>.version</code></td><td><span class="tag t-mod">已改设计</span> 编辑只在 staging 项目，发布时复制到 prod；生产标签靠漂移检查守住</td></tr>
       <tr><td>Langfuse 观测节点规格</td><td>ECS 8 核 32G · 200G</td><td>官方 Docker Compose 建议至少 4 核 16GiB、100GiB；Compose 方式没有高可用、没有内置备份</td><td><span class="tag t-reuse">够用</span>，余量约 2 倍；备份按设计文档第 09 节的做法自己配</td></tr>
       <tr><td>Langfuse 自动开通</td><td>Keel 替智能体开通 Langfuse</td><td>支持无界面初始化（预建组织、项目、API Key、首个用户）；项目管理 API 属于企业版</td><td><span class="tag t-mod">已调整</span> 每个环境一个项目，用无界面初始化建好；智能体共用项目 Key，按 <code>keel.agent</code> 区分</td></tr>
       <tr><td>LiteLLM 虚拟 Key</td><td>generate / update / delete</td><td><code>/key/generate</code> 支持 models、max_budget、budget_duration、key_alias、metadata；另有 <code>/key/block</code>、<code>/key/unblock</code>；可配 <code>key_alias_pattern</code> 强制命名</td><td><span class="tag t-reuse">可用</span>；<code>/key/delete</code> 在开工时于 Swagger（<code>/docs</code>）再确认一次</td></tr>
@@ -1073,9 +1098,10 @@ keel eval run --dataset code-review/findings <span class="c"># 和 CI 同一套�
       <tr><td><code>auth/TokenStatusService.java</code> · <code>oauth/ClientAuthenticator.java</code></td><td>只接受 principal_type=user 的会话 token；客户端 private_key_jwt 规则</td></tr>
       <tr><td><code>db/migration/V1~V3</code> · <code>application.yml</code></td><td>oauth_clients 表结构与种子数据；issuer、token 有效期</td></tr>
       <tr><td><code>web/OAuthConsentController.java</code> · <code>oauth/ConsentService.java</code></td><td>委托授权与委托 token</td></tr>
-      <tr><td rowspan="3">Langfuse</td><td><a href="https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4" target="_blank">v3 → v4 升级指南</a></td><td>下线的旧接口、替代接口、最低基础设施版本、SDK 版本要求</td></tr>
+      <tr><td rowspan="4">Langfuse</td><td><a href="https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4" target="_blank">v3 → v4 升级指南</a></td><td>下线的旧接口、替代接口、最低基础设施版本、SDK 版本要求</td></tr>
       <tr><td><a href="https://langfuse.com/integrations/native/opentelemetry" target="_blank">OpenTelemetry 接入</a></td><td>OTLP 端点、认证、请求头、属性映射、不支持 gRPC</td></tr>
       <tr><td><a href="https://langfuse.com/self-hosting/deployment/docker-compose" target="_blank">Docker Compose 部署</a> · <a href="https://langfuse.com/self-hosting/security/authentication-and-sso" target="_blank">认证与 SSO</a></td><td>机器规格、无界面初始化、SSO 对提供方的要求</td></tr>
+      <tr><td><a href="https://langfuse.com/docs/prompt-management/features/prompt-version-control" target="_blank">提示词版本与标签</a> · <a href="https://langfuse.com/docs/prompt-management/features/link-to-traces" target="_blank">关联链路</a> · <a href="https://langfuse.com/docs/prompt-management/features/caching" target="_blank">缓存</a> · <a href="https://langfuse.com/faq/all/managing-different-environments" target="_blank">多环境</a> · <a href="https://api.reference.langfuse.com" target="_blank">API 参考</a></td><td>标签解析规则、保护标签套餐、项目隔离与同步、缓存 TTL、OTel 关联属性、v2 prompts 接口参数（2026-10-07）</td></tr>
       <tr><td rowspan="3">LiteLLM</td><td><a href="https://docs.litellm.ai/docs/proxy/virtual_keys" target="_blank">虚拟 Key</a></td><td>Key 接口与参数、block / unblock、别名规则</td></tr>
       <tr><td><a href="https://docs.litellm.ai/docs/proxy/prod" target="_blank">生产部署</a></td><td>每 Pod 1 vCPU + 4Gi、worker 策略、扩容阈值、Redis</td></tr>
       <tr><td><a href="https://docs.litellm.ai/docs/proxy/cost_tracking" target="_blank">成本统计</a></td><td><code>/spend/logs</code> 1 万行上限、<code>/spend/logs/v2</code>、<code>/global/spend/report</code>、缺价格时的行为</td></tr>
@@ -1089,6 +1115,7 @@ keel eval run --dataset code-review/findings <span class="c"># 和 CI 同一套�
       <tr><td>薄网关下线</td><td>自研接口由 P1-2 定义</td><td>P1-2</td><td>只实现 <code>POST /admin/v1/keys/{alias}/block</code></td></tr>
       <tr><td>keel-gateway / keel-server / keel-audit 资源</td><td>自研服务，没有官方数据</td><td>P2 网关轻量版完成后</td><td>压测：100 个并发 SSE 会话、每秒 50 次调用，看 CPU、内存、P95</td></tr>
       <tr><td>Langfuse Cloud 套餐</td><td>Hobby 的 Metrics API 每天 100 次，扛不住 5 分钟对账</td><td>生产对账打开前</td><td>升 Core，或 Hobby 上 Langfuse 流量查询每天一次</td></tr>
+      <tr><td>提示词接口的实测行为</td><td>只看了文档：<code>POST /v2/prompts</code> 里 config、commitMessage 的传法，提示词接口的限流，v2 observations 返回的提示词字段名</td><td>P2-15 / P2-16 开工时</td><td>用 staging 项目实测建版本、挪标签、带 prompt 属性上报一条 generation 后读回</td></tr>
       <tr><td>auth-gateway 改造方案评审</td><td>涉及现有 careermate、rag-forge 的登录链路</td><td>P0 第 1 周</td><td>改造后跑 auth-gateway 现有测试，careermate、rag-forge 登录和换票回归一遍</td></tr>
     </tbody>
   </table>

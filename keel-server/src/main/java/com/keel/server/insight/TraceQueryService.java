@@ -10,8 +10,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -53,54 +53,125 @@ public class TraceQueryService {
     }
 
     public Map<String, Object> list(int page, int size, String agent, String env) {
+        return list(page, size, agent, env, null, null, null, false, null);
+    }
+
+    public Map<String, Object> list(int page, int size, String agent, String env, String status,
+                                    Instant from, Instant to, boolean multiOnly, Integer minDurationMs) {
         try {
-            JsonNode body = langfuse.observationsPage();
+            JsonNode body = from == null && to == null ? langfuse.observationsPage() : langfuse.observationsBetween(from, to);
             var byTrace = new LinkedHashMap<String, List<JsonNode>>();
             body.path("data").forEach(row -> byTrace.computeIfAbsent(row.path("traceId").asText(""), key -> new ArrayList<>()).add(row));
             if (!byTrace.isEmpty()) {
-                var ids = new ArrayList<String>();
+                var items = new ArrayList<Map<String, Object>>();
                 for (var entry : byTrace.entrySet()) {
-                    if (matches(entry.getValue(), agent, env)) {
-                        ids.add(entry.getKey());
+                    var summary = TraceAssembly.summary(entry.getKey(), entry.getValue(), pricesCnyPerToken);
+                    if (summary != null) {
+                        items.add(summary);
                     }
                 }
-                int from = Math.max(0, (page - 1) * size);
-                var items = new ArrayList<Map<String, Object>>();
-                for (int i = from; i < Math.min(ids.size(), from + size); i++) {
-                    items.add(summary(ids.get(i), byTrace.get(ids.get(i))));
+                for (var pending : saved.suspended(agent, env)) {
+                    var id = String.valueOf(pending.getOrDefault("traceId", ""));
+                    var existing = items.stream().filter(item -> id.equals(item.get("traceId"))).findFirst();
+                    if (existing.isPresent()) {
+                        copyPending(existing.get(), pending);
+                    } else {
+                        items.add(pending);
+                    }
                 }
-                var data = new LinkedHashMap<String, Object>();
-                data.put("page", page);
-                data.put("size", size);
-                data.put("total", ids.size());
-                data.put("items", items);
-                return data;
+                items.sort(Comparator.comparing((Map<String, Object> item) -> String.valueOf(item.getOrDefault("startedAt", ""))).reversed());
+                var matched = items.stream().filter(item -> matches(item, agent, env, status, from, to, multiOnly, minDurationMs)).toList();
+                return page(page, size, matched);
             }
         } catch (RuntimeException ignored) {
             // Langfuse 没配好或读失败时，改看本机探针写下的 trace。
         }
-        return saved.list(page, size, agent, env);
+        return saved.list(page, size, agent, env, status, from, to, multiOnly, minDurationMs);
     }
 
-    private boolean matches(List<JsonNode> rows, String agent, String env) {
+    private Map<String, Object> page(int page, int size, List<Map<String, Object>> matched) {
+        int from = Math.max(0, (page - 1) * size);
+        var items = new ArrayList<Map<String, Object>>();
+        for (int i = from; i < Math.min(matched.size(), from + size); i++) {
+            items.add(matched.get(i));
+        }
+        var data = new LinkedHashMap<String, Object>();
+        data.put("page", page);
+        data.put("size", size);
+        data.put("total", matched.size());
+        data.put("items", items);
+        if (!host.isBlank() && !projectId.isBlank()) {
+            data.put("langfuseUrl", host + "/project/" + projectId + "/traces");
+        }
+        return data;
+    }
+
+    private static void copyPending(Map<String, Object> summary, Map<String, Object> pending) {
+        for (var key : List.of("pendingReason", "runId", "suspendCount", "humanWaitMs", "userId", "sessionId")) {
+            if (pending.get(key) != null) {
+                summary.put(key, pending.get(key));
+            }
+        }
+    }
+
+    private static boolean matches(Map<String, Object> item, String agent, String env, String status,
+                                   Instant from, Instant to, boolean multiOnly, Integer minDurationMs) {
         if (agent != null && !agent.isBlank()) {
-            var hit = rows.stream().anyMatch(row -> agent.equals(metadata(row, "keel.agent")));
+            var agents = item.get("agents");
+            var hit = agent.equals(item.get("rootAgent"))
+                    || (agents instanceof List<?> list && list.stream().anyMatch(agent::equals));
             if (!hit) {
                 return false;
             }
         }
-        if (env == null || env.isBlank() || "all".equals(env)) {
-            return true;
+        if (env != null && !env.isBlank() && !"all".equals(env) && !env.equals(item.get("env"))) {
+            return false;
         }
-        return rows.stream().anyMatch(row -> env.equals(observationEnv(row)));
+        if (multiOnly && !Boolean.TRUE.equals(item.get("multiAgent"))) {
+            return false;
+        }
+        if (minDurationMs != null && minDurationMs > 0) {
+            var duration = item.get("durationMs");
+            if (!(duration instanceof Number number) || number.intValue() < minDurationMs) {
+                return false;
+            }
+        }
+        if (!inWindow(item.get("startedAt"), from, to)) {
+            return false;
+        }
+        return statusMatches(item, status);
     }
 
-    private String observationEnv(JsonNode row) {
-        var explicit = metadata(row, "keel.env");
-        if (!explicit.isBlank()) {
-            return explicit;
+    private static boolean inWindow(Object startedAt, Instant from, Instant to) {
+        if (from == null && to == null) {
+            return true;
         }
-        return CostService.envOf(metadata(row, "keel.llm.key_alias"));
+        if (!(startedAt instanceof String text) || text.isBlank()) {
+            return false;
+        }
+        try {
+            var started = Instant.parse(text);
+            if (from != null && started.isBefore(from)) {
+                return false;
+            }
+            return to == null || started.isBefore(to);
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    private static boolean statusMatches(Map<String, Object> item, String status) {
+        if (status == null || status.isBlank()) {
+            return true;
+        }
+        var pending = item.get("pendingReason") instanceof String text && !text.isBlank();
+        var blocked = Boolean.TRUE.equals(item.get("blocked"));
+        return switch (status) {
+            case "blocked" -> blocked;
+            case "pending" -> pending;
+            case "ok", "fallback", "failed" -> status.equals(item.get("status")) && !blocked && !pending;
+            default -> false;
+        };
     }
 
     public Map<String, Object> detail(String traceId) {
@@ -122,139 +193,12 @@ public class TraceQueryService {
         if (rows.isEmpty()) {
             throw new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message());
         }
-        var nodes = new ArrayList<Map<String, Object>>();
-        var edges = new ArrayList<Map<String, Object>>();
-        long start = rows.stream().mapToLong(row -> Instant.parse(row.path("startTime").asText()).toEpochMilli()).min().orElse(0);
-        var agents = new LinkedHashSet<String>();
-        int leafMs = 0;
-        for (JsonNode row : rows) {
-            String id = row.path("id").asText();
-            String parent = row.path("parentObservationId").asText("");
-            long nodeStart = Instant.parse(row.path("startTime").asText()).toEpochMilli() - start;
-            long nodeEnd = Instant.parse(row.path("endTime").asText()).toEpochMilli() - start;
-            int duration = (int) Math.max(0, nodeEnd - nodeStart);
-            String agent = metadata(row, "keel.agent");
-            if (!agent.isBlank()) {
-                agents.add(agent);
-            }
-            boolean leaf = rows.stream().noneMatch(other -> id.equals(other.path("parentObservationId").asText()));
-            if (leaf) {
-                leafMs += duration;
-            }
-            var node = new LinkedHashMap<String, Object>();
-            node.put("id", id);
-            node.put("agentKey", agent);
-            node.put("type", metadata(row, "langfuse.observation.type"));
-            node.put("name", row.path("name").asText());
-            node.put("model", row.path("metadata").path("gen_ai.request.model").asText(null));
-            node.put("startMs", (int) nodeStart);
-            node.put("durationMs", duration);
-            node.put("inputSummary", textOrName(row, "input"));
-            node.put("outputSummary", textOrName(row, "output"));
-            node.put("auditIds", auditIds(row));
-            node.put("approvalId", null);
-            node.put("humanWaitLabel", null);
-            node.put("costCny", cost(row));
-            nodes.add(node);
-            if (!parent.isBlank()) {
-                edges.add(Map.of("from", parent, "to", id));
-            }
+        var url = host.isBlank() || projectId.isBlank() ? "" : host + "/project/" + projectId + "/traces/" + traceId;
+        var detail = TraceAssembly.detail(traceId, rows, url, pricesCnyPerToken);
+        if (detail == null) {
+            throw new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message());
         }
-        var summary = new LinkedHashMap<String, Object>();
-        summary.put("traceId", traceId);
-        summary.put("rootAgent", agents.isEmpty() ? "" : agents.getFirst());
-        summary.put("agents", new ArrayList<>(agents));
-        summary.put("multiAgent", agents.size() > 1);
-        summary.put("durationMs", leafMs);
-        var costs = nodes.stream().map(node -> node.get("costCny")).filter(value -> value instanceof Number).map(value -> ((Number) value).doubleValue()).toList();
-        summary.put("costCny", costs.isEmpty() ? null : costs.stream().mapToDouble(Double::doubleValue).sum());
-        var detail = new LinkedHashMap<String, Object>();
-        detail.put("summary", summary);
-        detail.put("langfuseUrl", host + "/project/" + projectId + "/traces/" + traceId);
-        detail.put("latencyBreakdown", List.of(Map.of("label", "leaves", "ms", leafMs)));
-        detail.put("nodes", nodes);
-        detail.put("edges", edges);
+        TraceAssembly.attach(detail, saved.context(traceId));
         return detail;
-    }
-
-    private List<String> auditIds(JsonNode row) {
-        var ids = new ArrayList<String>();
-        row.path("metadata").path("keel.audit_ids").forEach(item -> ids.add(item.asText()));
-        return ids;
-    }
-
-    private Double cost(JsonNode row) {
-        String model = metadata(row, "gen_ai.request.model");
-        if (model.isBlank()) {
-            model = row.path("metadata").path("gen_ai.request.model").asText("");
-        }
-        double[] price = pricesCnyPerToken.get(model);
-        int in = row.path("metadata").path("gen_ai.usage.input_tokens").asInt(0);
-        int out = row.path("metadata").path("gen_ai.usage.output_tokens").asInt(0);
-        if (price == null || (in == 0 && out == 0)) {
-            return null;
-        }
-        return in * price[0] + out * price[1];
-    }
-
-    private static String metadata(JsonNode row, String key) {
-        var metadata = row.path("metadata");
-        var direct = metadata.path(key);
-        if (!direct.isMissingNode() && !direct.isNull() && !direct.asText("").isBlank()) {
-            return direct.asText("");
-        }
-        var prefixed = metadata.path("attributes." + key);
-        if (!prefixed.isMissingNode() && !prefixed.isNull()) {
-            return prefixed.asText("");
-        }
-        return "";
-    }
-
-    private Map<String, Object> summary(String traceId, List<JsonNode> rows) {
-        var agents = new LinkedHashSet<String>();
-        rows.forEach(row -> {
-            String agent = metadata(row, "keel.agent");
-            if (!agent.isBlank()) {
-                agents.add(agent);
-            }
-        });
-        var item = new LinkedHashMap<String, Object>();
-        item.put("traceId", traceId);
-        item.put("question", questionOf(rows));
-        item.put("agents", new ArrayList<>(agents));
-        item.put("multiAgent", agents.size() > 1);
-        if (!agents.isEmpty()) {
-            item.put("rootAgent", agents.getFirst());
-        }
-        return item;
-    }
-
-    private static String questionOf(List<JsonNode> rows) {
-        for (JsonNode row : rows) {
-            var text = observationText(row, "input");
-            if (!text.isBlank()) {
-                return text;
-            }
-        }
-        return "";
-    }
-
-    private static String textOrName(JsonNode row, String field) {
-        var text = observationText(row, field);
-        return text.isBlank() ? row.path("name").asText() : text;
-    }
-
-    private static String observationText(JsonNode row, String field) {
-        var node = row.path(field);
-        if (node.isMissingNode() || node.isNull() || (node.isTextual() && node.asText().isBlank())) {
-            node = row.path("metadata").path("langfuse.observation." + field);
-        }
-        if (node.isMissingNode() || node.isNull()) {
-            return "";
-        }
-        if (node.isTextual()) {
-            return node.asText();
-        }
-        return node.toString();
     }
 }

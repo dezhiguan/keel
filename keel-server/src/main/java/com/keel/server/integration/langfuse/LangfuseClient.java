@@ -209,10 +209,22 @@ public class LangfuseClient {
     }
 
     public JsonNode observationsPage() {
+        return observationsBetween(null, null);
+    }
+
+    /** Observations whose start time falls in {@code [from, to)}. Follows the cursor for a few pages. */
+    public JsonNode observationsBetween(Instant from, Instant to) {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
         }
-        return get("/api/public/v2/observations?limit=100&fields=core,basic,io,metadata");
+        var path = "/api/public/v2/observations?limit=100&fields=core,basic,io,metadata";
+        if (from != null) {
+            path += "&fromStartTime=" + URLEncoder.encode(from.toString(), StandardCharsets.UTF_8);
+        }
+        if (to != null) {
+            path += "&toStartTime=" + URLEncoder.encode(to.toString(), StandardCharsets.UTF_8);
+        }
+        return get(path);
     }
 
     /**

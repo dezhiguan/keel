@@ -40,6 +40,25 @@ public interface SavedTraces {
         return list(page, size, agent);
     }
 
+    /**
+     * Same page, plus the list-page filters. The default ignores the extra filters so test doubles
+     * that only implement {@link #list(int, int, String)} keep working.
+     */
+    default Map<String, Object> list(int page, int size, String agent, String env, String status,
+                                     Instant from, Instant to, boolean multiOnly, Integer minDurationMs) {
+        return list(page, size, agent, env);
+    }
+
+    /** Runs that are still waiting on a person. */
+    default List<Map<String, Object>> suspended(String agent, String env) {
+        return List.of();
+    }
+
+    /** Audit events, approval and an open suspend for one trace. Empty when nothing was recorded. */
+    default TraceContext context(String traceId) {
+        return TraceContext.EMPTY;
+    }
+
     Map<String, Object> detail(String traceId);
 
     /** Invocations at or after {@code from}. {@code env} is {@code all} or a single environment. */
@@ -48,4 +67,14 @@ public interface SavedTraces {
     }
 
     record TraceHit(String traceId, String agent) {}
+
+    record TraceContext(List<String> auditIds, String approvalId, String pendingReason, String runId,
+                        Integer suspendCount, String userId, String sessionId, Long humanWaitMs) {
+        static final TraceContext EMPTY = new TraceContext(List.of(), null, null, null, null, null, null, null);
+
+        boolean empty() {
+            return (auditIds == null || auditIds.isEmpty()) && approvalId == null && pendingReason == null
+                    && runId == null && userId == null && sessionId == null && humanWaitMs == null;
+        }
+    }
 }

@@ -23,6 +23,7 @@ const groups = computed(() => {
 })
 
 const title = computed(() => String(route.meta.title ?? ''))
+const traceId = computed(() => (route.path.startsWith('/traces/') ? String(route.params.id ?? '') : ''))
 
 onMounted(async () => {
   try {
@@ -63,7 +64,13 @@ watch(() => envStore.env, (env) => {
     </aside>
     <div class="body">
       <header class="top">
-        <div class="crumb">Keel 控制台 / <b>{{ title }}</b></div>
+        <div class="crumb">
+          Keel 控制台 /
+          <template v-if="traceId">
+            <RouterLink to="/traces">链路追踪</RouterLink> / <b class="mono">{{ traceId }}</b>
+          </template>
+          <b v-else>{{ title }}</b>
+        </div>
         <div class="sp" />
         <button class="search" type="button" @click="palette = true"><span>⌕</span>搜索智能体、工具、页面<kbd>⌘K</kbd></button>
         <div class="envsel">
@@ -130,7 +137,9 @@ watch(() => envStore.env, (env) => {
   background: var(--panel);
 }
 .crumb { color: var(--mute); font-size: 13px; }
+.crumb a { color: inherit; text-decoration: none; }
 .crumb b { color: var(--white); font-weight: 500; }
+.crumb .mono { font-family: var(--mono); }
 .sp { flex: 1; }
 .search {
   display: flex;

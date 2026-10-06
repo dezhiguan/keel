@@ -9,6 +9,7 @@ import com.keel.server.insight.OverviewService;
 import com.keel.server.insight.SharedServiceMonitor;
 import com.keel.server.insight.TraceQueryService;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -48,8 +49,13 @@ public class InsightController {
     public R<Map<String, Object>> traces(@RequestParam(defaultValue = "1") @Min(1) int page,
                                          @RequestParam(defaultValue = "10") int size,
                                          @RequestParam(required = false) String agent,
-                                         @RequestParam(defaultValue = "all") @Pattern(regexp = "all|dev|test|staging|prod") String env) {
-        return R.ok(traces.list(page, size, agent == null ? "" : agent, env));
+                                         @RequestParam(defaultValue = "all") @Pattern(regexp = "all|dev|test|staging|prod") String env,
+                                         @RequestParam(required = false) @Pattern(regexp = "ok|fallback|failed|blocked|pending") String status,
+                                         @RequestParam(required = false) Instant from,
+                                         @RequestParam(required = false) Instant to,
+                                         @RequestParam(defaultValue = "false") boolean multi,
+                                         @RequestParam(required = false) Integer minDurationMs) {
+        return R.ok(traces.list(page, size, agent == null ? "" : agent, env, status, from, to, multi, minDurationMs));
     }
 
     @GetMapping("/costs")

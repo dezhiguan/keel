@@ -651,6 +651,11 @@ export interface components {
          */
         NodeStatus: "ok" | "fallback" | "failed";
         /**
+         * @description 列表筛选项。blocked 与 pending 不是 keel.status 的第四档，由护栏拦截和未结束的挂起推导。
+         * @enum {string}
+         */
+        TraceListStatus: "ok" | "fallback" | "failed" | "blocked" | "pending";
+        /**
          * @description 与 langfuse.observation.type 一致
          * @enum {string}
          */
@@ -973,6 +978,11 @@ export interface components {
             /** @description 被护栏或准入拦截 */
             blocked?: boolean;
             cached?: boolean;
+            /** @description 仍在挂起时的原因。空表示当前没有等人 */
+            pendingReason?: string | null;
+            runId?: string | null;
+            /** @description 这次调用挂起过的次数。没有挂起则省略 */
+            suspendCount?: number | null;
         };
         TraceDetail: {
             summary?: components["schemas"]["TraceSummary"];
@@ -1637,7 +1647,10 @@ export interface operations {
                 env?: components["parameters"]["Env"];
                 /** @description 参与该 trace 的任一智能体，缺省为全部 */
                 agent?: string;
-                status?: components["schemas"]["NodeStatus"];
+                /** @description ok / fallback / failed 按三档状态筛；blocked、pending 按拦截和未结束的挂起筛 */
+                status?: components["schemas"]["TraceListStatus"];
+                /** @description 为 true 时只返回参与智能体多于一个的 trace */
+                multi?: boolean;
                 minDurationMs?: number;
                 from?: string;
                 to?: string;
@@ -1658,6 +1671,8 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Envelope"] & {
                         data?: components["schemas"]["PageMeta"] & {
+                            /** @description Langfuse 项目的 Traces 页。项目未配置时省略 */
+                            langfuseUrl?: string;
                             items?: components["schemas"]["TraceSummary"][];
                         };
                     };
