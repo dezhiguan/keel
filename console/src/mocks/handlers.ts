@@ -44,6 +44,47 @@ export const handlers = [
     return ok(null)
   }),
 
+  http.post(`${BASE}/tools`, async ({ request }) => {
+    const body = (await request.json()) as {
+      name?: string
+      description?: string
+      scope?: (typeof tools)[number]['scope']
+      access?: (typeof tools)[number]['access']
+      risk?: (typeof tools)[number]['risk']
+      provider?: string
+      ownerAgent?: string
+    }
+    if (!body.name || !body.provider) return fail(400, 'SERVER_INVALID_PARAM', '工具名和 provider 不能为空')
+    if (tools.some((tool) => tool.name === body.name)) return fail(400, 'SERVER_INVALID_PARAM', '工具名已存在')
+    tools.push({
+      name: body.name,
+      description: body.description || body.name,
+      scope: body.scope ?? 'PRIVATE',
+      ownerAgent: body.ownerAgent,
+      access: body.access ?? 'READ',
+      risk: body.risk ?? 'LOW',
+      version: 'v1',
+      status: 'REGISTERED',
+      calls24h: 0,
+      dependentCount: 0,
+    })
+    return ok({ name: body.name })
+  }),
+
+  http.post(`${BASE}/tools/:name/versions`, async ({ params, request }) => {
+    const tool = tools.find((item) => item.name === params.name)
+    if (!tool) return fail(404, 'SERVER_NOT_FOUND', '资源不存在')
+    if (tool.status === 'RETIRED') return fail(409, 'TOOL_RETIRED', '工具已下线')
+    const body = (await request.json()) as { version?: string; description?: string; risk?: (typeof tools)[number]['risk']; breaking?: boolean }
+    if (body.breaking) return fail(400, 'SERVER_INVALID_PARAM', '破坏兼容必须用新名字注册，不能在原名上发版')
+    if (!body.version) return fail(400, 'SERVER_INVALID_PARAM', '版本不能为空')
+    tool.version = body.version
+    if (body.description) tool.description = body.description
+    if (body.risk) tool.risk = body.risk
+    if (tool.status === 'REGISTERED') tool.status = 'ONLINE'
+    return ok({ triggeredRegressions: dependentsOf(tool.name!).flatMap((item) => (item.agent ? [item.agent] : [])) })
+  }),
+
   http.post(`${BASE}/tools/:name/retire`, ({ params }) => {
     const tool = tools.find((t) => t.name === params.name)
     if (!tool) return fail(404, 'SERVER_NOT_FOUND', '资源不存在')

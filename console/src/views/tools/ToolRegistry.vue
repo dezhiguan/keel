@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import Pager from '@/components/Pager.vue'
+import ToolDrawer from './ToolDrawer.vue'
 import ToolStatusPill from './ToolStatusPill.vue'
 import { listTools, registerTool as createTool, type ListToolsQuery, type ToolPage } from '@/api/tools'
 import { toKeelError } from '@/api/http'
@@ -12,6 +13,7 @@ import { RISK, fmtN } from '@/utils/format'
 const ACCESS = { READ: '读', WRITE: '写', EXEC: '执行' } as const
 const SCOPE = { PRIVATE: '私有', SHARED: '共享' } as const
 
+const route = useRoute()
 const router = useRouter()
 const envStore = useEnvStore()
 const result = ref<ToolPage | null>(null)
@@ -42,6 +44,11 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+function openTool(name?: string) {
+  if (!name) return
+  router.push({ query: { ...route.query, tool: name } })
 }
 
 function setScope(scope: typeof filter.scope) {
@@ -119,7 +126,7 @@ watch(() => envStore.env, () => {
       <table class="t">
         <thead><tr><th>工具</th><th>范围</th><th>所有者</th><th>读写</th><th>风险</th><th>版本</th><th>依赖方</th><th>24h</th><th>状态</th></tr></thead>
         <tbody>
-          <tr v-for="t in result?.items ?? []" :key="t.name" class="click" @click="router.push(`/tools/${t.name}`)">
+          <tr v-for="t in result?.items ?? []" :key="t.name" class="click" @click="openTool(t.name)">
             <td class="nm"><b class="mono">{{ t.name }}</b><small>{{ t.description }}</small></td>
             <td>{{ SCOPE[t.scope!] }}</td>
             <td>{{ t.ownerAgent ?? t.ownerOrg }}</td>
@@ -170,5 +177,6 @@ watch(() => envStore.env, () => {
         <button class="btn pri" style="margin-left: 8px" @click="submitRegister">确认注册</button>
       </template>
     </el-dialog>
+    <ToolDrawer @changed="load" />
   </div>
 </template>

@@ -31,6 +31,27 @@ describe('mock handlers', () => {
     expect(tool.json.data.status).toBe('RETIRED')
   })
 
+  it('rejects a breaking publish on the same name', async () => {
+    const res = await call('POST', '/tools/alarm_query/versions', { version: 'v3', breaking: true })
+    expect(res.status).toBe(400)
+    expect(res.json.message).toContain('新名字')
+  })
+
+  it('publishes a compatible version and names the dependents', async () => {
+    const res = await call('POST', '/tools/alarm_query/versions', { version: 'v3', breaking: false })
+    expect(res.status).toBe(200)
+    expect(res.json.data.triggeredRegressions).toContain('offshore-wind')
+  })
+
+  it('registers a new tool and refuses a duplicate name', async () => {
+    const body = { name: 'echo.note.v2', scope: 'PRIVATE', access: 'READ', risk: 'LOW', provider: 'mcp://echo/note', schemaJson: {} }
+    const created = await call('POST', '/tools', body)
+    expect(created.status).toBe(200)
+    const again = await call('POST', '/tools', body)
+    expect(again.status).toBe(400)
+    expect(again.json.message).toContain('已存在')
+  })
+
   it('decides an approval once, then rejects a second decision', async () => {
     const first = await call('POST', '/approvals/ap_0915/decision', { decision: 'APPROVE' })
     expect(first.json.data.status).toBe('APPROVED')

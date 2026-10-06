@@ -322,7 +322,7 @@ public class ToolRegistryService {
     private List<Map<String, Object>> versions(String name) {
         return jdbc.query("""
                 SELECT version, description, breaking, created_at FROM tool_version
-                WHERE tool_name = ? ORDER BY created_at
+                WHERE tool_name = ? ORDER BY created_at DESC
                 """, (rs, n) -> {
             var item = new LinkedHashMap<String, Object>();
             item.put("version", rs.getString("version"));

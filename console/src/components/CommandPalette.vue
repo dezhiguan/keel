@@ -30,7 +30,7 @@ const items = computed<Item[]>(() => {
     type: '工具',
     title: tool.name,
     sub: tool.owner,
-    to: `/tools/${encodeURIComponent(tool.name)}`,
+    to: `/tools?tool=${encodeURIComponent(tool.name)}`,
   }))
   const q = query.value.trim().toLowerCase()
   return [...pages, ...agentItems, ...toolItems]
