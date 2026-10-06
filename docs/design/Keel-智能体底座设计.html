@@ -959,7 +959,7 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
     <div class="cap"><div class="ix">C04</div><div><h4>链路追踪<small>Langfuse（自建）</small></h4><p>直接采用 Langfuse，回答"慢在哪一步、钱花在哪一步、哪个智能体出的问题"。</p><ul><li>多智能体：子智能体是 <code>agent</code> 类型节点，跨服务靠 traceparent 串进同一个 trace，自动生成 Agent Graph</li><li>askdb 用 LangGraph 原生回调，careermate 走 OTLP/HTTP，Dify 用内置集成</li><li>Keel 在其上叠加：三档状态口径、按智能体拆分成本、与审计 / 审批 / 门禁互跳</li><li>和 SkyWalking 分工：SkyWalking 看服务和接口，Langfuse 看智能体语义</li></ul><div class="src">来源：Langfuse（采用）+ askdb trace.py 的状态口径；offshore tracestore.py 下线</div></div></div>
     <div class="cap"><div class="ix">C05</div><div><h4>审计中心<small>keel-audit</small></h4><p>记录谁、在什么时间、通过哪个智能体、对什么资源做了什么。</p><ul><li>统一事件格式，按字段白名单记录，敏感信息自动脱敏</li><li>只追加 + 哈希链防篡改，保留期按风险分级</li><li>高风险动作同步写入，写失败就拒绝执行</li></ul><div class="src">来源：askdb audit.py / auditstore.py + careermate AuditService</div></div></div>
     <div class="cap"><div class="ix">C06</div><div><h4>评测与发布门禁<small>Langfuse 数据集 + keel-gate</small></h4><p>评测交给 Langfuse，Keel 只做"不达标就不许发布"这一件事。</p><ul><li>Langfuse：数据集（评测用例）、实验（跑一版、对比两版）、大模型裁判和代码评分器</li><li>keel-gate：CI 里跑实验、读分数、按用例标签和上一版逐维度对比，不达标让流水线失败</li><li>领域评分函数（故障类型、SQL 结果比对）由智能体提供，作为代码评分器注册到实验里</li></ul><div class="src">来源：Langfuse（采用）+ askdb evalstore.py 的门禁口径；offshore eval/、evalview.py 下线</div></div></div>
-    <div class="cap"><div class="ix">C07</div><div><h4>质量监控与提示词<small>Langfuse</small></h4><p>上线后的持续质量监控和提示词版本管理，都直接用 Langfuse。</p><ul><li>用户点赞点踩写成分数；在线评估器按 5% 采样给线上对话打分；标注队列做人工抽检</li><li>坏案例从链路一键加入数据集，下次发布前自动回归</li><li>提示词按 <code>{智能体}/{名称}</code> 存在 Langfuse，业务方在 Keel 控制台改；staging 即时生效并自动回归，<code>keel release</code> 过门禁后才同步到 prod；每次模型调用记录用的是哪一版（见 06 节"提示词怎么管"）</li><li>Keel 总览页调 Langfuse API，把解决率、转人工率、点踩率按智能体汇总</li></ul><div class="src">来源：Langfuse（采用）；offshore /admin 质量中心页面下线</div></div></div>
+    <div class="cap"><div class="ix">C07</div><div><h4>质量监控与提示词<small>Langfuse</small></h4><p>上线后的持续质量监控和提示词版本管理，都直接用 Langfuse。</p><ul><li>用户点赞点踩写成分数；在线评估器按 5% 采样给线上对话打分；标注队列做人工抽检</li><li>坏案例从链路一键加入数据集，下次发布前自动回归</li><li>提示词按 <code>{智能体}/{名称}</code> 存在 Langfuse，业务方在 Keel 控制台改；每个环境一个标签，dev / test 随时试，staging 生效即自动回归，<code>keel release</code> 过门禁后 prod 才切到同一版；每次模型调用记录用的是哪一版（见 06 节"提示词怎么管"）</li><li>Keel 总览页调 Langfuse API，把解决率、转人工率、点踩率按智能体汇总</li></ul><div class="src">来源：Langfuse（采用）；offshore /admin 质量中心页面下线</div></div></div>
     <div class="cap"><div class="ix">C08</div><div><h4>护栏策略<small>guardrails</small></h4><p>作为策略配置，不写进业务代码。</p><ul><li>输入：提示词注入检测、敏感词</li><li>输出：接地校验 off / shadow / enforce 三种模式，PII 脱敏</li><li>先用 shadow 只做标注，确认效果后再切到 enforce</li></ul><div class="src">来源：offshore GROUNDING_MODE 设计</div></div></div>
     <div class="cap"><div class="ix">C09</div><div><h4>工具注册与生命周期<small>keel-tools</small></h4><p>工具统一声明读写属性和风险等级。</p><ul><li>支持 MCP 工具注册，可跨智能体共享（如 rag.search）</li><li>高风险工具强制走审批，审批结果写入审计</li><li>描述或参数变更触发依赖方回归评测；破坏兼容必须改名；有 prod 依赖不能直接下线</li><li>工具执行日志统一记录</li></ul><div class="src">来源：careermate McpToolService / tool_execution_log + askdb approvals.py</div></div></div>
     <div class="cap"><div class="ix">C10</div><div><h4>审批中心与人工介入<small>approval · run lifecycle</small></h4><p>所有需要人点一下的事集中到一处，智能体不用各自建后台。</p><ul><li><b>四类审批共用一张表</b>（<code>subject_type</code>）：工具调用、工具变更（风险调低也要批）、智能体配置与下线、数据导出。不是只有工具调用要审批</li><li><b>人工介入</b>是另一回事：执行挂起等人回话（<code>input_required</code>）或转人工（<code>handoff</code>），没有审批单，处理完从断点继续</li><li>挂起时 SSE 流正常关闭，网关借此释放并发位；恢复时重新换票（原票 600 秒必然已过期）</li><li><b>边界：底座管账，智能体管现场。</b>底座存 run 状态、谁有权决定、截止时间、恢复入口；现场只存一个 <code>checkpoint_ref</code>，内容不碰。底座永远不决定下一步做什么——那是工作流引擎，不是 Keel</li><li>v1 不提供现场存储实现，askdb 继续用自带的 LangGraph checkpointer</li></ul><div class="src">来源：askdb approvals.py + LangGraph checkpoint；详见 docs/specs/p0/P0-1a-run-lifecycle.md</div></div></div>
@@ -973,7 +973,7 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
     <tbody>
       <tr><td><b>① 运行时打通</b><br><small class="mut">开发者看不见</small></td><td>智能体不直接感知 薄网关 和 Langfuse，由 SDK 在背后接好</td><td><code>ctx.llm</code> 的地址指向 薄网关，带上该智能体的虚拟 Key，以及 agent、trace_id、session_id 等 metadata；每次模型调用由 SDK 记成 Langfuse 的 generation，挂在当前 trace 下。薄网关 自带的 Langfuse 回调关闭，避免重复记录</td></tr>
       <tr><td><b>② 控制台取数</b><br><small class="mut">高频看的放在 Keel</small></td><td>Keel 后端调两边的 API，汇总成跨智能体视图</td><td>总览、质量、评测页调 Langfuse 的 traces、scores、datasets 接口；模型网关页调 薄网关 的花费日志、Key 信息、模型列表接口。深挖时用深链跳转：追踪节点带 trace_id 跳到那条 Langfuse 链路，评测页跳到对应实验。不用 iframe 整页嵌入，跨域登录和权限都会出问题</td></tr>
-      <tr><td><b>③ 配置自动化</b><br><small class="mut">写操作由 Keel 代办</small></td><td>开发者不用去两边手工配置</td><td><code>keel register</code> 时：在 薄网关 创建虚拟 Key（限定模型、日预算）；把两边的 Key 写进该智能体的 K8s Secret；在 Langfuse 导入评测数据集。<code>keel release</code> 时把门禁实测的提示词版本从 staging 项目复制到 prod 项目并打 production 标签；控制台改提示词由 keel-server 代写 Langfuse。<code>keel retire</code> 时吊销虚拟 Key。每一步都写审计</td></tr>
+      <tr><td><b>③ 配置自动化</b><br><small class="mut">写操作由 Keel 代办</small></td><td>开发者不用去两边手工配置</td><td><code>keel register</code> 时：在 薄网关 创建虚拟 Key（限定模型、日预算）；把两边的 Key 写进该智能体的 K8s Secret；在 Langfuse 导入评测数据集。<code>keel release</code> 时把门禁实测的那一版提示词打上 production 标签；控制台改提示词由 keel-server 代写 Langfuse。<code>keel retire</code> 时吊销虚拟 Key。每一步都写审计</td></tr>
       <tr><td><b>登录</b></td><td>尽量一次登录</td><td>auth-gateway 目前不是 OIDC 提供方（没有授权端点和发现端点），Langfuse 暂时接不了它的单点登录：先用邮箱密码并关闭自助注册，账号由管理员创建；auth-gateway 以后补上 OIDC 再接。薄网关没有单独的管理界面，模型、Key 和预算都在 Keel 控制台里看</td></tr>
     </tbody>
   </table>
@@ -1072,7 +1072,7 @@ spec:
     captureFields: [question, tools, citations]   # 白名单，其余字段不进审计
   prompts:
     source: langfuse            # 运行时按标签从 Langfuse 拉取，本地副本只做兜底
-    label: production           # prod 读的标签；staging 固定读 staging
+    label: production           # prod 读的标签；dev、test、staging 读同名标签
     items:                      # 只能读这里声明的提示词，名字在 Langfuse 里是 offshore-wind/route
       - { name: route,  type: text }
       - { name: answer, type: chat }
@@ -1210,7 +1210,7 @@ async def handle(req, ctx: Context):
                                 prompt=p)  # 传 prompt=p，链路上才能看到这次用的是哪一版
     return ctx.final(answer, citations=docs.citations)
 
-app = agent.asgi()    # 自动挂载 /v1/invoke /v1/health /v1/manifest</pre><aside><h5>SDK 自动完成的事</h5><ul><li>校验请求 JWT（auth-gateway 的 JWKS），执行配额，注入用户上下文</li><li><code>ctx.llm</code> 走 薄网关：地址和虚拟 Key 从注册时写入的 Secret 读取，降级和计费由 薄网关 完成，generation span 由 SDK 上报</li><li><code>ctx.knowledge</code> 调 rag-forge 并自动换票</li><li><code>ctx.prompt</code> 只取 manifest 里声明的提示词，按环境选标签，缓存 60 秒；Langfuse 不可用且没有缓存时读 <code>prompts/</code> 兜底副本</li><li>工具调用自动审计，高风险工具自动挂起等审批</li><li>追踪通过 OTLP 异步上报到 Langfuse，失败时写本地缓冲</li><li>护栏按 manifest 在入口和出口自动执行</li><li>不在 K8s 里运行时，自动向注册中心发心跳</li></ul></aside></div>
+app = agent.asgi()    # 自动挂载 /v1/invoke /v1/health /v1/manifest</pre><aside><h5>SDK 自动完成的事</h5><ul><li>校验请求 JWT（auth-gateway 的 JWKS），执行配额，注入用户上下文</li><li><code>ctx.llm</code> 走 薄网关：地址和虚拟 Key 从注册时写入的 Secret 读取，降级和计费由 薄网关 完成，generation span 由 SDK 上报</li><li><code>ctx.knowledge</code> 调 rag-forge 并自动换票</li><li><code>ctx.prompt</code> 只取 manifest 里声明的提示词，按环境读同名标签（prod 读 production），缓存 60 秒；Langfuse 不可用且没有缓存时读 <code>prompts/</code> 兜底副本</li><li>工具调用自动审计，高风险工具自动挂起等审批</li><li>追踪通过 OTLP 异步上报到 Langfuse，失败时写本地缓冲</li><li>护栏按 manifest 在入口和出口自动执行</li><li>不在 K8s 里运行时，自动向注册中心发心跳</li></ul></aside></div>
     <div class="pane"><pre data-lang="python"># ops-copilot/app.py：用 supervisor 模板生成的运维总控
 from keel import Agent, Context
 
@@ -1250,7 +1250,8 @@ public class CareerAgent {
     <div class="pane"><pre data-lang="bash"># 1. 生成项目：底座已接好，模板自带 10 条冒烟评测
 keel new wind-inspection --lang python --template graph-agent
 
-# 2. 本地开发：连测试环境的 薄网关 和 Langfuse dev 项目，审计写本地 SQLite + 热重载
+# 2. 本地开发：连测试环境的 薄网关 和 Langfuse（链路带 keel.env=dev），审计写本地 SQLite + 热重载
+#    提示词默认读 dev 标签；加 --local-prompts 直接读 prompts/ 文件，改完即生效
 keel dev
 
 # 3. 本地跑一次实验，结果进 Langfuse，和 CI 口径一致
@@ -1260,7 +1261,7 @@ keel eval run --dataset offshore-wind/inspection
 #    在 薄网关 创建虚拟 Key，把 薄网关 和 Langfuse 的 Key 写进 K8s Secret，导入初始评测用例
 keel register --env staging
 
-# 5. 发布：keel gate 跑实验并逐维度判定，通过才发布；门禁实测的提示词版本同步到 prod 项目并打 production 标签
+# 5. 发布：keel gate 跑实验并逐维度判定，通过才发布；门禁实测的提示词版本打上 production 标签
 keel release --env prod
 
 # 6. 下线：吊销虚拟 Key、停止部署、控制台归档；历史追踪、评测、审计保留
@@ -1271,7 +1272,7 @@ keel retire --env prod
 #   tool-agent    ReAct 工具调用
 #   graph-agent   LangGraph 多步推理（askdb、风机维检这类）
 #   supervisor    多智能体协作
-#   java-spring   Spring Boot + keel-starter</pre><aside><h5>本地开发怎么看效果</h5><ul><li>Langfuse 开一个 <b>dev 项目</b>，本地调用的链路、实验结果都进这里，不污染线上数据</li><li>审计、审批在本地用 keel-lite（单进程 + SQLite），不依赖线上平台</li><li>想完全离线时，用 Langfuse 官方 Docker Compose 在本机起一套</li><li><code>keel eval run</code> 和 CI 里的 <code>keel gate</code> 用同一套评分器，本地过了线上也会过</li></ul></aside></div>
+#   java-spring   Spring Boot + keel-starter</pre><aside><h5>本地开发怎么看效果</h5><ul><li>四个环境共用一个 Langfuse 项目，本地调用的链路带 <code>keel.env=dev</code>，控制台和 Langfuse 都能按环境筛开，不混进线上指标</li><li>审计、审批在本地用 keel-lite（单进程 + SQLite），不依赖线上平台</li><li>想完全离线时，用 Langfuse 官方 Docker Compose 在本机起一套</li><li><code>keel eval run</code> 和 CI 里的 <code>keel gate</code> 用同一套评分器，本地过了线上也会过</li></ul></aside></div>
     <div class="pane"><pre data-lang="bash">wind-inspection/
 ├── agent.yaml               # 唯一需要认真写的配置
 ├── app.py                   # 业务入口
@@ -1287,24 +1288,25 @@ keel retire --env prod
   </div>
 
   <h3 class="sub reveal" id="prompts">提示词怎么管</h3>
-  <p class="reveal" style="color:var(--ink2);font-size:14.5px;margin-bottom:14px">底座要管提示词，原因有三条：改提示词和改代码一样会让效果退步，必须过门禁；业务方要能自己改，不能每次找开发发版；出了问题要能从一条链路查到当时用的是哪一版。存储、版本、diff、调试台直接用 Langfuse，Keel 补上它在我们这套部署下缺的四件事。</p>
+  <p class="reveal" style="color:var(--ink2);font-size:14.5px;margin-bottom:14px">底座要管提示词，原因有三条：改提示词和改代码一样会让效果退步，必须过门禁；业务方要能自己改，不能每次找开发发版；出了问题要能从一条链路查到当时用的是哪一版。存储、版本、diff、调试台直接用 Langfuse，Keel 补上它在我们这套部署下缺的几件事。</p>
   <table class="doc reveal">
     <thead><tr><th>缺口</th><th>原因</th><th>Keel 的做法</th></tr></thead>
     <tbody>
-      <tr><td><b>跨环境同步</b></td><td>dev、staging、prod 是三个 Langfuse 项目，提示词只在本项目内可见，标签也是</td><td>编辑只发生在 staging 项目。<code>keel release</code> 门禁通过后，keel-server 把门禁实测用的那一版<b>复制</b>到 prod 项目并打 production 标签。两边版本号不同，按内容哈希对应，记进发布记录</td></tr>
-      <tr><td><b>谁能改</b></td><td>Hobby 套餐网页用户只有 2 个，业务方进不了 Langfuse；保护标签要 Enterprise</td><td>控制台"提示词"页按智能体负责人授权编辑，keel-server 代写 Langfuse。prod 的 production 标签只由 keel-server 改，有人在 Langfuse 里手动挪了，<code>PromptDriftJob</code> 告警并记审计</td></tr>
-      <tr><td><b>改动要过门禁</b></td><td>Langfuse 改完立刻生效，不管效果</td><td>在 staging 生效即触发回归实验；发布时校验门禁实测的提示词版本 = 当前 staging 版本，不一致不许发</td></tr>
+      <tr><td><b>四个环境各用哪一版</b></td><td>四个环境共用一个 Langfuse 项目（2026-10-07 定），版本号全局一套</td><td>每个环境一个同名标签：<code>dev</code>、<code>test</code>、<code>staging</code>，prod 用 <code>production</code>。"在某环境生效"就是把该环境的标签挪到某一版，不复制内容</td></tr>
+      <tr><td><b>谁能改</b></td><td>Hobby 套餐网页用户只有 2 个，业务方进不了 Langfuse；保护标签要 Enterprise</td><td>控制台"提示词"页按智能体负责人授权编辑，keel-server 代写 Langfuse。staging、production 两个标签只由 keel-server 挪；有人在 Langfuse 里手动挪了，<code>PromptDriftJob</code> 告警并记审计</td></tr>
+      <tr><td><b>改动要过门禁</b></td><td>Langfuse 改完立刻生效，不管效果</td><td>dev、test 随时挪，不跑门禁；在 staging 生效即触发回归实验；发布时校验门禁实测的版本 = 当前 staging 版本，通过后 production 标签挪到<b>同一版</b></td></tr>
+      <tr><td><b>代码里改了提示词</b></td><td>开发改了 <code>prompts/</code> 文件，但线上只读 Langfuse，容易以为改了其实没生效</td><td><code>keel register</code> 和 CI 比对本地文件和 Langfuse：新声明的提示词建第一版；内容在 Langfuse 里找不到的，建一个<b>不生效</b>的新版本，提交说明带 git commit，控制台标"代码里有新版本"</td></tr>
       <tr><td><b>链路能看到版本</b></td><td>generation 上要带提示词名和版本号，用了兜底副本时 Langfuse 不建关联</td><td><code>ctx.llm</code> 收到 <code>prompt=p</code> 就写 <code>langfuse.observation.prompt.name / version</code>；用兜底副本时打 <code>keel.prompt.fallback=true</code>，链路节点上标黄</td></tr>
     </tbody>
   </table>
   <div class="steps reveal">
-    <div class="step"><b>dev · 本机</b><h4>改文件</h4><p>读 <code>prompts/</code> 本地文件；<code>keel prompts pull</code> 把 staging 当前版本拉下来</p></div>
-    <div class="step hot"><b>staging · 控制台</b><h4>保存新版本</h4><p>写进 staging 项目，带提交说明；还没生效，可以和任意版本对比 diff</p></div>
-    <div class="step"><b>staging · 即时</b><h4>在 staging 生效</h4><p>staging 标签挪到新版本，60 秒内生效；自动跑回归实验，结果回到控制台</p></div>
-    <div class="step"><b>prod · keel release</b><h4>过门禁同步</h4><p>门禁实测版本 = staging 版本才放行；复制到 prod 项目，打 production 标签</p></div>
-    <div class="step"><b>prod · 控制台</b><h4>回滚</h4><p>把 production 标签挪回某个已发布过的版本，不重跑门禁，记审计</p></div>
+    <div class="step hot"><b>控制台 · 或代码提交</b><h4>新版本</h4><p>控制台保存，或 <code>keel register</code> / CI 从 <code>prompts/</code> 带上来；只建版本，哪个环境都不变</p></div>
+    <div class="step"><b>dev · test</b><h4>先试</h4><p>把 dev 或 test 标签挪过去，60 秒内生效；不跑门禁，测试同学在 test 验证</p></div>
+    <div class="step"><b>staging</b><h4>在 staging 生效</h4><p>挪 staging 标签，自动跑回归实验，结果回到控制台</p></div>
+    <div class="step"><b>prod · keel release</b><h4>过门禁发布</h4><p>门禁实测版本 = staging 版本才放行；production 标签挪到同一版</p></div>
+    <div class="step"><b>prod · 控制台</b><h4>回滚</h4><p>production 标签挪回某个发布过的版本，不重跑门禁，记审计</p></div>
   </div>
-  <div class="note reveal"><b>边界：</b>Dify 智能体的提示词在 Dify 应用里管，Keel 不接管。提示词不能跨智能体共用，名字强制带智能体前缀。模型仍由 manifest 决定，提示词 config 里只认 <code>temperature</code>、<code>max_tokens</code>、<code>top_p</code>，写了 <code>model</code> 会被忽略并告警。审计只记版本号、内容哈希和改动行数，不记提示词原文。</div>
+  <div class="note reveal"><b>版本在哪：</b>版本本身（内容、版本号、标签、提交说明、diff）只在 Langfuse。Keel 库只记门禁和发布的账：哪一版在 staging 生效过、回归结果、每次发布的版本号和内容哈希。代码里的 <code>prompts/</code> 是兜底副本和新版本的来源之一，不是版本库。<b>边界：</b>Dify 智能体的提示词在 Dify 应用里管，Keel 不接管。提示词不能跨智能体共用，名字强制带智能体前缀。模型仍由 manifest 决定，提示词 config 里只认 <code>temperature</code>、<code>max_tokens</code>、<code>top_p</code>，写了 <code>model</code> 会被忽略并告警。审计只记版本号、内容哈希和改动行数，不记提示词原文。</div>
 </section>
 
 <!-- 07 -->
@@ -1395,7 +1397,7 @@ keel retire --env prod
   <table class="doc reveal">
     <thead><tr><th>方案</th><th>怎么做</th><th>费用参考</th><th>适合</th></tr></thead>
     <tbody>
-      <tr><td><b>采用：Langfuse Cloud 日本</b></td><td>主机 <code>https://jp.cloud.langfuse.com</code>。dev、staging、prod 三个项目在云端界面创建。智能体只配置地址和项目 Key。2026-10-04 已从云服务器 <code>8.163.30.216</code> 实测读写</td><td>Hobby 免费。生产对账和总览升 Core，约 29 美元/月起</td><td>现在：不买机器，不运维 ClickHouse</td></tr>
+      <tr><td><b>采用：Langfuse Cloud 日本</b></td><td>主机 <code>https://jp.cloud.langfuse.com</code>。四个环境共用一个项目（2026-10-07 定），链路按 <code>keel.env</code> 区分，提示词按标签区分。智能体只配置地址和项目 Key。2026-10-04 已从云服务器 <code>8.163.30.216</code> 实测读写</td><td>Hobby 免费。生产对账和总览升 Core，约 29 美元/月起</td><td>现在：不买机器，不运维 ClickHouse</td></tr>
       <tr><td>以后可换：自建或阿里云托管</td><td>换 <code>LANGFUSE_HOST</code> 和项目 Key。历史 trace 不跟随迁移</td><td>自建约 700～900 元/月量级；阿里云托管按量</td><td>追踪数据需要留在自己的 VPC 时</td></tr>
     </tbody>
   </table>
@@ -1413,7 +1415,7 @@ keel retire --env prod
   <div class="sec-h reveal"><div class="no">10</div><h2>落地路线</h2><p>不推倒重来。每个阶段让一个现有智能体迁移过来，同时删掉它身上的一部分重复代码。</p></div>
   <div class="road reveal">
     <div class="phase"><div class="ph">P0</div><h4>契约与 SDK</h4><div class="wk">第 1–2 周</div><ul><li>冻结五份契约 keel/v1</li><li>从 askdb 的 trace.py、audit.py、quota.py 抽出 Python SDK，内置 JWT 校验、配额、护栏（网关上线前由 SDK 承担）</li><li>从 careermate 的 observability、audit 抽出 Java Starter</li><li>keel-lite 单机版 + CLI 的 new、dev 命令</li></ul><div class="ok"><b>验收：</b>用 keel new 生成 hello-agent，30 分钟内在本地看到追踪和审计</div></div>
-    <div class="phase"><div class="ph">P1</div><h4>Langfuse Cloud + 薄网关 + 审计</h4><div class="wk">第 3–5 周</div><ul><li>接入 Langfuse Cloud 日本节点，建好 dev、staging、prod 三个项目</li><li>在现有应用节点部署薄网关，厂商密钥收进去，三个智能体的 <code>ctx.llm</code> 统一指向它</li><li>askdb 接 LangGraph 回调，careermate 走 OTLP/HTTP，offshore-wind 删掉 tracestore.py 改用 SDK</li><li>rag-forge 加 OTel Agent，检索作为 retriever 节点进同一个 trace；登记为共享服务</li><li>上线 keel-audit；注册中心：登记、自动发 Key、K8s 探测、对账</li><li>控制台：总览、智能体、多智能体追踪页、模型网关、审计中心</li></ul><div class="ok"><b>验收：</b>三个智能体的链路在同一个 Langfuse 项目可查，跨智能体调用串在同一个 trace 里；智能体代码里不再有厂商密钥</div></div>
+    <div class="phase"><div class="ph">P1</div><h4>Langfuse Cloud + 薄网关 + 审计</h4><div class="wk">第 3–5 周</div><ul><li>接入 Langfuse Cloud 日本节点，四个环境共用一个项目，按 <code>keel.env</code> 区分</li><li>在现有应用节点部署薄网关，厂商密钥收进去，三个智能体的 <code>ctx.llm</code> 统一指向它</li><li>askdb 接 LangGraph 回调，careermate 走 OTLP/HTTP，offshore-wind 删掉 tracestore.py 改用 SDK</li><li>rag-forge 加 OTel Agent，检索作为 retriever 节点进同一个 trace；登记为共享服务</li><li>上线 keel-audit；注册中心：登记、自动发 Key、K8s 探测、对账</li><li>控制台：总览、智能体、多智能体追踪页、模型网关、审计中心</li></ul><div class="ok"><b>验收：</b>三个智能体的链路在同一个 Langfuse 项目可查，跨智能体调用串在同一个 trace 里；智能体代码里不再有厂商密钥</div></div>
     <div class="phase"><div class="ph">P2</div><h4>评测迁移 + 门禁</h4><div class="wk">第 6–8 周</div><ul><li>askdb、offshore 的评测用例导入 Langfuse 数据集，删掉 evalstore.py、evalview.py</li><li>领域评分函数改成 Langfuse 代码评分器</li><li>写 keel-gate 并接入 CI 模板</li><li>提示词迁到 Langfuse 管理；给 careermate 补评测集</li><li>keel-gateway 轻量版：动态路由、JWT 准入、配额与并发、SSE 透传、根 span 和审计埋点；配 NetworkPolicy</li><li>控制台"共享服务"页：rag-forge 分段耗时、调用方用量、知识库新鲜度</li></ul><div class="ok"><b>验收：</b>offshore-wind 评测不达标时发布被自动阻止</div></div>
     <div class="phase"><div class="ph">P3</div><h4>质量 · 审批 · Dify</h4><div class="wk">第 9–12 周</div><ul><li>质量：开启 Langfuse 在线评估器和标注队列，坏案例回流数据集</li><li>工具注册与审批中心</li><li>keel-gateway 完整版：协议适配（Dify、企业微信、钉钉）、输入护栏前移、流式脱敏、熔断</li><li>部署 Dify，经网关协议适配接入，模型走 薄网关，上线智能客服</li><li>rag-forge 的模型调用切到 薄网关，审计同步到 keel-audit</li><li>用 supervisor 模板上线运维总控 ops-copilot</li></ul><div class="ok"><b>验收：</b>五个智能体（含 Dify 客服、多智能体总控）在同一个看板管理</div></div>
   </div>

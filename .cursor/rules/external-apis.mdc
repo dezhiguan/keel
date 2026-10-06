@@ -15,7 +15,14 @@ alwaysApply: true
 - **只支持 OTLP/HTTP，不支持 gRPC。** Java 侧不允许用 `OtlpGrpcSpanExporter`。不要用旧的 `/api/public/ingestion`，云端会在 2026-11-16 停掉 trace 写入。
 - 读接口只允许用：`/api/public/v2/observations`、`/api/public/v2/metrics`、`/api/public/v3/scores`、`/api/public/experiments`、`/api/public/experiment-items`、`/api/public/datasets`、`/api/public/dataset-items`。
 - 以下接口**禁止使用**：`/api/public/traces`、`/api/public/observations`、`/api/public/scores`、`/api/public/metrics`、`/api/public/sessions`、`/api/public/dataset-run-items`。2026-09-16 及之后创建的云端组织，`GET /api/public/traces` 返回 410。
-- 提示词打标签：`PATCH /api/public/v2/prompts/{name}/versions/{version}`。
+- 提示词打标签：`PATCH /api/public/v2/prompts/{name}/versions/{version}`，body `{"newLabels": [...]}`。一个标签同时只在一个版本上；`latest` 由 Langfuse 维护，不能手动设。
+- 提示词读写只用：`GET /api/public/v2/prompts/{name}?label=` 或 `?version=`（两者互斥，同时传 400）、`GET /api/public/v2/prompts`（列表，不含内容）、`POST /api/public/v2/prompts`（同名即追加版本，type 建了不能改）。名字带 `/` 时整体 URL 编码。不要用无版本号的 `/api/public/prompts`。
+- **标签不存在返回 404，不会退回 production 或 latest。** 代码里不要假设有回退。
+- **四个环境共用一个 Langfuse 项目（2026-10-07 定）。** 链路靠 `keel.env` 区分，提示词靠标签区分：dev → `dev`，test → `test`，staging → `staging`，prod → `production`。版本号全局一套，"在某环境生效"只挪标签，不复制内容，不要再写跨项目同步。不要按环境建 Langfuse 项目或按环境发不同的项目 Key。
+- staging、production 两个标签只由 keel-server 挪（staging 触发回归，production 只经 `keel release` 和回滚）。dev、test 标签控制台随时挪。
+- generation 关联提示词：`langfuse.observation.prompt.name`（字符串）和 `langfuse.observation.prompt.version`（整数）。用兜底副本时不写这两项，写 `keel.prompt.fallback=true`。
+- 保护标签只有 Enterprise 有，Hobby / Core 都没有。production 标签靠 `PromptDriftJob` 守。
+- 以上提示词行为 2026-10-07 按官方文档核实，未实测；`POST` 里 config、commitMessage 的传法未核实。
 - Python SDK 锁 `>= 4.7.0`，低于这个版本数据在 v4 服务端会延迟约 15 分钟。
 - generation span 只由 Keel SDK 上报一次。薄网关不向 Langfuse 上报，否则一次调用记两条。
 - 在线评估器配成 observation 级（挂在根 agent 节点上）。v4 不再运行 trace 级评估器。
