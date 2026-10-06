@@ -222,11 +222,6 @@ input[type=range]{accent-color:var(--acc);width:100%}
 .prog i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),#ffb08f);width:0;transition:width .3s}
 
 /* trace（与设计文档原型一致） */
-.recent{display:flex;gap:8px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px}
-.rc{flex:none;padding:7px 11px;border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:11px;color:var(--mute);cursor:pointer;max-width:250px;transition:.15s}
-.rc:hover{border-color:#3d5070}
-.rc b{display:block;color:#e6ebf3;font-weight:500;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
-.rc.on{border-color:var(--acc);background:#1a2233}
 .tsum .q{font-size:14.5px;color:#fff;font-weight:600;margin-bottom:8px;line-height:1.5}
 .metas{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--mute)}
 .metas b{color:#fff;font-family:var(--mono);font-weight:500}
@@ -624,7 +619,7 @@ function agentBody(a){
 function agentFoot(a){
   if(a.st==='RETIRED')return `<span class="mut" style="margin-right:auto;font-size:12px">已下线，历史追踪、评测、审计可查</span>`;
   const canRel=a.env==='staging'&&a.gate&&!['DRAFT','OFFLINE'].includes(a.st);
-  return `<button class="btn ghost" data-act="toTrace">查看链路</button><button class="btn danger" data-act="retire" data-id="${a.id}">下线</button>${a.env==='staging'?`<button class="btn pri" data-act="release" data-id="${a.id}" ${canRel?'':'disabled title="门禁未通过或未就绪"'}>发布到 prod</button>`:''}`;
+  return `<button class="btn ghost" data-act="toTrace" data-id="${a.id}">查看链路</button><button class="btn danger" data-act="retire" data-id="${a.id}">下线</button>${a.env==='staging'?`<button class="btn pri" data-act="release" data-id="${a.id}" ${canRel?'':'disabled title="门禁未通过或未就绪"'}>发布到 prod</button>`:''}`;
 }
 
 /* create wizard */
@@ -744,37 +739,150 @@ const N_M=[
   {id:'gout',ag:'platform',type:'GUARDRAIL',name:'guard.output',s:10400,t:250,st:'ok',d:0,crit:true,svc:'keel-sdk（ops-copilot 出口）',model:'qwen-flash',tin:820,tout:160,cost:.0004,in:'最终回答',out:'PII 脱敏 0 处，流式输出到 11.2s 结束'},
   {id:'aud',ag:'platform',type:'EVENT',name:'audit.write',s:10650,t:20,st:'ok',d:0,svc:'keel-audit',in:'本次调用产生的 3 条审计事件',out:'已写入，哈希链校验通过'}
 ];
-AG=AG_M;N=N_M;T=11200;
-byId={};N.forEach(n=>byId[n.id]=n);
 const STC={ok:'var(--ok)',fallback:'var(--warn)',degraded:'var(--warn)',failed:'var(--bad)'};
 const fmt=t=>t>=1000?(t/1000).toFixed(2)+'s':t+'ms';
 const tokOf=n=>n.agg?n.tok:(n.tin?n.tin+n.tout:0);
-LKEY={platform:'keel-guard',sup:'ops-copilot-staging',askdb:'askdb-prod',wind:'offshore-wind-prod'};
-const RECENT=[['p-acc','多智能体','11.2s · ¥0.0214','WT-07 告警频繁，查同批次故障率并给检修建议'],['p-soft','askdb','5.84s','上季度华东区退货率最高的三个品类'],['p-soft','careermate','3.12s','帮我改一下简历里的项目经历'],['p-soft','cs-bot','1.46s · 缓存','你们的退货政策是多少天？'],['p-bad','blocked','0.41s','查一下所有员工的薪资明细']];
-let trRecent=0,trTab='graph',trNode='w4';
+const stPill=st=>`<span class="pill ${st==='ok'?'p-ok':st==='failed'?'p-bad':'p-warn'}">${{ok:'ok',fallback:'降级',failed:'失败'}[st]||st}</span>`;
+function setupMulti(){
+  AG=AG_M;N=N_M;T=11200;
+  LKEY={platform:'keel-guard',sup:'ops-copilot-staging',askdb:'askdb-prod',wind:'offshore-wind-prod'};
+  LANES=['platform','sup','askdb','wind','human'];
+  HANDS=[[1450,'sup','askdb'],[1450,'sup','wind'],[5200,'askdb','sup'],[6400,'wind','sup'],[9850,'sup','human']];
+}
+
+/* 链路列表：真实实现由 keel-server 按时间窗翻页读 Langfuse 根 observation，筛选和分页都在服务端 */
+const TRACES=[
+  {id:'tr_8a31f0c2',ag:'ops-copilot',multi:['ops-copilot','askdb','offshore-wind'],env:'staging',min:2,ms:11200,wait:252000,tok:10578,cost:.0214,st:'fallback',q:'WT-07 最近一周告警频繁，查一下同批次风机的故障率，给出检修建议，需要的话直接建工单',user:'u_88 运维工程师'},
+  {id:'tr_5c1e9a4f',ag:'offshore-wind',env:'staging',min:3,ms:4380,tok:3120,cost:.0082,st:'ok',pend:'等待发起用户指定检修顺序',q:'WT-07 和 WT-11 都要检修，帮我排一下停机窗口',user:'u_88 张工'},
+  {id:'tr_e91c22a0',ag:'cs-bot',env:'prod',min:5,ms:1460,tok:0,cost:0,st:'ok',cached:true,q:'你们的退货政策是多少天？',user:'访客 v_9021'},
+  {id:'tr_4f02aa18',ag:'askdb',env:'prod',min:9,ms:5840,tok:1850,cost:.0036,st:'ok',q:'上季度华东区退货率最高的三个品类',user:'analyst@org_7'},
+  {id:'tr_d71e0b33',ag:'dev-copilot',env:'staging',min:11,ms:7420,tok:6210,cost:.0131,st:'ok',pend:'等待仓库维护者审批 git.pr.create',q:'REQ-218：order-service 分页接口越界，帮我修一下并提 PR',user:'u_1203 研发'},
+  {id:'tr_b3d9e710',ag:'careermate',env:'prod',min:14,ms:3120,tok:2380,cost:.0049,st:'ok',q:'帮我改一下简历里的项目经历',user:'u_2031'},
+  {id:'tr_0c7f4b21',ag:'askdb',env:'prod',min:17,ms:8920,tok:2640,cost:.0058,st:'fallback',q:'各区域近 30 天的客单价趋势，按周汇总',user:'analyst@org_3'},
+  {id:'tr_a12e5f90',ag:'cs-bot',env:'prod',min:19,ms:410,st:'failed',blocked:'越权查询：薪资明细需要 hr 角色，已拒绝并记审计',q:'查一下所有员工的薪资明细',user:'访客 v_8812'},
+  {id:'tr_c20f5a11',ag:'cs-bot',env:'prod',min:38,ms:380,st:'failed',blocked:'未登录用户无导出权限，已拒绝并记审计',q:'把我最近 7 天的对话记录导出来',user:'访客 v_8812'},
+  {id:'tr_19ab7e02',ag:'code-review',env:'prod',min:61,ms:12840,tok:9450,cost:.0187,st:'ok',q:'评审 order-service#142',user:'ci_bot'},
+  {id:'tr_6e44d8c3',ag:'careermate',env:'prod',min:72,ms:30500,tok:1210,cost:.0012,st:'failed',err:'qwen-plus 超时 30s，降级模型 deepseek-v3 也超时，SSE 发出 event: error',q:'根据这份 JD 帮我写一封求职信',user:'u_1877'},
+  {id:'tr_77aa01d4',ag:'careermate',env:'prod',min:79,ms:4210,tok:2950,cost:.0061,st:'ok',q:'把第二段项目经历改成 STAR 格式',user:'u_2031'},
+  {id:'tr_f5a0c9e2',ag:'offshore-wind',env:'staging',min:95,ms:6120,tok:4020,cost:.0097,st:'fallback',q:'变桨电机温度高报警怎么处理？',user:'u_88 张工'},
+  {id:'tr_2b8d1f63',ag:'prd-agent',env:'staging',min:130,ms:9870,tok:7340,cost:.0152,st:'ok',q:'把这段会议纪要整理成 PRD 草稿',user:'amy'},
+  {id:'tr_9d3a6c04',ag:'cs-bot',env:'prod',min:144,ms:2310,tok:1420,cost:.0018,st:'ok',q:'订单显示已签收但我没收到',user:'u_5520'},
+  {id:'tr_47e1b8a5',ag:'askdb',env:'prod',min:180,ms:4470,tok:1720,cost:.0034,st:'ok',q:'昨天新增注册用户数',user:'analyst@org_7'},
+  {id:'tr_e0c5d2b6',ag:'code-review',env:'prod',min:240,ms:15210,tok:11020,cost:.0221,st:'ok',q:'评审 payment-gateway#87',user:'ci_bot'},
+  {id:'tr_31f9a7c7',ag:'test-gen',env:'staging',min:300,ms:120,st:'failed',gwFail:'test-gen 0/1 就绪（CrashLoopBackOff），keel-gateway 无可用上游，返回 event: error',q:'为 OrderService.page 生成边界用例',user:'ci_bot'},
+  {id:'tr_8c2e4d18',ag:'askdb',env:'prod',min:420,ms:6610,tok:2210,cost:.0044,st:'ok',q:'华南仓库存周转天数排名',user:'analyst@org_3'},
+  {id:'tr_5a7b9e09',ag:'careermate',env:'prod',min:600,ms:2870,tok:2010,cost:.0041,st:'ok',q:'推荐几个适合我的后端岗位',user:'u_3302'},
+  {id:'tr_d4e6f1aa',ag:'offshore-wind',env:'staging',min:1500,ms:5480,tok:3660,cost:.0089,st:'ok',q:'WT-03 齿轮箱油温趋势分析',user:'u_91 李工'}
+];
+const TR_RANGE={'1h':60,'24h':1440,'7d':10080};
+const TRF={agent:'',st:'all',range:'24h',multi:false};
+const trState=r=>r.blocked?'blocked':r.pend?'pending':r.st;
+const agoTxt=m=>m<60?m+' 分钟前':m<1440?Math.floor(m/60)+' 小时前':Math.floor(m/1440)+' 天前';
+const RETR_OF={askdb:['RETRIEVER','schema_recall','schema 召回','命中表 orders、returns、regions'],careermate:['RETRIEVER','rag.jd-kb','检索 JD 库','top5 岗位描述片段'],'cs-bot':['RETRIEVER','rag.cs-faq','检索 FAQ','top3 FAQ 条目'],'offshore-wind':['RETRIEVER','rag.fault-manual','检索手册','top5，命中故障处理手册相关章节'],'code-review':['TOOL','git.pr.diff','读 PR 变更','改动 6 个文件，+182 −40'],'prd-agent':['RETRIEVER','rag.dev-standards','检索规范','top4 PRD 模板与规范片段'],'dev-copilot':['TOOL','git.pr.diff','读代码','定位到 PageQuery.offset 计算'],'test-gen':['TOOL','git.pr.diff','读代码','—']};
+const TOOL_OF={askdb:['sql.execute','中','只读连接 dw_prod','返回 3 行'],'code-review':['git.pr.comment','中','4 条评审意见','已发表到 PR'],'dev-copilot':['git.pr.create','高','order-service 分页越界修复，改动 3 个文件','等待审批'],'offshore-wind':['alarm_query','低','SCADA 告警查询','返回 18 条告警'],careermate:['resume.update','中','resume_id 88213 · project_exp','已更新']};
+
+/* 单智能体链路：按列表行生成节点，真实实现由 TraceQueryService 一次组装 nodes / edges */
+function buildSingle(r){
+  const c=COLORS[r.ag]||'#5b9cf6',T1=Math.max(r.ms,60),ns=[];
+  AG={platform:AG_M.platform,a:{n:r.ag,c,sub:r.env+' · 单智能体'}};
+  LKEY={platform:'keel-guard',a:r.ag+'-'+r.env};LANES=['platform','a'];HANDS=[];
+  ns.push({id:'gw',ag:'platform',type:'SPAN',name:'gateway.auth',s:0,t:r.gwFail?T1:15,st:r.gwFail?'failed':'ok',d:0,svc:'keel-gateway',in:'Bearer JWT（auth-gateway 签发，aud=keel-api）',out:r.gwFail||'已换票为 aud='+r.ag+'，路由到当前版本'});
+  if(r.gwFail){AG={platform:AG.platform};LANES=['platform'];return finishSingle(ns,T1)}
+  if(r.blocked){
+    ns.push({id:'gin',ag:'platform',type:'GUARDRAIL',name:'guard.input',s:15,t:T1-40,st:'failed',d:0,crit:true,svc:'keel-sdk（'+r.ag+' 入口）',in:'用户问题原文',out:r.blocked,rel:'审计事件 ae_…'+r.id.slice(-4)});
+    ns.push({id:'aud',ag:'platform',type:'EVENT',name:'audit.write',s:T1-20,t:20,st:'ok',d:0,svc:'keel-audit',in:'拒绝事件（同步写入）',out:'已写入，哈希链校验通过'});
+    AG={platform:AG.platform};LANES=['platform'];return finishSingle(ns,T1);
+  }
+  ns.push({id:'gin',ag:'platform',type:'GUARDRAIL',name:'guard.input',s:15,t:30,st:'ok',d:0,svc:'keel-sdk（'+r.ag+' 入口）',in:'用户问题原文',out:'提示词注入检测未命中'});
+  const s0=45,end=r.pend||r.st==='failed'?T1:T1-280,span=end-s0;
+  ns.push({id:'root',ag:'a',type:'AGENT',name:r.ag,s:s0,t:span,st:r.st,d:0,agg:true,tok:r.tok,cost:r.cost,svc:r.ag,in:r.q,out:r.err?'未完成：'+r.err:r.pend?'挂起中：'+r.pend:'回答已流式返回'});
+  let at=s0+10;
+  const step=(o,ratio)=>{const t=Math.round(span*ratio);ns.push(Object.assign({ag:'a',s:at,t,d:1,crit:true,svc:r.ag,st:'ok'},o));at+=t};
+  if(r.cached){
+    step({id:'cache',type:'EVENT',name:'cache.hit',short:'缓存命中',svc:'keel-sdk',in:'问题语义哈希',out:'命中 24h 内同类问题的缓存回答，未调用模型'},.92);
+  }else{
+    const [rt,rn,rs,ro]=RETR_OF[r.ag]||RETR_OF['prd-agent'];
+    step({id:'r1',type:rt,name:rn,short:rs,svc:rt==='RETRIEVER'?'rag-forge':r.ag,in:'问题文本',out:ro},.14);
+    const tool=!r.err&&TOOL_OF[r.ag],tin=Math.round(r.tok*.82),fb=r.st==='fallback';
+    step({id:'gen',type:'GENERATION',name:'answer',short:'生成回答',st:r.err?'failed':fb?'fallback':'ok',model:fb?'deepseek-v3（降级）':'qwen-plus',tin,tout:r.tok-tin,cost:r.cost,in:'问题 + 检索结果',out:r.err||(fb?'qwen-plus 超时 5s，薄网关按降级规则切到 deepseek-v3 后完成':'生成回答草稿')},r.err?.82:tool?.62:.74);
+    if(tool){
+      const [tn,risk,ti,to]=tool,hi=risk==='高';
+      step({id:'tool',type:'TOOL',name:tn,short:tn,in:ti+'，风险'+risk,out:r.pend&&hi?'已提交审批单，等待中':to,rel:'审计事件 ae_…'+r.id.slice(-4)+(hi?' · 审批记录 ap_…0915':'')},.12);
+      if(r.pend&&hi){AG.human=AG_M.human;LANES.push('human');HANDS=[[at,'a','human']];ns.push({id:'appr',ag:'human',type:'EVENT',name:'approval · 仓库维护者',short:'人工审批',wlabel:'仓库维护者审批',s:at,t:0,wait:'进行中',st:'ok',d:2,svc:'审批中心',in:'高风险工具调用 '+tn,out:'待审批，批准后 SDK 重新换票并从挂起处继续'});}
+    }
+    if(r.pend&&!AG.human){AG.human=AG_M.human;LANES.push('human');HANDS=[[at,'a','human']];ns.push({id:'appr',ag:'human',type:'EVENT',name:'run.input · 发起用户',short:'等待输入',wlabel:'等待用户输入',s:at,t:0,wait:'进行中',st:'ok',d:1,svc:'审批中心',in:'run.input：'+r.pend,out:'用户回复后从挂起处继续'});}
+    if(!r.err&&!r.pend)step({id:'chk',type:'GUARDRAIL',name:'grounding',short:'接地校验',in:'回答中的陈述',out:'全部能在引用片段中找到依据'},.08);
+  }
+  if(!r.err&&!r.pend)ns.push({id:'gout',ag:'platform',type:'GUARDRAIL',name:'guard.output',s:T1-260,t:240,st:'ok',d:0,crit:true,svc:'keel-sdk（'+r.ag+' 出口）',in:'最终回答',out:'PII 脱敏 0 处，流式输出结束'});
+  ns.push({id:'aud',ag:'platform',type:'EVENT',name:'audit.write',s:Math.max(T1-20,0),t:20,st:'ok',d:0,svc:'keel-audit',in:'本次调用的审计事件',out:'已写入，哈希链校验通过'});
+  return finishSingle(ns,T1);
+}
+function finishSingle(ns,T1){N=ns;T=T1}
+let trTab='graph',trNode='w4',trCur='';
 
 VIEWS.trace=v=>{
-  v.innerHTML=`<div class="vh"><h2>链路追踪</h2><span class="sub">数据来自 Langfuse，叠加 Keel 的审计、审批、门禁信息</span><span class="sp"></span><select class="inp"><option>全部智能体</option>${S.agents.map(a=>`<option>${a.id}</option>`).join('')}</select><button class="btn" data-act="ext" data-n="Langfuse">在 Langfuse 中打开 ↗</button></div>
-  <div class="recent">${RECENT.map(([c,tag,m,q],i)=>`<div class="rc ${i===trRecent?'on':''}" data-act="recent" data-i="${i}"><span class="pill nd ${c}">${tag}</span> ${m}<b>${q}</b></div>`).join('')}</div>
-  <div class="card tsum">
+  const id=location.hash.replace(/^#\//,'').split('/')[1];
+  if(id)traceDetail(v,decodeURIComponent(id));else traceList(v);
+};
+function traceList(v){
+  PGR.tr=()=>VIEWS.trace($('#view'));
+  const rows=TRACES.filter(r=>(S.env==='all'||r.env===S.env)&&(!TRF.agent||(r.multi||[r.ag]).includes(TRF.agent))&&(TRF.st==='all'||trState(r)===TRF.st)&&r.min<=TR_RANGE[TRF.range]&&(!TRF.multi||r.multi));
+  const chip=(k,val,n)=>`<button data-act="trF" data-k="${k}" data-v="${val}" class="${String(TRF[k])===String(val)?'on':''}">${n}</button>`;
+  v.innerHTML=`<div class="vh"><h2>链路追踪</h2><span class="sub">数据来自 Langfuse，叠加 Keel 的审计、审批、门禁信息</span><span class="sp"></span><button class="btn" data-act="ext" data-n="Langfuse 项目的 Traces 页">在 Langfuse 中打开 ↗</button></div>
+  <div class="toolbar">
+    <select class="inp" id="trAg"><option value="">全部智能体</option>${S.agents.map(a=>`<option value="${a.id}" ${TRF.agent===a.id?'selected':''}>${a.id}</option>`).join('')}</select>
+    <div class="chipsel">${chip('st','all','全部状态')}${chip('st','ok','ok')}${chip('st','fallback','降级')}${chip('st','failed','失败')}${chip('st','blocked','已拦截')}${chip('st','pending','挂起中')}</div>
+    <div class="chipsel">${chip('range','1h','近 1 小时')}${chip('range','24h','近 24 小时')}${chip('range','7d','近 7 天')}</div>
+    <div class="chipsel"><button data-act="trF" data-k="multi" data-v="${!TRF.multi}" class="${TRF.multi?'on':''}">只看多智能体</button></div>
+  </div>
+  <div class="card"><h3>调用记录<small>一行是一次用户调用（一个 trace），点击查看链路详情</small></h3>
+  <table class="t"><thead><tr><th>问题</th><th>智能体</th><th>环境</th><th>开始</th><th>耗时</th><th>tokens</th><th>成本</th><th>状态</th></tr></thead><tbody>
+  ${pageOf('tr',rows).map(r=>{const s=trState(r);return `<tr class="click" data-act="trOpen" data-id="${r.id}">
+    <td class="nm" style="max-width:420px"><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.q}</b><small class="mono">${r.id} · ${r.user}</small></td>
+    <td>${r.multi?`<span class="pill nd p-acc">多智能体 · ${r.multi.length}</span><div class="mut" style="font-size:11px;margin-top:2px">${r.multi[0]} → ${r.multi.slice(1).join('、')}</div>`:`<span class="dot" style="background:${COLORS[r.ag]||'#8a97ab'}"></span> ${r.ag}`}</td>
+    <td>${r.env}</td><td class="mono">${agoTxt(r.min)}</td>
+    <td class="mono">${fmt(r.ms)}${r.wait?`<div class="mut" style="font-size:11px">+ 人工 ${Math.floor(r.wait/60000)}m${Math.round(r.wait%60000/1000)}s</div>`:''}</td>
+    <td class="mono">${r.tok?fmtN(r.tok):'—'}</td><td class="mono">${r.cost?'¥'+r.cost.toFixed(4):'—'}</td>
+    <td>${s==='blocked'?'<span class="pill p-bad">已拦截</span>':s==='pending'?`<span class="pill p-warn">挂起中</span><div class="mut" style="font-size:11px">${r.pend}</div>`:stPill(r.st)+(r.cached?' <span class="pill nd p-soft">缓存</span>':'')}</td></tr>`}).join('')||'<tr><td colspan="8" class="empty">没有符合条件的链路</td></tr>'}
+  </tbody></table>${pager('tr',rows.length)}
+  <div class="srcnote">列表由 keel-server 读 Langfuse Observations API v2 的根节点（按时间窗翻页），智能体、状态、时间筛选和分页都在服务端完成；每行只带摘要，不带节点。点开一行才请求一次详情。</div></div>`;
+  $('#trAg').onchange=e=>{TRF.agent=e.target.value;resetPage('tr');traceList(v)};
+}
+function traceDetail(v,id){
+  const r=TRACES.find(x=>x.id===id);
+  $('#crumb').innerHTML='Keel 控制台 / <a href="#/trace" style="color:inherit">链路追踪</a> / <b class="mono">'+id+'</b>';
+  const head=`<div class="vh"><button class="btn sm" data-act="trBack">← 链路列表</button><h2 class="mono">${id}</h2><span class="sp"></span>${r?`<button class="btn" data-act="ext" data-n="Langfuse trace ${id}">在 Langfuse 中打开 ↗</button>`:''}</div>`;
+  if(!r){v.innerHTML=head+`<div class="card empty">没有找到这条链路。可能已超过 Langfuse 30 天保留期，或属于其他环境、评测运行。<div style="margin-top:12px"><button class="btn" data-act="trBack">返回链路列表</button></div></div>`;return}
+  if(r.multi)setupMulti();else buildSingle(r);
+  byId={};N.forEach(n=>byId[n.id]=n);
+  if(trCur!==id){trCur=id;trNode=r.multi?'w4':(N.find(n=>n.st!=='ok')||N.find(n=>n.wait)||N.find(n=>n.type==='GENERATION')||N[N.length-1]).id}
+  if(!r.multi&&trTab==='graph')trTab='lanes';
+  const leaves=N.filter(n=>!n.agg&&!n.wait&&n.ag!=='human');
+  const shade=(n,i)=>n.ag==='platform'?'#8a97ab':AG[n.ag].c+['','cc','99','77'][i%4];
+  v.innerHTML=head+`
+  ${r.multi?`<div class="card tsum">
     <div class="q">WT-07 最近一周告警频繁，查一下同批次风机的故障率，给出检修建议，需要的话直接建工单</div>
     <div class="metas"><span>trace <b>tr_8a31f0c2</b></span><span>run <b>r_41c8 · 挂起 1 次</b></span><span>会话 <b>s_7f21 · 第 3 轮</b></span><span>用户 <b>u_88 运维工程师</b></span><span>参与智能体 <b>3</b></span><span>智能体耗时 <b>11.2s</b></span><span>人工等待 <b>4m12s</b></span><span>tokens <b>10,578</b></span><span>成本 <b>¥0.0214</b></span></div>
     <div class="contrib">
       <div><div class="lb"><span>耗时构成（关键路径）</span><span class="mono">11.2s</span></div><div class="stack"><i style="width:13%;background:#ff7a45"></i><i style="width:44%;background:#2ec4b6"></i><i style="width:30%;background:#ffb08f"></i><i style="width:5%;background:#f1b44c"></i><i style="width:8%;background:#8a97ab"></i></div><div class="keys"><span><i style="background:#ff7a45"></i>总控规划 1.4s</span><span><i style="background:#2ec4b6"></i>offshore-wind 4.9s</span><span><i style="background:#ffb08f"></i>总控汇总 3.4s</span><span><i style="background:#f1b44c"></i>建工单 0.6s</span><span><i style="background:#8a97ab"></i>平台与输出 0.9s</span></div></div>
       <div><div class="lb"><span>成本构成（按智能体）</span><span class="mono">¥0.0214</span></div><div class="stack"><i style="width:32%;background:#ff7a45"></i><i style="width:17%;background:#5b9cf6"></i><i style="width:49%;background:#2ec4b6"></i><i style="width:2%;background:#8a97ab"></i></div><div class="keys"><span><i style="background:#ff7a45"></i>运维总控 ¥0.0069</span><span><i style="background:#5b9cf6"></i>askdb ¥0.0036</span><span><i style="background:#2ec4b6"></i>offshore-wind ¥0.0105</span><span><i style="background:#8a97ab"></i>护栏 ¥0.0004</span></div></div>
     </div>
-  </div>
+  </div>`:`<div class="card tsum">
+    <div class="q">${r.q}</div>
+    <div class="metas"><span>trace <b>${r.id}</b></span><span>用户 <b>${r.user}</b></span><span>智能体 <b>${r.ag}</b></span><span>环境 <b>${r.env}</b></span><span>智能体耗时 <b>${fmt(r.ms)}</b></span><span>tokens <b>${r.tok?fmtN(r.tok):'—'}</b></span><span>成本 <b>${r.cost?'¥'+r.cost.toFixed(4):'—'}</b></span>${r.pend?`<span>状态 <b style="color:var(--warn)">挂起中 · ${r.pend}</b></span>`:''}</div>
+    <div class="contrib" style="grid-template-columns:1fr"><div><div class="lb"><span>耗时构成（按步骤）</span><span class="mono">${fmt(r.ms)}</span></div><div class="stack">${leaves.map((n,i)=>`<i style="width:${n.t/T*100}%;background:${shade(n,i)}"></i>`).join('')}</div><div class="keys">${leaves.map((n,i)=>`<span><i style="background:${shade(n,i)}"></i>${n.short||n.name} ${fmt(n.t)}</span>`).join('')}</div></div></div>
+  </div>`}
   <div class="card">
-    <h3><div class="vtabs" id="vtabs">${[['graph','协作图'],['lanes','泳道时间线'],['tree','调用树']].map(([k,n])=>`<button data-t="${k}" class="${trTab===k?'on':''}">${n}</button>`).join('')}</div><span class="sp"></span><small>点击任意节点查看详情</small></h3>
-    <div class="tv ${trTab==='graph'?'on':''}" id="tv-graph"><div style="overflow-x:auto"><div class="graph" id="graph"></div></div></div>
-    <div class="tv ${trTab==='lanes'?'on':''}" id="tv-lanes"><div class="lanes" id="lanes"></div><div class="critnote">带白色下划线的是<b>关键路径</b>。offshore-wind 的"生成回答"一步占总耗时 27%，主模型超时后降级是这次最大的瓶颈；askdb 和它并行，不在关键路径上。</div></div>
+    <h3><div class="vtabs" id="vtabs">${[['graph','协作图'],['lanes','泳道时间线'],['tree','调用树']].filter(([k])=>k!=='graph'||r.multi).map(([k,n])=>`<button data-t="${k}" class="${trTab===k?'on':''}">${n}</button>`).join('')}</div>${r.multi?'':'<small style="margin-left:8px">单智能体调用没有委派关系，不显示协作图</small>'}<span class="sp"></span><small>点击任意节点查看详情</small></h3>
+    ${r.multi?`<div class="tv ${trTab==='graph'?'on':''}" id="tv-graph"><div style="overflow-x:auto"><div class="graph" id="graph"></div></div></div>`:''}
+    <div class="tv ${trTab==='lanes'?'on':''}" id="tv-lanes"><div class="lanes" id="lanes"></div><div class="critnote">${r.multi?'带白色下划线的是<b>关键路径</b>。offshore-wind 的"生成回答"一步占总耗时 27%，主模型超时后降级是这次最大的瓶颈；askdb 和它并行，不在关键路径上。':'带白色下划线的是<b>关键路径</b>，虚线框为降级。单智能体调用按顺序执行，关键路径就是整条链路。'}</div></div>
     <div class="tv ${trTab==='tree'?'on':''}" id="tv-tree"><div class="tree" id="tree"></div></div>
     <div class="ndetail" id="ndetail"></div>
-    <div class="legend2"><span>颜色 = 所属智能体：</span><span><i style="background:#ff7a45"></i>运维总控</span><span><i style="background:#5b9cf6"></i>askdb</span><span><i style="background:#2ec4b6"></i>offshore-wind</span><span><i style="background:#8a97ab"></i>平台</span><span><i style="background:#f1b44c"></i>人工</span><span style="margin-left:auto">状态点：<b style="color:var(--ok)">●</b> ok　<b style="color:var(--warn)">●</b> 降级　<b style="color:var(--bad)">●</b> 失败</span></div>
-    <div class="srcnote">三个智能体是三个独立服务，靠 W3C traceparent 串成同一个 trace。Langfuse 自带的树、时间线、Agent Graph 和会话视图第一天就能用；这个页面是 Keel 在 Langfuse API 之上做的增强：按智能体拆分耗时和成本、标出关键路径，并把审计事件、审批记录、评测门禁挂到对应节点上。</div>
+    <div class="legend2"><span>颜色 = 所属智能体：</span>${LANES.map(k=>`<span><i style="background:${AG[k].c}"></i>${AG[k].n}</span>`).join('')}<span style="margin-left:auto">状态点：<b style="color:var(--ok)">●</b> ok　<b style="color:var(--warn)">●</b> 降级　<b style="color:var(--bad)">●</b> 失败</span></div>
+    <div class="srcnote">${r.multi?'三个智能体是三个独立服务，靠 W3C traceparent 串成同一个 trace。Langfuse 自带的树、时间线、Agent Graph 和会话视图第一天就能用；这个页面是 Keel 在 Langfuse API 之上做的增强：按智能体拆分耗时和成本、标出关键路径，并把审计事件、审批记录、评测门禁挂到对应节点上。':'详情只请求一次 keel-server，泳道和调用树用同一份节点。trace 里出现两个以上智能体（子智能体带 <code>keel.parent_agent</code>）时，才多出协作图、按智能体拆分的耗时和成本，见列表里的"多智能体"链路。'}</div>
   </div>`;
-  drawGraph();drawLanes();drawTree();
-  ['#graph','#lanes','#tree'].forEach(s=>$(s).querySelectorAll('[data-n]').forEach(e=>e.addEventListener('click',()=>selectNode(e.dataset.n))));
+  if(r.multi)drawGraph();drawLanes();drawTree();
+  ['#graph','#lanes','#tree'].filter(s=>$(s)).forEach(s=>$(s).querySelectorAll('[data-n]').forEach(e=>e.addEventListener('click',()=>selectNode(e.dataset.n))));
   $('#vtabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{trTab=b.dataset.t;$('#vtabs').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));document.querySelectorAll('#view .tv').forEach(t=>t.classList.toggle('on',t.id==='tv-'+trTab))});
   selectNode(trNode);
 };
@@ -804,19 +912,19 @@ function drawGraph(){
     '<div class="gtag" data-n="sup" style="left:96px;top:196px">▣ ops-copilot 整体</div>';
 }
 function drawLanes(){
-  const L=$('#lanes'),order=['platform','sup','askdb','wind','human'];
-  let h='<div class="laxis"><span></span><div><span>0</span><span>2.8s</span><span>5.6s</span><span>8.4s</span><span>11.2s</span></div></div>';
+  const L=$('#lanes'),order=LANES;
+  let h='<div class="laxis"><span></span><div>'+[0,1,2,3,4].map(i=>'<span>'+(i?(T*i/4000).toFixed(1)+'s':'0')+'</span>').join('')+'</div></div>';
   order.forEach(k=>{h+='<div class="lrow"><div class="lname2"><span class="dot" style="background:'+AG[k].c+'"></span><div>'+AG[k].n+'<small>'+AG[k].sub+'</small></div></div><div class="ltrack" id="lt-'+k+'"></div></div>'});
   L.innerHTML=h;
   N.forEach(n=>{
     const tr=document.getElementById('lt-'+n.ag),c=AG[n.ag].c,l=n.s/T*100;
     if(n.type==='AGENT'){tr.insertAdjacentHTML('beforeend','<div class="lagent" style="left:'+l+'%;width:'+(n.t/T*100)+'%;border-color:'+c+';background:'+c+'14"></div>');return}
-    if(n.wait){tr.insertAdjacentHTML('beforeend','<div class="lwait" data-n="'+n.id+'" style="left:'+l+'%">⏸ 李工审批 '+n.wait+'（不计入耗时）</div>');return}
+    if(n.wait){tr.insertAdjacentHTML('beforeend','<div class="lwait" data-n="'+n.id+'" style="left:'+l+'%">⏸ '+(n.wlabel||'人工')+' '+n.wait+'（不计入耗时）</div>');return}
     const w=Math.max(n.t/T*100,.35),top=n.row?24:6;
     tr.insertAdjacentHTML('beforeend','<div class="lb2'+(n.st==='fallback'?' fb':'')+(n.crit?' crit':'')+'" data-n="'+n.id+'" title="'+n.name+' · '+fmt(n.t)+'" style="left:'+l+'%;width:'+w+'%;top:'+top+'px;background:'+c+'">'+(n.short||n.name)+'</div>');
   });
   const idx=k=>order.indexOf(k);
-  [[1450,'sup','askdb'],[1450,'sup','wind'],[5200,'askdb','sup'],[6400,'wind','sup'],[9850,'sup','human']].forEach(([t,a,b])=>{
+  HANDS.forEach(([t,a,b])=>{
     const i=idx(a),j=idx(b),top=22+Math.min(i,j)*44+22,hgt=Math.abs(j-i)*44;
     L.insertAdjacentHTML('beforeend','<div class="hand '+(j>i?'down':'up')+'" style="left:calc(128px + (100% - 128px) * '+(t/T)+');top:'+top+'px;height:'+hgt+'px"></div>');
   });
@@ -825,18 +933,18 @@ function drawTree(){
   let h='<div class="tr hd"><span>名称</span><span>Langfuse 类型</span><span>智能体</span><span>耗时</span><span>成本</span><span>状态</span></div>';
   N.forEach(n=>{
     const c=AG[n.ag].c;
-    h+='<div class="tr" data-n="'+n.id+'"><span class="nmc"><span style="display:inline-block;width:'+(n.d*18)+'px"></span>'+(n.d?'<span class="tw">└</span>':'')+'<span>'+n.name+'</span>'+(n.agg&&n.id!=='sup'?'<span class="xsvc">跨服务</span>':'')+'</span>'+
+    h+='<div class="tr" data-n="'+n.id+'"><span class="nmc"><span style="display:inline-block;width:'+(n.d*18)+'px"></span>'+(n.d?'<span class="tw">└</span>':'')+'<span>'+n.name+'</span>'+(n.agg&&n.id!=='sup'&&n.id!=='root'?'<span class="xsvc">跨服务</span>':'')+'</span>'+
       '<span><span class="ot ot-'+n.type+'">'+n.type.toLowerCase()+'</span></span>'+
       '<span><span class="dot" style="background:'+c+'"></span> '+AG[n.ag].n+'</span>'+
       '<span class="mono">'+(n.wait?n.wait:fmt(n.t))+'</span>'+
       '<span class="mono">'+(n.cost?'¥'+n.cost.toFixed(4):'—')+'</span>'+
-      '<span><span class="pill '+(n.st==='ok'?'p-ok':'p-warn')+'">'+n.st+'</span></span></div>';
+      '<span>'+stPill(n.st)+'</span></div>';
   });
   $('#tree').innerHTML=h;
 }
 function showNode(id){
   const n=byId[id],a=AG[n.ag];
-  const pl='<span class="pill '+(n.st==='ok'?'p-ok':'p-warn')+'">'+n.st+'</span>';
+  const pl=stPill(n.st);
   const tk=tokOf(n);
   $('#ndetail').innerHTML=
     '<div><span>节点</span><b>'+n.name+'</b></div>'+
@@ -856,7 +964,7 @@ function showNode(id){
 }
 function selectNode(id){
   trNode=id;
-  ['#graph','#lanes','#tree'].forEach(s=>$(s).querySelectorAll('[data-n]').forEach(e=>e.classList.toggle('sel',e.dataset.n===id)));
+  ['#graph','#lanes','#tree'].filter(s=>$(s)).forEach(s=>$(s).querySelectorAll('[data-n]').forEach(e=>e.classList.toggle('sel',e.dataset.n===id)));
   showNode(id);
 }
 
@@ -897,7 +1005,7 @@ VIEWS.approvals=v=>{
 };
 function drawAppr(){
   const list=apprOf(apprG);
-  $('#apprBody').innerHTML=list.length?`<div style="max-width:820px">${list.map(p=>{const s=SUBJ[p.subject];return `<div class="appr" id="${p.id}" style="max-height:240px"><div class="t1">${subjPill(p.subject)}${riskPill(p.risk)}<b class="mono">${p.ref}</b><span class="sp"></span><small class="mut">${p.ago}</small></div><p>${p.text}</p>${p.subject==='run.input'?`<input class="inp" style="width:100%;margin-bottom:10px" placeholder="回复后智能体从挂起处继续执行">`:''}<div class="act"><button class="btn pri sm" data-act="decide" data-id="${p.id}" data-ok="1">${s.ok}</button><button class="btn sm" data-act="decide" data-id="${p.id}" data-ok="0">${s.no}</button><span class="sp"></span><small class="mut">${p.agent} · ${p.by} · ${p.run?`<a href="#/trace" style="color:var(--soft)">run ${p.run} 挂起中 →</a>`:'由人发起，无执行在等'}</small></div></div>`}).join('')}</div>`:'<div class="card empty">这一类没有待办 🎉</div>';
+  $('#apprBody').innerHTML=list.length?`<div style="max-width:820px">${list.map(p=>{const s=SUBJ[p.subject];return `<div class="appr" id="${p.id}" style="max-height:240px"><div class="t1">${subjPill(p.subject)}${riskPill(p.risk)}<b class="mono">${p.ref}</b><span class="sp"></span><small class="mut">${p.ago}</small></div><p>${p.text}</p>${p.subject==='run.input'?`<input class="inp" style="width:100%;margin-bottom:10px" placeholder="回复后智能体从挂起处继续执行">`:''}<div class="act"><button class="btn pri sm" data-act="decide" data-id="${p.id}" data-ok="1">${s.ok}</button><button class="btn sm" data-act="decide" data-id="${p.id}" data-ok="0">${s.no}</button><span class="sp"></span><small class="mut">${p.agent} · ${p.by} · ${p.run?`<a href="#/trace/${p.trace}" style="color:var(--soft)">run ${p.run} 挂起中 →</a>`:'由人发起，无执行在等'}</small></div></div>`}).join('')}</div>`:'<div class="card empty">这一类没有待办 🎉</div>';
 }
 function openTool(id){
   const t=toolOf(id),d=dependents(id);
@@ -956,7 +1064,10 @@ const ACT={
   agCat:d=>{agCat=d.k;resetPage('ag');VIEWS.agents($('#view'))},
   agent:d=>{closeModal();openAgent(d.id)},
   dTab:d=>{dTab=d.k;const a=agentOf(d.id);$('#dBody').innerHTML=agentBody(a)},
-  toTrace:()=>{closeDrawer();go('trace')},
+  toTrace:d=>{closeDrawer();if(d.tr){go('trace/'+d.tr);return}TRF.agent=d.id||'';TRF.range='7d';resetPage('tr');go('trace')},
+  trOpen:d=>go('trace/'+d.id),
+  trBack:()=>go('trace'),
+  trF:d=>{TRF[d.k]=d.k==='multi'?d.v==='true':d.v;resetPage('tr');VIEWS.trace($('#view'))},
   ext:d=>toast(`原型中不跳转：实际会带上下文深链到 <b>${d.n}</b>`,'info'),
   release:d=>{const a=agentOf(d.id);openModal('发布到 prod',`<p>将 <b class="mono">${a.id} ${a.ver}</b> 发布到 prod。依次执行：</p><ul class="checks" id="relChecks">${['keel gate：跑实验并逐维度对比','提示词打 production 标签','更新路由与 agent_version','写审计 release'].map(n=>`<li><span class="ic"></span>${n}</li>`).join('')}</ul>`,`<button class="btn" data-act="closeModal">取消</button><button class="btn pri" id="relGo" data-act="releaseGo" data-id="${a.id}">开始发布</button>`)},
   releaseGo:d=>{const a=agentOf(d.id);$('#relGo').disabled=true;runChecks('#relChecks',()=>{a.env='prod';a.st='ONLINE';addAudit({a:a.id,u:'amy',act:'release',res:a.ver+' → prod',risk:'中',dec:'allowed'});closeModal();openAgent(a.id);toast(`<b>${a.id}</b> 已发布到 prod`);render()})},
@@ -972,7 +1083,6 @@ const ACT={
     addAudit({a:a.id,u:'amy',act:'agent.register',res:a.id+' v0.1.0 · staging',risk:'低',dec:'allowed',payload:{selfcheck:'7/7'}});
     W.done=true;drawWForm();toast(`<b>${a.id}</b> 已注册到 staging`)})},
   /* trace */
-  recent:(d,t)=>{trRecent=+d.i;document.querySelectorAll('#view .rc').forEach(x=>x.classList.toggle('on',x===t));if(trRecent)toast('原型只展开了第一条多智能体链路，其他链路的结构相同','info')},
   /* eval */
   runEval:()=>{const p=$('#evalProg');p.style.display='block';const bar=p.firstElementChild;let x=0;const tm=setInterval(()=>{x+=8;bar.style.width=Math.min(x,100)+'%';if(x>=100){clearInterval(tm);setTimeout(()=>{p.style.display='none';bar.style.width=0;const a=agentOf(evalAgent);toast(a.gate?`回归完成：<b>${a.score}</b>，门禁通过`:`回归完成：<b>${a.score}</b>，门禁仍未通过`,a.gate?'':'bad')},300)}},120)},
   expect:()=>openModal('标记为预期变化',`<p>标记后本次退步不计入门禁，<b>需要写明原因，并记入审计</b>。</p><div class="field"><label>原因</label><textarea class="inp" id="expIn" rows="3" style="width:100%" placeholder="至少 10 个字"></textarea></div>`,`<button class="btn" data-act="closeModal">取消</button><button class="btn pri" data-act="expectGo">提交</button>`),
@@ -1015,7 +1125,7 @@ const ACT={
   audRisk:d=>{audRisk=d.k;resetPage('aud');VIEWS.audit($('#view'))},
   audit:d=>{const e=S.audit[+d.i];const h='sha256:'+(Math.abs([...e.t+e.act+e.res].reduce((s,c)=>s*31+c.charCodeAt(0)|0,7))).toString(16).padStart(8,'0');openDrawer(`审计事件 <span class="mono" style="font-size:13px;color:var(--mute)">${e.act}</span>`,`<div class="kv"><span>时间</span><b class="mono">2026-09-30 ${e.t}</b><span>智能体</span><b>${e.a}</b><span>操作人</span><b>${e.u}</b><span>资源</span><b>${e.res}</b><span>风险</span><b>${riskPill(e.risk)}</b><span>trace</span><b class="mono">${e.tr}</b></div>
     <h4 style="margin:16px 0 6px;color:var(--white);font-size:13px">payload（仅白名单字段，已脱敏）</h4><pre class="code">${JSON.stringify(e.payload,null,2)}</pre>
-    <h4 style="margin:16px 0 6px;color:var(--white);font-size:13px">哈希链</h4><div class="kv"><span>hash</span><b class="mono">${h}…</b><span>prev_hash</span><b class="mono">sha256:41ab77…</b><span>链</span><b>${e.a} · 校验通过 <span class="pill p-ok">✓</span></b></div>`,e.tr!=='—'?`<button class="btn" data-act="toTrace">查看链路</button>`:'')},
+    <h4 style="margin:16px 0 6px;color:var(--white);font-size:13px">哈希链</h4><div class="kv"><span>hash</span><b class="mono">${h}…</b><span>prev_hash</span><b class="mono">sha256:41ab77…</b><span>链</span><b>${e.a} · 校验通过 <span class="pill p-ok">✓</span></b></div>`,e.tr!=='—'?`<button class="btn" data-act="toTrace" data-tr="${e.tr}">查看链路</button>`:'')},
   verify:()=>{const p=$('#verProg');p.style.display='block';const bar=p.firstElementChild;let x=0;const tm=setInterval(()=>{x+=5;bar.style.width=x+'%';if(x>=100){clearInterval(tm);setTimeout(()=>{p.style.display='none';bar.style.width=0;toast(`哈希链校验通过：${S.agents.length} 条链，12,${480+S.audit.length} 条事件，无断链`)},250)}},60)},
   exportAudit:()=>openModal('导出审计记录',`<p>导出前会自动创建审批单，由平台管理员批准后生成<b>脱敏</b>文件。</p><div class="field"><label>导出理由</label><input class="inp" id="expR" style="width:100%" placeholder="如：季度合规检查"></div>`,`<button class="btn" data-act="closeModal">取消</button><button class="btn pri" data-act="exportGo">提交申请</button>`),
   exportGo:()=>{closeModal();addAudit({a:'keel-audit',u:'amy',act:'data.export',res:'审计记录导出申请',risk:'高',dec:'pending'});

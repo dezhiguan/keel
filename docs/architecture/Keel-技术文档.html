@@ -920,7 +920,7 @@ keel eval run --dataset code-review/findings <span class="c"># 和 CI 同一套�
       <tr><td>智能体</td><td><code>/agents</code> · <code>/agents/:name</code></td><td>按业务 / 研发、状态、关键字筛选；详情抽屉：manifest、自检、实例、资源、版本</td><td><code>agents</code></td></tr>
       <tr><td>新建智能体</td><td><code>/agents/new</code></td><td>四步向导：方式 → 基本信息 → 模板与资源 → 预览 agent.yaml 并模拟注册</td><td><code>POST agents</code></td></tr>
       <tr><td>共享服务</td><td><code>/services</code></td><td>服务健康、rag-forge 分段耗时、知识库</td><td><code>insight/services</code></td></tr>
-      <tr><td>链路追踪</td><td><code>/traces/:id</code></td><td>瀑布图，点 span 看详情，跳 Langfuse</td><td><code>insight/traces</code></td></tr>
+      <tr><td>链路追踪</td><td><code>/traces</code> · <code>/traces/:id</code></td><td>列表：按智能体、状态、时间窗筛选，服务端分页，一行一个 trace。详情：只请求一次，泳道时间线和调用树对所有 trace 都有；trace 里有两个以上智能体时才多出协作图和按智能体拆分的耗时、成本。点节点看详情，跳 Langfuse</td><td><code>insight/traces</code> · <code>insight/traces/{id}</code></td></tr>
       <tr><td>工具与审批</td><td><code>/tools</code> · <code>/approvals</code></td><td>工具注册表（版本、状态、依赖方）、废弃工具弹窗、审批批准 / 驳回</td><td><code>tools</code> · <code>approvals</code></td></tr>
       <tr><td>审计中心</td><td><code>/audit</code></td><td>筛选、详情抽屉、哈希链校验</td><td><code>audit/events</code></td></tr>
       <tr><td>模型网关</td><td><code>/models</code></td><td>模型、虚拟 Key 与预算</td><td><code>insight/costs</code></td></tr>
