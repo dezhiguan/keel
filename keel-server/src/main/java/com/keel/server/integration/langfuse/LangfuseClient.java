@@ -38,6 +38,27 @@ public class LangfuseClient {
         }
     }
 
+    public boolean configured() {
+        return !baseUrl.isBlank();
+    }
+
+    /** Null when the host is unset. True only when GET /api/public/health returns 2xx. */
+    public Boolean healthy() {
+        if (!configured()) {
+            return null;
+        }
+        try {
+            var request = HttpRequest.newBuilder(URI.create(baseUrl + "/api/public/health"))
+                    .timeout(Duration.ofSeconds(2))
+                    .GET()
+                    .build();
+            var response = http.send(request, HttpResponse.BodyHandlers.discarding());
+            return response.statusCode() < 300;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public void importSeed(String dataset, Path seedFile) {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");

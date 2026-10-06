@@ -1,5 +1,6 @@
 package com.keel.server.insight;
 
+import com.keel.server.integration.authgw.AuthGatewayClient;
 import com.keel.server.integration.langfuse.LangfuseClient;
 import com.keel.server.integration.litellm.LiteLlmClient;
 import com.keel.server.integration.prometheus.PrometheusExposition;
@@ -19,9 +20,14 @@ class SharedServiceMonitorTest {
     @Test void blankAddressLeavesLatencyNull() {
         var monitor = new SharedServiceMonitor(new RagForgeInsightClient("", "", ""), new LiteLlmClient("", ""));
         @SuppressWarnings("unchecked")
-        var service = ((List<Map<String, Object>>) monitor.services().get("services")).get(0);
+        var body = monitor.services();
+        assertThat(names(body)).containsExactly(
+                "keel-gateway", "keel-server", "keel-audit", "auth-gateway", "rag-forge", "薄网关", "Langfuse");
+        var service = named(body, "rag-forge");
         assertThat(service.get("p95")).isNull();
         assertThat(service.get("status")).isNull();
+        assertThat(named(body, "keel-gateway")).containsEntry("role", "入口网关 · 自研轻量版").containsEntry("p95", null).containsEntry("status", null);
+        assertThat(named(body, "Langfuse")).containsEntry("role", "追踪 · 评测（Cloud 日本）").containsEntry("instances", null);
     }
 
     @Test void insightAndStageMeansFillTheSharedServicePage() throws Exception {
@@ -49,7 +55,7 @@ class SharedServiceMonitorTest {
                 new LiteLlmClient(base, "admin"));
         var body = monitor.services();
         @SuppressWarnings("unchecked")
-        var service = ((List<Map<String, Object>>) body.get("services")).get(0);
+        var service = named(body, "rag-forge");
         assertThat(service.get("status")).isEqualTo("ONLINE");
         assertThat(service.get("p95")).isNull();
         @SuppressWarnings("unchecked")
@@ -84,7 +90,7 @@ class SharedServiceMonitorTest {
                 new RagForgeInsightClient("http://127.0.0.1:1", "metrics-reader", "secret"),
                 new LiteLlmClient("", ""));
         @SuppressWarnings("unchecked")
-        var service = ((List<Map<String, Object>>) monitor.services().get("services")).get(0);
+        var service = named(monitor.services(), "rag-forge");
         assertThat(service.get("p95")).isNull();
         assertThat(service.get("status")).isNull();
         assertThat(PrometheusExposition.parse("# comment\nup 1\n").get(0).value()).isEqualTo(1d);
@@ -153,7 +159,7 @@ class SharedServiceMonitorTest {
         assertThat(kpi.get("p95Seconds")).isEqualTo(1.0);
         assertThat(kpi.get("throttleRate")).isEqualTo(0.03);
         @SuppressWarnings("unchecked")
-        var service = ((List<Map<String, Object>>) body.get("services")).get(0);
+        var service = named(body, "rag-forge");
         assertThat(service.get("errorRate")).isEqualTo("3.0%");
         @SuppressWarnings("unchecked")
         var callers = (List<Map<String, Object>>) rag.get("callers");
@@ -169,6 +175,45 @@ class SharedServiceMonitorTest {
         assertThat(bases.get(0)).containsEntry("recallAt5", 0.91).containsEntry("zeroHitRate", 0.012);
         assertThat(body.get("consoleUrl")).isEqualTo("https://ragforge.net");
         server.stop(0);
+    }
+
+    @Test void configuredDependenciesAreOnlineWithoutInventedLatency() throws Exception {
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/health", exchange -> write(exchange, 200, "ok"));
+        server.createContext("/.well-known/jwks.json", exchange -> write(exchange, 200, "{\"keys\":[]}"));
+        server.createContext("/api/public/health", exchange -> write(exchange, 200, "{\"status\":\"OK\"}"));
+        server.createContext("/", exchange -> write(exchange, 404, ""));
+        server.start();
+        var base = "http://127.0.0.1:" + server.getAddress().getPort();
+        var monitor = new SharedServiceMonitor(
+                new RagForgeInsightClient("", "", ""),
+                new LiteLlmClient(base, "admin"),
+                env -> List.of(),
+                new LangfuseClient(base, "pk", "sk"),
+                new AuthGatewayClient(base),
+                null);
+        var body = monitor.services();
+        assertThat(named(body, "薄网关")).containsEntry("status", "ONLINE").containsEntry("p95", null).containsEntry("errorRate", null);
+        assertThat(named(body, "auth-gateway")).containsEntry("status", "ONLINE").containsEntry("instances", null);
+        assertThat(named(body, "Langfuse")).containsEntry("status", "ONLINE").containsEntry("instances", "云端").containsEntry("p95", null);
+        assertThat(named(body, "keel-gateway")).containsEntry("status", null).containsEntry("p95", null);
+        assertThat(named(body, "rag-forge")).containsEntry("status", null);
+        server.stop(0);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> named(Map<String, Object> body, String name) {
+        return ((List<Map<String, Object>>) body.get("services")).stream()
+                .filter(row -> name.equals(row.get("name")))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> names(Map<String, Object> body) {
+        return ((List<Map<String, Object>>) body.get("services")).stream()
+                .map(row -> String.valueOf(row.get("name")))
+                .toList();
     }
 
     private static void write(com.sun.net.httpserver.HttpExchange exchange, int status, String body) throws java.io.IOException {

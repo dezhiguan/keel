@@ -9,8 +9,8 @@ export const sharedServices: SharedServices = {
     { name: 'keel-audit', role: '审计', instances: '2/2', p95: '9ms', errorRate: '0%', status: 'ONLINE' },
     { name: 'auth-gateway', role: '身份认证', instances: '2/2', p95: '25ms', errorRate: '0%', status: 'ONLINE' },
     { name: 'rag-forge', role: '知识检索', instances: '2/2 · worker 1', p95: '0.78s', errorRate: '0.6%（429）', status: 'ONLINE' },
-    { name: 'LiteLLM', role: '模型网关', instances: '2/2', p95: '12ms 开销', errorRate: '0.2%', status: 'ONLINE' },
-    { name: 'Langfuse', role: '追踪 · 评测（自建观测节点）', instances: 'web + worker', p95: null, errorRate: '队列积压 0', status: 'ONLINE' },
+    { name: '薄网关', role: '模型网关', instances: '2/2', p95: '12ms 开销', errorRate: '0.2%', status: 'ONLINE' },
+    { name: 'Langfuse', role: '追踪 · 评测（Cloud 日本）', instances: '云端', p95: null, errorRate: null, status: 'ONLINE' },
   ],
   ragforge: {
     kpi: {

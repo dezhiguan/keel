@@ -114,7 +114,7 @@ watch(() => envStore.env, load, { immediate: true })
           <tr v-for="s in healthRows" :key="s.name">
             <td class="nm"><b>{{ s.name }}</b></td>
             <td>{{ s.role }}</td>
-            <td class="mono">{{ s.instances }}</td>
+            <td class="mono">{{ s.instances ?? '—' }}</td>
             <td class="mono">{{ s.p95 ?? '—' }}</td>
             <td class="mono">{{ s.errorRate ?? '—' }}</td>
             <td><StatusPill v-bind="agentStatus(s.status)" /></td>

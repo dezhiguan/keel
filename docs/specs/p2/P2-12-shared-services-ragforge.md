@@ -23,6 +23,11 @@ contracts/console-api.openapi.yaml
 console/src/api/schema.d.ts
 console/src/views/services/SharedServices.vue
 keel-server/src/main/java/com/keel/server/insight/SharedServiceMonitor.java
+keel-server/src/main/java/com/keel/server/integration/k8s/ServiceHealthProbe.java
+keel-server/src/main/java/com/keel/server/integration/authgw/AuthGatewayClient.java
+keel-server/src/main/java/com/keel/server/integration/langfuse/LangfuseClient.java
+keel-server/src/main/java/com/keel/server/integration/litellm/LiteLlmClient.java
+console/src/mocks/data/services.ts
 keel-server/src/main/java/com/keel/server/integration/ragforge/**
 keel-server/src/main/java/com/keel/server/integration/prometheus/PrometheusExposition.java
 keel-server/src/test/java/com/keel/server/insight/SharedServiceMonitorTest.java
@@ -43,6 +48,7 @@ rag-forge 仓库另加 `GET /actuator/keel`，不在本仓库。
 - 近 24 小时没有检索时，`searches24h` 为 0，P50/P95 为 null。不要把进程启动以来的计数填进 24 小时。
 - 知识库超过 30 天未更新标 `stale`。`recall@5` 评测摘要没有数时为 null。
 - 前端在数字为 null 时显示「—」，不要拼出单独的 `s` 或 `¥`。
+- 健康表按原型列出七个底座组件：keel-gateway、keel-server、keel-audit、auth-gateway、rag-forge、薄网关、Langfuse。实例数和状态只填探测到的结果。除 rag-forge 外，P95 和错误率保持 null，不抄原型里的示例数字。不在集群里时，前四行状态为 null。薄网关看 `GET /health`，auth-gateway 看 JWKS，Langfuse 看 `GET /api/public/health`，通了才是 ONLINE，实例位置写「云端」。
 
 ## 验收标准
 
@@ -52,6 +58,7 @@ mvn -o -pl :keel-server test
 
 - [ ] 假 rag-forge 返回的知识库、花费和分段均值出现在 `/insight/services`
 - [ ] 地址为空或连不上时，P95 为 null，不返回假健康
+- [ ] 健康表有七行；未配置时除 rag-forge 外不出现假的 P95、错误率或 ONLINE
 - [ ] 请求里没有发往 `/api/public/traces` 的调用
 
 ## 明确不做

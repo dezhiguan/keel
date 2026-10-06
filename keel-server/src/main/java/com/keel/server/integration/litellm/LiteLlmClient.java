@@ -26,6 +26,23 @@ public class LiteLlmClient {
         this.masterKey = masterKey == null ? "" : masterKey;
     }
 
+    /** Null when the base URL is unset. True only when GET /health returns 2xx. */
+    public Boolean healthy() {
+        if (baseUrl.isBlank()) {
+            return null;
+        }
+        try {
+            var request = HttpRequest.newBuilder(URI.create(baseUrl + "/health"))
+                    .timeout(Duration.ofSeconds(2))
+                    .GET()
+                    .build();
+            var response = http.send(request, HttpResponse.BodyHandlers.discarding());
+            return response.statusCode() < 300;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public String generate(String alias, List<String> models, List<String> fallback, BigDecimal dailyBudgetCny, boolean allowFallback) {
         var body = Map.of(
                 "alias", alias,

@@ -99,7 +99,9 @@ class CostServiceTest {
                 || path.equals("/api/public/metrics") || path.equals("/api/public/scores") || path.equals("/api/public/traces"));
         var monitor = new SharedServiceMonitor(new RagForgeInsightClient("", "", ""), new LiteLlmClient("", ""));
         @SuppressWarnings("unchecked")
-        var service = ((List<java.util.Map<String, Object>>) monitor.services().get("services")).get(0);
+        var services = (List<java.util.Map<String, Object>>) monitor.services().get("services");
+        var service = services.stream().filter(row -> "rag-forge".equals(row.get("name"))).findFirst().orElseThrow();
+        assertThat(services).hasSize(7);
         assertThat(service.get("p95")).isNull();
         server.stop(0);
     }

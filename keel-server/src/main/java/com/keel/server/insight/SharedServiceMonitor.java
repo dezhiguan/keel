@@ -1,11 +1,14 @@
 package com.keel.server.insight;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.keel.server.integration.authgw.AuthGatewayClient;
+import com.keel.server.integration.k8s.ServiceHealthProbe;
 import com.keel.server.integration.langfuse.LangfuseClient;
 import com.keel.server.integration.litellm.LiteLlmClient;
 import com.keel.server.integration.prometheus.PrometheusExposition;
 import com.keel.server.integration.ragforge.RagForgeInsightClient;
 import com.keel.server.registry.service.AgentRegistryService;
+import io.fabric8.kubernetes.client.KubernetesClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -19,13 +22,19 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Function;
 
 @Service
 public class SharedServiceMonitor {
+    private static final ExecutorService PROBES = Executors.newVirtualThreadPerTaskExecutor();
+
     private final RagForgeInsightClient ragforge;
     private final LiteLlmClient gateway;
     private final LangfuseClient langfuse;
+    private final AuthGatewayClient authGateway;
+    private final KubernetesClient kubernetes;
     private final Function<String, List<String>> namesInEnv;
 
     public SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway) {
@@ -34,8 +43,8 @@ public class SharedServiceMonitor {
 
     @Autowired
     public SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway, AgentRegistryService registry,
-                                LangfuseClient langfuse) {
-        this(ragforge, gateway, registry == null ? null : registry::namesInEnv, langfuse);
+                                LangfuseClient langfuse, AuthGatewayClient authGateway, KubernetesClient kubernetes) {
+        this(ragforge, gateway, registry == null ? null : registry::namesInEnv, langfuse, authGateway, kubernetes);
     }
 
     SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway, Function<String, List<String>> namesInEnv) {
@@ -44,10 +53,17 @@ public class SharedServiceMonitor {
 
     SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway, Function<String, List<String>> namesInEnv,
                          LangfuseClient langfuse) {
+        this(ragforge, gateway, namesInEnv, langfuse, null, null);
+    }
+
+    SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway, Function<String, List<String>> namesInEnv,
+                         LangfuseClient langfuse, AuthGatewayClient authGateway, KubernetesClient kubernetes) {
         this.ragforge = ragforge;
         this.gateway = gateway;
         this.namesInEnv = namesInEnv;
         this.langfuse = langfuse == null ? new LangfuseClient("", "", "") : langfuse;
+        this.authGateway = authGateway;
+        this.kubernetes = kubernetes;
     }
 
     public Map<String, Object> services() {
@@ -111,10 +127,88 @@ public class SharedServiceMonitor {
         rag.put("knowledgeBases", knowledge);
 
         var body = new LinkedHashMap<String, Object>();
-        body.put("services", List.of(service));
+        body.put("services", withPlatform(service));
         body.put("ragforge", rag);
         body.put("consoleUrl", "https://ragforge.net");
         return body;
+    }
+
+    private List<Map<String, Object>> withPlatform(Map<String, Object> ragforge) {
+        var probe = new ServiceHealthProbe(kubernetes);
+        var gatewayRow = PROBES.submit(() -> component("keel-gateway", "入口网关 · 自研轻量版",
+                probe.cluster("keel-system", "keel-gateway", 8080, "/", 500)));
+        var serverRow = PROBES.submit(() -> component("keel-server", "注册中心 · 工具 · 审批", keelServer(probe)));
+        var auditRow = PROBES.submit(() -> component("keel-audit", "审计",
+                probe.cluster("keel-system", "keel-audit", 8080, "/", 500)));
+        var authRow = PROBES.submit(this::authRow);
+        var llmRow = PROBES.submit(() -> llmRow(probe));
+        var langfuseRow = PROBES.submit(this::langfuseRow);
+        return List.of(
+                join(gatewayRow, "keel-gateway", "入口网关 · 自研轻量版"),
+                join(serverRow, "keel-server", "注册中心 · 工具 · 审批"),
+                join(auditRow, "keel-audit", "审计"),
+                join(authRow, "auth-gateway", "身份认证"),
+                ragforge,
+                join(llmRow, "薄网关", "模型网关"),
+                join(langfuseRow, "Langfuse", "追踪 · 评测（Cloud 日本）"));
+    }
+
+    private ServiceHealthProbe.Result keelServer(ServiceHealthProbe probe) {
+        var result = probe.cluster("keel-system", "keel-server", 8080, "/api/v1/catalog", 500);
+        if (ServiceHealthProbe.inCluster() && result.instances() == null && !"ONLINE".equals(result.status())) {
+            return new ServiceHealthProbe.Result(null, "ONLINE");
+        }
+        return result;
+    }
+
+    private Map<String, Object> authRow() {
+        if (authGateway == null) {
+            return component("auth-gateway", "身份认证", ServiceHealthProbe.Result.unknown());
+        }
+        var up = authGateway.jwksReachable();
+        var status = up == null ? null : up ? "ONLINE" : "OFFLINE";
+        return component("auth-gateway", "身份认证", new ServiceHealthProbe.Result(null, status));
+    }
+
+    private Map<String, Object> llmRow(ServiceHealthProbe probe) {
+        var cluster = probe.cluster("keel-system", "keel-llm", 8088, "/health", 300);
+        var http = gateway.healthy();
+        if (cluster.status() != null) {
+            if (Boolean.FALSE.equals(http) && "ONLINE".equals(cluster.status())) {
+                return component("薄网关", "模型网关", new ServiceHealthProbe.Result(cluster.instances(), "DEGRADED"));
+            }
+            return component("薄网关", "模型网关", cluster);
+        }
+        var status = http == null ? null : http ? "ONLINE" : "OFFLINE";
+        return component("薄网关", "模型网关", new ServiceHealthProbe.Result(null, status));
+    }
+
+    private Map<String, Object> langfuseRow() {
+        if (!langfuse.configured()) {
+            return component("Langfuse", "追踪 · 评测（Cloud 日本）", ServiceHealthProbe.Result.unknown());
+        }
+        var up = langfuse.healthy();
+        var status = up == null ? null : up ? "ONLINE" : "OFFLINE";
+        return component("Langfuse", "追踪 · 评测（Cloud 日本）", new ServiceHealthProbe.Result("云端", status));
+    }
+
+    private static Map<String, Object> join(java.util.concurrent.Future<Map<String, Object>> future, String name, String role) {
+        try {
+            return future.get();
+        } catch (Exception e) {
+            return component(name, role, ServiceHealthProbe.Result.unknown());
+        }
+    }
+
+    private static Map<String, Object> component(String name, String role, ServiceHealthProbe.Result result) {
+        var row = new LinkedHashMap<String, Object>();
+        row.put("name", name);
+        row.put("role", role);
+        row.put("instances", result.instances());
+        row.put("p95", null);
+        row.put("errorRate", null);
+        row.put("status", result.status());
+        return row;
     }
 
     private void fillRecall(List<Map<String, Object>> knowledge) {

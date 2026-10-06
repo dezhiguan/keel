@@ -28,6 +28,23 @@ public class AuthGatewayClient {
         send("DELETE", "/internal/clients/" + clientId, null);
     }
 
+    /** Null when the base URL is unset. True when JWKS answers 2xx. */
+    public Boolean jwksReachable() {
+        if (baseUrl == null || baseUrl.isBlank()) {
+            return null;
+        }
+        try {
+            var request = HttpRequest.newBuilder(URI.create(baseUrl.replaceAll("/$", "") + "/.well-known/jwks.json"))
+                    .timeout(Duration.ofSeconds(2))
+                    .GET()
+                    .build();
+            var response = http.send(request, HttpResponse.BodyHandlers.discarding());
+            return response.statusCode() < 300;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public int exchange(String assertion) {
         return send("POST", "/oauth/token-exchange", Map.of(
                 "grant_type", "urn:ietf:params:oauth:grant-type:token-exchange",
