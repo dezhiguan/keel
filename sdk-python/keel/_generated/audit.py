@@ -23,6 +23,7 @@ class KeelModel(BaseModel):
 
 class AuditEventEnvValue(str, Enum):
     DEV = 'dev'
+    TEST = 'test'
     STAGING = 'staging'
     PROD = 'prod'
 

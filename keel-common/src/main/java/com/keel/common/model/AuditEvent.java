@@ -37,7 +37,7 @@ public record AuditEvent(
     ) {}
 
     public enum AuditEventEnvValue {
-        DEV("dev"), STAGING("staging"), PROD("prod");
+        DEV("dev"), TEST("test"), STAGING("staging"), PROD("prod");
         private final String value;
         AuditEventEnvValue(String value) { this.value = value; }
         @JsonValue public String value() { return value; }
