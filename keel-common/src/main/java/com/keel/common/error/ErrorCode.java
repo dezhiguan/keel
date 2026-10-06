@@ -25,7 +25,13 @@ public enum ErrorCode {
     GUARD_INJECTION_BLOCKED("输入被提示词注入检测拦截", false, 400),
     LLM_BUDGET_EXCEEDED("模型日预算已用完", true, 429),
     LLM_KEY_BLOCKED("虚拟 Key 已停用", false, 401),
-    DELEGATE_NOT_DECLARED("目标智能体未在 manifest 的 delegates 中声明", false, 403);
+    DELEGATE_NOT_DECLARED("目标智能体未在 manifest 的 delegates 中声明", false, 403),
+    PROMPT_NOT_DECLARED("提示词未在 manifest 中声明", false, 404),
+    PROMPT_UNAVAILABLE("当前环境的提示词不可用", true, 503),
+    PROMPT_VARIABLE_MISSING("提示词变量缺失", false, 400),
+    PROMPT_TYPE_MISMATCH("提示词类型与声明不一致", false, 400),
+    PROMPT_NOT_GATED("提示词尚未通过 staging 回归，不能发布", false, 409),
+    PROMPT_ROLLBACK_TARGET("只能回滚到发布过的提示词版本", false, 409);
     private final String message;
     private final boolean retryable;
     private final int http;

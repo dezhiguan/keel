@@ -26,6 +26,12 @@ class ErrorCode(str, Enum):
     LLM_BUDGET_EXCEEDED = 'LLM_BUDGET_EXCEEDED'
     LLM_KEY_BLOCKED = 'LLM_KEY_BLOCKED'
     DELEGATE_NOT_DECLARED = 'DELEGATE_NOT_DECLARED'
+    PROMPT_NOT_DECLARED = 'PROMPT_NOT_DECLARED'
+    PROMPT_UNAVAILABLE = 'PROMPT_UNAVAILABLE'
+    PROMPT_VARIABLE_MISSING = 'PROMPT_VARIABLE_MISSING'
+    PROMPT_TYPE_MISMATCH = 'PROMPT_TYPE_MISMATCH'
+    PROMPT_NOT_GATED = 'PROMPT_NOT_GATED'
+    PROMPT_ROLLBACK_TARGET = 'PROMPT_ROLLBACK_TARGET'
 
     @property
     def retryable(self) -> bool:
@@ -64,4 +70,10 @@ _DETAILS = {
     ErrorCode.LLM_BUDGET_EXCEEDED: ('模型日预算已用完', True, 429),
     ErrorCode.LLM_KEY_BLOCKED: ('虚拟 Key 已停用', False, 401),
     ErrorCode.DELEGATE_NOT_DECLARED: ('目标智能体未在 manifest 的 delegates 中声明', False, 403),
+    ErrorCode.PROMPT_NOT_DECLARED: ('提示词未在 manifest 中声明', False, 404),
+    ErrorCode.PROMPT_UNAVAILABLE: ('当前环境的提示词不可用', True, 503),
+    ErrorCode.PROMPT_VARIABLE_MISSING: ('提示词变量缺失', False, 400),
+    ErrorCode.PROMPT_TYPE_MISMATCH: ('提示词类型与声明不一致', False, 400),
+    ErrorCode.PROMPT_NOT_GATED: ('提示词尚未通过 staging 回归，不能发布', False, 409),
+    ErrorCode.PROMPT_ROLLBACK_TARGET: ('只能回滚到发布过的提示词版本', False, 409),
 }

@@ -90,7 +90,8 @@ public record AgentManifest(
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record AgentManifestSpecPrompts(
         @JsonProperty("source") AgentManifestSpecPromptsSourceValue source,
-        @JsonProperty("label") String label
+        @JsonProperty("label") String label,
+        @JsonProperty("items") List<AgentManifestSpecPromptsItemsItem> items
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -116,6 +117,13 @@ public record AgentManifest(
         @JsonProperty("onlineEvalSampling") Double onlineEvalSampling,
         @JsonProperty("feedback") Boolean feedback,
         @JsonProperty("annotationQueue") String annotationQueue
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record AgentManifestSpecPromptsItemsItem(
+        @JsonProperty("name") String name,
+        @JsonProperty("type") AgentManifestSpecPromptsItemsItemTypeValue type
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -298,6 +306,17 @@ public record AgentManifest(
         @JsonValue public String value() { return value; }
         @JsonCreator public static AgentManifestSpecPromptsSourceValue fromValue(String value) {
             for (AgentManifestSpecPromptsSourceValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum AgentManifestSpecPromptsItemsItemTypeValue {
+        TEXT("text"), CHAT("chat");
+        private final String value;
+        AgentManifestSpecPromptsItemsItemTypeValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static AgentManifestSpecPromptsItemsItemTypeValue fromValue(String value) {
+            for (AgentManifestSpecPromptsItemsItemTypeValue item : values()) if (item.value.equals(value)) return item;
             throw new IllegalArgumentException("Unknown enum value: " + value);
         }
     }

@@ -591,6 +591,21 @@ public final class TraceAssembly {
             node.put("inputSummary", input.isBlank() ? label() : input);
             node.put("outputSummary", output.isBlank() ? label() : output);
             node.put("auditIds", auditIds);
+            var promptName = meta.getOrDefault("langfuse.observation.prompt.name", "");
+            var promptVersion = meta.getOrDefault("langfuse.observation.prompt.version", "");
+            if (!promptName.isBlank()) {
+                node.put("promptName", promptName);
+            }
+            if (!promptVersion.isBlank()) {
+                try {
+                    node.put("promptVersion", Integer.valueOf(promptVersion));
+                } catch (NumberFormatException ignored) {
+                    // A non-integer version is not a Langfuse prompt version.
+                }
+            }
+            if ("true".equalsIgnoreCase(meta.getOrDefault("keel.prompt.fallback", ""))) {
+                node.put("promptFallback", true);
+            }
             return node;
         }
 

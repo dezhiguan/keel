@@ -149,3 +149,34 @@ codes:
     message: 目标智能体未在 manifest 的 delegates 中声明
     retryable: false
     http: 403
+
+  # ── 提示词 ──────────────────────────────────────────────────────
+  PROMPT_NOT_DECLARED:
+    message: 提示词未在 manifest 中声明
+    retryable: false
+    http: 404
+
+  PROMPT_UNAVAILABLE:
+    message: 当前环境的提示词不可用
+    retryable: true
+    http: 503
+
+  PROMPT_VARIABLE_MISSING:
+    message: 提示词变量缺失
+    retryable: false
+    http: 400
+
+  PROMPT_TYPE_MISMATCH:
+    message: 提示词类型与声明不一致
+    retryable: false
+    http: 400
+
+  PROMPT_NOT_GATED:
+    message: 提示词尚未通过 staging 回归，不能发布
+    retryable: false
+    http: 409
+
+  PROMPT_ROLLBACK_TARGET:
+    message: 只能回滚到发布过的提示词版本
+    retryable: false
+    http: 409

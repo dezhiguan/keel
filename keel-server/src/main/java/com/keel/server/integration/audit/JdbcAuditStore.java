@@ -7,15 +7,21 @@ import org.springframework.stereotype.Service;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class JdbcAuditStore implements AuditStore {
+    private static final Set<String> PAYLOAD_KEYS = Set.of("version", "sha256", "diffLines", "gateRunId", "gitSha", "kind");
+
     private final JdbcTemplate jdbc;
+    private final ObjectMapper json = new ObjectMapper();
 
     public JdbcAuditStore(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
@@ -23,6 +29,12 @@ public class JdbcAuditStore implements AuditStore {
 
     @Override
     public void append(String agent, String env, String action, String risk, String decision, String resource, String traceId) {
+        append(agent, env, action, risk, decision, resource, traceId, "keel", Map.of());
+    }
+
+    @Override
+    public void append(String agent, String env, String action, String risk, String decision, String resource,
+                       String traceId, String actor, Map<String, Object> payload) {
         var normalizedRisk = risk.toLowerCase(Locale.ROOT);
         var prev = jdbc.query("""
                 SELECT hash FROM console_audit_event WHERE agent = ? ORDER BY ts DESC, event_id DESC LIMIT 1
@@ -30,12 +42,27 @@ public class JdbcAuditStore implements AuditStore {
         var prevHash = prev.isEmpty() ? "" : prev.getFirst();
         var hash = AuditChain.hash(prevHash, agent, env, action, normalizedRisk, decision, resource, traceId);
         var ts = Instant.now();
+        var safePayload = new LinkedHashMap<String, Object>();
+        if (payload != null) {
+            payload.forEach((key, value) -> {
+                if (PAYLOAD_KEYS.contains(key) && value != null && !(value instanceof String text && text.length() > 200)) {
+                    safePayload.put(key, value);
+                }
+            });
+        }
+        String payloadJson;
+        try {
+            payloadJson = json.writeValueAsString(safePayload);
+        } catch (Exception e) {
+            throw new KeelException(ErrorCode.AUDIT_WRITE_FAILED, ErrorCode.AUDIT_WRITE_FAILED.message());
+        }
+        var actorUser = actor == null || actor.isBlank() ? "keel" : actor;
         var updated = jdbc.update("""
                 INSERT INTO console_audit_event
                     (event_id, agent, env, ts, action, risk, decision, resource, trace_id, actor_user, payload, input_digest, prev_hash, hash)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'keel', '{}'::jsonb, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?)
                 """, UUID.randomUUID().toString(), agent, env, Timestamp.from(ts), action, normalizedRisk, decision,
-                resource, traceId, AuditChain.sha256(action + ":" + agent), prevHash, hash);
+                resource, traceId, actorUser, payloadJson, AuditChain.sha256(action + ":" + agent), prevHash, hash);
         if (updated != 1) {
             throw new KeelException(ErrorCode.AUDIT_WRITE_FAILED, ErrorCode.AUDIT_WRITE_FAILED.message());
         }
@@ -51,7 +78,7 @@ public class JdbcAuditStore implements AuditStore {
                 WHERE (? = '' OR agent = ?) AND (? = '' OR risk = ?) AND (? = '' OR env = ?)
                 """, Integer.class, agentFilter, agentFilter, riskFilter, riskFilter, envFilter, envFilter);
         var rows = jdbc.query("""
-                SELECT event_id, agent, env, ts, action, risk, decision, resource, trace_id, actor_user, input_digest, prev_hash, hash
+                SELECT event_id, agent, env, ts, action, risk, decision, resource, trace_id, actor_user, payload::text AS payload, input_digest, prev_hash, hash
                 FROM console_audit_event
                 WHERE (? = '' OR agent = ?) AND (? = '' OR risk = ?) AND (? = '' OR env = ?)
                 ORDER BY ts DESC, event_id DESC
@@ -73,7 +100,7 @@ public class JdbcAuditStore implements AuditStore {
             item.put("risk", rs.getString("risk").toUpperCase(Locale.ROOT));
             item.put("decision", rs.getString("decision"));
             item.put("approver", null);
-            item.put("payload", Map.of());
+            item.put("payload", payloadOf(rs.getString("payload")));
             item.put("inputDigest", rs.getString("input_digest"));
             item.put("hashVerified", expected.equals(storedHash));
             item.put("hash", storedHash);
@@ -119,5 +146,29 @@ public class JdbcAuditStore implements AuditStore {
         data.put("brokenAt", brokenAt);
         data.put("elapsedMs", System.currentTimeMillis() - started);
         return data;
+    }
+
+    private Map<String, Object> payloadOf(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return Map.of();
+        }
+        try {
+            var node = json.readTree(raw);
+            var payload = new LinkedHashMap<String, Object>();
+            node.fields().forEachRemaining(entry -> {
+                if (!PAYLOAD_KEYS.contains(entry.getKey())) {
+                    return;
+                }
+                var value = entry.getValue();
+                if (value.isNumber()) {
+                    payload.put(entry.getKey(), value.numberValue());
+                } else if (!value.isNull()) {
+                    payload.put(entry.getKey(), value.asText());
+                }
+            });
+            return payload;
+        } catch (Exception e) {
+            return Map.of();
+        }
     }
 }

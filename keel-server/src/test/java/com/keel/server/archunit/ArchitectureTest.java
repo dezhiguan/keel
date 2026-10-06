@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ArchitectureTest {
     private static final Set<String> BUSINESS_MODULES = Set.of(
-            "registry", "provisioning", "discovery", "tool", "approval", "release", "insight");
+            "registry", "provisioning", "discovery", "tool", "approval", "release", "insight", "prompt");
     private static final String PREFIX = "com.keel.server.";
 
     private static final ArchCondition<JavaClass> NO_CROSS_MODULE_MAPPER = new ArchCondition<>("not access another business module's mapper") {

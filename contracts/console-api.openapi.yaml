@@ -35,6 +35,8 @@ tags:
     description: 链路追踪页
   - name: eval
     description: 评测中心
+  - name: prompts
+    description: 提示词
   - name: tools
     description: 工具注册表
   - name: approvals
@@ -553,6 +555,182 @@ paths:
                             nullable: true
                             allOf:
                               - $ref: "#/components/schemas/EvalResult"
+
+  # ---------------------------------------------------------------- 提示词
+  /prompts:
+    get:
+      tags: [prompts]
+      operationId: listPrompts
+      summary: 提示词列表，跟随顶栏环境
+      parameters:
+        - name: env
+          in: query
+          schema: { type: string, enum: [all, dev, test, staging, prod], default: all }
+        - name: agent
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/PromptList" }
+  /agents/{name}/prompts/sync:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+    post:
+      tags: [prompts]
+      operationId: syncPrompts
+      summary: 代码或 CI 上报 prompts/ 文件
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+  /agents/{name}/prompts/{prompt}:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+      - { name: prompt, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [prompts]
+      operationId: getPrompt
+      summary: 提示词详情
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/PromptDetail" }
+  /agents/{name}/prompts/{prompt}/versions/{version}:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+      - { name: prompt, in: path, required: true, schema: { type: string } }
+      - { name: version, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [prompts]
+      operationId: getPromptVersion
+      summary: 某一版原文
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/PromptBody" }
+  /agents/{name}/prompts/{prompt}/diff:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+      - { name: prompt, in: path, required: true, schema: { type: string } }
+      - { name: from, in: query, required: true, schema: { type: integer } }
+      - { name: to, in: query, required: true, schema: { type: integer } }
+    get:
+      tags: [prompts]
+      operationId: diffPrompt
+      summary: 服务端计算两个版本的差异
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/PromptDiff" }
+  /agents/{name}/prompts/{prompt}/versions:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+      - { name: prompt, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [prompts]
+      operationId: createPromptVersion
+      summary: 保存新版本，不挪标签
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+  /agents/{name}/prompts/{prompt}/promote:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+      - { name: prompt, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [prompts]
+      operationId: promotePrompt
+      summary: 把 dev、test 或 staging 标签挪到指定版本
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+  /agents/{name}/prompts/{prompt}/rollback:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+      - { name: prompt, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [prompts]
+      operationId: rollbackPrompt
+      summary: 把 production 标签挪回发布过的版本
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+  /gate-results:
+    post:
+      tags: [prompts]
+      operationId: recordGateResult
+      summary: keel gate 回写实验结果并核对提示词版本
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
 
   # ---------------------------------------------------------------- 工具
   /tools:
@@ -1446,6 +1624,42 @@ components:
         releasedBy: { type: string }
         releasedAt: { type: string, format: date-time }
 
+    PromptList:
+      type: object
+      properties:
+        langfuseUrl: { type: string, nullable: true }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/PromptSummary" }
+    PromptSummary:
+      type: object
+      additionalProperties: true
+    PromptDetail:
+      type: object
+      additionalProperties: true
+    PromptBody:
+      type: object
+      properties:
+        version: { type: integer }
+        type: { type: string, enum: [text, chat] }
+        prompt: {}
+        config: { type: object, additionalProperties: true }
+        variables:
+          type: array
+          items: { type: string }
+    PromptDiff:
+      type: object
+      properties:
+        added: { type: integer }
+        removed: { type: integer }
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              op: { type: string, enum: [same, add, del] }
+              text: { type: string }
+
     RegisterRequest:
       type: object
       required: [name, env]
@@ -1683,6 +1897,9 @@ components:
         approvalId: { type: string, nullable: true }
         gateNote: { type: string, nullable: true, example: 评测：askdb v1.9.0 门禁 0.88 通过 }
         deprecatedTool: { type: boolean }
+        promptName: { type: string, nullable: true, description: generation 上的 langfuse.observation.prompt.name }
+        promptVersion: { type: integer, nullable: true }
+        promptFallback: { type: boolean, description: keel.prompt.fallback，用了本地副本 }
 
     # ------------------------------------------------------------ 评测
     EvalResult:

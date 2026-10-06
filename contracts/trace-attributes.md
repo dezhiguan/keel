@@ -19,6 +19,9 @@ Python SDK 和 Java starter 产生的属性键集合必须完全一致。这份�
 | `langfuse.session.id` | 字符串 | 多轮对话归到同一会话 |
 | `langfuse.user.id` | 字符串 | |
 | `langfuse.trace.tags` | 字符串数组 | |
+| `langfuse.observation.prompt.name` | 字符串，如 `offshore-wind/answer` | 只用在 generation 上。用的是 Langfuse 版本时写 |
+| `langfuse.observation.prompt.version` | 整数 | 只用在 generation 上。用的是 Langfuse 版本时写 |
+| `keel.prompt.fallback` | `true` | 只用在 generation 上。用的是 `prompts/` 本地副本，此时不写上面两项 |
 
 在线评估器配成 **observation 级**（挂在根 agent 节点上）。v4 不再运行 trace 级评估器。
 

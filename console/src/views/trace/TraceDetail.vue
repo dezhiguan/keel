@@ -142,6 +142,14 @@ watch(() => route.params.id, load, { immediate: true })
           <div v-if="node.model" class="full"><span>模型网关</span><b>经薄网关<template v-if="node.llmKeyAlias"> · 虚拟 Key {{ node.llmKeyAlias }}</template> · 花费计入该智能体的日预算</b></div>
           <div class="full"><span>输入摘要</span><b style="white-space: pre-wrap">{{ node.inputSummary }}</b></div>
           <div class="full"><span>输出摘要</span><b style="white-space: pre-wrap">{{ node.outputSummary }}</b></div>
+          <div v-if="node.promptFallback" class="full">
+            <span>提示词</span>
+            <b><span class="pill p-warn">本地兜底副本</span> {{ node.promptName || '本地副本' }}（Langfuse 读取失败，链路上没有关联版本）</b>
+          </div>
+          <div v-else-if="node.promptName" class="full">
+            <span>提示词</span>
+            <b><RouterLink :to="`/prompts/${node.promptName}`" style="color: var(--soft)">{{ node.promptName }} v{{ node.promptVersion }} →</RouterLink></b>
+          </div>
           <div class="full">
             <span>关联</span>
             <div class="acts">

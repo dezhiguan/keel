@@ -24,6 +24,11 @@ const groups = computed(() => {
 
 const title = computed(() => String(route.meta.title ?? ''))
 const traceId = computed(() => (route.path.startsWith('/traces/') ? String(route.params.id ?? '') : ''))
+const promptCrumb = computed(() => {
+  const match = route.path.match(/^\/prompts\/([^/]+)\/([^/]+)$/)
+  if (!match) return ''
+  return `${decodeURIComponent(match[1])}/${decodeURIComponent(match[2])}`
+})
 
 onMounted(async () => {
   try {
@@ -68,6 +73,9 @@ watch(() => envStore.env, (env) => {
           Keel 控制台 /
           <template v-if="traceId">
             <RouterLink to="/traces">链路追踪</RouterLink> / <b class="mono">{{ traceId }}</b>
+          </template>
+          <template v-else-if="promptCrumb">
+            <RouterLink to="/prompts">提示词</RouterLink> / <b class="mono">{{ promptCrumb }}</b>
           </template>
           <b v-else>{{ title }}</b>
         </div>

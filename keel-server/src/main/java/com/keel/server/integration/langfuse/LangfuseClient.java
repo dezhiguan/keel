@@ -446,15 +446,125 @@ public class LangfuseClient {
         }
     }
 
+    public boolean ready() {
+        return configured() && !authorization.isBlank();
+    }
+
+    public JsonNode listPrompts(String name, String label) {
+        if (!ready()) {
+            throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
+        }
+        var data = json.createArrayNode();
+        for (int page = 1; page <= 5; page++) {
+            var path = "/api/public/v2/prompts?page=" + page + "&limit=50";
+            if (name != null && !name.isBlank()) {
+                path += "&name=" + URLEncoder.encode(name, StandardCharsets.UTF_8);
+            }
+            if (label != null && !label.isBlank()) {
+                path += "&label=" + URLEncoder.encode(label, StandardCharsets.UTF_8);
+            }
+            var body = get(path);
+            var rows = body.path("data");
+            if (!rows.isArray() || rows.isEmpty()) {
+                break;
+            }
+            rows.forEach(data::add);
+            if (page >= body.path("meta").path("totalPages").asInt(page)) {
+                break;
+            }
+        }
+        var out = json.createObjectNode();
+        out.set("data", data);
+        return out;
+    }
+
+    public JsonNode getPrompt(String name, Integer version, String label) {
+        if (!ready()) {
+            throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
+        }
+        var path = "/api/public/v2/prompts/" + URLEncoder.encode(name, StandardCharsets.UTF_8);
+        if (version != null) {
+            path += "?version=" + version;
+        } else if (label != null && !label.isBlank()) {
+            path += "?label=" + URLEncoder.encode(label, StandardCharsets.UTF_8);
+        }
+        return send("GET", path, null, false, true);
+    }
+
+    public JsonNode createPrompt(String name, String type, JsonNode prompt, JsonNode config, String commitMessage, List<String> labels) {
+        if (!ready()) {
+            throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
+        }
+        var body = json.createObjectNode();
+        body.put("name", name);
+        body.put("type", type);
+        body.set("prompt", prompt);
+        if (config != null && config.size() > 0) {
+            body.set("config", config);
+        }
+        if (commitMessage != null && !commitMessage.isBlank()) {
+            body.put("commitMessage", commitMessage);
+        }
+        if (labels != null && !labels.isEmpty()) {
+            var arr = body.putArray("labels");
+            labels.forEach(arr::add);
+        }
+        return send("POST", "/api/public/v2/prompts", body, false, false);
+    }
+
+    public void moveLabel(String name, int version, String label) {
+        var current = getPrompt(name, version, null);
+        if (current == null) {
+            throw new IllegalStateException("Langfuse 提示词版本不存在 " + name + " v" + version);
+        }
+        var labels = new ArrayList<String>();
+        current.path("labels").forEach(node -> {
+            var text = node.asText("");
+            if (!text.isBlank() && !"latest".equals(text) && !labels.contains(text)) {
+                labels.add(text);
+            }
+        });
+        if (!labels.contains(label)) {
+            labels.add(label);
+        }
+        patchLabels(name, version, labels);
+    }
+
+    public void removeLabel(String name, int version, String label) {
+        var current = getPrompt(name, version, null);
+        if (current == null) {
+            return;
+        }
+        var labels = new ArrayList<String>();
+        current.path("labels").forEach(node -> {
+            var text = node.asText("");
+            if (!text.isBlank() && !"latest".equals(text) && !text.equals(label)) {
+                labels.add(text);
+            }
+        });
+        patchLabels(name, version, labels);
+    }
+
+    private void patchLabels(String name, int version, List<String> labels) {
+        var body = json.createObjectNode();
+        var arr = body.putArray("newLabels");
+        labels.forEach(arr::add);
+        send("PATCH", "/api/public/v2/prompts/" + URLEncoder.encode(name, StandardCharsets.UTF_8) + "/versions/" + version, body, false, false);
+    }
+
     private JsonNode get(String path) {
-        return send("GET", path, null, false);
+        return send("GET", path, null, false, false);
     }
 
     private void post(String path, JsonNode body, boolean ignoreConflict) {
-        send("POST", path, body, ignoreConflict);
+        send("POST", path, body, ignoreConflict, false);
     }
 
     private JsonNode send(String method, String path, JsonNode body, boolean ignoreConflict) {
+        return send(method, path, body, ignoreConflict, false);
+    }
+
+    private JsonNode send(String method, String path, JsonNode body, boolean ignoreConflict, boolean allowNotFound) {
         try {
             var builder = HttpRequest.newBuilder(URI.create(baseUrl + path))
                     .timeout(Duration.ofSeconds(20))
@@ -466,6 +576,9 @@ public class LangfuseClient {
                         .method(method, HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)));
             }
             var response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 404 && allowNotFound) {
+                return null;
+            }
             if (response.statusCode() == 409 && ignoreConflict) {
                 return json.createObjectNode();
             }

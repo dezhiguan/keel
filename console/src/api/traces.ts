@@ -3,7 +3,11 @@ import type { components, operations } from './schema'
 
 export type TraceSummary = components['schemas']['TraceSummary']
 export type TraceDetail = components['schemas']['TraceDetail']
-export type TraceNode = components['schemas']['TraceNode']
+export type TraceNode = components['schemas']['TraceNode'] & {
+  promptName?: string | null
+  promptVersion?: number | null
+  promptFallback?: boolean
+}
 export type ListTracesQuery = NonNullable<operations['listTraces']['parameters']['query']>
 export type TracePage = components['schemas']['PageMeta'] & { items?: TraceSummary[]; langfuseUrl?: string }
 

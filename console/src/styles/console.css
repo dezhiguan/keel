@@ -181,4 +181,26 @@ select.inp {
 @media (max-width: 1100px) {
   .kpis { grid-template-columns: repeat(3, 1fr); }
   .row2, .row2e { grid-template-columns: 1fr; }
+  .pgrid { grid-template-columns: 1fr; }
 }
+
+.pgrid { display: grid; grid-template-columns: 300px 1fr; gap: 14px; align-items: start; }
+.vlist .vi { padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; cursor: pointer; font-size: 12px; transition: 0.12s; }
+.vlist .vi:hover { border-color: #3d5070; }
+.vlist .vi.on { border-color: var(--acc); background: #1a2233; }
+.vlist .vi b { color: var(--white); font-family: var(--mono); font-weight: 600; margin-right: 6px; }
+.vlist .vi .m { color: var(--mute); font-size: 11px; margin-top: 3px; line-height: 1.45; }
+.pmsg { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+.pmsg .r { font-size: 11px; font-family: var(--mono); color: var(--mute); padding: 4px 10px; background: var(--panel2); border-bottom: 1px solid var(--line); }
+.pmsg pre { margin: 0; padding: 10px 12px; font-family: var(--mono); font-size: 12px; line-height: 1.65; color: #c9d4e3; white-space: pre-wrap; }
+.pvar { color: var(--acc); }
+.diff div { font-family: var(--mono); font-size: 12px; line-height: 1.65; padding: 0 10px; white-space: pre-wrap; }
+.diff .add { background: rgba(52, 195, 143, 0.12); color: #9ee6c4; }
+.diff .del { background: rgba(244, 106, 106, 0.12); color: #f3a5a5; text-decoration: line-through; }
+.diff .same { color: #8fa0b8; }
+.pbanner { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: 12.8px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.pbanner.bad { border-color: #5a2a2e; background: #1c1216; }
+.pbanner.warn { border-color: #5a4a26; background: #1c1810; }
+.pbanner.ok { border-color: #24483c; background: #0f1a16; }
+.pedit textarea { width: 100%; font-family: var(--mono); font-size: 12px; line-height: 1.6; min-height: 110px; resize: vertical; box-sizing: border-box; }
+.modal.wide { width: min(720px, 94vw); }
