@@ -58,7 +58,7 @@ metadata:
   name: keel-server
   namespace: keel-system
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels: { app: keel-server }
   template:

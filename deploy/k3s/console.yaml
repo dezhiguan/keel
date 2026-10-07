@@ -10,7 +10,7 @@ metadata:
   name: keel-console
   namespace: keel-system
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels: { app: keel-console }
   template:
