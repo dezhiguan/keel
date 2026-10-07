@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.keel.common.error.ErrorCode;
 import com.keel.server.common.KeelException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.net.URLEncoder;
@@ -16,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class AuthGatewayLoginClient {
+    private static final Logger log = LoggerFactory.getLogger(AuthGatewayLoginClient.class);
     private final String baseUrl;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private final ObjectMapper json = new ObjectMapper();
@@ -100,6 +103,7 @@ public class AuthGatewayLoginClient {
         } catch (KeelException e) {
             throw e;
         } catch (Exception e) {
+            log.warn("auth-gateway login call failed: {}", e.toString());
             throw new KeelException(ErrorCode.AUTH_GATEWAY_UNAVAILABLE, ErrorCode.AUTH_GATEWAY_UNAVAILABLE.message());
         }
     }
@@ -128,6 +132,7 @@ public class AuthGatewayLoginClient {
 
     private String requireBase() {
         if (baseUrl.isBlank()) {
+            log.warn("KEEL_AUTH_GATEWAY_URL is empty");
             throw new KeelException(ErrorCode.AUTH_GATEWAY_UNAVAILABLE, ErrorCode.AUTH_GATEWAY_UNAVAILABLE.message());
         }
         return baseUrl;
