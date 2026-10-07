@@ -117,6 +117,40 @@ spec:
                   name: keel-server
                   key: KEEL_AUTH_GATEWAY_URL
                   optional: true
+            - name: KEEL_CONSOLE_AUTH_MODE
+              value: authgw
+            - name: KEEL_CONSOLE_PREVIEW_ENABLED
+              value: "true"
+            - name: KEEL_CONSOLE_CLIENT_PRIVATE_KEY
+              value: |
+                -----BEGIN PRIVATE KEY-----
+                MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCUPawGf8X8hVkX
+                3PsQyGrmR1QafqHoUYYgtnqMdPviGY7+PLXpFLmZ2Hv/1dGF6xaOrjEcpp8Wd3OF
+                1Oz94kLh+YlrVGar5RG++ezgrEZFlmO3arV/ehJbnapkJzTaZGvoxy8/mkIZ6zL2
+                evpESDfIv1Ai5ygpJPhkGKhvMYDpTrizp4dqQX9MEDrCTlKdipGY1TWk5dyx45Lh
+                jrrlR19FziEbhAf4669BRrpUKlTELJeOYiEMwO6gCOZ8aJfd95CD6fpotgq3v2aO
+                1pJ708arxChXJgJkd/J6FfNJt00/MB+VKCTu/a0VO3b+Wif5DKMd8hNv8ih2scDq
+                xkgQTVR1AgMBAAECggEAISKb5iP/ZE+GN6BMelbiFjERao6tsBkw6vT+9ZBckRB3
+                dvqpCr14MxxBs1De8Zk3xJLJJYdU/hebOen7Q1Ck9I/rmJMYFAoy6kZBHYNEfd98
+                0I3IngLyQYo/gP2Ggd56hGCpfgUEC3kYPiIE+OhPl86zoembf37lCrK8S4Z8Mynv
+                ZcEL2gwa/e4fQbFW1Q7iKV7ORAAJvptmhQjGO3x6hjRA8HQcENxCcPPQYJP21hIK
+                sMTlKz7Xp1s4xbIYMs91ed3WV6eiausiAFYLbK8vDtf2A357JFfSv2RjAfjobxLn
+                NBCUu3yS9v+dZYFvM9yhs7f7gkFz1/cf32PM7XkeYQKBgQDEYBTEAOn/KWKtyWgl
+                dIY1oIm9oTf9K6Ib0sIgFNOR6i9wQyEeyGIlXykIv31yegrbd3SPijTIuNQom132
+                PP0EHO/3tTbOMUkJZ9boCkmapjxaqbko+712INzy2kab3utFLRwkTkPura6g5d8h
+                oml34ejv9DaDkWJ1fPI+6yWKSQKBgQDBQC9i8c85o2azi0yb8tSGU4kTntb2dWge
+                bnScRxTtTw8ObqQEEU18uG6nAE0ypEpeoiVVh//ofYz9wPnkP1k56Wiyg7gZyqR7
+                vnD/zI86FsdP7r2F4PqIPuJ0n9BqxmP0chTmrOaUCJzRz99W+64HYs1VSNy5Q9X2
+                4/yJ4hDYzQKBgQCIXQPue4gB9PYeId7dK4ZK1PjxInOjrVn7oiXFa1DjYVChzyu/
+                mXx14Re4iGiPRuolLlVVm649uAMzU3gzFnTIF2QXidHN6vGBw4a7SPGFn2wHtRXr
+                vKv6zKVBSot/j5OmTMXe/C42HotGFXoVfBdq9QfxII9+W0WYujPptxYxaQKBgCZb
+                ZwxskoUOOcRJUdtiR2yiCAMs893XT+M6aUrbkPvJRWPH8iYciRTIRq4/EROMKHbA
+                GEjxxYmP4fw74V28dSlZer50BoaYAi3NjwA2yfbtroHfER8RmKiSUsBzOBr5Zb2P
+                Jzbh+qJHU1kRuXK6YcB1i+vxml3raPyoI+f6Rv3BAoGAFzEWxsq0iB47lblczRpg
+                X7ng0T26fqajCi65GU5OTNTAIDuoQ/+b2hhz/1KVwWhPtTx2BDasyrOkEmC0KFCc
+                bBkqOBrLZ3q/Q/Wiw2gmxN8N/0Fu6IglS4XkLtNaEx+UXyRtGxn9PqO+GhaFCpEN
+                e1fMToIQgj0k/ndTeSwayO0=
+                -----END PRIVATE KEY-----
             - name: RAGFORGE_BASE_URL
               value: http://ragforge-backend.ragforge.svc.cluster.local:8080
             - name: RAGFORGE_METRICS_USER

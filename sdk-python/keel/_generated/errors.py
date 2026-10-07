@@ -32,6 +32,16 @@ class ErrorCode(str, Enum):
     PROMPT_TYPE_MISMATCH = 'PROMPT_TYPE_MISMATCH'
     PROMPT_NOT_GATED = 'PROMPT_NOT_GATED'
     PROMPT_ROLLBACK_TARGET = 'PROMPT_ROLLBACK_TARGET'
+    AUTH_UNAUTHENTICATED = 'AUTH_UNAUTHENTICATED'
+    AUTH_TOKEN_EXPIRED = 'AUTH_TOKEN_EXPIRED'
+    AUTH_TOKEN_AUDIENCE = 'AUTH_TOKEN_AUDIENCE'
+    AUTH_CONSOLE_FORBIDDEN = 'AUTH_CONSOLE_FORBIDDEN'
+    AUTH_PREVIEW_READONLY = 'AUTH_PREVIEW_READONLY'
+    AUTH_BAD_CREDENTIALS = 'AUTH_BAD_CREDENTIALS'
+    AUTH_CAPTCHA_REQUIRED = 'AUTH_CAPTCHA_REQUIRED'
+    AUTH_LOCKED = 'AUTH_LOCKED'
+    AUTH_SMS_RATE_LIMITED = 'AUTH_SMS_RATE_LIMITED'
+    AUTH_GATEWAY_UNAVAILABLE = 'AUTH_GATEWAY_UNAVAILABLE'
 
     @property
     def retryable(self) -> bool:
@@ -76,4 +86,14 @@ _DETAILS = {
     ErrorCode.PROMPT_TYPE_MISMATCH: ('提示词类型与声明不一致', False, 400),
     ErrorCode.PROMPT_NOT_GATED: ('提示词尚未通过 staging 回归，不能发布', False, 409),
     ErrorCode.PROMPT_ROLLBACK_TARGET: ('只能回滚到发布过的提示词版本', False, 409),
+    ErrorCode.AUTH_UNAUTHENTICATED: ('请先登录后再继续', False, 401),
+    ErrorCode.AUTH_TOKEN_EXPIRED: ('登录已过期，请重新登录', True, 401),
+    ErrorCode.AUTH_TOKEN_AUDIENCE: ('这个登录态不能用于 Keel 控制台', False, 401),
+    ErrorCode.AUTH_CONSOLE_FORBIDDEN: ('这个账号还没有开通控制台，请联系平台管理员', False, 403),
+    ErrorCode.AUTH_PREVIEW_READONLY: ('预览模式只能查看，登录后才能操作', False, 403),
+    ErrorCode.AUTH_BAD_CREDENTIALS: ('账号或密码不正确。没有账号或忘记密码，请联系平台管理员', False, 401),
+    ErrorCode.AUTH_CAPTCHA_REQUIRED: ('为了保护账号，请填写图形验证码后再登录', False, 423),
+    ErrorCode.AUTH_LOCKED: ('登录失败次数过多，请 15 分钟后再试', False, 423),
+    ErrorCode.AUTH_SMS_RATE_LIMITED: ('操作太频繁，请稍后再试', True, 429),
+    ErrorCode.AUTH_GATEWAY_UNAVAILABLE: ('登录服务暂时不可用，请稍后再试', True, 503),
 }

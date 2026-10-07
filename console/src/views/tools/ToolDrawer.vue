@@ -349,9 +349,9 @@ onUnmounted(() => {
           </template>
         </div>
         <div v-if="tool && tool.status !== 'RETIRED'" class="df">
-          <button class="btn danger" type="button" @click="openRetire">下线</button>
+          <button v-write class="btn danger" type="button" @click="openRetire">下线</button>
           <button v-if="tool.status !== 'DEPRECATED'" class="btn" type="button" @click="openDeprecate">废弃</button>
-          <button class="btn pri" type="button" @click="openVersion">发布新版本</button>
+          <button v-write class="btn pri" type="button" @click="openVersion">发布新版本</button>
         </div>
       </aside>
 
@@ -365,7 +365,7 @@ onUnmounted(() => {
         </div>
         <div class="mf">
           <button class="btn" type="button" @click="closeModal">知道了</button>
-          <button v-if="tool?.status !== 'DEPRECATED'" class="btn pri" type="button" @click="openDeprecate">改为废弃</button>
+          <button v-if="tool?.status !== 'DEPRECATED'" v-write class="btn pri" type="button" @click="openDeprecate">改为废弃</button>
         </div>
       </div>
 
@@ -380,7 +380,7 @@ onUnmounted(() => {
         </div>
         <div class="mf">
           <button class="btn" type="button" @click="closeModal">取消</button>
-          <button class="btn danger" type="button" @click="confirmRetire">确认下线</button>
+          <button v-write class="btn danger" type="button" @click="confirmRetire">确认下线</button>
         </div>
       </div>
 
@@ -402,7 +402,7 @@ onUnmounted(() => {
         </div>
         <div class="mf">
           <button class="btn" type="button" @click="closeModal">取消</button>
-          <button class="btn pri" type="button" @click="confirmDeprecate">确认废弃</button>
+          <button v-write class="btn pri" type="button" @click="confirmDeprecate">确认废弃</button>
         </div>
       </div>
 
@@ -428,7 +428,7 @@ onUnmounted(() => {
         </div>
         <div class="mf">
           <button class="btn" type="button" :disabled="versionBusy" @click="closeModal">取消</button>
-          <button class="btn pri" type="button" :disabled="versionBusy" @click="submitVersion">发布</button>
+          <button v-write class="btn pri" type="button" :disabled="versionBusy" @click="submitVersion">发布</button>
         </div>
       </div>
     </template>

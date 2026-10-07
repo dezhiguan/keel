@@ -170,7 +170,7 @@ watch(() => envStore.env, load, { immediate: true })
         </div>
         <div class="mf">
           <button class="btn" type="button" :disabled="saving" @click="editing = null">取消</button>
-          <button class="btn pri" type="button" :disabled="saving" @click="saveBudget">保存</button>
+          <button v-write class="btn pri" type="button" :disabled="saving" @click="saveBudget">保存</button>
         </div>
       </div>
     </Teleport>

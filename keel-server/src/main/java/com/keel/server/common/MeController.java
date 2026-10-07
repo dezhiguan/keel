@@ -1,5 +1,7 @@
 package com.keel.server.common;
 
+import com.keel.common.error.ErrorCode;
+import com.keel.server.auth.ConsolePrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -10,14 +12,15 @@ import java.util.List;
 @RequestMapping("/api/v1")
 public class MeController {
     public record CurrentUser(String userId, String displayName, String org, String platformRole,
-                              List<String> roles, List<String> visibleAgents, Integer pendingApprovals) {}
+                              List<String> roles, List<String> visibleAgents, Integer pendingApprovals,
+                              String mode, Boolean readOnly) {}
 
-    /**
-     * TODO(P0-5): read the user from the auth-gateway JWT (aud=keel-api, roles claim) once Spring Security is wired.
-     * Until then every caller is a fixed local admin, so this must not be deployed beyond local dev.
-     */
     @GetMapping("/me")
     public R<CurrentUser> me() {
-        return R.ok(new CurrentUser("dev", "dev", "本地开发", "ADMIN", List.of(), List.of(), 0));
+        ConsolePrincipal principal = ConsolePrincipal.current();
+        if (principal == null) {
+            throw new KeelException(ErrorCode.AUTH_UNAUTHENTICATED, ErrorCode.AUTH_UNAUTHENTICATED.message());
+        }
+        return R.ok(principal.toUser());
     }
 }

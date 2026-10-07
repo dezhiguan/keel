@@ -177,7 +177,7 @@ watch(() => envStore.env, () => {
         <span v-if="banner.title" class="pill" :class="banner.tone === 'bad' ? 'p-bad' : banner.tone === 'warn' ? 'p-warn' : banner.tone === 'ok' ? 'p-acc' : 'p-soft'">{{ banner.title }}</span>
         <span>{{ banner.text }}</span>
         <span class="sp" />
-        <button v-if="banner.action?.kind === 'rollback'" class="btn sm" type="button" @click="pick(banner.action.version); rolling = true">{{ banner.action.label }}</button>
+        <button v-if="banner.action?.kind === 'rollback'" v-write class="btn sm" type="button" @click="pick(banner.action.version); rolling = true">{{ banner.action.label }}</button>
         <button v-else-if="banner.action?.kind === 'pick'" class="btn sm" type="button" @click="pick(banner.action.version)">{{ banner.action.label }}</button>
       </div>
 
@@ -186,7 +186,7 @@ watch(() => envStore.env, () => {
           版本
           <small>{{ envStore.env === 'all' ? '四个环境的标签都显示' : `只突出 ${envStore.env} 的标签（${PR_LABEL[envStore.env]}）` }}；左侧点一版看内容</small>
           <span class="sp" />
-          <button v-if="editable" class="btn pri sm" type="button" @click="openEdit">编辑并保存新版本</button>
+          <button v-if="editable" v-write class="btn pri sm" type="button" @click="openEdit">编辑并保存新版本</button>
         </h3>
         <div class="pgrid">
           <div class="vlist">
@@ -209,8 +209,8 @@ watch(() => envStore.env, () => {
                 <option v-for="version in versions.filter((item) => item.version !== selected)" :key="version.version" :value="String(version.version)">对比 v{{ version.version }} → v{{ selected }}</option>
               </select>
               <span class="sp" />
-              <button v-for="env in targets" :key="env" class="btn sm" :class="{ pri: env === 'staging' }" type="button" @click="promote(env)">在 {{ env }} 生效{{ env === 'staging' ? '（触发回归）' : '' }}</button>
-              <button v-if="rollbackOk" class="btn sm danger" type="button" @click="reason = ''; rolling = true">prod 回滚到此版本</button>
+              <button v-for="env in targets" :key="env" v-write class="btn sm" :class="{ pri: env === 'staging' }" type="button" @click="promote(env)">在 {{ env }} 生效{{ env === 'staging' ? '（触发回归）' : '' }}</button>
+              <button v-if="rollbackOk" v-write class="btn sm danger" type="button" @click="reason = ''; rolling = true">prod 回滚到此版本</button>
             </div>
             <div v-if="diff" class="diff">
               <div v-for="(line, index) in diff.lines" :key="index" :class="line.op">{{ line.op === 'add' ? '+ ' : line.op === 'del' ? '− ' : '  ' }}{{ line.text || ' ' }}</div>
@@ -250,7 +250,7 @@ watch(() => envStore.env, () => {
       </div>
       <div class="mf">
         <button class="btn" type="button" @click="editing = false">取消</button>
-        <button class="btn pri" type="button" @click="save">保存为新版本</button>
+        <button v-write class="btn pri" type="button" @click="save">保存为新版本</button>
       </div>
     </div>
 
@@ -263,7 +263,7 @@ watch(() => envStore.env, () => {
       </div>
       <div class="mf">
         <button class="btn" type="button" @click="rolling = false">取消</button>
-        <button class="btn danger" type="button" @click="confirmRollback">确认回滚</button>
+        <button v-write class="btn danger" type="button" @click="confirmRollback">确认回滚</button>
       </div>
     </div>
   </div>

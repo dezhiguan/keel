@@ -31,7 +31,17 @@ public enum ErrorCode {
     PROMPT_VARIABLE_MISSING("提示词变量缺失", false, 400),
     PROMPT_TYPE_MISMATCH("提示词类型与声明不一致", false, 400),
     PROMPT_NOT_GATED("提示词尚未通过 staging 回归，不能发布", false, 409),
-    PROMPT_ROLLBACK_TARGET("只能回滚到发布过的提示词版本", false, 409);
+    PROMPT_ROLLBACK_TARGET("只能回滚到发布过的提示词版本", false, 409),
+    AUTH_UNAUTHENTICATED("请先登录后再继续", false, 401),
+    AUTH_TOKEN_EXPIRED("登录已过期，请重新登录", true, 401),
+    AUTH_TOKEN_AUDIENCE("这个登录态不能用于 Keel 控制台", false, 401),
+    AUTH_CONSOLE_FORBIDDEN("这个账号还没有开通控制台，请联系平台管理员", false, 403),
+    AUTH_PREVIEW_READONLY("预览模式只能查看，登录后才能操作", false, 403),
+    AUTH_BAD_CREDENTIALS("账号或密码不正确。没有账号或忘记密码，请联系平台管理员", false, 401),
+    AUTH_CAPTCHA_REQUIRED("为了保护账号，请填写图形验证码后再登录", false, 423),
+    AUTH_LOCKED("登录失败次数过多，请 15 分钟后再试", false, 423),
+    AUTH_SMS_RATE_LIMITED("操作太频繁，请稍后再试", true, 429),
+    AUTH_GATEWAY_UNAVAILABLE("登录服务暂时不可用，请稍后再试", true, 503);
     private final String message;
     private final boolean retryable;
     private final int http;

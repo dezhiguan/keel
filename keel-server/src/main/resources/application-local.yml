@@ -1,4 +1,14 @@
 # 本机开发：连本机 PostgreSQL（库 keel、账号 keel），额外加载 db/seed-local 下的演示数据。
+# 本机登录不连 auth-gateway。口令和短信码只从环境变量读，不写默认值。
+keel:
+  console:
+    auth:
+      mode: local
+      local-password: ${KEEL_CONSOLE_LOCAL_PASSWORD:}
+      local-sms-code: ${KEEL_CONSOLE_LOCAL_SMS_CODE:}
+    preview:
+      enabled: true
+
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/keel

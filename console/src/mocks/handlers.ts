@@ -6,6 +6,30 @@ import { approvals, suspendedRuns } from './data/approvals'
 // Leading wildcard so the same handlers match in the browser and under msw/node (which has no page origin).
 const BASE = '*/api/v1'
 
+let consoleSession: 'user' | null = null
+const consoleUser = {
+  userId: 'local-guandezhi',
+  displayName: '官德志',
+  org: '平台组',
+  platformRole: 'ADMIN',
+  roles: ['ADMIN'],
+  visibleAgents: [],
+  pendingApprovals: 0,
+  mode: 'USER',
+  readOnly: false,
+}
+const previewUser = {
+  userId: '',
+  displayName: '预览访客',
+  org: '',
+  platformRole: 'VIEWER',
+  roles: [],
+  visibleAgents: [],
+  pendingApprovals: 0,
+  mode: 'PREVIEW',
+  readOnly: true,
+}
+
 const traceId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('')
 const ok = (data: unknown, status = 200) => HttpResponse.json({ code: 'OK', message: null, traceId: traceId(), data }, { status })
 const fail = (status: number, code: string, message: string) =>
@@ -18,6 +42,32 @@ function paged<T>(url: URL, list: T[]) {
 }
 
 export const handlers = [
+  http.get(`${BASE}/auth/options`, () => ok({ methods: ['password', 'sms'], previewEnabled: true })),
+  http.get(`${BASE}/auth/captcha`, () => ok({ captchaImage: '', challengeId: 'mock' })),
+  http.post(`${BASE}/auth/sms/send`, () => ok({ sent: true, expiresIn: 300 })),
+  http.post(`${BASE}/auth/login/password`, async ({ request }) => {
+    const body = (await request.json()) as { account?: string; password?: string }
+    if (body.account === 'guandezhi' && body.password) {
+      consoleSession = 'user'
+      return ok(consoleUser)
+    }
+    return fail(401, 'AUTH_BAD_CREDENTIALS', '账号或密码不正确。没有账号或忘记密码，请联系平台管理员')
+  }),
+  http.post(`${BASE}/auth/login/sms`, async ({ request }) => {
+    const body = (await request.json()) as { phone?: string; code?: string }
+    if (body.code === '123456') {
+      consoleSession = 'user'
+      return ok(consoleUser)
+    }
+    return fail(401, 'AUTH_BAD_CREDENTIALS', '账号或密码不正确。没有账号或忘记密码，请联系平台管理员')
+  }),
+  http.post(`${BASE}/auth/logout`, () => {
+    consoleSession = null
+    return new HttpResponse(null, { status: 204 })
+  }),
+  http.post(`${BASE}/auth/refresh`, () => new HttpResponse(null, { status: 204 })),
+  http.get(`${BASE}/me`, () => ok(consoleSession === 'user' ? consoleUser : previewUser)),
+
   http.get(`${BASE}/insight/services`, () => ok(sharedServices)),
 
   http.get(`${BASE}/tools`, ({ request }) => {

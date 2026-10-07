@@ -147,7 +147,7 @@ watch(agent, () => {
       <select v-model="agent" class="inp">
         <option v-for="a in agentOptions" :key="a" :value="a">{{ a }}</option>
       </select>
-      <button class="btn pri" :disabled="!agent || progress !== null" @click="run">▶ 运行回归</button>
+      <button v-write class="btn pri" :disabled="!agent || progress !== null" @click="run">▶ 运行回归</button>
     </div>
 
     <template v-if="result">
@@ -198,7 +198,7 @@ watch(agent, () => {
           </div>
           <div class="mf">
             <button class="btn" type="button" @click="closeExpect">取消</button>
-            <button class="btn pri" type="button" @click="submitExpected">提交</button>
+            <button v-write class="btn pri" type="button" @click="submitExpected">提交</button>
           </div>
         </div>
       </template>

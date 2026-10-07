@@ -111,8 +111,8 @@ watch(() => envStore.env, load, { immediate: true })
         </div>
         <p>{{ a.summary }}</p>
         <div class="act">
-          <button class="btn pri sm" @click="decide(a, 'APPROVE')">批准</button>
-          <button class="btn sm" @click="decide(a, 'REJECT')">驳回</button>
+          <button v-write class="btn pri sm" @click="decide(a, 'APPROVE')">批准</button>
+          <button v-write class="btn sm" @click="decide(a, 'REJECT')">驳回</button>
           <span class="sp" />
           <small class="mut">
             {{ a.agent }} · {{ a.policyName }} ·
@@ -132,8 +132,8 @@ watch(() => envStore.env, load, { immediate: true })
         <p>{{ r.prompt }}</p>
         <el-input v-model="replies[r.runId!]" placeholder="回复后智能体从挂起处继续执行" style="margin-bottom: 10px" />
         <div class="act">
-          <button class="btn pri sm" @click="answer(r)">{{ RUN_REASON[r.reason!].ok }}</button>
-          <button class="btn sm" @click="terminate(r)">{{ RUN_REASON[r.reason!].no }}</button>
+          <button v-write class="btn pri sm" @click="answer(r)">{{ RUN_REASON[r.reason!].ok }}</button>
+          <button v-write class="btn sm" @click="terminate(r)">{{ RUN_REASON[r.reason!].no }}</button>
           <span class="sp" />
           <small class="mut">
             {{ r.agent }} · 发起用户 {{ r.actorUser }} ·

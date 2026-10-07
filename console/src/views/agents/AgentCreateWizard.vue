@@ -160,7 +160,7 @@ async function submit() {
           <p v-if="report">打开链路追踪和审计中心，能看到这个智能体的探针记录。</p>
           <div class="wfoot">
             <button v-if="!report" class="btn" type="button" :disabled="busy" @click="step = 3">上一步</button>
-            <button v-if="!report" class="btn pri" type="button" :disabled="busy" @click="submit">{{ busy ? '注册中…' : '注册' }}</button>
+            <button v-if="!report" v-write class="btn pri" type="button" :disabled="busy" @click="submit">{{ busy ? '注册中…' : '注册' }}</button>
             <button v-if="report" class="btn" type="button" @click="router.push('/traces')">查看链路</button>
             <button v-if="report" class="btn" type="button" @click="router.push('/audit')">查看审计</button>
             <button v-if="report" class="btn pri" type="button" @click="router.push(`/agents/${form.name}`)">查看智能体</button>

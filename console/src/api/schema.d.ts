@@ -24,6 +24,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 登录页可选项 */
+        get: operations["getAuthOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/captcha": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 换一张图形验证码 */
+        get: operations["getCaptcha"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/sms/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 发送登录验证码 */
+        post: operations["sendLoginSms"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/login/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 账号密码登录 */
+        post: operations["loginWithPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/login/sms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 短信验证码登录 */
+        post: operations["loginWithSms"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 用刷新 Cookie 换新的访问 Cookie */
+        post: operations["refreshSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 退出控制台 */
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/insight/overview": {
         parameters: {
             query?: never;
@@ -327,6 +446,183 @@ export interface paths {
         get: operations["getEvalRun"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/prompts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 提示词列表，跟随顶栏环境 */
+        get: operations["listPrompts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{name}/prompts/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 代码或 CI 上报 prompts/ 文件 */
+        post: operations["syncPrompts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{name}/prompts/{prompt}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                prompt: string;
+            };
+            cookie?: never;
+        };
+        /** 提示词详情 */
+        get: operations["getPrompt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{name}/prompts/{prompt}/versions/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                prompt: string;
+                version: number;
+            };
+            cookie?: never;
+        };
+        /** 某一版原文 */
+        get: operations["getPromptVersion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{name}/prompts/{prompt}/diff": {
+        parameters: {
+            query: {
+                from: number;
+                to: number;
+            };
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                prompt: string;
+            };
+            cookie?: never;
+        };
+        /** 服务端计算两个版本的差异 */
+        get: operations["diffPrompt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{name}/prompts/{prompt}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                prompt: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存新版本，不挪标签 */
+        post: operations["createPromptVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{name}/prompts/{prompt}/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                prompt: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 把 dev、test 或 staging 标签挪到指定版本 */
+        post: operations["promotePrompt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{name}/prompts/{prompt}/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                prompt: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 把 production 标签挪回发布过的版本 */
+        post: operations["rollbackPrompt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gate-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** keel gate 回写实验结果并核对提示词版本 */
+        post: operations["recordGateResult"];
         delete?: never;
         options?: never;
         head?: never;
@@ -651,6 +947,10 @@ export interface components {
             message: string;
             traceId: string;
             retryable: boolean;
+            /** @description 需要图形验证码时带 captchaImage 和 challengeId */
+            details?: {
+                [key: string]: unknown;
+            };
         };
         PageMeta: {
             page: number;
@@ -711,6 +1011,9 @@ export interface components {
             /** @description 空数组表示可见全部 */
             visibleAgents?: string[];
             pendingApprovals?: number;
+            /** @enum {string} */
+            mode?: "USER" | "PREVIEW";
+            readOnly?: boolean;
         };
         Overview: {
             kpi?: components["schemas"]["OverviewKpi"];
@@ -867,6 +1170,35 @@ export interface components {
             releasedBy?: string;
             /** Format: date-time */
             releasedAt?: string;
+        };
+        PromptList: {
+            langfuseUrl?: string | null;
+            items?: components["schemas"]["PromptSummary"][];
+        };
+        PromptSummary: {
+            [key: string]: unknown;
+        };
+        PromptDetail: {
+            [key: string]: unknown;
+        };
+        PromptBody: {
+            version?: number;
+            /** @enum {string} */
+            type?: "text" | "chat";
+            prompt?: unknown;
+            config?: {
+                [key: string]: unknown;
+            };
+            variables?: string[];
+        };
+        PromptDiff: {
+            added?: number;
+            removed?: number;
+            lines?: {
+                /** @enum {string} */
+                op?: "same" | "add" | "del";
+                text?: string;
+            }[];
         };
         /** @description 向导表单；后端据此生成 agent.yaml。字段与 manifest.schema.json 一一对应。 */
         RegisterRequest: {
@@ -1084,6 +1416,11 @@ export interface components {
             /** @example 评测：askdb v1.9.0 门禁 0.88 通过 */
             gateNote?: string | null;
             deprecatedTool?: boolean;
+            /** @description generation 上的 langfuse.observation.prompt.name */
+            promptName?: string | null;
+            promptVersion?: number | null;
+            /** @description keel.prompt.fallback，用了本地副本 */
+            promptFallback?: boolean;
         };
         EvalResult: {
             agent?: string;
@@ -1349,6 +1686,183 @@ export interface operations {
                         data?: components["schemas"]["CurrentUser"];
                     };
                 };
+            };
+        };
+    };
+    getAuthOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            methods?: ("password" | "sms")[];
+                            previewEnabled?: boolean;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    getCaptcha: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            captchaImage?: string;
+                            challengeId?: string;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    sendLoginSms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    phone: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 无论手机号是否开通都返回已发送 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            sent?: boolean;
+                            expiresIn?: number;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    loginWithPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    account: string;
+                    password: string;
+                    captcha?: string;
+                    challengeId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 登录成功，token 只在 Set-Cookie 里 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["CurrentUser"];
+                    };
+                };
+            };
+        };
+    };
+    loginWithSms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    phone: string;
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 登录成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["CurrentUser"];
+                    };
+                };
+            };
+        };
+    };
+    refreshSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已换新 Cookie */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已清除 Cookie */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -1835,6 +2349,241 @@ export interface operations {
                             result?: components["schemas"]["EvalResult"] | null;
                         };
                     };
+                };
+            };
+        };
+    };
+    listPrompts: {
+        parameters: {
+            query?: {
+                env?: "all" | "dev" | "test" | "staging" | "prod";
+                agent?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["PromptList"];
+                    };
+                };
+            };
+        };
+    };
+    syncPrompts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getPrompt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                prompt: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["PromptDetail"];
+                    };
+                };
+            };
+        };
+    };
+    getPromptVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                prompt: string;
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["PromptBody"];
+                    };
+                };
+            };
+        };
+    };
+    diffPrompt: {
+        parameters: {
+            query: {
+                from: number;
+                to: number;
+            };
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                prompt: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["PromptDiff"];
+                    };
+                };
+            };
+        };
+    };
+    createPromptVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                prompt: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    promotePrompt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                prompt: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    rollbackPrompt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                prompt: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    recordGateResult: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
                 };
             };
         };

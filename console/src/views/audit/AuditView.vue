@@ -139,8 +139,8 @@ loadAgents()
       <h2>审计中心</h2>
       <span class="sub">只追加 · 哈希链防篡改 · 字段白名单 · 敏感信息脱敏</span>
       <span class="sp" />
-      <button class="btn" :disabled="verifying" @click="verify">{{ verifying ? '校验中…' : '校验哈希链' }}</button>
-      <button class="btn" @click="exportAudit">导出（需审批）</button>
+      <button v-write class="btn" :disabled="verifying" @click="verify">{{ verifying ? '校验中…' : '校验哈希链' }}</button>
+      <button v-write class="btn" @click="exportAudit">导出（需审批）</button>
     </div>
     <div class="toolbar">
       <select v-model="filter.agent" class="inp" @change="search">

@@ -272,9 +272,10 @@ onUnmounted(() => {
           <span v-if="detail?.status === 'RETIRED'" class="mut retired">已下线，历史追踪、评测、审计可查</span>
           <template v-else>
             <button class="btn ghost" type="button" @click="viewTraces">查看链路</button>
-            <button class="btn danger" type="button" @click="retiring = true">下线</button>
+            <button v-write class="btn danger" type="button" @click="retiring = true">下线</button>
             <button
               v-if="detail?.env === 'staging'"
+              v-write
               class="btn pri"
               type="button"
               :disabled="!releaseOk"
@@ -296,7 +297,7 @@ onUnmounted(() => {
         </div>
         <div class="mf">
           <button class="btn" type="button" @click="retiring = false">取消</button>
-          <button class="btn danger" type="button" :disabled="retireInput !== name" @click="confirmRetire">确认下线</button>
+          <button v-write class="btn danger" type="button" :disabled="retireInput !== name" @click="confirmRetire">确认下线</button>
         </div>
       </div>
     </template>

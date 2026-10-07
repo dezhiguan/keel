@@ -1,0 +1,9 @@
+keel:
+  console:
+    auth:
+      mode: local
+      open-for-tests: true
+      local-password: test-password
+      local-sms-code: "123456"
+    preview:
+      enabled: true

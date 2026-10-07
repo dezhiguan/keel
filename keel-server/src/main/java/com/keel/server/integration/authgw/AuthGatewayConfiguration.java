@@ -9,4 +9,9 @@ public class AuthGatewayConfiguration {
     AuthGatewayClient authGatewayClient() {
         return new AuthGatewayClient(System.getenv("KEEL_AUTH_GATEWAY_URL"));
     }
+
+    @Bean
+    AuthGatewayLoginClient authGatewayLoginClient() {
+        return new AuthGatewayLoginClient(System.getenv("KEEL_AUTH_GATEWAY_URL"));
+    }
 }

@@ -94,7 +94,7 @@ watch(() => [filter.page, filter.size], load, { immediate: true })
       <h2>智能体</h2>
       <span class="sub">注册中心 · 共 {{ result?.total ?? 0 }} 个</span>
       <span class="sp" />
-      <button class="btn pri" @click="router.push('/agents/new')">+ 新建智能体</button>
+      <button v-write class="btn pri" @click="router.push('/agents/new')">+ 新建智能体</button>
     </div>
     <div class="toolbar">
       <input v-model="filter.q" class="inp" placeholder="搜索名称或 ID" style="width: 220px" @input="onInput" />

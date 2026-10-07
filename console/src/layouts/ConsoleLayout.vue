@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { isNavActive, NAV } from '@/router/nav'
 import AgentDrawer from '@/views/agents/AgentDetail.vue'
@@ -9,8 +9,10 @@ import { useUserStore } from '@/stores/user'
 import { ENV_OPTIONS, useEnvStore } from '@/stores/env'
 import { useApprovalsStore } from '@/stores/approvals'
 import { toKeelError } from '@/api/http'
+import { clearPreviewEntered } from '@/router/redirect'
 
 const route = useRoute()
+const router = useRouter()
 const userStore = useUserStore()
 const envStore = useEnvStore()
 const approvalsStore = useApprovalsStore()
@@ -31,12 +33,30 @@ const promptCrumb = computed(() => {
 })
 
 onMounted(async () => {
+  if (userStore.loaded) return
   try {
     await userStore.load()
   } catch (error) {
     const e = toKeelError(error)
-    ElMessage.error(`获取当前用户失败：${e.message}`)
+    if (e.code === 'AUTH_UNAUTHENTICATED' || e.code === 'AUTH_TOKEN_EXPIRED') return
+    ElMessage.error(e.message || '暂时没有拿到当前用户，请稍后再试')
   }
+})
+
+async function logout() {
+  await userStore.logout()
+  router.push('/login')
+}
+
+function toLogin() {
+  clearPreviewEntered()
+  router.push('/login')
+}
+
+const roleLabel = computed(() => {
+  if (userStore.user?.mode === 'PREVIEW') return '只读'
+  if (userStore.user?.platformRole === 'ADMIN') return '平台管理员'
+  return userStore.user?.platformRole ?? ''
 })
 
 watch(() => envStore.env, (env) => {
@@ -45,7 +65,7 @@ watch(() => envStore.env, (env) => {
 </script>
 
 <template>
-  <div class="app">
+  <div class="app" :class="{ preview: userStore.readOnly }">
     <aside class="side">
       <div class="logo">
         <svg viewBox="0 0 24 24" fill="none">
@@ -69,7 +89,12 @@ watch(() => envStore.env, (env) => {
         </template>
       </nav>
       <div v-if="userStore.user" class="me">
-        <b>{{ userStore.user.displayName }}</b> · {{ userStore.user.platformRole }}<br />{{ userStore.user.org }}
+        <template v-if="userStore.user.mode === 'PREVIEW'">
+          <b>预览访客</b> · 只读<br /><a @click="toLogin">登录</a>
+        </template>
+        <template v-else>
+          <b>{{ userStore.user.displayName }}</b> · {{ roleLabel }}<br />{{ userStore.user.org }} · <a @click="logout">退出</a>
+        </template>
       </div>
     </aside>
     <div class="body">
@@ -97,6 +122,11 @@ watch(() => envStore.env, (env) => {
           </button>
         </div>
       </header>
+      <div v-if="userStore.user?.mode === 'PREVIEW'" class="pvbar">
+        <span>⚠</span>
+        <span><b>预览模式 · 只读</b>，所有写操作已禁用</span>
+        <button class="btn sm" type="button" @click="toLogin">登录</button>
+      </div>
       <main class="main">
         <RouterView />
       </main>
@@ -140,6 +170,7 @@ watch(() => envStore.env, (env) => {
 .cnt { margin-left: auto; background: var(--acc); color: #fff; border-radius: 8px; padding: 0 6px; font-size: 11px; }
 .me { color: var(--mute); font-size: 12px; padding: 12px 10px 0; border-top: 1px solid var(--line); line-height: 1.6; }
 .me b { color: var(--white); }
+.me a { color: var(--soft); cursor: pointer; }
 .body { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .top {
   height: 52px;

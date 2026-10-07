@@ -90,7 +90,7 @@ watch(() => envStore.env, () => {
       <h2>总览</h2>
       <span class="sub">{{ envLabel }} · 近 24 小时</span>
       <span class="sp" />
-      <button class="btn pri" @click="router.push('/agents/new')">+ 新建智能体</button>
+      <button v-write class="btn pri" @click="router.push('/agents/new')">+ 新建智能体</button>
     </div>
 
     <div class="kpis">

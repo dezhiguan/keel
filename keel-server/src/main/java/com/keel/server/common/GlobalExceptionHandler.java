@@ -11,13 +11,23 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.util.LinkedHashMap;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(KeelException.class)
-    ResponseEntity<ApiError> keel(KeelException e) {
-        return body(e.code(), e.getMessage());
+    ResponseEntity<?> keel(KeelException e) {
+        if (e.details().isEmpty()) return body(e.code(), e.getMessage());
+        ApiError error = ApiError.of(e.code(), e.getMessage());
+        var payload = new LinkedHashMap<String, Object>();
+        payload.put("code", error.code());
+        payload.put("message", error.message());
+        payload.put("traceId", error.traceId());
+        payload.put("retryable", error.retryable());
+        payload.put("details", e.details());
+        return ResponseEntity.status(e.code().http()).body(payload);
     }
 
     @ExceptionHandler({HandlerMethodValidationException.class, MethodArgumentTypeMismatchException.class,

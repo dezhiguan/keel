@@ -6,6 +6,7 @@ import 'element-plus/theme-chalk/dark/css-vars.css'
 import './styles/theme.css'
 import './styles/console.css'
 import App from './App.vue'
+import { vWrite } from './directives/write'
 import { router } from './router'
 
 async function enableMocks() {
@@ -15,5 +16,5 @@ async function enableMocks() {
 }
 
 enableMocks().then(() => {
-  createApp(App).use(createPinia()).use(router).use(ElementPlus).mount('#app')
+  createApp(App).use(createPinia()).directive('write', vWrite).use(router).use(ElementPlus).mount('#app')
 })

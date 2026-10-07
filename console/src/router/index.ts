@@ -1,8 +1,12 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { toKeelError } from '@/api/http'
 import ConsoleLayout from '@/layouts/ConsoleLayout.vue'
+import { previewEntered, safeRedirect } from '@/router/redirect'
+import { useUserStore } from '@/stores/user'
 
 // TODO(P1-15): menu visibility by platformRole (utils/permission.ts); the backend must re-check every call.
 const routes: RouteRecordRaw[] = [
+  { path: '/login', component: () => import('@/views/login/LoginView.vue'), meta: { title: '登录' } },
   {
     path: '/',
     component: ConsoleLayout,
@@ -30,3 +34,26 @@ const routes: RouteRecordRaw[] = [
 ]
 
 export const router = createRouter({ history: createWebHistory(), routes })
+
+router.beforeEach(async (to) => {
+  const user = useUserStore()
+  if (!user.loaded) {
+    try {
+      await user.load()
+    } catch (error) {
+      const code = toKeelError(error).code
+      if (to.path !== '/login' && (code === 'AUTH_UNAUTHENTICATED' || code === 'AUTH_TOKEN_EXPIRED' || code === 'AUTH_TOKEN_AUDIENCE')) {
+        return { path: '/login', query: { redirect: to.fullPath } }
+      }
+    }
+  }
+  if (to.path === '/login') {
+    if (user.user?.mode === 'USER') return safeRedirect(to.query.redirect)
+    return true
+  }
+  if (!user.user) return { path: '/login', query: { redirect: to.fullPath } }
+  if (user.user.mode === 'PREVIEW' && !previewEntered()) {
+    return { path: '/login', query: { redirect: to.fullPath } }
+  }
+  if (user.readOnly && to.path === '/agents/new') return '/agents'
+})

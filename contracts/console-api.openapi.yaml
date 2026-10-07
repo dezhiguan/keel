@@ -22,7 +22,7 @@ servers:
     description: 本地 mock（MSW 拦截）
 
 security:
-  - bearerAuth: []
+  - cookieAuth: []
 
 tags:
   - name: overview
@@ -67,6 +67,160 @@ paths:
                   - type: object
                     properties:
                       data: { $ref: "#/components/schemas/CurrentUser" }
+
+  /auth/options:
+    get:
+      tags: [meta]
+      operationId: getAuthOptions
+      summary: 登录页可选项
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          methods:
+                            type: array
+                            items: { type: string, enum: [password, sms] }
+                          previewEnabled: { type: boolean }
+
+  /auth/captcha:
+    get:
+      tags: [meta]
+      operationId: getCaptcha
+      summary: 换一张图形验证码
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          captchaImage: { type: string }
+                          challengeId: { type: string }
+
+  /auth/sms/send:
+    post:
+      tags: [meta]
+      operationId: sendLoginSms
+      summary: 发送登录验证码
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone: { type: string }
+      responses:
+        "200":
+          description: 无论手机号是否开通都返回已发送
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          sent: { type: boolean }
+                          expiresIn: { type: integer }
+
+  /auth/login/password:
+    post:
+      tags: [meta]
+      operationId: loginWithPassword
+      summary: 账号密码登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [account, password]
+              properties:
+                account: { type: string }
+                password: { type: string }
+                captcha: { type: string }
+                challengeId: { type: string }
+      responses:
+        "200":
+          description: 登录成功，token 只在 Set-Cookie 里
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/CurrentUser" }
+
+  /auth/login/sms:
+    post:
+      tags: [meta]
+      operationId: loginWithSms
+      summary: 短信验证码登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, code]
+              properties:
+                phone: { type: string }
+                code: { type: string }
+      responses:
+        "200":
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/CurrentUser" }
+
+  /auth/refresh:
+    post:
+      tags: [meta]
+      operationId: refreshSession
+      summary: 用刷新 Cookie 换新的访问 Cookie
+      security: []
+      responses:
+        "204":
+          description: 已换新 Cookie
+
+  /auth/logout:
+    post:
+      tags: [meta]
+      operationId: logout
+      summary: 退出控制台
+      responses:
+        "204":
+          description: 已清除 Cookie
 
   # ---------------------------------------------------------------- 总览
   /insight/overview:
@@ -1305,11 +1459,11 @@ paths:
 
 components:
   securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: auth-gateway 签发，aud=keel-api
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: __Host-keel_console_at
+      description: keel-server 写入的 HttpOnly Cookie，aud=keel-console。本地 http 去掉 __Host- 前缀。
 
   parameters:
     Env:
@@ -1364,6 +1518,10 @@ components:
         message: { type: string }
         traceId: { type: string }
         retryable: { type: boolean }
+        details:
+          type: object
+          description: 需要图形验证码时带 captchaImage 和 challengeId
+          additionalProperties: true
 
     PageMeta:
       type: object
@@ -1456,6 +1614,8 @@ components:
           description: 空数组表示可见全部
           items: { type: string }
         pendingApprovals: { type: integer }
+        mode: { type: string, enum: [USER, PREVIEW] }
+        readOnly: { type: boolean }
 
     # ------------------------------------------------------------ 总览
     Overview:

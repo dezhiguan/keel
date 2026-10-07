@@ -113,7 +113,7 @@ watch(() => envStore.env, () => {
       <h2>工具</h2>
       <span class="sub">统一注册，声明读写属性和风险等级。高风险工具的每次调用都会被挂起，送到审批中心</span>
       <span class="sp" />
-      <button class="btn pri" @click="openRegister">+ 注册 MCP 工具</button>
+      <button v-write class="btn pri" @click="openRegister">+ 注册 MCP 工具</button>
     </div>
     <div class="toolbar">
       <div class="chipsel">
@@ -174,7 +174,7 @@ watch(() => envStore.env, () => {
       </el-form>
       <template #footer>
         <button class="btn" @click="registering = false">取消</button>
-        <button class="btn pri" style="margin-left: 8px" @click="submitRegister">确认注册</button>
+        <button v-write class="btn pri" style="margin-left: 8px" @click="submitRegister">确认注册</button>
       </template>
     </el-dialog>
     <ToolDrawer @changed="load" />
