@@ -22,11 +22,14 @@ public class ConsoleSessionFilter extends OncePerRequestFilter {
     private final ConsoleAuthProperties properties;
     private final ConsoleTokenService tokens;
     private final Environment environment;
+    private final ConsoleUsers consoleUsers;
 
-    public ConsoleSessionFilter(ConsoleAuthProperties properties, ConsoleTokenService tokens, Environment environment) {
+    public ConsoleSessionFilter(ConsoleAuthProperties properties, ConsoleTokenService tokens, Environment environment,
+                                ConsoleUsers consoleUsers) {
         this.properties = properties;
         this.tokens = tokens;
         this.environment = environment;
+        this.consoleUsers = consoleUsers;
     }
 
     @Override
@@ -78,7 +81,7 @@ public class ConsoleSessionFilter extends OncePerRequestFilter {
                     return;
                 }
                 case OK -> {
-                    var user = ConsoleUsers.find(verified.username());
+                    var user = consoleUsers.find(verified.username());
                     if (user.isEmpty()) {
                         AuthResponses.write(response, new KeelException(ErrorCode.AUTH_CONSOLE_FORBIDDEN, ErrorCode.AUTH_CONSOLE_FORBIDDEN.message()));
                         return;

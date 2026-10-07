@@ -7,3 +7,6 @@ keel:
       local-sms-code: "123456"
     preview:
       enabled: true
+
+# 测试用账号名，不是生产用户名。
+KEEL_CONSOLE_USERNAME: console-user

@@ -8,7 +8,7 @@ const BASE = '*/api/v1'
 
 let consoleSession: 'user' | null = null
 const consoleUser = {
-  userId: 'local-guandezhi',
+  userId: 'local-console-user',
   displayName: '官德志',
   org: '平台组',
   platformRole: 'ADMIN',
@@ -47,7 +47,7 @@ export const handlers = [
   http.post(`${BASE}/auth/sms/send`, () => ok({ sent: true, expiresIn: 300 })),
   http.post(`${BASE}/auth/login/password`, async ({ request }) => {
     const body = (await request.json()) as { account?: string; password?: string }
-    if (body.account === 'guandezhi' && body.password) {
+    if (body.account === 'console-user' && body.password) {
       consoleSession = 'user'
       return ok(consoleUser)
     }

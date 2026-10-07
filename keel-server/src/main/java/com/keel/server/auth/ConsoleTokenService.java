@@ -27,12 +27,14 @@ public class ConsoleTokenService {
 
     private final ConsoleSigningKey key;
     private final ConsoleAuthProperties properties;
+    private final ConsoleUsers consoleUsers;
     private final ConcurrentHashMap<String, Instant> localRefresh = new ConcurrentHashMap<>();
     private volatile NimbusJwtDecoder remoteDecoder;
 
-    public ConsoleTokenService(ConsoleSigningKey key, ConsoleAuthProperties properties) {
+    public ConsoleTokenService(ConsoleSigningKey key, ConsoleAuthProperties properties, ConsoleUsers consoleUsers) {
         this.key = key;
         this.properties = properties;
+        this.consoleUsers = consoleUsers;
     }
 
     public Issued issueLocal(String userId, String username, String platformRole) {
@@ -44,7 +46,9 @@ public class ConsoleTokenService {
     public Issued rotateLocal(String refresh) {
         Instant expires = localRefresh.remove(refresh);
         if (expires == null || expires.isBefore(Instant.now())) return null;
-        return issueLocal("local-guandezhi", ConsoleUsers.GUAN.username(), ConsoleUsers.GUAN.platformRole());
+        var user = consoleUsers.only().orElse(null);
+        if (user == null) return null;
+        return issueLocal("local-" + user.username(), user.username(), user.platformRole());
     }
 
     public void revokeLocal(String refresh) {

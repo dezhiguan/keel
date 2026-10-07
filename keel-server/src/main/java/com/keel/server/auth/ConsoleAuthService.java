@@ -31,16 +31,18 @@ public class ConsoleAuthService {
     private final ConsoleTokenService tokens;
     private final AuthGatewayLoginClient gateway;
     private final Environment environment;
+    private final ConsoleUsers consoleUsers;
     private final ConcurrentHashMap<String, Attempt> attempts = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> captchas = new ConcurrentHashMap<>();
 
     public ConsoleAuthService(ConsoleAuthProperties properties, ConsoleSigningKey signingKey, ConsoleTokenService tokens,
-                              AuthGatewayLoginClient gateway, Environment environment) {
+                              AuthGatewayLoginClient gateway, Environment environment, ConsoleUsers consoleUsers) {
         this.properties = properties;
         this.signingKey = signingKey;
         this.tokens = tokens;
         this.gateway = gateway;
         this.environment = environment;
+        this.consoleUsers = consoleUsers;
     }
 
     public Map<String, Object> options() {
@@ -105,7 +107,7 @@ public class ConsoleAuthService {
         }
         var issued = gateway.refresh(refreshToken, clientId(), assertion());
         var verified = tokens.verify(issued.accessToken());
-        if (verified.kind() != ConsoleTokenService.VerifyResult.Kind.OK || ConsoleUsers.find(verified.username()).isEmpty()) {
+        if (verified.kind() != ConsoleTokenService.VerifyResult.Kind.OK || consoleUsers.find(verified.username()).isEmpty()) {
             throw new KeelException(ErrorCode.AUTH_UNAUTHENTICATED, "登录已失效，请重新登录");
         }
         write(response, issued.accessToken(), issued.refreshToken(), issued.expiresIn(), issued.refreshExpiresIn());
@@ -124,7 +126,7 @@ public class ConsoleAuthService {
             throw new KeelException(ErrorCode.AUTH_GATEWAY_UNAVAILABLE, "登录口令还没有配置，请联系平台管理员");
         }
         guard(account, captcha, challengeId);
-        if (!ConsoleUsers.find(account).isPresent() || !constantEquals(expected, password)) {
+        if (consoleUsers.find(account).isEmpty() || !constantEquals(expected, password)) {
             throw fail(account);
         }
         attempts.remove(account);
@@ -143,9 +145,11 @@ public class ConsoleAuthService {
     }
 
     private MeController.CurrentUser issueLocal(HttpServletResponse response) {
-        var issued = tokens.issueLocal("local-" + ConsoleUsers.GUAN.username(), ConsoleUsers.GUAN.username(), ConsoleUsers.GUAN.platformRole());
+        var user = consoleUsers.only().orElseThrow(() ->
+                new KeelException(ErrorCode.AUTH_GATEWAY_UNAVAILABLE, "控制台账号还没有配置，请联系平台管理员"));
+        var issued = tokens.issueLocal("local-" + user.username(), user.username(), user.platformRole());
         write(response, issued.accessToken(), issued.refreshToken(), issued.expiresIn(), issued.refreshExpiresIn());
-        return principal(ConsoleUsers.GUAN, "local-" + ConsoleUsers.GUAN.username(), java.util.List.of("ADMIN")).toUser();
+        return principal(user, "local-" + user.username(), java.util.List.of("ADMIN")).toUser();
     }
 
     private MeController.CurrentUser accept(AuthGatewayLoginClient.Issued issued, HttpServletResponse response) {
@@ -159,7 +163,7 @@ public class ConsoleAuthService {
         if (verified.kind() != ConsoleTokenService.VerifyResult.Kind.OK) {
             throw new KeelException(ErrorCode.AUTH_GATEWAY_UNAVAILABLE, ErrorCode.AUTH_GATEWAY_UNAVAILABLE.message());
         }
-        var user = ConsoleUsers.find(verified.username()).orElseThrow(() ->
+        var user = consoleUsers.find(verified.username()).orElseThrow(() ->
                 new KeelException(ErrorCode.AUTH_CONSOLE_FORBIDDEN, ErrorCode.AUTH_CONSOLE_FORBIDDEN.message()));
         write(response, issued.accessToken(), issued.refreshToken(), issued.expiresIn(), issued.refreshExpiresIn());
         return principal(user, verified.userId(), verified.roles()).toUser();

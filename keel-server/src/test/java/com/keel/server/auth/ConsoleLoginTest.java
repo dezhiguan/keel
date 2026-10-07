@@ -25,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "keel.console.auth.local-password=secret-pass",
         "keel.console.auth.local-sms-code=654321",
         "keel.console.preview.enabled=true",
+        "KEEL_CONSOLE_USERNAME=console-user",
         "spring.flyway.locations=classpath:db/migration"
 })
 @ActiveProfiles("local")
@@ -37,7 +38,7 @@ class ConsoleLoginTest {
     @Test void passwordLoginSetsHttpOnlyCookieAndDoesNotReturnTheToken() throws Exception {
         MvcResult result = mvc.perform(post("/api/v1/auth/login/password")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"account\":\"guandezhi\",\"password\":\"secret-pass\"}"))
+                        .content("{\"account\":\"console-user\",\"password\":\"secret-pass\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.displayName").value("官德志"))
                 .andExpect(jsonPath("$.data.platformRole").value("ADMIN"))
