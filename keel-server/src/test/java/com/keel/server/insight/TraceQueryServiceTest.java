@@ -135,6 +135,7 @@ class TraceQueryServiceTest {
         service.list(1, 20, "askdb", "prod", "failed", java.time.Instant.parse("2026-10-07T00:00:00Z"), java.time.Instant.parse("2026-10-07T02:00:00Z"), true, null);
         assertThat(queries).hasSize(1);
         assertThat(queries.getFirst()).contains("fields=core,basic,io,metadata,model,usage");
+        assertThat(queries.getFirst()).contains("AGENT").contains("GENERATION").contains("TOOL");
         assertThat(queries.getFirst()).doesNotContain("isRootObservation");
         server.stop(0);
     }

@@ -213,15 +213,21 @@ public class LangfuseClient {
     }
 
     /**
-     * Observations in {@code [from, to)}, including child spans.
-     * A trace's question, tokens and cost live on the generation, not the root, so the list groups these by traceId.
+     * Keel spans for the console trace list, in {@code [from, to)}.
+     * Question, tokens and cost live on the generation, not the root, so the list groups these by traceId.
+     * FastAPI probes export {@code GET /api/health} and {@code fastapi.*} into the same project. Observations
+     * are newest-first, and the list only follows ten pages, so those probes hide yesterday's calls unless
+     * the query keeps semantic types only. SPAN stays out: that is the probe traffic.
      * Follows the cursor for at most ten pages.
      */
     public JsonNode observationsBetween(Instant from, Instant to) {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
         }
-        var path = "/api/public/v2/observations?limit=100&fields=core,basic,io,metadata,model,usage";
+        var filter = "[{\"type\":\"stringOptions\",\"column\":\"type\",\"operator\":\"any of\","
+                + "\"value\":[\"AGENT\",\"GENERATION\",\"TOOL\",\"RETRIEVER\",\"GUARDRAIL\",\"CHAIN\",\"EMBEDDING\",\"EVALUATOR\"]}]";
+        var path = "/api/public/v2/observations?limit=100&fields=core,basic,io,metadata,model,usage&filter="
+                + URLEncoder.encode(filter, StandardCharsets.UTF_8);
         if (from != null) {
             path += "&fromStartTime=" + URLEncoder.encode(from.toString(), StandardCharsets.UTF_8);
         }

@@ -20,7 +20,7 @@ keel-server/src/test/java/com/keel/server/insight/**
 docs/specs/p1/P1-13-insight-traces.md
 ```
 
-列表接口 `GET /api/v1/insight/traces` 也在本任务实现，页面在 P1-16 才接。列表同样只走 v2 observations。v2 没有按 trace 分页的接口（`GET /api/public/traces` 对 2026-09-16 之后的组织返回 410）。实现是拉一页 `/api/public/v2/observations`，在服务端按 `traceId` 分组后再分页。
+列表接口 `GET /api/v1/insight/traces` 也在本任务实现，页面在 P1-16 才接。列表同样只走 v2 observations。v2 没有按 trace 分页的接口（`GET /api/public/traces` 对 2026-09-16 之后的组织返回 410）。实现是拉 `/api/public/v2/observations`（按 startTime 从新到旧，最多跟十页游标），在服务端按 `traceId` 分组后再分页。查询要带 `type` 过滤，只留 `AGENT`、`GENERATION`、`TOOL`、`RETRIEVER`、`GUARDRAIL`、`CHAIN`、`EMBEDDING`、`EVALUATOR`。同一个项目里的 FastAPI 探针（`GET /api/health`、`fastapi.*`，类型是 `SPAN`）不滤掉的话，前几页全是探针，昨天的调用进不了这十页。
 
 ## 接口契约
 
