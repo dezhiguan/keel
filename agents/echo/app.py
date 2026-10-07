@@ -36,7 +36,10 @@ agent = Agent.from_manifest("agent.yaml")
 @agent.entry
 async def chat(request, ctx):
     text = request.input.get("text") or ""
-    reply = await ctx.llm.chat([{"role": "user", "content": text}])
+    prompt = await ctx.prompt("answer")
+    compiled = prompt.compile(question=text)
+    messages = compiled if isinstance(compiled, list) else [{"role": "user", "content": compiled}]
+    reply = await ctx.llm.chat(messages, prompt=prompt)
     return ctx.final(reply or "")
 
 

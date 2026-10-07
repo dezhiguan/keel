@@ -53,6 +53,30 @@ class AgentEndpointClientTest {
         }
     }
 
+    @Test void invokeNamesTheRegisteredAgentAndEnvironment() throws Exception {
+        var headers = new java.util.concurrent.atomic.AtomicReference<com.sun.net.httpserver.Headers>();
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/v1/invoke", exchange -> {
+            headers.set(exchange.getRequestHeaders());
+            var body = """
+                    event: final
+                    data: {"answer":"ok","trace_id":"tr","run_id":"run"}
+                    """.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var answer = new AgentEndpointClient().invoke(
+                    "http://127.0.0.1:" + server.getAddress().getPort(), "hi", null, "prompt-lab", "dev");
+            assertThat(answer.text()).isEqualTo("ok");
+            assertThat(headers.get().getFirst("X-Keel-Agent")).isEqualTo("prompt-lab");
+            assertThat(headers.get().getFirst("X-Keel-Env")).isEqualTo("dev");
+        } finally {
+            server.stop(0);
+        }
+    }
     @Test void rejectsAnErrorEvent() {
         assertThatThrownBy(() -> AgentEndpointClient.parseFinal("event: error\ndata: {\"code\":\"SERVER_INTERNAL_ERROR\"}\n"))
                 .isInstanceOf(IllegalStateException.class)

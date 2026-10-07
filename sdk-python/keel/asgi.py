@@ -5,6 +5,7 @@ import inspect
 import json
 import logging
 import os
+import re
 import uuid
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
@@ -51,6 +52,12 @@ def _stamp_call(span, data: dict, env: str | None) -> None:
         span.set_attribute(attrs.SESSION_ID, session)
 
 
+def _caller(header: str | None, fallback: str) -> str:
+    if header and re.fullmatch(r"[a-z][a-z0-9-]{1,62}", header):
+        return header
+    return fallback
+
+
 def _trace_id(request: Request) -> str:
     parts = request.headers.get("traceparent", "").split("-")
     if len(parts) == 4 and len(parts[1]) == 32:
@@ -79,15 +86,16 @@ def create_app(agent) -> Starlette:
         # TODO(P3-1): persist idempotency_key and return the original run on retries.
         run_id = uuid.uuid4().hex
         parent = TraceContextTextMapPropagator().extract(dict(request.headers))
+        caller = _caller(request.headers.get("X-Keel-Agent"), agent.name)
         root = tracer.start_span("agent.run", context=parent, attributes={
-            attrs.OBSERVATION_TYPE: "agent", attrs.AGENT: agent.name,
+            attrs.OBSERVATION_TYPE: "agent", attrs.AGENT: caller,
             attrs.RUN_ID: run_id, attrs.STATUS: "ok",
         })
         _stamp_call(root, data, request.headers.get("X-Keel-Env") or os.environ.get("KEEL_ENV"))
         if root.get_span_context().is_valid:
             trace_id = f"{root.get_span_context().trace_id:032x}"
         events: asyncio.Queue = asyncio.Queue()
-        context = Context(agent.name, run_id, trace_id, events, tracer,
+        context = Context(caller, run_id, trace_id, events, tracer,
                           manifest=agent.manifest, tool_functions=agent._tools,
                           children=agent._children, budget=_budget(request),
                           env=request.headers.get("X-Keel-Env") or os.environ.get("KEEL_ENV"))

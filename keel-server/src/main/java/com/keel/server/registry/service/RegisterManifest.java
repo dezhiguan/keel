@@ -57,6 +57,9 @@ public final class RegisterManifest {
                 """.formatted(runtime, language, endpoint,
                 "dify".equals(runtime) ? "probe" : "k8s", name.isBlank() ? "agent" : name, model,
                 budget.stripTrailingZeros().toPlainString(), name.isBlank() ? "agent" : name);
+        if (!"dify".equals(runtime)) {
+            yaml = yaml + "  prompts:\n    source: langfuse\n    label: production\n    items:\n      - name: answer\n        type: text\n";
+        }
         return new ManifestPreview.Result(yaml.stripTrailing() + "\n", List.copyOf(warnings));
     }
 
@@ -97,6 +100,15 @@ public final class RegisterManifest {
         }
         models.putObject("budget").put("dailyCny", budget(body).doubleValue());
         spec.putObject("eval").put("dataset", (name.isBlank() ? "agent" : name) + "/smoke");
+        if (!"dify".equals(runtimeType)) {
+            var prompts = spec.putObject("prompts");
+            prompts.put("source", "langfuse");
+            prompts.put("label", "production");
+            var items = prompts.putArray("items");
+            var answer = items.addObject();
+            answer.put("name", "answer");
+            answer.put("type", "text");
+        }
         return manifest;
     }
 

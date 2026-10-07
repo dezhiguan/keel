@@ -41,8 +41,8 @@ public class AgentChatService {
         AgentEndpointClient.Answer answer;
         try {
             answer = "careermate".equals(name)
-                    ? endpoints.invoke(endpoint, text, careerMateToken)
-                    : endpoints.invoke(endpoint, text);
+                    ? endpoints.invoke(endpoint, text, careerMateToken, name, "dev")
+                    : endpoints.invoke(endpoint, text, null, name, "dev");
         } catch (RuntimeException e) {
             throw new KeelException(ErrorCode.SERVER_INTERNAL_ERROR,
                     e.getMessage() == null ? ErrorCode.SERVER_INTERNAL_ERROR.message() : e.getMessage());

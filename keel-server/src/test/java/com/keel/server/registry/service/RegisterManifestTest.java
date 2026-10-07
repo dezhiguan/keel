@@ -17,6 +17,7 @@ class RegisterManifestTest {
                 .isEqualTo("http://echo-agent.keel-system.svc.cluster.local:8000");
         assertThat(manifest.path("spec").path("models").path("budget").path("dailyCny").asInt()).isEqualTo(30);
         assertThat(manifest.path("spec").path("eval").path("dataset").asText()).isEqualTo("echo/smoke");
+        assertThat(manifest.path("spec").path("prompts").path("items").get(0).path("name").asText()).isEqualTo("answer");
         var categorized = json.readTree("""
                 {"name":"echo","displayName":"回声","ownerOrg":"研发效能组","ownerUser":"amy","category":"dev","template":"echo"}
                 """);

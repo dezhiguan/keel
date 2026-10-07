@@ -63,7 +63,7 @@ while IFS= read -r file; do
       audit=true ;;
     console/*|deploy/docker/console.Dockerfile|deploy/docker/console-nginx.conf|deploy/k3s/console.yaml|ci/frontend-gate.sh)
       console=true ;;
-    agents/echo/*|deploy/docker/echo-agent.Dockerfile|deploy/k3s/services/echo-agent.yaml|sdk-python/keel/llm/*|sdk-python/keel/tracing/*)
+    agents/echo/*|deploy/docker/echo-agent.Dockerfile|deploy/k3s/services/echo-agent.yaml|sdk-python/keel/*)
       echo=true ;;
   esac
 done <<< "${files}"

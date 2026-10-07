@@ -23,6 +23,8 @@ spec:
           ports:
             - containerPort: 8000
           env:
+            - name: KEEL_ENV
+              value: dev
             - name: KEEL_LLM_BASE_URL
               value: http://keel-llm.keel-system.svc.cluster.local:8088
             - name: KEEL_SECRET_DIR

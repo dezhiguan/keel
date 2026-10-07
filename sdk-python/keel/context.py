@@ -13,6 +13,7 @@ from opentelemetry import trace
 from keel.audit.reporter import AuditReporter
 from keel.knowledge import KnowledgeClient
 from keel.llm.client import LlmClient
+from keel.prompts import PromptClient
 from keel.protocol.errors import ErrorCode, KeelError
 from keel.tracing import attrs
 
@@ -85,6 +86,12 @@ class Context:
             if (tool_specs or audit_spec) and env else None)
         self.tools = (_ToolClient(tool_functions or {}, manifest, self)
                       if manifest else _UnimplementedClient("tools"))
+        self._prompts = PromptClient(manifest, env) if manifest else None
+
+    async def prompt(self, name: str):
+        if self._prompts is None:
+            raise KeelError(ErrorCode.PROMPT_NOT_DECLARED)
+        return await self._prompts.get(self.agent, name, self.trace_id)
 
     def step(self, name: str, status: str = "ok") -> None:
         self._span(name, "agent", status)

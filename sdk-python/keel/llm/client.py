@@ -49,18 +49,32 @@ class LlmClient:
         self.client = openai.AsyncOpenAI(base_url=base_url, api_key=api_key, max_retries=0,
                                          http_client=http_client)
 
-    async def chat(self, messages: list[dict], model: str | None = None) -> str:
+    async def chat(self, messages: list[dict], model: str | None = None, prompt=None) -> str:
         chosen = model or self.default_model
         if not chosen:
             raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "No LiteLLM model alias configured")
-        with self.tracer.start_as_current_span("llm.chat", attributes={
+        attributes = {
             attrs.OBSERVATION_TYPE: "generation", attrs.AGENT: self.agent,
             attrs.MODEL: chosen, attrs.STATUS: "ok",
             attrs.OBSERVATION_INPUT: _observation_input(messages),
-        }) as span:
+        }
+        if prompt is not None and getattr(prompt, "fallback", False):
+            attributes[attrs.PROMPT_FALLBACK] = True
+        elif prompt is not None and getattr(prompt, "version", None) is not None:
+            attributes[attrs.PROMPT_NAME] = prompt.name
+            attributes[attrs.PROMPT_VERSION] = int(prompt.version)
+        with self.tracer.start_as_current_span("llm.chat", attributes=attributes) as span:
             try:
+                options = {}
+                config = getattr(prompt, "config", None) or {}
+                if "temperature" in config:
+                    options["temperature"] = config["temperature"]
+                if "max_tokens" in config:
+                    options["max_tokens"] = config["max_tokens"]
+                if "top_p" in config:
+                    options["top_p"] = config["top_p"]
                 response = await self.client.chat.completions.create(
-                    model=chosen, messages=messages,
+                    model=chosen, messages=messages, **options,
                     extra_body={"metadata": {"caller_agent": self.agent}})
             except openai.RateLimitError as exc:
                 span.set_attribute(attrs.STATUS, "failed")

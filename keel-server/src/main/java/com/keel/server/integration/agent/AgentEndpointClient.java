@@ -25,6 +25,10 @@ public class AgentEndpointClient {
     }
 
     public Answer invoke(String endpoint, String text, String bridgeToken) {
+        return invoke(endpoint, text, bridgeToken, null, null);
+    }
+
+    public Answer invoke(String endpoint, String text, String bridgeToken, String agent, String env) {
         var base = trim(endpoint);
         try {
             var payload = json.createObjectNode();
@@ -34,6 +38,12 @@ public class AgentEndpointClient {
                     .header("Content-Type", "application/json");
             if (bridgeToken != null && !bridgeToken.isBlank()) {
                 builder.header("X-Keel-Bridge", bridgeToken);
+            }
+            if (agent != null && !agent.isBlank()) {
+                builder.header("X-Keel-Agent", agent);
+            }
+            if (env != null && !env.isBlank()) {
+                builder.header("X-Keel-Env", env);
             }
             var request = builder
                     .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(payload)))

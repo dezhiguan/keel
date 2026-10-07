@@ -18,3 +18,9 @@ spec:
       dailyCny: 30
   eval:
     dataset: echo/smoke
+  prompts:
+    source: langfuse
+    label: production
+    items:
+      - name: answer
+        type: text
