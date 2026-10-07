@@ -975,6 +975,7 @@ table.ct .nm small{display:block;color:var(--c-mute);font-weight:400;font-size:1
       <tr><td><b>② 控制台取数</b><br><small class="mut">高频看的放在 Keel</small></td><td>Keel 后端调两边的 API，汇总成跨智能体视图</td><td>总览、质量、评测页调 Langfuse 的 traces、scores、datasets 接口；模型网关页调 薄网关 的花费日志、Key 信息、模型列表接口。深挖时用深链跳转：追踪节点带 trace_id 跳到那条 Langfuse 链路，评测页跳到对应实验。不用 iframe 整页嵌入，跨域登录和权限都会出问题</td></tr>
       <tr><td><b>③ 配置自动化</b><br><small class="mut">写操作由 Keel 代办</small></td><td>开发者不用去两边手工配置</td><td><code>keel register</code> 时：在 薄网关 创建虚拟 Key（限定模型、日预算）；把两边的 Key 写进该智能体的 K8s Secret；在 Langfuse 导入评测数据集。<code>keel release</code> 时把门禁实测的那一版提示词打上 production 标签；控制台改提示词由 keel-server 代写 Langfuse。<code>keel retire</code> 时吊销虚拟 Key。每一步都写审计</td></tr>
       <tr><td><b>登录</b></td><td>尽量一次登录</td><td>auth-gateway 目前不是 OIDC 提供方（没有授权端点和发现端点），Langfuse 暂时接不了它的单点登录：先用邮箱密码并关闭自助注册，账号由管理员创建；auth-gateway 以后补上 OIDC 再接。薄网关没有单独的管理界面，模型、Key 和预算都在 Keel 控制台里看</td></tr>
+      <tr><td><b>控制台登录</b></td><td>底座自己的登录态，不和业务项目共用</td><td>只登录不注册，账号密码或短信验证码，经 auth-gateway 认证。控制台 token 的受众是单独的 <code>keel-console</code>：careermate 等项目的 token 进不了控制台，控制台的 token 也调不了智能体、进不了别的项目。默认只有一个控制台用户（官德志，平台管理员）。另有预览模式：不登录能看全部页面，所有写操作前端置灰、后端拒绝，且看不到用户原文</td></tr>
     </tbody>
   </table>
 

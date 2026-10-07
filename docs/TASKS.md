@@ -101,6 +101,7 @@
 | P1-16 | console 链路追踪页：**trace 列表**（原型缺这块）+ 三视图详情 + 按智能体筛选 | P1-13 P1-15 | **Cursor** | 列表可筛选可分页，点行进详情 |
 | P1-17 | askdb 接入：删 trace/audit/quota/approvals/evalstore，影子运行一周 | P0-6~8 | **Cursor** | 新旧链路数、审计条数、评测分数一致后删旧代码 |
 | P1-18 | rag-forge：OTel exporter、检索分段子 span、`caller_agent`/`kb` 指标标签、`service.yaml` 登记、模型调用改走薄网关 | P1-1 P0-1 | Codex | 检索作为 retriever 节点进调用方的 trace；embedding 无 fallback，向量空间不变 |
+| P1-21 | 控制台登录与预览模式：账号密码 / 短信登录（不注册），keel-server 代调 auth-gateway，独立受众 `keel-console`，默认用户官德志；预览模式只读（见 `specs/p1/P1-21-console-login.md`）。auth-gateway 侧要关掉 `keel-console` 的短信自动建用户 | P0-5 P1-0 P1-15 | **Cursor** | `keel-api` / careermate 的 token 进不了控制台；预览下契约里每个非 GET 接口都返回 403 |
 
 ---
 

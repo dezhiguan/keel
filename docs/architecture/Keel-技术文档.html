@@ -362,6 +362,11 @@ footer{margin-top:60px;padding-top:16px;border-top:1px solid var(--line);font-si
 │   ├── CostService            <span class="c"># 薄网关 花费日志 → 按智能体 / 模型</span>
 │   ├── QualityService         <span class="c"># Langfuse scores → 解决率、点踩率</span>
 │   └── SharedServiceMonitor   <span class="c"># Prometheus → rag-forge 等共享服务指标</span>
+├── auth/                      <span class="c"># 控制台登录（P1-21）：代调 auth-gateway，token 只认 aud=keel-console</span>
+│   ├── ConsoleAuthController  <span class="c"># /auth/options、captcha、sms/send、login/password、login/sms、refresh、logout</span>
+│   ├── ConsoleSessionCookies  <span class="c"># __Host-keel_console_at / _rt：HttpOnly、Secure、SameSite=Strict，token 不进响应体</span>
+│   ├── ConsoleUsers           <span class="c"># 写死的控制台用户表，本期只有「官德志」一行（ADMIN）</span>
+│   └── PreviewReadOnlyFilter  <span class="c"># 预览身份只放行 GET / HEAD，其余 403 AUTH_PREVIEW_READONLY</span>
 └── integration/               <span class="c"># 外部系统客户端，只放调用封装，不放业务</span>
     ├── langfuse/  llm/  prometheus/  authgw/  k8s/  audit/（调 keel-audit；现有 Java 包名仍是 litellm，P1-8 改协议）</pre>
     <aside><h5>模块边界规则</h5><ul>
@@ -626,6 +631,8 @@ X-Keel-Eval-Run: &lt;run_id&gt;                 <span class="c"># 评测流量�
       <tr><td><code>POST /api/v1/approvals/{id}/decision</code></td><td>控制台 · 企业微信回调</td><td>批准 / 驳回；随后调智能体的 <code>/v1/runs/{id}/resume</code></td></tr>
       <tr><td><code>GET /api/v1/runs?status=SUSPENDED</code> · <code>/{id}</code></td><td>控制台 · SDK</td><td>待办列表（三种 reason 共用）与 run 详情；现场内容不返回</td></tr>
       <tr><td><code>GET /api/v1/insight/overview</code> · <code>/traces/{id}</code> · <code>/costs</code> · <code>/quality</code> · <code>/services</code></td><td>控制台</td><td>只读聚合接口</td></tr>
+      <tr><td><code>GET /api/v1/auth/options</code> · <code>/auth/captcha</code> · <code>POST /auth/sms/send</code> · <code>/auth/login/password</code> · <code>/auth/login/sms</code></td><td>控制台登录页</td><td>公开接口。keel-server 以客户端 <code>keel-console-backend</code>（private_key_jwt）代调 auth-gateway，<code>target_aud=keel-console</code>；成功后写 HttpOnly Cookie，响应体只有 <code>CurrentUser</code>。没有注册接口。手机号未开通时发码也回 <code>{sent:true}</code>，不发短信</td></tr>
+      <tr><td><code>POST /api/v1/auth/refresh</code> · <code>/auth/logout</code> · <code>GET /api/v1/me</code></td><td>控制台</td><td>刷新、登出只动 <code>keel-console</code> 这个会话。<code>/me</code> 多返回 <code>mode</code>（USER / PREVIEW）和 <code>readOnly</code>。预览身份（没带 Cookie 且开关打开）下所有非 GET 接口 403 <code>AUTH_PREVIEW_READONLY</code></td></tr>
     </tbody>
   </table></div>
   <div class="pane" data-pane="api">
@@ -655,7 +662,9 @@ X-Keel-Eval-Run: &lt;run_id&gt;                 <span class="c"># 评测流量�
       <tr><td><code>GET /api/public/v2/prompts/{name}?label=</code> · <code>?version=</code></td><td>SDK 运行时取提示词、keel-server 复制前读原文。<code>label</code> 和 <code>version</code> 互斥；标签不存在返回 404，不会退回 production。名字带 <code>/</code> 时整体 URL 编码</td></tr>
       <tr><td><code>GET /api/public/v2/prompts</code></td><td>列表：每个提示词的 versions、labels（不含内容），支持 name、label、page、limit</td></tr>
       <tr><td><code>POST /api/public/v2/prompts</code></td><td>新建版本：同名即追加版本。body 有 type（text / chat，建了不能改）、name、prompt，可带 labels。响应里有 config、commitMessage，请求里怎么传以 API 参考为准，P2-16 开工时核对</td></tr>
-      <tr><td rowspan="3">auth-gateway</td><td><code>GET /.well-known/jwks.json</code></td><td>验签；响应缓存 1 小时</td></tr>
+      <tr><td rowspan="5">auth-gateway</td><td><code>GET /.well-known/jwks.json</code></td><td>验签；响应缓存 1 小时</td></tr>
+      <tr><td><code>POST /auth/login/password</code> · <code>/auth/login/mobile</code>（表单） · <code>POST /auth/sms/send</code>（JSON） · <code>GET /auth/captcha</code></td><td>控制台登录，只由 keel-server 调。字段 <code>target_aud=keel-console</code> + <code>client_id</code> / <code>client_assertion_type</code> / <code>client_assertion</code>；<code>remember</code> 固定 false。发码 <code>{phone, scene:"login", app:"keel"}</code>。密码错 5 次要图形验证码（423），15 次锁 15 分钟</td></tr>
+      <tr><td><code>POST /auth/token/refresh</code>（表单） · <code>POST /auth/logout</code>（Bearer）</td><td>控制台续期与登出；会话按 <code>target_audience</code> 分开，只影响控制台自己的会话</td></tr>
       <tr><td><code>POST /oauth/token-exchange</code>（表单）</td><td>换票。字段是 <code>requested_audience</code>、<code>requested_scopes</code>（不是 RFC 8693 的 audience / scope）；客户端用 private_key_jwt 认证</td></tr>
       <tr><td><code>POST /oauth/consents</code> · <code>/oauth/delegation-token</code></td><td>长流程智能体用：用户授权一次，智能体凭委托 token 异步执行</td></tr>
       <tr><td>Prometheus</td><td><code>/api/v1/query</code></td><td>共享服务指标</td></tr>
@@ -939,6 +948,7 @@ keel eval run --dataset code-review/findings <span class="c"># 和 CI 同一套�
   <table>
     <thead><tr><th>页面</th><th>路由</th><th>主要交互</th><th>数据接口</th></tr></thead>
     <tbody>
+      <tr><td>登录</td><td><code>/login</code></td><td>只登录不注册：账号密码 / 短信验证码两个页签，失败 5 次后出图形验证码；没有注册和找回密码入口。预览开关打开时多一个「以预览模式进入（只读）」。登录成功回到 <code>redirect</code>（只接受站内路径）</td><td><code>auth/*</code> · <code>me</code></td></tr>
       <tr><td>总览</td><td><code>/overview</code></td><td>KPI、10 个智能体健康表、告警、成本，点智能体进详情</td><td><code>insight/overview</code></td></tr>
       <tr><td>智能体</td><td><code>/agents</code> · <code>/agents/:name</code></td><td>按业务 / 研发、状态、关键字筛选；详情抽屉：manifest、自检、实例、资源、版本</td><td><code>agents</code></td></tr>
       <tr><td>新建智能体</td><td><code>/agents/new</code></td><td>四步向导：方式 → 基本信息 → 模板与资源 → 预览 agent.yaml 并模拟注册</td><td><code>POST agents</code></td></tr>
@@ -952,6 +962,16 @@ keel eval run --dataset code-review/findings <span class="c"># 和 CI 同一套�
     </tbody>
   </table>
   <div class="note info">权限：平台管理员看全部；智能体负责人只能看和操作自己组织的智能体；审批人只看到分给自己的审批单。菜单和按钮都按角色控制，后端再校验一次。</div>
+  <h3>登录与预览模式（P1-21）</h3>
+  <table>
+    <thead><tr><th>项</th><th>做法</th></tr></thead>
+    <tbody>
+      <tr><td>控制台 token 不和别的项目共用</td><td>受众 <code>aud=keel-console</code>，客户端 <code>keel-console-backend</code> 只允许这一个受众、不能换票；其他客户端的 <code>allowed_audiences</code> 都不加它。keel-server 只认 <code>keel-console</code>，<code>keel-api</code>、<code>careermate-api</code> 的 token 一律 401；keel-gateway 只认 <code>keel-api</code>，控制台 token 调不了智能体。token 放在 keel-server 写的 <code>__Host-</code> 前缀 HttpOnly Cookie 里，前端 JS 读不到，也不会发到其他域名</td></tr>
+      <tr><td>只登录不注册</td><td>auth-gateway 短信登录原本会给新手机号建用户，<code>target_aud=keel-console</code> 时改为拒绝；并要求用户有 <code>keel</code> 应用准入。keel-server 再按写死的控制台用户表校验，本期只有「官德志」（ADMIN）</td></tr>
+      <tr><td>本机不连 auth-gateway</td><td><code>keel.console.auth.mode=local</code>（只允许 local profile）：keel-server 自己校验官德志的口令和短信码（都从环境变量读），用内存 RSA 密钥签 <code>aud=keel-console</code> 的 token，其余链路不变</td></tr>
+      <tr><td>预览模式</td><td>开关 <code>KEEL_CONSOLE_PREVIEW_ENABLED</code>。完全没带 Cookie 时是预览身份；带了过期或无效 Cookie 仍 401，不降级。后端 <code>PreviewReadOnlyFilter</code> 按 HTTP 方法默认拒绝：只放行 GET / HEAD。预览下链路节点的 input / output 和审计 payload 不返回。前端顶栏黄条提示只读，写按钮统一用 <code>v-write</code> 置灰，<code>http.ts</code> 在只读时不发非 GET 请求</td></tr>
+    </tbody>
+  </table>
 </section>
 
 <!-- 12 -->
@@ -1063,6 +1083,7 @@ keel eval run --dataset code-review/findings <span class="c"># 和 CI 同一套�
       <tr><td>auth-gateway JWKS</td><td>用 JWKS 验签</td><td><code>GET /.well-known/jwks.json</code>，缓存 1 小时；issuer 默认 <code>https://auth.careermate.cn</code></td><td><span class="tag t-reuse">可直接用</span></td></tr>
       <tr><td>auth-gateway Token Exchange</td><td>委派时换票</td><td>已实现 <code>POST /oauth/token-exchange</code>；换出的 token 保留用户身份，加 <code>azp</code>、<code>act</code>，有效期 600 秒；可以链式再换（总控 → 子智能体）</td><td><span class="tag t-reuse">可用</span>，但有 4 处缺口，见下表</td></tr>
       <tr><td>网关"按 aud 准入"</td><td>网关检查 JWT 的 aud 是否等于目标智能体</td><td>用户 token 只有一个 aud（登录时指定），不可能同时是 10 个智能体</td><td><span class="tag t-mod">已改设计</span> 用户 token 的 aud 统一为 <code>keel-api</code>，网关按 roles / scopes 准入后<b>换票</b>成目标智能体的 aud。换票从网关完整版提前到轻量版</td></tr>
+      <tr><td>控制台登录（2026-10-07，读 auth-gateway 源码，未实测）</td><td>控制台用 <code>aud=keel-api</code> 的用户 token，前端带 Bearer</td><td>已有 <code>/auth/login/password</code>、<code>/auth/login/mobile</code>、<code>/auth/sms/send</code>、<code>/auth/token/refresh</code>、<code>/auth/logout</code>，都要求客户端 private_key_jwt 认证，浏览器做不了；会话按 <code>target_audience</code> 分开记。<code>keel-api</code> 已在 careermate-backend 的 <code>allowed_audiences</code> 里，控制台再用它就和 careermate 共用 token。<b>短信登录遇到新手机号会自动建用户</b>（<code>LoginService.loginMobile</code>）</td><td><span class="tag t-mod">已改设计</span> 控制台改用独立受众 <code>keel-console</code>，keel-server 代调登录并写 HttpOnly Cookie；auth-gateway 对 <code>keel-console</code> 关掉短信自动建用户并校验 <code>keel</code> 应用准入。见 P1-21</td></tr>
       <tr><td>Langfuse 用 auth-gateway 单点登录</td><td>auth-gateway 能当 OIDC 提供方就接上</td><td>auth-gateway 没有授权端点和 <code>/.well-known/openid-configuration</code>，不是 OIDC 提供方</td><td><span class="tag t-mod">先不做</span> Langfuse 用邮箱密码 + <code>AUTH_DISABLE_SIGNUP=true</code>，管理员用无界面初始化创建；以后 auth-gateway 补 OIDC 再接</td></tr>
       <tr><td>Langfuse 版本与接口</td><td>v3；读 <code>/api/public/traces</code> 等</td><td>当前是 v4：旧的 traces、observations、sessions、scores、metrics、dataset runs 读接口全部返回 404；替代为 Observations API v2、Metrics API v2、Scores API v3、experiments API；trace 级在线评估器在 v4 不再运行</td><td><span class="tag t-mod">已改</span> 直接部署 v4；在线评估器配成 observation 级（挂在根 agent 节点上）</td></tr>
       <tr><td>Langfuse OTLP</td><td>OTLP/HTTP 上报</td><td>端点 <code>/api/public/otel/v1/traces</code>，Basic Auth，只支持 HTTP（JSON / protobuf），不支持 gRPC；要带 <code>x-langfuse-ingestion-version: 4</code></td><td><span class="tag t-mod">已补请求头</span></td></tr>
@@ -1120,6 +1141,7 @@ keel eval run --dataset code-review/findings <span class="c"># 和 CI 同一套�
       <tr><td>Langfuse Cloud 套餐</td><td>Hobby 的 Metrics API 每天 100 次，扛不住 5 分钟对账</td><td>生产对账打开前</td><td>升 Core，或 Hobby 上 Langfuse 流量查询每天一次</td></tr>
       <tr><td>提示词接口的实测行为</td><td>只看了文档：<code>POST /v2/prompts</code> 里 config、commitMessage 的传法，提示词接口的限流，v2 observations 返回的提示词字段名</td><td>P2-15 / P2-16 开工时</td><td>在共用项目里用一个测试提示词实测建版本、挪标签、带 prompt 属性上报一条 generation 后读回</td></tr>
       <tr><td>auth-gateway 改造方案评审</td><td>涉及现有 careermate、rag-forge 的登录链路</td><td>P0 第 1 周</td><td>改造后跑 auth-gateway 现有测试，careermate、rag-forge 登录和换票回归一遍</td></tr>
+      <tr><td>控制台登录（P1-21）的实测行为</td><td>只读了 auth-gateway 源码：<code>keel-console</code> 受众和 <code>keel-console-backend</code> 客户端还没建；官德志在 auth-gateway 的 <code>user_id</code>、手机号未知；短信服务商对 <code>app=keel</code> 的短信模板是否要单独报备未知</td><td>P1-21 开工时</td><td>在 auth-gateway 建客户端和官德志账号后，用两种方式各登录一次，回填 <code>ConsoleUsers</code> 的 <code>user_id</code>；careermate、rag-forge 登录回归一遍</td></tr>
     </tbody>
   </table>
 

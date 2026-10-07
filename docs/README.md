@@ -50,7 +50,7 @@ P0 这一期的 14 条任务全部有 spec，文件在 `specs/p0/`。当前进�
 
 ## P1 的 spec
 
-P1 的 20 条任务都有 spec，文件在 `specs/p1/`。已完成的是 P1-0 和 P1-15a。P1-3 只建了 V1 的三张 registry 表，其余表仍按该 spec 从 V2 补。
+P1 的 21 条任务都有 spec，文件在 `specs/p1/`。已完成的是 P1-0 和 P1-15a。P1-3 只建了 V1 的三张 registry 表，其余表仍按该 spec 从 V2 补。
 
 | 任务 | spec | 执行者 | 前置 |
 |---|---|---|---|
@@ -74,3 +74,4 @@ P1 的 20 条任务都有 spec，文件在 `specs/p1/`。已完成的是 P1-0 �
 | P1-16 | [链路列表与三视图](specs/p1/P1-16-console-traces.md) | Cursor | P1-13 P1-15 |
 | P1-17 | [askdb 接入](specs/p1/P1-17-askdb-cutover.md) | Cursor | P0-6～8 |
 | P1-18 | [rag-forge 接入](specs/p1/P1-18-rag-forge.md) | Codex | P1-1 P0-1 |
+| P1-21 | [控制台登录与预览模式](specs/p1/P1-21-console-login.md) | Cursor | P0-5 P1-0 P1-15 |
