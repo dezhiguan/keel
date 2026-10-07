@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { NAV } from '@/router/nav'
+import { isNavActive, NAV } from '@/router/nav'
 import AgentDrawer from '@/views/agents/AgentDetail.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import { useUserStore } from '@/stores/user'
@@ -57,7 +57,12 @@ watch(() => envStore.env, (env) => {
       <nav class="nav">
         <template v-for="[group, items] in groups" :key="group">
           <div class="grp">{{ group }}</div>
-          <RouterLink v-for="item in items" :key="item.path" :to="item.path">
+          <RouterLink
+            v-for="item in items"
+            :key="item.path"
+            :to="item.path"
+            :class="{ 'router-link-active': isNavActive(item.path, route.path) }"
+          >
             <i>{{ item.icon }}</i>{{ item.title }}
             <span v-if="item.path === '/approvals' && approvalsStore.pending" class="cnt">{{ approvalsStore.pending }}</span>
           </RouterLink>
