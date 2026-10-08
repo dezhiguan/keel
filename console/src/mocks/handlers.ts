@@ -2,7 +2,22 @@ import { http, HttpResponse } from 'msw'
 import { sharedServices } from './data/services'
 import { dependentsOf, toolDetail, tools } from './data/tools'
 import { approvals, suspendedRuns } from './data/approvals'
-import { assist, boardPayload, cancel, createBatch, findJob, handback, listBatches, previewRows, saveSettings, settings, takeover } from './data/jobs'
+import {
+  acceptSeedCases,
+  assist,
+  boardPayload,
+  cancel,
+  createBatch,
+  findJob,
+  handback,
+  listBatches,
+  passGate,
+  previewRows,
+  reviewFor,
+  saveSettings,
+  settings,
+  takeover,
+} from './data/jobs'
 
 // Leading wildcard so the same handlers match in the browser and under msw/node (which has no page origin).
 const BASE = '*/api/v1'
@@ -187,6 +202,9 @@ export const handlers = [
       decidedBy: 'dev',
       decidedAt: new Date().toISOString(),
     })
+    if (approval.devflowJobId && approval.devflowGate === 'H4') {
+      passGate(approval.devflowJobId, 'H4', body.decision === 'APPROVE', '')
+    }
     return ok(approval)
   }),
 
@@ -214,6 +232,17 @@ export const handlers = [
     const result = cancel(String(params.jobId))
     return result.status === 200 ? ok(result.job) : fail(result.status, result.status === 404 ? 'SERVER_NOT_FOUND' : 'SERVER_INVALID_PARAM', result.message)
   }),
+  http.get(`${BASE}/devflow/jobs/:jobId/review`, ({ params }) => {
+    const result = reviewFor(String(params.jobId))
+    if (result.status === 200) return ok(result.review)
+    return fail(result.status, result.status === 404 ? 'SERVER_NOT_FOUND' : 'RUN_NOT_RESUMABLE', result.message)
+  }),
+  http.post(`${BASE}/devflow/jobs/:jobId/seed-cases`, async ({ params, request }) => {
+    const body = (await request.json().catch(() => ({}))) as { acceptedCaseIds?: string[] }
+    const result = acceptSeedCases(String(params.jobId), body.acceptedCaseIds ?? [])
+    if (result.status === 200) return ok(result.result)
+    return fail(result.status, result.status === 404 ? 'SERVER_NOT_FOUND' : 'RUN_NOT_RESUMABLE', result.message)
+  }),
   http.get(`${BASE}/devflow/batches`, () => ok(listBatches())),
   http.post(`${BASE}/devflow/batches/preview`, () => ok({ rows: previewRows })),
   http.post(`${BASE}/devflow/batches`, async ({ request }) => {
@@ -230,10 +259,15 @@ export const handlers = [
     return ok(result.settings)
   }),
 
-  http.post(`${BASE}/runs/:runId/input`, ({ params }) => {
+  http.post(`${BASE}/runs/:runId/input`, async ({ params, request }) => {
     const index = suspendedRuns.findIndex((r) => r.runId === params.runId)
     if (index < 0) return fail(409, 'RUN_NOT_RESUMABLE', '该次执行不处于可恢复状态')
-    suspendedRuns.splice(index, 1)
+    const [run] = suspendedRuns.splice(index, 1)
+    if (run.devflowJobId && (run.devflowGate === 'H1' || run.devflowGate === 'H2')) {
+      const body = (await request.json().catch(() => ({}))) as { text?: string }
+      const text = body.text?.trim() ?? ''
+      passGate(run.devflowJobId, run.devflowGate, text === '确认', text)
+    }
     return ok(null)
   }),
 

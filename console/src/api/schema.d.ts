@@ -1059,6 +1059,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/devflow/jobs/{jobId}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * 研发任务关口处理页数据
+         * @description 按 gate 返回需求确认（H1）、评测确认（H2）、发布审批（H4）或协作 review（PR）要展示的内容。
+         *     关口决策沿用 `/runs/{runId}/input` 和 `/approvals/{id}/decision`，这里只读。
+         *     隐藏考题只给条数和分数，任何时候都不返回内容。
+         *     任务不存在 404 SERVER_NOT_FOUND；任务不在关口 409 RUN_NOT_RESUMABLE。
+         */
+        get: operations["getDevflowReview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/jobs/{jobId}/seed-cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 评测确认：采纳扩充用例并切出隐藏考题
+         * @description H2 确认前调用，之后再 `POST /runs/{runId}/input` 回复「确认」。
+         *     acceptedCaseIds 之外的扩充用例不计分。隐藏考题由服务端随机切出，响应只有条数。
+         *     任务不存在 404 SERVER_NOT_FOUND；任务不在 H2 409 RUN_NOT_RESUMABLE。
+         */
+        post: operations["acceptDevflowSeedCases"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/devflow/batches": {
         parameters: {
             query?: never;
@@ -1775,6 +1824,13 @@ export interface components {
             decidedBy?: string | null;
             /** Format: date-time */
             decidedAt?: string | null;
+            /** @description 这张单属于哪个研发任务。没有则省略，审批中心按此归入「研发任务」分组 */
+            devflowJobId?: string | null;
+            /**
+             * @description 研发任务关口。审批单上只会是 H4（subjectType=tool.call、subjectRef=git.pr.merge）
+             * @enum {string|null}
+             */
+            devflowGate?: "H1" | "H2" | "H4" | null;
         };
         /** @description 草案（P3-1 定稿）。挂起等人回话的执行，没有审批单；审批中心「人工介入」一组的数据来源 */
         SuspendedRun: {
@@ -1792,6 +1848,13 @@ export interface components {
             createdAt?: string;
             /** Format: date-time */
             deadline?: string | null;
+            /** @description 这次挂起属于哪个研发任务。没有则省略 */
+            devflowJobId?: string | null;
+            /**
+             * @description 研发任务关口。挂起运行上只会是 H1 / H2（reason=input_required）
+             * @enum {string|null}
+             */
+            devflowGate?: "H1" | "H2" | "H4" | null;
         };
         /** @description 与 contracts/audit-event.schema.json 同构，额外带 hash、prevHash、hashVerified 供详情展示哈希链 */
         AuditEvent: {
@@ -1999,6 +2062,96 @@ export interface components {
             dailyLimit: number;
             concurrency: number;
             templates: string[];
+        };
+        /** @description 关口处理页数据。按 gate 只填对应的字段，其余省略。隐藏考题只有条数和分数 */
+        DevflowReview: {
+            /** @example DF-0018 */
+            jobId: string;
+            /**
+             * @description PR 为人机协作等人工 approve PR
+             * @enum {string}
+             */
+            gate: "H1" | "H2" | "H4" | "PR";
+            /** @description H1 / H2 恢复用 */
+            runId?: string | null;
+            /** @description H4 决策用 */
+            approvalId?: string | null;
+            /** @description H1 需求单 */
+            specSheet?: {
+                title: string;
+                goal: string;
+                users: string;
+                io: string;
+                success: string;
+                /** @description 待确认事项 */
+                pending: string[];
+            };
+            /** @description H1。spec-agent 建议的开发模式 */
+            suggestedMode?: components["schemas"]["DevflowMode"] | null;
+            /** @description H1。agent.yaml 草稿 */
+            manifestYaml?: string | null;
+            /** @description H1。H3 会发给所有者 */
+            authList?: {
+                /** @example kb:dev-standards */
+                resource: string;
+                risk: components["schemas"]["Risk"];
+                owner: string;
+            }[];
+            /** @description H2。人给用例条数 */
+            humanCount?: number | null;
+            /**
+             * Format: float
+             * @description H2。0 到 1
+             */
+            holdoutRatio?: number | null;
+            /** @description H2。eval-agent 扩充的用例，不含隐藏考题 */
+            cases?: {
+                caseId: string;
+                tag: string;
+                input: string;
+                expected: string;
+                /** @description 扩充理由；价值低的由 eval-agent 在这里写明 */
+                reason: string;
+            }[];
+            /** @description H4 门禁报告 */
+            gateReport?: {
+                /** Format: float */
+                visible: number;
+                /**
+                 * Format: float
+                 * @description 隐藏考题独立计分
+                 */
+                holdout: number;
+                /** Format: float */
+                minScore: number;
+                byTag: {
+                    tag: string;
+                    /** Format: float */
+                    visible: number;
+                    /** Format: float */
+                    holdout: number;
+                }[];
+            };
+            /** @description H4。上线后它将拥有 */
+            ownership?: {
+                agent: string;
+                version: string;
+                tools: string[];
+                /** Format: float */
+                dailyBudgetCny: number;
+                agentCommits: number;
+                humanCommits: number;
+            };
+            /** @description PR 协作 review。approve 在 Git 托管里完成 */
+            pr?: {
+                number: number;
+                url: string;
+                additions: number;
+                deletions: number;
+                files: number;
+                reviewSummary: string;
+                sandboxSummary: string;
+            };
         };
     };
     responses: {
@@ -3709,6 +3862,68 @@ export interface operations {
             };
             400: components["responses"]["Error"];
             404: components["responses"]["Error"];
+        };
+    };
+    getDevflowReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowReview"];
+                    };
+                };
+            };
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    acceptDevflowSeedCases: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    acceptedCaseIds: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            humanCount: number;
+                            holdoutCount: number;
+                            acceptedAgentCount: number;
+                        };
+                    };
+                };
+            };
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
         };
     };
     listDevflowBatches: {

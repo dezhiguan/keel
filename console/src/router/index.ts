@@ -30,6 +30,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'tools', component: () => import('@/views/tools/ToolRegistry.vue'), meta: { title: '工具' } },
       { path: 'tools/:name', redirect: (to) => ({ path: '/tools', query: { tool: String(to.params.name) } }) },
       { path: 'approvals', component: () => import('@/views/tools/ApprovalInbox.vue'), meta: { title: '审批中心' } },
+      { path: 'approvals/devflow/:jobId', component: () => import('@/views/tools/review/GateReview.vue'), meta: { title: '审批中心' } },
       { path: 'audit', component: () => import('@/views/audit/AuditView.vue'), meta: { title: '审计中心' } },
       { path: 'models', component: () => import('@/views/models/ModelGateway.vue'), meta: { title: '模型网关' } },
     ],

@@ -1651,6 +1651,78 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
 
+  /devflow/jobs/{jobId}/review:
+    parameters:
+      - $ref: "#/components/parameters/DevflowJobId"
+    get:
+      tags: [devflow]
+      operationId: getDevflowReview
+      summary: 研发任务关口处理页数据
+      description: |
+        按 gate 返回需求确认（H1）、评测确认（H2）、发布审批（H4）或协作 review（PR）要展示的内容。
+        关口决策沿用 `/runs/{runId}/input` 和 `/approvals/{id}/decision`，这里只读。
+        隐藏考题只给条数和分数，任何时候都不返回内容。
+        任务不存在 404 SERVER_NOT_FOUND；任务不在关口 409 RUN_NOT_RESUMABLE。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowReview" }
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /devflow/jobs/{jobId}/seed-cases:
+    parameters:
+      - $ref: "#/components/parameters/DevflowJobId"
+    post:
+      tags: [devflow]
+      operationId: acceptDevflowSeedCases
+      summary: 评测确认：采纳扩充用例并切出隐藏考题
+      description: |
+        H2 确认前调用，之后再 `POST /runs/{runId}/input` 回复「确认」。
+        acceptedCaseIds 之外的扩充用例不计分。隐藏考题由服务端随机切出，响应只有条数。
+        任务不存在 404 SERVER_NOT_FOUND；任务不在 H2 409 RUN_NOT_RESUMABLE。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [acceptedCaseIds]
+              properties:
+                acceptedCaseIds:
+                  type: array
+                  items: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [humanCount, holdoutCount, acceptedAgentCount]
+                        properties:
+                          humanCount: { type: integer }
+                          holdoutCount: { type: integer }
+                          acceptedAgentCount: { type: integer }
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+
   /devflow/batches:
     get:
       tags: [devflow]
@@ -2525,6 +2597,12 @@ components:
         expiresAt: { type: string, format: date-time, nullable: true }
         decidedBy: { type: string, nullable: true }
         decidedAt: { type: string, format: date-time, nullable: true }
+        devflowJobId: { type: string, nullable: true, description: 这张单属于哪个研发任务。没有则省略，审批中心按此归入「研发任务」分组 }
+        devflowGate:
+          type: string
+          nullable: true
+          enum: [H1, H2, H4]
+          description: 研发任务关口。审批单上只会是 H4（subjectType=tool.call、subjectRef=git.pr.merge）
 
     SuspendedRun:
       type: object
@@ -2539,6 +2617,12 @@ components:
         actorUser: { type: string }
         createdAt: { type: string, format: date-time }
         deadline: { type: string, format: date-time, nullable: true }
+        devflowJobId: { type: string, nullable: true, description: 这次挂起属于哪个研发任务。没有则省略 }
+        devflowGate:
+          type: string
+          nullable: true
+          enum: [H1, H2, H4]
+          description: 研发任务关口。挂起运行上只会是 H1 / H2（reason=input_required）
 
     # ------------------------------------------------------------ 审计
     AuditEvent:
@@ -2773,3 +2857,101 @@ components:
         templates:
           type: array
           items: { type: string }
+    DevflowReview:
+      type: object
+      description: 关口处理页数据。按 gate 只填对应的字段，其余省略。隐藏考题只有条数和分数
+      required: [jobId, gate]
+      properties:
+        jobId: { type: string, example: DF-0018 }
+        gate:
+          type: string
+          enum: [H1, H2, H4, PR]
+          description: PR 为人机协作等人工 approve PR
+        runId: { type: string, nullable: true, description: H1 / H2 恢复用 }
+        approvalId: { type: string, nullable: true, description: H4 决策用 }
+        specSheet:
+          type: object
+          description: H1 需求单
+          required: [title, goal, users, io, success, pending]
+          properties:
+            title: { type: string }
+            goal: { type: string }
+            users: { type: string }
+            io: { type: string }
+            success: { type: string }
+            pending:
+              type: array
+              items: { type: string }
+              description: 待确认事项
+        suggestedMode:
+          allOf:
+            - $ref: "#/components/schemas/DevflowMode"
+          nullable: true
+          description: H1。spec-agent 建议的开发模式
+        manifestYaml: { type: string, nullable: true, description: H1。agent.yaml 草稿 }
+        authList:
+          type: array
+          description: H1。H3 会发给所有者
+          items:
+            type: object
+            required: [resource, risk, owner]
+            properties:
+              resource: { type: string, example: "kb:dev-standards" }
+              risk: { $ref: "#/components/schemas/Risk" }
+              owner: { type: string }
+        humanCount: { type: integer, nullable: true, description: H2。人给用例条数 }
+        holdoutRatio: { type: number, format: float, nullable: true, description: H2。0 到 1 }
+        cases:
+          type: array
+          description: H2。eval-agent 扩充的用例，不含隐藏考题
+          items:
+            type: object
+            required: [caseId, tag, input, expected, reason]
+            properties:
+              caseId: { type: string }
+              tag: { type: string }
+              input: { type: string }
+              expected: { type: string }
+              reason: { type: string, description: 扩充理由；价值低的由 eval-agent 在这里写明 }
+        gateReport:
+          type: object
+          description: H4 门禁报告
+          required: [visible, holdout, minScore, byTag]
+          properties:
+            visible: { type: number, format: float }
+            holdout: { type: number, format: float, description: 隐藏考题独立计分 }
+            minScore: { type: number, format: float }
+            byTag:
+              type: array
+              items:
+                type: object
+                required: [tag, visible, holdout]
+                properties:
+                  tag: { type: string }
+                  visible: { type: number, format: float }
+                  holdout: { type: number, format: float }
+        ownership:
+          type: object
+          description: H4。上线后它将拥有
+          required: [agent, version, tools, dailyBudgetCny, agentCommits, humanCommits]
+          properties:
+            agent: { type: string }
+            version: { type: string }
+            tools:
+              type: array
+              items: { type: string }
+            dailyBudgetCny: { type: number, format: float }
+            agentCommits: { type: integer }
+            humanCommits: { type: integer }
+        pr:
+          type: object
+          description: PR 协作 review。approve 在 Git 托管里完成
+          required: [number, url, additions, deletions, files, reviewSummary, sandboxSummary]
+          properties:
+            number: { type: integer }
+            url: { type: string }
+            additions: { type: integer }
+            deletions: { type: integer }
+            files: { type: integer }
+            reviewSummary: { type: string }
+            sandboxSummary: { type: string }

@@ -14,6 +14,7 @@
 | 已完成（占位） | [DF-9d 共享服务](DF-9d-services-sandbox.md)：平台组件表加研发沙箱。用量未接配额，空数据用占位。其余页面仍待做 |
 | 已完成（控制台） | [DF-9b 智能体页](DF-9b-agents-console.md)：分类加元智能体，卡片带来源，谱系视图，新建向导加「由智能体生产」。未注册员工占位 |
 | 已完成（控制台） | DF-9d 链路追踪：按研发任务筛选，行上标来源。没有任务号时用来源占位。其余 DF-9d 页面仍待做 |
+| 已完成（控制台 mock） | [DF-9c 审批中心](DF-9c-approvals.md)：加「研发任务」分组和 H1 / H2 / H4 / 协作 review 关口处理页，审批单和挂起运行带 `devflowJobId` / `devflowGate`。review、seed-cases 接口只在 MSW，keel-server 归 DF-2 |
 | 可以立刻开工 | DF-1 契约（页面用到的 jobs 路径已在 DF-9a 写入 console-api，追踪属性 `keel.devflow.job_id` 已在 DF-9d 链路切片登记，智能体 `layer` / `devflowJobId` 已在 DF-9b 写入，其余字段仍在 DF-1） |
 | 等前置 | 其余，见下表"前置" |
 
@@ -32,7 +33,7 @@
 | ID | 任务 | 执行者 | 前置 | 期 |
 |---|---|---|---|---|
 | DF-1 | 契约：console-api 的 devflow 接口；agents 加 `layer`、`devflowJobId`；审批待办加 `source`；错误码 `DEVFLOW_*`；追踪属性 `keel.devflow.job_id` | Cursor | — | D1 |
-| DF-2 | keel-server devflow 模块：V8 表、状态机、接管 / 交还、谱系校验、审计；服务身份的工具目录读接口 | Cursor | DF-1 D0-4 | D1 |
+| DF-2 | keel-server devflow 模块：V8 表、状态机、接管 / 交还、谱系校验、审计；服务身份的工具目录读接口。另含控制台页面先行时留下的后端接口：`GET /devflow/jobs/{id}/review`、`POST /devflow/jobs/{id}/seed-cases`、审批单与挂起运行的 `devflowJobId` / `devflowGate`（DF-9c）；`EvalResult.holdout`（DF-9d 评测，数据来自 DF-8）；审计按 `kind` 过滤（DF-9d 审计）；`ModelGateway.devflowCost`（DF-9d 模型网关） | Cursor | DF-1 D0-4 | D1 |
 | DF-3 | 沙箱：命名空间、配额、网络策略、SandboxService、假薄网关 / 假 Langfuse sidecar | Cursor | DF-2 | D1 |
 | DF-4 | Git / CI MCP 服务、分支保护、工具登记 | Codex | D0-4 | D1 |
 | **DF-5** | **元智能体 meta-agent**，分四步交付，见下 | Cursor | 各步不同 | D1–D2 |

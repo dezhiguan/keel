@@ -6,6 +6,8 @@ export type DevflowJobList = components['schemas']['DevflowJobList']
 export type DevflowBatch = components['schemas']['DevflowBatch']
 export type DevflowBatchPreviewRow = components['schemas']['DevflowBatchPreviewRow']
 export type DevflowSettings = components['schemas']['DevflowSettings']
+export type DevflowReview = components['schemas']['DevflowReview']
+export type DevflowSeedResult = { humanCount: number; holdoutCount: number; acceptedAgentCount: number }
 
 // TODO(DF-2): keel-server 尚未提供这些接口，本地由 MSW 按同一份契约返回。
 
@@ -48,6 +50,14 @@ export function assistDevflowJob(jobId: string, instruction: string) {
 
 export function cancelDevflowJob(jobId: string) {
   return post<DevflowJob>(`/devflow/jobs/${encodeURIComponent(jobId)}/cancel`)
+}
+
+export function getDevflowReview(jobId: string) {
+  return get<DevflowReview>(`/devflow/jobs/${encodeURIComponent(jobId)}/review`)
+}
+
+export function acceptDevflowSeedCases(jobId: string, acceptedCaseIds: string[]) {
+  return post<DevflowSeedResult>(`/devflow/jobs/${encodeURIComponent(jobId)}/seed-cases`, { acceptedCaseIds })
 }
 
 export function listDevflowBatches() {

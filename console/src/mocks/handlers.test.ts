@@ -115,6 +115,53 @@ describe('mock handlers', () => {
     expect((await call('GET', '/devflow/settings')).json.data.templates).toContain('chat-rag')
   })
 
+  it('tags devflow gates on approvals and suspended runs', async () => {
+    const pending = await call('GET', '/approvals?status=PENDING&size=100')
+    expect(pending.json.data.items.find((a: { id: string }) => a.id === 'ap_0931')).toMatchObject({
+      subjectType: 'tool.call', subjectRef: 'git.pr.merge', devflowJobId: 'DF-0017', devflowGate: 'H4',
+    })
+    const runs = await call('GET', '/runs?size=100')
+    const gates = runs.json.data.items.filter((r: { devflowJobId?: string }) => r.devflowJobId)
+      .map((r: { devflowJobId: string; devflowGate: string; reason: string }) => [r.devflowJobId, r.devflowGate, r.reason])
+    expect(gates).toEqual([['DF-0018', 'H1', 'input_required'], ['DF-0016', 'H2', 'input_required']])
+  })
+
+  it('serves the gate page per gate and refuses jobs that are missing or not at a gate', async () => {
+    const h1 = await call('GET', '/devflow/jobs/DF-0018/review')
+    expect(h1.json.data).toMatchObject({ gate: 'H1', runId: 'r_8c21', suggestedMode: 'AUTO' })
+    expect(h1.json.data.authList.map((row: { resource: string }) => row.resource)).toEqual(['rag.search', 'kb:dev-standards', 'kb:cs-faq'])
+    expect(h1.json.data.manifestYaml).toContain('name: kb-curator')
+    const h4 = await call('GET', '/devflow/jobs/DF-0017/review')
+    expect(h4.json.data).toMatchObject({ gate: 'H4', approvalId: 'ap_0931', gateReport: { visible: 0.86, holdout: 0.84, minScore: 0.8 } })
+    expect(h4.json.data.ownership).toMatchObject({ agent: 'oncall-handoff', humanCommits: 3 })
+    const missing = await call('GET', '/devflow/jobs/DF-missing/review')
+    expect([missing.status, missing.json.code]).toEqual([404, 'SERVER_NOT_FOUND'])
+    const building = await call('GET', '/devflow/jobs/DF-0020/review')
+    expect([building.status, building.json.code]).toEqual([409, 'RUN_NOT_RESUMABLE'])
+    const takenOver = await call('GET', '/devflow/jobs/DF-0021/review')
+    expect(takenOver.status).toBe(409)
+  })
+
+  it('returns only holdout counts, never holdout content', async () => {
+    const h2 = await call('GET', '/devflow/jobs/DF-0016/review')
+    expect(h2.json.data).toMatchObject({ gate: 'H2', runId: 'r_8c35', humanCount: 30, holdoutRatio: 0.3 })
+    expect(h2.json.data.cases).toHaveLength(5)
+    expect(JSON.stringify(h2.json.data)).not.toMatch(/holdoutCases|holdoutItems/)
+    expect((await call('POST', '/devflow/jobs/DF-0018/seed-cases', { acceptedCaseIds: [] })).status).toBe(409)
+    const seeded = await call('POST', '/devflow/jobs/DF-0016/seed-cases', { acceptedCaseIds: ['a01', 'a02', 'a03', 'a04', 'nope'] })
+    expect(seeded.json.data).toEqual({ humanCount: 30, holdoutCount: 9, acceptedAgentCount: 4 })
+    expect((await call('POST', '/runs/r_8c35/input', { text: '确认' })).status).toBe(200)
+    expect((await call('GET', '/devflow/jobs/DF-0016')).json.data).toMatchObject({ stage: 'H3', seed: { human: 30, agent: 4, holdout: 9 } })
+  })
+
+  it('moves a job on from H1 and H4 after the existing reply and decision endpoints', async () => {
+    expect((await call('POST', '/runs/r_8c21/input', { text: '统计窗口取 7 天' })).status).toBe(200)
+    expect((await call('GET', '/devflow/jobs/DF-0018')).json.data).toMatchObject({ status: 'RUN', stage: 'SPEC' })
+    expect((await call('POST', '/approvals/ap_0931/decision', { decision: 'APPROVE' })).json.data.status).toBe('APPROVED')
+    expect((await call('GET', '/devflow/jobs/DF-0017')).json.data).toMatchObject({ status: 'RUN', stage: 'RELEASE' })
+    expect((await call('GET', '/devflow/jobs/DF-0017/review')).status).toBe(409)
+  })
+
   it('still mocks shared services while traces, audit, costs and eval are real', async () => {
     const services = await call('GET', '/insight/services')
     expect(services.status).toBe(200)

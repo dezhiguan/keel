@@ -144,7 +144,7 @@ onUnmounted(() => {
         <span class="mono mut">{{ job.jobId }}</span>
         <JobStatus :job="job" />
         <span class="sp" />
-        <RouterLink v-if="showApprovalLink(job)" class="btn pri" to="/approvals">去审批中心处理</RouterLink>
+        <RouterLink v-if="showApprovalLink(job)" class="btn pri" :to="`/approvals/devflow/${encodeURIComponent(job.jobId)}`">去审批中心处理</RouterLink>
         <button v-if="canTakeover(job)" v-write class="btn vio" type="button" @click="modal = 'takeover'">人工接管开发</button>
         <template v-if="canHandback(job)">
           <button v-if="canAssist(job)" v-write class="btn vio" type="button" @click="modal = 'assist'">请智能体帮忙</button>
