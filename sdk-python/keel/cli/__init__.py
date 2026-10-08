@@ -35,6 +35,7 @@ def main(argv=None) -> None:
     gate.add_argument("--endpoint")
     gate.add_argument("--scorers", default="evals/scorers.py")
     gate.add_argument("--baseline")
+    gate.add_argument("--holdout", help="Score the hidden cases for this devflow job")
     release = commands.add_parser("release", help="Publish an image after a passing gate")
     release.add_argument("--env", required=True, choices=("staging", "prod"))
     release.add_argument("--image", required=True)
@@ -60,7 +61,8 @@ def main(argv=None) -> None:
             run_eval(dataset=args.dataset, seed_file=args.file, scorers_file=args.scorers, endpoint=args.endpoint, env=args.env)
         elif args.command == "gate":
             from keel.cli.gate import gate as run_gate_command
-            run_gate_command(env=args.env, seed_file=args.file, scorers_file=args.scorers, endpoint=args.endpoint, baseline_file=args.baseline)
+            run_gate_command(env=args.env, seed_file=args.file, scorers_file=args.scorers, endpoint=args.endpoint,
+                             baseline_file=args.baseline, holdout_job=args.holdout)
         elif args.command == "release":
             from keel.cli.release import release as release_agent
             release_agent(env=args.env, image=args.image, gate_run_id=args.gate_run_id, manifest_file=args.file)

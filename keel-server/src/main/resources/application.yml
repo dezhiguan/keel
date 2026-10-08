@@ -29,3 +29,6 @@ keel:
     audience: ${KEEL_SERVICE_AUDIENCE:}
   sandbox:
     image: ${KEEL_SANDBOX_IMAGE:keel-sandbox:local}
+  ci:
+    # 未配置时隐藏考题接口一律拒绝。不写默认客户端名。
+    client-id: ${KEEL_CI_CLIENT_ID:}

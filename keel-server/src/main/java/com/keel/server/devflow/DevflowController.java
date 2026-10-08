@@ -22,10 +22,12 @@ import java.util.Map;
 public class DevflowController {
     private final DevflowService devflow;
     private final SandboxService sandbox;
+    private final HoldoutService holdout;
 
-    public DevflowController(DevflowService devflow, SandboxService sandbox) {
+    public DevflowController(DevflowService devflow, SandboxService sandbox, HoldoutService holdout) {
         this.devflow = devflow;
         this.sandbox = sandbox;
+        this.holdout = holdout;
     }
 
     @GetMapping("/jobs")
@@ -89,7 +91,22 @@ public class DevflowController {
     public R<DevflowTypes.SeedResult> seed(@PathVariable String jobId, @RequestBody DevflowTypes.SeedAccept body) {
         requireWrite();
         var ids = body == null ? List.<String>of() : body.acceptedCaseIds();
-        return R.ok(devflow.acceptSeeds(jobId, ids, actor()));
+        var cases = body == null || body.cases() == null ? List.<DevflowTypes.SeedCase>of() : body.cases();
+        return R.ok(devflow.acceptSeeds(jobId, ids, cases, actor()));
+    }
+
+    @GetMapping("/holdout/{jobId}")
+    public R<Map<String, Object>> holdout(@PathVariable String jobId) {
+        var principal = requireService();
+        return R.ok(holdout.read(jobId, principal.username()));
+    }
+
+    @PostMapping("/holdout-results")
+    public R<Map<String, Object>> holdoutResult(@RequestBody HoldoutSubmission body) {
+        var principal = requireService();
+        var scores = body == null || body.byTag() == null ? List.<HoldoutRules.TagScore>of() : body.byTag();
+        holdout.submit(body == null ? null : body.jobId(), scores, principal.username());
+        return R.ok(Map.of());
     }
 
     @GetMapping("/batches")
@@ -156,6 +173,8 @@ public class DevflowController {
         }
         return principal.username();
     }
+
+    public record HoldoutSubmission(String jobId, List<HoldoutRules.TagScore> byTag) {}
 
     private static ConsolePrincipal requireService() {
         var principal = ConsolePrincipal.current();

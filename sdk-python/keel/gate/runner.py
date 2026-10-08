@@ -13,7 +13,8 @@ from keel.gate.report import record
 from keel.manifest import load_manifest
 
 
-def run_gate(*, env: str, seed_file: str, scorers_file: str, endpoint: str | None, baseline_file: str | None, root: str | Path = ".") -> str:
+def run_gate(*, env: str, seed_file: str, scorers_file: str, endpoint: str | None, baseline_file: str | None,
+             root: str | Path = ".", holdout_job: str | None = None) -> str:
     root = Path(root)
     manifest_path = root / "agent.yaml"
     manifest = load_manifest(manifest_path)
@@ -44,4 +45,7 @@ def run_gate(*, env: str, seed_file: str, scorers_file: str, endpoint: str | Non
     marker = root / ".keel"
     marker.mkdir(exist_ok=True)
     (marker / "gate-run-id").write_text(gate_run_id, encoding="utf-8")
+    if holdout_job:
+        from keel.holdout_run import run_holdout
+        run_holdout(job_id=holdout_job, scorers=scorers, endpoint=target, env=env)
     return gate_run_id

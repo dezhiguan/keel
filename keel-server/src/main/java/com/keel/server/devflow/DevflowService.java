@@ -32,20 +32,26 @@ public class DevflowService {
     private final DevflowLedger ledger;
     private final AuditStore audit;
     private final TransactionTemplate transactions;
+    private final HoldoutStore holdout;
 
     @Autowired
-    public DevflowService(DevflowLedger ledger, AuditStore audit, PlatformTransactionManager transactions) {
-        this(ledger, audit, new TransactionTemplate(transactions));
+    public DevflowService(DevflowLedger ledger, AuditStore audit, PlatformTransactionManager transactions, HoldoutStore holdout) {
+        this(ledger, audit, new TransactionTemplate(transactions), holdout);
     }
 
     DevflowService(DevflowLedger ledger, AuditStore audit) {
-        this(ledger, audit, (TransactionTemplate) null);
+        this(ledger, audit, (TransactionTemplate) null, new DiscardingHoldout());
     }
 
-    private DevflowService(DevflowLedger ledger, AuditStore audit, TransactionTemplate transactions) {
+    DevflowService(DevflowLedger ledger, AuditStore audit, HoldoutStore holdout) {
+        this(ledger, audit, (TransactionTemplate) null, holdout);
+    }
+
+    private DevflowService(DevflowLedger ledger, AuditStore audit, TransactionTemplate transactions, HoldoutStore holdout) {
         this.ledger = ledger;
         this.audit = audit;
         this.transactions = transactions;
+        this.holdout = holdout;
     }
 
     public synchronized DevflowTypes.JobList list(String layer, String status, String stage, String batch, boolean mine, String actor) {
@@ -150,24 +156,36 @@ public class DevflowService {
         }
         if ("H2".equals(gate)) {
             body.put("humanCount", job.seed().human());
+            body.put("holdoutRatio", ledger.settings().holdoutPercent() / 100.0);
         }
         return body;
     }
 
     public synchronized DevflowTypes.SeedResult acceptSeeds(String jobId, List<String> acceptedCaseIds, String actor) {
+        return acceptSeeds(jobId, acceptedCaseIds, List.of(), actor);
+    }
+
+    public synchronized DevflowTypes.SeedResult acceptSeeds(String jobId, List<String> acceptedCaseIds,
+                                                            List<DevflowTypes.SeedCase> cases, String actor) {
         var current = job(jobId);
         if (!"H2".equals(DevflowRules.reviewGate(current))) {
             throw new KeelException(ErrorCode.RUN_NOT_RESUMABLE, ErrorCode.RUN_NOT_RESUMABLE.message());
         }
-        int accepted = acceptedCaseIds == null ? 0 : (int) acceptedCaseIds.stream().filter(id -> id != null && !id.isBlank()).count();
-        var seed = new DevflowTypes.Seed(current.seed().human(), accepted, 0);
-        var next = current.withSeed(seed, event(current, actor, "采纳扩充用例 " + accepted + " 条"));
+        var acceptedIds = acceptedCaseIds == null ? List.<String>of() : acceptedCaseIds.stream()
+                .filter(id -> id != null && !id.isBlank()).distinct().toList();
+        var pool = cases == null ? List.<DevflowTypes.SeedCase>of() : cases.stream()
+                .filter(item -> item != null && acceptedIds.contains(item.caseId())).toList();
+        var hidden = HoldoutRules.split(jobId, pool, ledger.settings().holdoutPercent());
+        var seed = new DevflowTypes.Seed(current.seed().human(), acceptedIds.size(), hidden.size());
+        var next = current.withSeed(seed, event(current, actor, "采纳扩充用例 " + acceptedIds.size() + " 条"));
         commit(() -> {
             ledger.update(next);
-            ledger.artifact(jobId, new DevflowTypes.Artifact("EVALSET", "accepted:" + accepted, null, "HUMAN"));
+            ledger.artifact(jobId, new DevflowTypes.Artifact("EVALSET", "accepted:" + acceptedIds.size(), null, "HUMAN"));
+            holdout.replace(jobId, hidden, actor);
+            holdout.clearResult(jobId);
             audit(next, actor, "devflow.stage", "采纳扩充用例");
         });
-        return new DevflowTypes.SeedResult(seed.human(), 0, accepted);
+        return new DevflowTypes.SeedResult(seed.human(), hidden.size(), acceptedIds.size());
     }
 
     public synchronized DevflowTypes.BatchList batches() {

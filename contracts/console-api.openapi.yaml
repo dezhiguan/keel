@@ -1743,6 +1743,19 @@ paths:
                 acceptedCaseIds:
                   type: array
                   items: { type: string }
+                cases:
+                  type: array
+                  description: 可选。带正文时服务端才切隐藏考题；只传 id 时隐藏考题条数为 0。响应仍不含正文。
+                  items:
+                    type: object
+                    required: [caseId, input, expected, tags]
+                    properties:
+                      caseId: { type: string }
+                      input: { type: object, additionalProperties: true }
+                      expected: { type: object, additionalProperties: true }
+                      tags:
+                        type: array
+                        items: { type: string }
       responses:
         "200":
           description: OK

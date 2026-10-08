@@ -47,6 +47,10 @@ public class ReleaseService {
         if (gateRunId.isBlank() || image.isBlank()) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "gateRunId 和 image 不能为空");
         }
+        var rejection = ReleaseGuard.rejection(devflowJobId(agent), approvedMerge(agent));
+        if (rejection != null) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, rejection);
+        }
         ObjectNode promptVersions = json.createObjectNode();
         if ("prod".equals(env)) {
             prompts.invalidateListCache();
@@ -96,6 +100,20 @@ public class ReleaseService {
         audit.append(agent, "prod", "config.change", "mid", "allowed", "prompt:" + item.fullName(), null,
                 PromptCatalog.Actor.current().userId(), Map.of("version", version, "sha256", sha));
         return Map.of("version", version, "env", "prod");
+    }
+
+    private String devflowJobId(String agent) {
+        var ids = jdbc.query("SELECT devflow_job_id FROM agent WHERE name = ?", (rs, row) -> rs.getString(1), agent);
+        return ids.isEmpty() ? null : ids.getFirst();
+    }
+
+    private boolean approvedMerge(String agent) {
+        var count = jdbc.queryForObject("""
+                SELECT count(*) FROM approval_request
+                WHERE agent_name = ? AND subject_type = 'tool.call' AND subject_ref = 'git.pr.merge'
+                  AND status = 'APPROVED'
+                """, Integer.class, agent);
+        return count != null && count > 0;
     }
 
     private ObjectNode moveProduction(String agent, String gateRunId) {

@@ -4135,6 +4135,17 @@ export interface operations {
             content: {
                 "application/json": {
                     acceptedCaseIds: string[];
+                    /** @description 可选。带正文时服务端才切隐藏考题；只传 id 时隐藏考题条数为 0。响应仍不含正文。 */
+                    cases?: {
+                        caseId: string;
+                        input: {
+                            [key: string]: unknown;
+                        };
+                        expected: {
+                            [key: string]: unknown;
+                        };
+                        tags: string[];
+                    }[];
                 };
             };
         };

@@ -1,6 +1,7 @@
 package com.keel.server.devflow;
 
 import java.util.List;
+import java.util.Map;
 
 /** JSON shape of contracts/console-api.openapi.yaml devflow schemas. */
 public final class DevflowTypes {
@@ -82,7 +83,9 @@ public final class DevflowTypes {
 
     public record Artifact(String kind, String ref, String sha256, String origin) {}
 
-    public record SeedAccept(List<String> acceptedCaseIds) {}
+    public record SeedCase(String caseId, Map<String, Object> input, Map<String, Object> expected, List<String> tags) {}
+
+    public record SeedAccept(List<String> acceptedCaseIds, List<SeedCase> cases) {}
 
     public record SeedResult(int humanCount, int holdoutCount, int acceptedAgentCount) {}
 
