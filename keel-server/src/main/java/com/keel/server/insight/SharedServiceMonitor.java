@@ -323,31 +323,26 @@ public class SharedServiceMonitor {
         }
     }
 
-    /**
-     * Retrieval P95 is a 24h aggregate. Serve a few minutes of cache, and keep the previous
-     * sample on screen while a refresh runs, so opening the page does not wait on Langfuse.
-     */
+    /** Retrieval P95 is a 24h aggregate; Langfuse never blocks the shared services page. */
     private List<LangfuseClient.Retrieval> retrievals(Instant now) {
         synchronized (this) {
             if (retrievalCache != null && retrievalCachedAt != null && retrievalCachedAt.plus(RETRIEVAL_TTL).isAfter(now)) {
                 return retrievalCache;
             }
-            if (retrievalCache != null) {
-                if (retrievalRefresh.compareAndSet(false, true)) {
-                    PROBES.execute(() -> {
-                        try {
-                            storeRetrievals(langfuse.retrievals(Instant.now().minus(Duration.ofHours(24)), Instant.now()));
-                        } finally {
-                            retrievalRefresh.set(false);
-                        }
-                    });
-                }
-                return retrievalCache;
-            }
         }
-        var rows = langfuse.retrievals(now.minus(Duration.ofHours(24)), now);
-        storeRetrievals(rows);
-        return rows;
+        if (retrievalRefresh.compareAndSet(false, true)) {
+            PROBES.execute(() -> {
+                try {
+                    var end = Instant.now();
+                    storeRetrievals(langfuse.retrievals(end.minus(Duration.ofHours(24)), end));
+                } finally {
+                    retrievalRefresh.set(false);
+                }
+            });
+        }
+        synchronized (this) {
+            return retrievalCache;
+        }
     }
 
     private void storeRetrievals(List<LangfuseClient.Retrieval> rows) {
@@ -360,7 +355,7 @@ public class SharedServiceMonitor {
         }
     }
 
-    private void fillFromLangfuse(Map<String, Object> kpi, Map<String, Object> service, List<Map<String, Object>> stages,
+    void fillFromLangfuse(Map<String, Object> kpi, Map<String, Object> service, List<Map<String, Object>> stages,
                                   List<Map<String, Object>> callers, Set<String> allowed) {
         var now = Instant.now();
         var rows = retrievals(now);

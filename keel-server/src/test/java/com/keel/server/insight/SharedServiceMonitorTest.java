@@ -223,17 +223,27 @@ class SharedServiceMonitorTest {
         var rag = (Map<String, Object>) body.get("ragforge");
         @SuppressWarnings("unchecked")
         var kpi = (Map<String, Object>) rag.get("kpi");
-        assertThat(kpi.get("searches24h")).isEqualTo(1L);
-        assertThat(kpi.get("p95Seconds")).isEqualTo(1.0);
+        assertThat(kpi.get("searches24h")).isEqualTo(0L);
+        assertThat(kpi.get("p95Seconds")).isNull();
         assertThat(kpi.get("throttleRate")).isEqualTo(0.03);
         @SuppressWarnings("unchecked")
         var service = named(body, "rag-forge");
         assertThat(service.get("errorRate")).isEqualTo("3.0%");
         @SuppressWarnings("unchecked")
         var callers = (List<Map<String, Object>>) rag.get("callers");
-        assertThat(callers).containsExactly(Map.of("agent", "askdb", "calls", 1));
         @SuppressWarnings("unchecked")
         var stages = (List<Map<String, Object>>) rag.get("stageLatency");
+        assertThat(summaryRead.await(2, TimeUnit.SECONDS)).isTrue();
+        for (int i = 0; i < 200 && observationHits.get() == 0; i++) {
+            Thread.sleep(10);
+        }
+        for (int i = 0; i < 200 && kpi.get("p95Seconds") == null; i++) {
+            monitor.fillFromLangfuse(kpi, service, stages, callers, null);
+            if (kpi.get("p95Seconds") == null) Thread.sleep(10);
+        }
+        assertThat(kpi.get("searches24h")).isEqualTo(1L);
+        assertThat(kpi.get("p95Seconds")).isEqualTo(1.0);
+        assertThat(callers).containsExactly(Map.of("agent", "askdb", "calls", 1));
         assertThat(stages).anySatisfy(stage -> {
             assertThat(stage.get("stage")).isEqualTo("rerank");
             assertThat(stage.get("basis")).isEqualTo("p50");
@@ -241,7 +251,6 @@ class SharedServiceMonitorTest {
         @SuppressWarnings("unchecked")
         var bases = (List<Map<String, Object>>) rag.get("knowledgeBases");
         assertThat(bases.get(0)).containsEntry("recallAt5", null).containsEntry("zeroHitRate", null);
-        assertThat(summaryRead.await(2, TimeUnit.SECONDS)).isTrue();
         assertThat(body.get("consoleUrl")).isEqualTo("https://ragforge.net");
         assertThat(observationHits).hasValue(1);
         monitor.services("all");
