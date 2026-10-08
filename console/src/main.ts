@@ -1,7 +1,17 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import ElementPlus from 'element-plus'
-import 'element-plus/dist/index.css'
+import { ElConfigProvider, ElDialog, ElForm, ElFormItem, ElInput, ElLoading, ElOption, ElSelect } from 'element-plus'
+import 'element-plus/theme-chalk/base.css'
+import 'element-plus/theme-chalk/el-config-provider.css'
+import 'element-plus/theme-chalk/el-dialog.css'
+import 'element-plus/theme-chalk/el-form.css'
+import 'element-plus/theme-chalk/el-form-item.css'
+import 'element-plus/theme-chalk/el-input.css'
+import 'element-plus/theme-chalk/el-loading.css'
+import 'element-plus/theme-chalk/el-message.css'
+import 'element-plus/theme-chalk/el-message-box.css'
+import 'element-plus/theme-chalk/el-option.css'
+import 'element-plus/theme-chalk/el-select.css'
 import 'element-plus/theme-chalk/dark/css-vars.css'
 import './styles/theme.css'
 import './styles/console.css'
@@ -16,5 +26,9 @@ async function enableMocks() {
 }
 
 enableMocks().then(() => {
-  createApp(App).use(createPinia()).directive('write', vWrite).use(router).use(ElementPlus).mount('#app')
+  const app = createApp(App).use(createPinia()).directive('write', vWrite).use(router)
+  for (const component of [ElConfigProvider, ElDialog, ElForm, ElFormItem, ElInput, ElOption, ElSelect]) {
+    app.use(component)
+  }
+  app.use(ElLoading).mount('#app')
 })

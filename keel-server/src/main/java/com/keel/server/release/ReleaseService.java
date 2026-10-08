@@ -8,6 +8,7 @@ import com.keel.server.common.KeelException;
 import com.keel.server.integration.audit.AuditStore;
 import com.keel.server.integration.langfuse.LangfuseClient;
 import com.keel.server.prompt.PromptCatalog;
+import com.keel.server.prompt.PromptService;
 import com.keel.server.prompt.PromptTexts;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -23,13 +24,16 @@ public class ReleaseService {
     private final LangfuseClient langfuse;
     private final JdbcTemplate jdbc;
     private final AuditStore audit;
+    private final PromptService prompts;
     private final ObjectMapper json = new ObjectMapper();
 
-    public ReleaseService(PromptCatalog catalog, LangfuseClient langfuse, JdbcTemplate jdbc, AuditStore audit) {
+    public ReleaseService(PromptCatalog catalog, LangfuseClient langfuse, JdbcTemplate jdbc, AuditStore audit,
+                          PromptService prompts) {
         this.catalog = catalog;
         this.langfuse = langfuse;
         this.jdbc = jdbc;
         this.audit = audit;
+        this.prompts = prompts;
     }
 
     public Map<String, Object> release(String agent, JsonNode body) {
@@ -45,6 +49,7 @@ public class ReleaseService {
         }
         ObjectNode promptVersions = json.createObjectNode();
         if ("prod".equals(env)) {
+            prompts.invalidateListCache();
             promptVersions = moveProduction(agent, gateRunId);
         }
         var version = agentVersion(agent);
@@ -77,6 +82,7 @@ public class ReleaseService {
         }
         var type = remote.path("type").asText("text");
         var sha = PromptTexts.sha256(remote.get("prompt"), "chat".equals(type) ? "chat" : "text");
+        prompts.invalidateListCache();
         langfuse.moveLabel(item.fullName(), version, "production");
         var versions = latestPromptVersions(agent);
         var entry = json.createObjectNode();

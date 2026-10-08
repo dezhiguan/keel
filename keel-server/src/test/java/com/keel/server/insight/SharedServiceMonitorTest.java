@@ -12,10 +12,33 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SharedServiceMonitorTest {
+
+    @Test void repeatedPageReadUsesOneSnapshot() throws Exception {
+        var reads = new AtomicInteger();
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/actuator/keel", exchange -> {
+            reads.incrementAndGet();
+            write(exchange, 200, "{\"knowledgeBases\":[]}");
+        });
+        server.createContext("/actuator/prometheus", exchange -> write(exchange, 200, ""));
+        server.createContext("/", exchange -> write(exchange, 404, ""));
+        server.start();
+        try {
+            var base = "http://127.0.0.1:" + server.getAddress().getPort();
+            var monitor = new SharedServiceMonitor(new RagForgeInsightClient(base, "metrics-reader", "secret"),
+                    new LiteLlmClient("", ""));
+            monitor.services();
+            monitor.services();
+            assertThat(reads).hasValue(1);
+        } finally {
+            server.stop(0);
+        }
+    }
 
     @Test void blankAddressLeavesLatencyNull() {
         var monitor = new SharedServiceMonitor(new RagForgeInsightClient("", "", ""), new LiteLlmClient("", ""));

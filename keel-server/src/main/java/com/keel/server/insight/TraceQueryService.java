@@ -17,6 +17,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class TraceQueryService {
@@ -29,9 +30,8 @@ public class TraceQueryService {
     private final Map<String, double[]> pricesCnyPerToken;
     private final LiteLlmClient pricesSource;
     private final SavedTraces saved;
-    private final Object listCache = new Object();
-    private List<JsonNode> cachedRoots = List.of();
-    private Instant cachedAt = Instant.EPOCH;
+    private final Map<String, CachedRoots> listCache = new ConcurrentHashMap<>();
+    private record CachedRoots(List<JsonNode> rows, Instant at) {}
     private final Object priceCache = new Object();
     private Map<String, double[]> cachedPrices = Map.of();
     private Instant cachedPricesAt = Instant.EPOCH;
@@ -108,7 +108,7 @@ public class TraceQueryService {
     public Map<String, Object> list(int page, int size, String agent, String env, String status,
                                     Instant from, Instant to, boolean multiOnly, Integer minDurationMs) {
         try {
-            var rows = rootObservations();
+            var rows = rootObservations(from);
             var byTrace = new LinkedHashMap<String, List<JsonNode>>();
             for (var row : rows) {
                 byTrace.computeIfAbsent(row.path("traceId").asText(""), key -> new ArrayList<>()).add(row);
@@ -142,22 +142,22 @@ public class TraceQueryService {
         return saved.list(page, size, agent, env, status, from, to, multiOnly, minDurationMs);
     }
 
-    /** One Langfuse read of the last 7 days, reused for 30 seconds. Narrower windows are filtered in memory. */
-    private List<JsonNode> rootObservations() {
+    /** Reuse a coarse upstream window, then apply the exact user filters in memory. */
+    private List<JsonNode> rootObservations(Instant from) {
         var now = Instant.now();
-        synchronized (listCache) {
-            if (!cachedAt.equals(Instant.EPOCH) && cachedAt.plus(LIST_TTL).isAfter(now)) {
-                return cachedRoots;
+        var window = from != null && !from.isBefore(now.minus(Duration.ofMinutes(75))) ? Duration.ofHours(2)
+                : from != null && !from.isBefore(now.minus(Duration.ofHours(25))) ? Duration.ofHours(26)
+                : LIST_WINDOW;
+        var key = window.toString();
+        return listCache.compute(key, (unused, cached) -> {
+            if (cached != null && cached.at().plus(LIST_TTL).isAfter(now)) {
+                return cached;
             }
-        }
-        var body = langfuse.observationsBetween(now.minus(LIST_WINDOW), now);
-        var loaded = new ArrayList<JsonNode>();
-        body.path("data").forEach(loaded::add);
-        synchronized (listCache) {
-            cachedRoots = List.copyOf(loaded);
-            cachedAt = now;
-            return cachedRoots;
-        }
+            var body = langfuse.observationsBetween(now.minus(window), now);
+            var loaded = new ArrayList<JsonNode>();
+            body.path("data").forEach(loaded::add);
+            return new CachedRoots(List.copyOf(loaded), now);
+        }).rows();
     }
 
     private Map<String, Object> page(int page, int size, List<Map<String, Object>> matched) {

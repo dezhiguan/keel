@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,6 +32,7 @@ import java.util.function.Function;
 public class SharedServiceMonitor {
     private static final ExecutorService PROBES = Executors.newVirtualThreadPerTaskExecutor();
     private static final Duration RETRIEVAL_TTL = Duration.ofMinutes(3);
+    private static final Duration SERVICES_TTL = Duration.ofSeconds(30);
 
     private final RagForgeInsightClient ragforge;
     private final LiteLlmClient gateway;
@@ -41,6 +43,10 @@ public class SharedServiceMonitor {
     private final AtomicBoolean retrievalRefresh = new AtomicBoolean();
     private List<LangfuseClient.Retrieval> retrievalCache;
     private Instant retrievalCachedAt;
+    private final Map<String, CachedServices> servicesCache = new ConcurrentHashMap<>();
+    private final Set<String> refreshingServices = ConcurrentHashMap.newKeySet();
+
+    private record CachedServices(Map<String, Object> value, Instant at) {}
 
     public SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway) {
         this(ragforge, gateway, (Function<String, List<String>>) null, new LangfuseClient("", "", ""));
@@ -77,12 +83,36 @@ public class SharedServiceMonitor {
 
     public Map<String, Object> services(String env) {
         var scope = env == null || env.isBlank() ? "all" : env;
+        var cached = servicesCache.get(scope);
+        if (cached != null) {
+            if (cached.at().plus(SERVICES_TTL).isBefore(Instant.now()) && refreshingServices.add(scope)) {
+                PROBES.execute(() -> {
+                    try {
+                        servicesCache.put(scope, new CachedServices(loadServices(scope), Instant.now()));
+                    } catch (RuntimeException ignored) {
+                        // Keep the last measured snapshot while an upstream is unavailable.
+                    } finally {
+                        refreshingServices.remove(scope);
+                    }
+                });
+            }
+            return cached.value();
+        }
+        return servicesCache.computeIfAbsent(scope,
+                key -> new CachedServices(loadServices(key), Instant.now())).value();
+    }
+
+    private Map<String, Object> loadServices(String scope) {
         Set<String> allowed = null;
         if (!"all".equals(scope) && namesInEnv != null) {
             allowed = new HashSet<>(namesInEnv.apply(scope));
         }
-        JsonNode insight = ragforge.configured() ? ragforge.insight() : null;
-        var scrape = ragforge.configured() ? ragforge.prometheus() : new RagForgeInsightClient.Scrape(List.of(), 0);
+        var platform = PROBES.submit(() -> withPlatform(Map.of()));
+        var insightRead = PROBES.submit(() -> ragforge.configured() ? ragforge.insight() : null);
+        var scrapeRead = PROBES.submit(() -> ragforge.configured() ? ragforge.prometheus() : new RagForgeInsightClient.Scrape(List.of(), 0));
+        var gatewayCostRead = PROBES.submit(() -> gatewayCost(scope));
+        JsonNode insight = completed(insightRead, null);
+        var scrape = completed(scrapeRead, new RagForgeInsightClient.Scrape(List.of(), 0));
         boolean up = ragforge.configured() && (insight != null || !scrape.bodies().isEmpty() || ragforge.up());
         var samples = new ArrayList<PrometheusExposition.Sample>();
         scrape.bodies().forEach(body -> samples.addAll(PrometheusExposition.parse(body)));
@@ -108,8 +138,8 @@ public class SharedServiceMonitor {
         var bases = insight == null ? List.<JsonNode>of() : children(insight.path("knowledgeBases"));
         kpi.put("kbCount", insight == null ? null : bases.size());
         kpi.put("staleKbCount", insight == null ? null : bases.stream().filter(row -> row.path("stale").asBoolean(false)).count());
-        var gatewaySpent = gatewayCost(scope);
-        kpi.put("modelCostCny", gatewaySpent != null ? gatewaySpent : cost(insight, scope));
+        var gatewaySpent = completed(gatewayCostRead, null);
+        kpi.put("modelCostCny", gatewaySpent != null ? gatewaySpent : "all".equals(scope) ? number(insight, "modelCostCny") : null);
         kpi.put("costSource", gatewaySpent != null ? "gateway" : "ragforge");
 
         var callers = PrometheusExposition.callers(samples);
@@ -132,10 +162,24 @@ public class SharedServiceMonitor {
         rag.put("knowledgeBases", knowledge);
 
         var body = new LinkedHashMap<String, Object>();
-        body.put("services", withPlatform(service));
+        var serviceRows = new ArrayList<>(completed(platform, List.<Map<String, Object>>of()));
+        if (serviceRows.size() == 7) {
+            serviceRows.set(4, service);
+        } else {
+            serviceRows = new ArrayList<>(withPlatform(service));
+        }
+        body.put("services", serviceRows);
         body.put("ragforge", rag);
         body.put("consoleUrl", "https://ragforge.net");
         return body;
+    }
+
+    private static <T> T completed(java.util.concurrent.Future<T> future, T fallback) {
+        try {
+            return future.get();
+        } catch (Exception e) {
+            return fallback;
+        }
     }
 
     private List<Map<String, Object>> withPlatform(Map<String, Object> ragforge) {
@@ -217,25 +261,33 @@ public class SharedServiceMonitor {
     }
 
     private void fillRecall(List<Map<String, Object>> knowledge) {
-        var available = true;
-        for (var row : knowledge) {
-            if (!available || row.get("recallAt5") != null) {
-                continue;
-            }
-            var summary = ragforge.evalSummary(String.valueOf(row.get("kb")));
-            if (summary == null) {
-                available = false;
-                continue;
-            }
-            var recall = number(summary, "recallAt5");
-            if (recall != null) {
-                row.put("recallAt5", recall);
-            }
-            if (row.get("zeroHitRate") == null) {
-                var zero = number(summary, "zeroResultRate");
-                if (zero != null) {
-                    row.put("zeroHitRate", zero);
+        var pending = knowledge.stream().filter(row -> row.get("recallAt5") == null).toList();
+        for (int offset = 0; offset < pending.size(); offset += 4) {
+            var batch = pending.subList(offset, Math.min(offset + 4, pending.size()));
+            var reads = batch.stream()
+                    .map(row -> PROBES.submit(() -> ragforge.evalSummary(String.valueOf(row.get("kb")))))
+                    .toList();
+            var available = true;
+            for (int i = 0; i < batch.size(); i++) {
+                var summary = completed(reads.get(i), null);
+                if (summary == null) {
+                    available = false;
+                    continue;
                 }
+                var row = batch.get(i);
+                var recall = number(summary, "recallAt5");
+                if (recall != null) {
+                    row.put("recallAt5", recall);
+                }
+                if (row.get("zeroHitRate") == null) {
+                    var zero = number(summary, "zeroResultRate");
+                    if (zero != null) {
+                        row.put("zeroHitRate", zero);
+                    }
+                }
+            }
+            if (!available) {
+                break;
             }
         }
     }
@@ -365,17 +417,6 @@ public class SharedServiceMonitor {
 
     private static String percent(double rate) {
         return String.format(Locale.US, "%.1f%%", rate * 100);
-    }
-
-    private Double cost(JsonNode insight, String env) {
-        Double fromGateway = gatewayCost(env);
-        if (fromGateway != null) {
-            return fromGateway;
-        }
-        if (env != null && !env.isBlank() && !"all".equals(env)) {
-            return null;
-        }
-        return number(insight, "modelCostCny");
     }
 
     /** Present only when a rag-forge virtual key exists in this environment. */

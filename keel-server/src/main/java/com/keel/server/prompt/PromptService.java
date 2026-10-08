@@ -18,10 +18,20 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class PromptService {
     private static final Set<String> ENV_LABELS = Set.of("dev", "test", "staging", "production");
+    private static final Duration LIST_TTL = Duration.ofSeconds(30);
+    private static final java.util.concurrent.ExecutorService VERSION_READS = Executors.newVirtualThreadPerTaskExecutor();
+    private static final Semaphore VERSION_READ_LIMIT = new Semaphore(4);
 
     private final PromptCatalog catalog;
     private final LangfuseClient langfuse;
@@ -30,6 +40,10 @@ public class PromptService {
     private final ObjectMapper json = new ObjectMapper();
     private final String langfuseHost;
     private final String projectId;
+    private final Map<String, CachedList> listCache = new ConcurrentHashMap<>();
+    private final AtomicLong listRevision = new AtomicLong();
+
+    private record CachedList(Map<String, Object> value, Instant at) {}
 
     public PromptService(PromptCatalog catalog, LangfuseClient langfuse, JdbcTemplate jdbc, AuditStore audit,
                          @Value("${LANGFUSE_HOST:}") String langfuseHost,
@@ -47,6 +61,23 @@ public class PromptService {
         if (!selected.equals("all") && !Set.of("dev", "test", "staging", "prod").contains(selected)) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "env 只能是 all、dev、test、staging、prod");
         }
+        var actor = PromptCatalog.Actor.current();
+        var key = actor.userId() + ":" + actor.org() + ":" + actor.role() + ":" + selected + ":" + (agent == null ? "" : agent);
+        var cached = listCache.get(key);
+        if (cached != null && cached.at().plus(LIST_TTL).isAfter(Instant.now())) {
+            return cached.value();
+        }
+        var revision = listRevision.get();
+        var result = loadList(selected, agent);
+        synchronized (listCache) {
+            if (listRevision.get() == revision) {
+                listCache.put(key, new CachedList(result, Instant.now()));
+            }
+        }
+        return result;
+    }
+
+    private Map<String, Object> loadList(String selected, String agent) {
         requireLangfuse();
         var items = new ArrayList<Map<String, Object>>();
         var seen = new ArrayList<String>();
@@ -74,6 +105,13 @@ public class PromptService {
         body.put("langfuseUrl", promptsUrl());
         body.put("items", items);
         return body;
+    }
+
+    public void invalidateListCache() {
+        synchronized (listCache) {
+            listRevision.incrementAndGet();
+            listCache.clear();
+        }
     }
 
     public Map<String, Object> detail(String agent, String name) {
@@ -133,6 +171,7 @@ public class PromptService {
             diffLines = number(diff.get("added")) + number(diff.get("removed"));
         }
         writeAudit(agent, "staging", "low", item, payload(version, sha, diffLines, null, text(body, "gitSha"), null));
+        invalidateListCache();
         return Map.of("version", version, "sha256", sha);
     }
 
@@ -163,6 +202,7 @@ public class PromptService {
                     """, agent, name, version, remote.sha(), PromptCatalog.Actor.current().userId());
         }
         writeAudit(agent, env, "staging".equals(env) ? "mid" : "low", item, payload(version, remote.sha(), null, null, null, null));
+        invalidateListCache();
         var result = new LinkedHashMap<String, Object>();
         result.put("env", env);
         result.put("version", version);
@@ -173,6 +213,7 @@ public class PromptService {
     public Map<String, Object> sync(String agent, JsonNode body) {
         catalog.authorize(agent);
         requireLangfuse();
+        invalidateListCache();
         var gitSha = body.path("gitSha").asText("").trim();
         if (gitSha.isBlank()) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "gitSha 不能为空");
@@ -208,6 +249,7 @@ public class PromptService {
             writeAudit(agent, "staging", "low", item, payload(version, sha, null, null, gitSha, null));
             created.add(Map.of("name", name, "version", version));
         }
+        invalidateListCache();
         return Map.of("created", created);
     }
 
@@ -244,6 +286,7 @@ public class PromptService {
         for (var row : open) {
             jdbc.update("UPDATE prompt_promotion SET gate_status = ?, gate_run_id = ? WHERE id = ?", status, gateRunId, row[0]);
         }
+        invalidateListCache();
         return Map.of("updated", open.size(), "gate", status.toLowerCase());
     }
 
@@ -508,11 +551,20 @@ public class PromptService {
                 }
             });
         });
+        var reads = numbers.stream().map(number -> CompletableFuture.supplyAsync(() -> {
+            VERSION_READ_LIMIT.acquireUninterruptibly();
+            try {
+                var body = langfuse.getPrompt(fullName, number, null);
+                return body == null ? null : remote(body);
+            } finally {
+                VERSION_READ_LIMIT.release();
+            }
+        }, VERSION_READS)).toList();
         var versions = new ArrayList<Remote>();
-        for (var number : numbers) {
-            var body = langfuse.getPrompt(fullName, number, null);
-            if (body != null) {
-                versions.add(remote(body));
+        for (var read : reads) {
+            var version = read.join();
+            if (version != null) {
+                versions.add(version);
             }
         }
         versions.sort((a, b) -> Integer.compare(a.version(), b.version()));

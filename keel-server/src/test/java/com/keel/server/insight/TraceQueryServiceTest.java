@@ -11,11 +11,44 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.time.Duration;
+import java.time.Instant;
+import java.net.URLDecoder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TraceQueryServiceTest {
+
+    @Test void listReadsOnlyTheSelectedTimeWindowAndReusesIt() throws Exception {
+        var starts = new ArrayList<Instant>();
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            var query = URLDecoder.decode(exchange.getRequestURI().getRawQuery(), StandardCharsets.UTF_8);
+            for (var part : query.split("&")) {
+                if (part.startsWith("fromStartTime=")) {
+                    starts.add(Instant.parse(part.substring("fromStartTime=".length())));
+                }
+            }
+            byte[] bytes = "{\"data\":[]}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var service = new TraceQueryService(client(server), "", "", Map.of());
+            var now = Instant.now();
+            service.list(1, 10, "", "all", null, now.minus(Duration.ofHours(1)), now, false, null);
+            service.list(1, 10, "", "all", null, now.minus(Duration.ofHours(1)), now, false, null);
+            service.list(1, 10, "", "all", null, now.minus(Duration.ofHours(24)), now, false, null);
+            assertThat(starts).hasSize(2);
+            var differenceMs = Duration.between(starts.get(1), starts.get(0)).toMillis();
+            assertThat(Math.abs(differenceMs - Duration.ofHours(24).toMillis())).isLessThan(2_000L);
+        } finally {
+            server.stop(0);
+        }
+    }
 
     @Test void detailShowsObservationInputAndOutput() throws Exception {
         var paths = new ArrayList<String>();
