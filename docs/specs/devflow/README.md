@@ -9,6 +9,7 @@
 
 | 状态 | 任务 |
 |---|---|
+| 已完成 | [DF-5c 建仓库并开 PR](DF-5c-repo.md)：确认后经 Git 服务建库、推 `draft`、开 PR。不合并。未配置地址时不访问网络 |
 | 已完成 | [DF-5b 项目骨架](DF-5b-scaffold.md)：`keel new --from-spec` 按已确认的需求单复制模板。沙箱里跑测试仍不做 |
 | 已完成 | DF-5a 元智能体第一步：需求单与岗位说明书（本地 `keel dev` 跑通） |
 | 已完成（控制台 mock） | DF-9a 研发任务页：看板、详情、人工接管；批次和规则页按原型可点。keel-server 归 DF-2 / DF-11 |
@@ -59,7 +60,7 @@ meta-agent 是整个体系里唯一手写的智能体。底座能力是逐步补
 |---|---|---|---|
 | DF-5a | 需求 → 需求单 + 岗位说明书草稿（manifest 按契约校验）→ 需求确认挂起 → 确认或按意见修改 | 无（本地 `keel dev`） | [DF-5-meta-agent.md](DF-5-meta-agent.md) |
 | DF-5b | 生成项目骨架（`keel new --from-spec`）。沙箱 pytest 与协议自检仍不做 | DF-3 | [DF-5b-scaffold.md](DF-5b-scaffold.md) |
-| DF-5c | 建仓库、推分支、开 PR；人机协作 review | DF-4 | 同上，第 M3 节 |
+| DF-5c | 建仓库、推 `draft`、开 PR。不合并，也不在冲突时挂起问人 | DF-4 | [DF-5c-repo.md](DF-5c-repo.md) |
 | DF-5d | 注册 staging、跑门禁、申请合并（发布审批）；接 devflow 任务账本 | DF-2 D0-1 D0-3 DF-8 | 同上，第 M4 节 |
 
-三条可以并行的线：**契约线** DF-1 → DF-9*；**元智能体线** 下一步是 DF-5c；**底座线** D0-* → DF-2 → DF-3 / DF-4。
+三条可以并行的线：**契约线** DF-1 → DF-9*；**元智能体线** 下一步是 DF-5d；**底座线** D0-* → DF-2 → DF-3 / DF-4。

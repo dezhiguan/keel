@@ -157,11 +157,18 @@ def _finish(ctx, state: dict):
     (folder / "spec.json").write_text(_dump(state["spec"]), encoding="utf-8")
     (folder / "agent.yaml").write_text(_yaml(state["manifest"]), encoding="utf-8")
     from keel.cli.new import create_from_spec
+    from keel.cli.repo import open_draft
     project = create_from_spec(folder / "spec.json", root=folder)
+    title = str(state["spec"].get("title") or state["target_agent"])
+    try:
+        opened = open_draft(project, title=title, body=str(state["spec"].get("goal") or ""))
+    except ValueError as exc:
+        raise KeelError(ErrorCode.GIT_UPSTREAM_FAILED, str(exc)) from exc
+    repo_line = "仓库未建：未配置 KEEL_GIT_CI_URL。" if opened is None else f"PR：{opened.get('repo')} #{opened.get('number')}"
     ctx.step("confirmed")
     return ctx.final(f"{_render(state)}\n\n产物：`{folder}/spec.json`、`{folder}/agent.yaml`\n"
-                     f"骨架：`{project}`\n\n"
-                     "后续步骤：建仓库开 PR、staging 门禁与发布申请。沙箱里跑测试仍未做。")
+                     f"骨架：`{project}`\n{repo_line}\n\n"
+                     "后续步骤：staging 门禁与发布申请。合并要等发布审批。")
 
 
 def _render(state: dict) -> str:

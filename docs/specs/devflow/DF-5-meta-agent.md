@@ -119,9 +119,7 @@ cd sdk-python && ../.venv/bin/python -m pytest tests/test_runtime.py -q
 
 ### M3 · DF-5c 仓库与人机协作
 
-- 前置：DF-4 Git MCP（`git.repo.create`、`git.branch.push`、`git.pr.open`）和分支保护。
-- 研发层任务强制人机协作：每个 PR 需要至少 1 个人工 approve；人写的提交作为基线，冲突时挂起问人。
-- meta-agent 的仓库不在 `keel-agents/` 组织下，研发智能体都没有写权限。
+可执行范围见 [DF-5c-repo.md](DF-5c-repo.md)：确认后经 Git 服务建库、推 `draft`、开 PR。不合并。和人写的提交冲突时挂起，仍未做。
 
 ### M4 · DF-5d 门禁、发布申请、任务账本
 
