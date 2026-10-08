@@ -26,6 +26,7 @@ const groups = computed(() => {
 
 const title = computed(() => String(route.meta.title ?? ''))
 const traceId = computed(() => (route.path.startsWith('/traces/') ? String(route.params.id ?? '') : ''))
+const jobCrumb = computed(() => (typeof route.params.jobId === 'string' ? route.params.jobId : ''))
 const promptCrumb = computed(() => {
   const match = route.path.match(/^\/prompts\/([^/]+)\/([^/]+)$/)
   if (!match) return ''
@@ -84,6 +85,7 @@ watch(() => envStore.env, (env) => {
             :class="{ 'router-link-active': isNavActive(item.path, route.path) }"
           >
             <i>{{ item.icon }}</i>{{ item.title }}
+            <span v-if="item.badge" class="nt">{{ item.badge }}</span>
             <span v-if="item.path === '/approvals' && approvalsStore.pending" class="cnt">{{ approvalsStore.pending }}</span>
           </RouterLink>
         </template>
@@ -103,6 +105,9 @@ watch(() => envStore.env, (env) => {
           Keel 控制台 /
           <template v-if="traceId">
             <RouterLink to="/traces">链路追踪</RouterLink> / <b class="mono">{{ traceId }}</b>
+          </template>
+          <template v-else-if="jobCrumb">
+            <RouterLink to="/jobs">研发任务</RouterLink> / <b class="mono">{{ jobCrumb }}</b>
           </template>
           <template v-else-if="promptCrumb">
             <RouterLink to="/prompts">提示词</RouterLink> / <b class="mono">{{ promptCrumb }}</b>
@@ -168,6 +173,7 @@ watch(() => envStore.env, (env) => {
 .nav a.router-link-active { background: var(--panel3); color: var(--white); }
 .nav a.router-link-active i { color: var(--acc); }
 .cnt { margin-left: auto; background: var(--acc); color: #fff; border-radius: 8px; padding: 0 6px; font-size: 11px; }
+.nt { margin-left: auto; font-size: 9.5px; border-radius: 3px; padding: 0 4px; font-weight: 700; background: var(--acc); color: #1a0d05; }
 .me { color: var(--mute); font-size: 12px; padding: 12px 10px 0; border-top: 1px solid var(--line); line-height: 1.6; }
 .me b { color: var(--white); }
 .me a { color: var(--soft); cursor: pointer; }

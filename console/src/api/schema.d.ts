@@ -927,6 +927,196 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/devflow/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 研发任务看板
+         * @description summary 是顶部数字，不受筛选影响。items 受 query 筛选。首次门禁通过率在 DF-9d 之前可以是样本值。
+         */
+        get: operations["listDevflowJobs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/jobs/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        /** 研发任务详情 */
+        get: operations["getDevflowJob"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/jobs/{jobId}/takeover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 人工接管开发
+         * @description 允许：RUN 且阶段为 BUILD / REVIEW / GATE，或 FAIL，或 WAIT 且 needReview。
+         *     接管后 status=HUMAN。阶段为 REVIEW 时回到 BUILD；阶段已过 GATE 时停在 GATE。
+         */
+        post: operations["takeoverDevflowJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/jobs/{jobId}/handback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 交还智能体或提交门禁
+         * @description 只接受 status=HUMAN。完成后 status=RUN、stage=REVIEW。
+         */
+        post: operations["handbackDevflowJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/jobs/{jobId}/assist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 请智能体在指定范围内帮忙
+         * @description 只接受 status=HUMAN。instruction 去空白后不能为空。
+         */
+        post: operations["assistDevflowJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/jobs/{jobId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 取消研发任务
+         * @description RUN / WAIT / HUMAN / QUEUED 可取消。阶段为 WATCH 时拒绝。
+         */
+        post: operations["cancelDevflowJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 研发任务批次 */
+        get: operations["listDevflowBatches"];
+        put?: never;
+        /**
+         * 创建批次
+         * @description 跳过 flag 非空的行。第一条试产为 RUN，其余 QUEUED。草案，校验归 DF-11。
+         */
+        post: operations["createDevflowBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/batches/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 预检需求表
+         * @description 草案。mock 返回固定的 5 行预检结果，文件解析归 DF-11。
+         */
+        post: operations["previewDevflowBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 研发任务规则 */
+        get: operations["getDevflowSettings"];
+        /**
+         * 保存研发任务规则
+         * @description 仅平台管理员。模板列表不能为空。保存写 config.change 审计，归 DF-2。
+         */
+        put: operations["updateDevflowSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1642,6 +1832,122 @@ export interface components {
                 timeoutSeconds?: number;
             }[];
         };
+        /** @enum {string} */
+        DevflowLayer: "META" | "DEV" | "BIZ";
+        /** @enum {string} */
+        DevflowKind: "CREATE" | "CHANGE";
+        /** @enum {string} */
+        DevflowMode: "AUTO" | "COLLAB" | "SCAFFOLD";
+        /** @enum {string} */
+        DevflowStatus: "RUN" | "WAIT" | "HUMAN" | "QUEUED" | "DONE" | "FAIL" | "CANCEL";
+        /**
+         * @description SPEC 需求、H1 需求确认、EVAL 评测准备、H2 评测确认、H3 授权、BUILD 开发、REVIEW 评审、GATE 门禁、H4 发布审批、RELEASE 发布、WATCH 上线观察
+         * @enum {string}
+         */
+        DevflowStage: "SPEC" | "H1" | "EVAL" | "H2" | "H3" | "BUILD" | "REVIEW" | "GATE" | "H4" | "RELEASE" | "WATCH";
+        DevflowSeed: {
+            /** @description 人给用例条数，含稍后切出的隐藏考题 */
+            human: number;
+            /** @description 智能体扩充并被采纳的条数 */
+            agent: number;
+            /** @description 隐藏考题条数。接口不返回考题内容 */
+            holdout: number;
+        };
+        DevflowToolRef: {
+            name: string;
+            risk: components["schemas"]["Risk"];
+            owner: string;
+        };
+        DevflowEvent: {
+            /** @description 展示用时间，短格式，如 10:53 或 10-07 */
+            at: string;
+            actor: string;
+            summary: string;
+        };
+        DevflowJob: {
+            /** @example DF-0019 */
+            jobId: string;
+            title: string;
+            layer: components["schemas"]["DevflowLayer"];
+            kind: components["schemas"]["DevflowKind"];
+            mode: components["schemas"]["DevflowMode"];
+            status: components["schemas"]["DevflowStatus"];
+            stage: components["schemas"]["DevflowStage"];
+            targetAgent: string;
+            producerAgent: string;
+            template: string;
+            /** Format: float */
+            spentCny: number;
+            /** Format: float */
+            budgetCny: number;
+            fixRounds: number;
+            maxFixRounds: number;
+            batchId?: string | null;
+            /** @description 人机协作，等待人工 approve PR */
+            needReview: boolean;
+            humanDevUser?: string | null;
+            /** @description 上线观察第几天，从 1 起 */
+            watchDay?: number | null;
+            requester: string;
+            ownerOrg: string;
+            goal: string;
+            tools: components["schemas"]["DevflowToolRef"][];
+            knowledge: string[];
+            seed: components["schemas"]["DevflowSeed"];
+            events: components["schemas"]["DevflowEvent"][];
+        };
+        DevflowBoardSummary: {
+            active: number;
+            queued: number;
+            dailyLimit: number;
+            /** @description 等需求确认、评测确认、发布审批或人工 review 的任务数 */
+            waitingHuman: number;
+            humanDev: number;
+            /**
+             * Format: float
+             * @description 0 到 1。DF-9d 之前为样本值
+             */
+            firstGatePassRate: number;
+            /** Format: float */
+            withinRoundsPassRate: number;
+            /** Format: float */
+            spentCny: number;
+        };
+        DevflowJobList: {
+            summary: components["schemas"]["DevflowBoardSummary"];
+            items: components["schemas"]["DevflowJob"][];
+        };
+        DevflowBatch: {
+            /** @example B-03 */
+            batchId: string;
+            title: string;
+            requester: string;
+            concurrency: number;
+            pilotJobId: string;
+            pilotPassed: boolean;
+            createdAt: string;
+            jobs: components["schemas"]["DevflowJob"][];
+        };
+        DevflowBatchPreviewRow: {
+            targetAgent: string;
+            title: string;
+            mode: components["schemas"]["DevflowMode"];
+            owner: string;
+            /** @description 预检问题。为空表示可生产。用 bad: 或 warn: 前缀区分严重程度 */
+            flag?: string | null;
+        };
+        DevflowSettings: {
+            /** Format: float */
+            budgetCny: number;
+            maxFixRounds: number;
+            holdoutPercent: number;
+            minSeed: number;
+            /** Format: float */
+            keyCapCny: number;
+            dailyLimit: number;
+            concurrency: number;
+            templates: string[];
+        };
     };
     responses: {
         /** @description 统一错误体 */
@@ -1660,6 +1966,7 @@ export interface components {
         Size: 10 | 20 | 50 | 100;
         AgentName: string;
         ToolName: string;
+        DevflowJobId: string;
     };
     requestBodies: never;
     headers: never;
@@ -3156,6 +3463,298 @@ export interface operations {
                     };
                 };
             };
+        };
+    };
+    listDevflowJobs: {
+        parameters: {
+            query?: {
+                layer?: components["schemas"]["DevflowLayer"];
+                status?: components["schemas"]["DevflowStatus"];
+                stage?: components["schemas"]["DevflowStage"];
+                batch?: string;
+                /** @description 为 true 时只留当前用户提出的任务 */
+                mine?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowJobList"];
+                    };
+                };
+            };
+        };
+    };
+    getDevflowJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowJob"];
+                    };
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    takeoverDevflowJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowJob"];
+                    };
+                };
+            };
+            /** @description 当前阶段不能接管 */
+            400: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    handbackDevflowJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowJob"];
+                    };
+                };
+            };
+            400: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    assistDevflowJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    instruction: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowJob"];
+                    };
+                };
+            };
+            400: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    cancelDevflowJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowJob"];
+                    };
+                };
+            };
+            400: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    listDevflowBatches: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            items: components["schemas"]["DevflowBatch"][];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    createDevflowBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title: string;
+                    rows: components["schemas"]["DevflowBatchPreviewRow"][];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowBatch"];
+                    };
+                };
+            };
+            400: components["responses"]["Error"];
+        };
+    };
+    previewDevflowBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            rows: components["schemas"]["DevflowBatchPreviewRow"][];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    getDevflowSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowSettings"];
+                    };
+                };
+            };
+        };
+    };
+    updateDevflowSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DevflowSettings"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowSettings"];
+                    };
+                };
+            };
+            400: components["responses"]["Error"];
         };
     };
 }

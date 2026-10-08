@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw'
 import { sharedServices } from './data/services'
 import { dependentsOf, toolDetail, tools } from './data/tools'
 import { approvals, suspendedRuns } from './data/approvals'
+import { assist, boardPayload, cancel, createBatch, findJob, handback, listBatches, previewRows, saveSettings, settings, takeover } from './data/jobs'
 
 // Leading wildcard so the same handlers match in the browser and under msw/node (which has no page origin).
 const BASE = '*/api/v1'
@@ -190,6 +191,44 @@ export const handlers = [
   }),
 
   http.get(`${BASE}/runs`, ({ request }) => ok(paged(new URL(request.url), suspendedRuns))),
+
+  http.get(`${BASE}/devflow/jobs`, ({ request }) => ok(boardPayload(new URL(request.url).searchParams))),
+  http.get(`${BASE}/devflow/jobs/:jobId`, ({ params }) => {
+    const job = findJob(String(params.jobId))
+    return job ? ok(job) : fail(404, 'SERVER_NOT_FOUND', '资源不存在')
+  }),
+  http.post(`${BASE}/devflow/jobs/:jobId/takeover`, ({ params }) => {
+    const result = takeover(String(params.jobId))
+    return result.status === 200 ? ok(result.job) : fail(result.status, result.status === 404 ? 'SERVER_NOT_FOUND' : 'SERVER_INVALID_PARAM', result.message)
+  }),
+  http.post(`${BASE}/devflow/jobs/:jobId/handback`, ({ params }) => {
+    const result = handback(String(params.jobId))
+    return result.status === 200 ? ok(result.job) : fail(result.status, result.status === 404 ? 'SERVER_NOT_FOUND' : 'SERVER_INVALID_PARAM', result.message)
+  }),
+  http.post(`${BASE}/devflow/jobs/:jobId/assist`, async ({ params, request }) => {
+    const body = (await request.json().catch(() => ({}))) as { instruction?: string }
+    const result = assist(String(params.jobId), body.instruction ?? '')
+    return result.status === 200 ? ok(result.job) : fail(result.status, result.status === 404 ? 'SERVER_NOT_FOUND' : 'SERVER_INVALID_PARAM', result.message)
+  }),
+  http.post(`${BASE}/devflow/jobs/:jobId/cancel`, ({ params }) => {
+    const result = cancel(String(params.jobId))
+    return result.status === 200 ? ok(result.job) : fail(result.status, result.status === 404 ? 'SERVER_NOT_FOUND' : 'SERVER_INVALID_PARAM', result.message)
+  }),
+  http.get(`${BASE}/devflow/batches`, () => ok(listBatches())),
+  http.post(`${BASE}/devflow/batches/preview`, () => ok({ rows: previewRows })),
+  http.post(`${BASE}/devflow/batches`, async ({ request }) => {
+    const body = (await request.json()) as { title?: string; rows?: Parameters<typeof createBatch>[1] }
+    const result = createBatch(body.title ?? '', body.rows ?? [])
+    if ('error' in result) return fail(400, 'SERVER_INVALID_PARAM', result.error ?? '请求参数不合法')
+    return ok(result.batch)
+  }),
+  http.get(`${BASE}/devflow/settings`, () => ok(settings)),
+  http.put(`${BASE}/devflow/settings`, async ({ request }) => {
+    const body = (await request.json()) as Parameters<typeof saveSettings>[0]
+    const result = saveSettings(body)
+    if ('error' in result) return fail(400, 'SERVER_INVALID_PARAM', result.error ?? '请求参数不合法')
+    return ok(result.settings)
+  }),
 
   http.post(`${BASE}/runs/:runId/input`, ({ params }) => {
     const index = suspendedRuns.findIndex((r) => r.runId === params.runId)

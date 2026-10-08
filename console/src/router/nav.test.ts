@@ -13,6 +13,8 @@ describe('sidebar active item', () => {
     expect(isNavActive('/traces', '/traces')).toBe(true)
     expect(isNavActive('/prompts', '/prompts/ops-copilot/system')).toBe(true)
     expect(isNavActive('/agents', '/agents/new')).toBe(true)
+    expect(isNavActive('/jobs', '/jobs/DF-0019')).toBe(true)
+    expect(isNavActive('/jobs', '/jobs/batches')).toBe(true)
     expect(isNavActive('/eval', '/evaluation')).toBe(false)
   })
 })

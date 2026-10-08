@@ -8,7 +8,7 @@ const BASE = 'http://localhost/api/v1'
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterAll(() => server.close())
 
-async function call(method: 'GET' | 'POST', path: string, body?: unknown) {
+async function call(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown) {
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: { 'content-type': 'application/json' },
@@ -64,6 +64,55 @@ describe('mock handlers', () => {
   it('resumes a suspended run only once', async () => {
     expect((await call('POST', '/runs/r_7b4a/input', { text: '先修 WT-07' })).status).toBe(200)
     expect((await call('POST', '/runs/r_7b4a/input', { text: 'again' })).json.code).toBe('RUN_NOT_RESUMABLE')
+  })
+
+  it('lists the devflow board with the prototype sample', async () => {
+    const res = await call('GET', '/devflow/jobs')
+    expect(res.status).toBe(200)
+    expect(res.json.data.summary).toMatchObject({ active: 8, queued: 2, waitingHuman: 4, humanDev: 1, dailyLimit: 3 })
+    expect(res.json.data.summary.spentCny).toBeCloseTo(227.6)
+    expect(res.json.data.items.map((job: { jobId: string }) => job.jobId)).toContain('DF-0019')
+    expect((await call('GET', '/devflow/jobs/DF-missing')).status).toBe(404)
+  })
+
+  it('rejects takeover of a finished job and accepts a review that is waiting', async () => {
+    const denied = await call('POST', '/devflow/jobs/DF-0013/takeover')
+    expect(denied.status).toBe(400)
+    expect(denied.json.code).toBe('SERVER_INVALID_PARAM')
+    const taken = await call('POST', '/devflow/jobs/DF-0021/takeover')
+    expect(taken.json.data).toMatchObject({ status: 'HUMAN', stage: 'BUILD', humanDevUser: '官德志' })
+  })
+
+  it('assists and hands back a human-owned job, and refuses an empty instruction', async () => {
+    const empty = await call('POST', '/devflow/jobs/DF-0015/assist', { instruction: '  ' })
+    expect(empty.status).toBe(400)
+    expect(empty.json.message).toContain('写明')
+    const helped = await call('POST', '/devflow/jobs/DF-0015/assist', { instruction: '补 tools/ 的单测' })
+    expect(helped.json.data.events.at(-1).summary).toContain('推送')
+    const back = await call('POST', '/devflow/jobs/DF-0015/handback')
+    expect(back.json.data).toMatchObject({ status: 'RUN', stage: 'REVIEW' })
+  })
+
+  it('refuses to cancel a job in production watch and cancels a queued one', async () => {
+    const watched = await call('POST', '/devflow/jobs/DF-0014/cancel')
+    expect(watched.status).toBe(400)
+    const queued = await call('POST', '/devflow/jobs/DF-0022/cancel')
+    expect(queued.json.data.status).toBe('CANCEL')
+  })
+
+  it('previews a batch, skips flagged rows, and saves rules', async () => {
+    const preview = await call('POST', '/devflow/batches/preview', {})
+    expect(preview.json.data.rows).toHaveLength(5)
+    const created = await call('POST', '/devflow/batches', { title: '客服中心 Q4 第一批', rows: preview.json.data.rows })
+    expect(created.status).toBe(200)
+    expect(created.json.data.jobs).toHaveLength(3)
+    expect(created.json.data.jobs[0].status).toBe('RUN')
+    expect(created.json.data.jobs[1].status).toBe('QUEUED')
+    const empty = await call('PUT', '/devflow/settings', { budgetCny: 80, maxFixRounds: 3, holdoutPercent: 30, minSeed: 30, keyCapCny: 50, dailyLimit: 3, concurrency: 3, templates: [] })
+    expect(empty.status).toBe(400)
+    const saved = await call('PUT', '/devflow/settings', { budgetCny: 90, maxFixRounds: 3, holdoutPercent: 30, minSeed: 30, keyCapCny: 50, dailyLimit: 3, concurrency: 3, templates: ['tool-agent', 'chat-rag'] })
+    expect(saved.json.data.budgetCny).toBe(90)
+    expect((await call('GET', '/devflow/settings')).json.data.templates).toContain('chat-rag')
   })
 
   it('still mocks shared services while traces, audit, costs and eval are real', async () => {

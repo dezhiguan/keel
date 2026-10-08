@@ -4,7 +4,7 @@ info:
   title: Keel 控制台 API
   version: 1.0.0-draft
   description: |
-    keel-console 九个页面消费的全部接口，由 keel-server 实现。
+    keel-console 各页面消费的全部接口，由 keel-server 实现。研发任务页见 devflow 路径（草案，DF-2 实现）。
 
     这份文件是前端、mock 数据、后端实现三方的唯一事实来源：
     - 前端只调这里定义的接口，不直接调 Langfuse / 薄网关 / Prometheus
@@ -45,6 +45,8 @@ tags:
     description: 审计中心
   - name: models
     description: 模型网关
+  - name: devflow
+    description: 研发任务（看板、详情、接管、批次、规则）
   - name: meta
     description: 当前用户、字典
 
@@ -1457,6 +1459,288 @@ paths:
                           alias: { type: string }
                           dailyBudgetCny: { type: number, format: float }
 
+  # ---------------------------------------------------------------- 研发任务
+  /devflow/jobs:
+    get:
+      tags: [devflow]
+      operationId: listDevflowJobs
+      summary: 研发任务看板
+      description: summary 是顶部数字，不受筛选影响。items 受 query 筛选。首次门禁通过率在 DF-9d 之前可以是样本值。
+      parameters:
+        - name: layer
+          in: query
+          schema: { $ref: "#/components/schemas/DevflowLayer" }
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/DevflowStatus" }
+        - name: stage
+          in: query
+          schema: { $ref: "#/components/schemas/DevflowStage" }
+        - name: batch
+          in: query
+          schema: { type: string, example: B-03 }
+        - name: mine
+          in: query
+          schema: { type: boolean, default: false }
+          description: 为 true 时只留当前用户提出的任务
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowJobList" }
+
+  /devflow/jobs/{jobId}:
+    parameters:
+      - $ref: "#/components/parameters/DevflowJobId"
+    get:
+      tags: [devflow]
+      operationId: getDevflowJob
+      summary: 研发任务详情
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowJob" }
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /devflow/jobs/{jobId}/takeover:
+    parameters:
+      - $ref: "#/components/parameters/DevflowJobId"
+    post:
+      tags: [devflow]
+      operationId: takeoverDevflowJob
+      summary: 人工接管开发
+      description: |
+        允许：RUN 且阶段为 BUILD / REVIEW / GATE，或 FAIL，或 WAIT 且 needReview。
+        接管后 status=HUMAN。阶段为 REVIEW 时回到 BUILD；阶段已过 GATE 时停在 GATE。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowJob" }
+        "400":
+          description: 当前阶段不能接管
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /devflow/jobs/{jobId}/handback:
+    parameters:
+      - $ref: "#/components/parameters/DevflowJobId"
+    post:
+      tags: [devflow]
+      operationId: handbackDevflowJob
+      summary: 交还智能体或提交门禁
+      description: 只接受 status=HUMAN。完成后 status=RUN、stage=REVIEW。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowJob" }
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /devflow/jobs/{jobId}/assist:
+    parameters:
+      - $ref: "#/components/parameters/DevflowJobId"
+    post:
+      tags: [devflow]
+      operationId: assistDevflowJob
+      summary: 请智能体在指定范围内帮忙
+      description: 只接受 status=HUMAN。instruction 去空白后不能为空。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [instruction]
+              properties:
+                instruction: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowJob" }
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /devflow/jobs/{jobId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/DevflowJobId"
+    post:
+      tags: [devflow]
+      operationId: cancelDevflowJob
+      summary: 取消研发任务
+      description: RUN / WAIT / HUMAN / QUEUED 可取消。阶段为 WATCH 时拒绝。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowJob" }
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /devflow/batches:
+    get:
+      tags: [devflow]
+      operationId: listDevflowBatches
+      summary: 研发任务批次
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [items]
+                        properties:
+                          items:
+                            type: array
+                            items: { $ref: "#/components/schemas/DevflowBatch" }
+    post:
+      tags: [devflow]
+      operationId: createDevflowBatch
+      summary: 创建批次
+      description: 跳过 flag 非空的行。第一条试产为 RUN，其余 QUEUED。草案，校验归 DF-11。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, rows]
+              properties:
+                title: { type: string }
+                rows:
+                  type: array
+                  items: { $ref: "#/components/schemas/DevflowBatchPreviewRow" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowBatch" }
+        "400":
+          $ref: "#/components/responses/Error"
+
+  /devflow/batches/preview:
+    post:
+      tags: [devflow]
+      operationId: previewDevflowBatch
+      summary: 预检需求表
+      description: 草案。mock 返回固定的 5 行预检结果，文件解析归 DF-11。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [rows]
+                        properties:
+                          rows:
+                            type: array
+                            items: { $ref: "#/components/schemas/DevflowBatchPreviewRow" }
+
+  /devflow/settings:
+    get:
+      tags: [devflow]
+      operationId: getDevflowSettings
+      summary: 研发任务规则
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowSettings" }
+    put:
+      tags: [devflow]
+      operationId: updateDevflowSettings
+      summary: 保存研发任务规则
+      description: 仅平台管理员。模板列表不能为空。保存写 config.change 审计，归 DF-2。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DevflowSettings" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowSettings" }
+        "400":
+          $ref: "#/components/responses/Error"
+
 components:
   securitySchemes:
     cookieAuth:
@@ -1488,6 +1772,11 @@ components:
       in: path
       required: true
       schema: { type: string }
+    DevflowJobId:
+      name: jobId
+      in: path
+      required: true
+      schema: { type: string, example: DF-0019 }
 
   responses:
     Error:
@@ -2284,3 +2573,137 @@ components:
                 type: array
                 items: { type: string }
               timeoutSeconds: { type: integer }
+
+    # ------------------------------------------------------------ 研发任务
+    DevflowLayer:
+      type: string
+      enum: [META, DEV, BIZ]
+    DevflowKind:
+      type: string
+      enum: [CREATE, CHANGE]
+    DevflowMode:
+      type: string
+      enum: [AUTO, COLLAB, SCAFFOLD]
+    DevflowStatus:
+      type: string
+      enum: [RUN, WAIT, HUMAN, QUEUED, DONE, FAIL, CANCEL]
+    DevflowStage:
+      type: string
+      description: SPEC 需求、H1 需求确认、EVAL 评测准备、H2 评测确认、H3 授权、BUILD 开发、REVIEW 评审、GATE 门禁、H4 发布审批、RELEASE 发布、WATCH 上线观察
+      enum: [SPEC, H1, EVAL, H2, H3, BUILD, REVIEW, GATE, H4, RELEASE, WATCH]
+    DevflowSeed:
+      type: object
+      required: [human, agent, holdout]
+      properties:
+        human: { type: integer, description: 人给用例条数，含稍后切出的隐藏考题 }
+        agent: { type: integer, description: 智能体扩充并被采纳的条数 }
+        holdout: { type: integer, description: 隐藏考题条数。接口不返回考题内容 }
+    DevflowToolRef:
+      type: object
+      required: [name, risk, owner]
+      properties:
+        name: { type: string }
+        risk: { $ref: "#/components/schemas/Risk" }
+        owner: { type: string }
+    DevflowEvent:
+      type: object
+      required: [at, actor, summary]
+      properties:
+        at: { type: string, description: 展示用时间，短格式，如 10:53 或 10-07 }
+        actor: { type: string }
+        summary: { type: string }
+    DevflowJob:
+      type: object
+      required: [jobId, title, layer, kind, mode, status, stage, targetAgent, producerAgent, template, spentCny, budgetCny, fixRounds, maxFixRounds, needReview, requester, ownerOrg, goal, tools, knowledge, seed, events]
+      properties:
+        jobId: { type: string, example: DF-0019 }
+        title: { type: string }
+        layer: { $ref: "#/components/schemas/DevflowLayer" }
+        kind: { $ref: "#/components/schemas/DevflowKind" }
+        mode: { $ref: "#/components/schemas/DevflowMode" }
+        status: { $ref: "#/components/schemas/DevflowStatus" }
+        stage: { $ref: "#/components/schemas/DevflowStage" }
+        targetAgent: { type: string }
+        producerAgent: { type: string }
+        template: { type: string }
+        spentCny: { type: number, format: float }
+        budgetCny: { type: number, format: float }
+        fixRounds: { type: integer }
+        maxFixRounds: { type: integer }
+        batchId: { type: string, nullable: true }
+        needReview: { type: boolean, description: 人机协作，等待人工 approve PR }
+        humanDevUser: { type: string, nullable: true }
+        watchDay: { type: integer, nullable: true, description: 上线观察第几天，从 1 起 }
+        requester: { type: string }
+        ownerOrg: { type: string }
+        goal: { type: string }
+        tools:
+          type: array
+          items: { $ref: "#/components/schemas/DevflowToolRef" }
+        knowledge:
+          type: array
+          items: { type: string }
+        seed: { $ref: "#/components/schemas/DevflowSeed" }
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/DevflowEvent" }
+    DevflowBoardSummary:
+      type: object
+      required: [active, queued, dailyLimit, waitingHuman, humanDev, firstGatePassRate, withinRoundsPassRate, spentCny]
+      properties:
+        active: { type: integer }
+        queued: { type: integer }
+        dailyLimit: { type: integer }
+        waitingHuman: { type: integer, description: 等需求确认、评测确认、发布审批或人工 review 的任务数 }
+        humanDev: { type: integer }
+        firstGatePassRate: { type: number, format: float, description: 0 到 1。DF-9d 之前为样本值 }
+        withinRoundsPassRate: { type: number, format: float }
+        spentCny: { type: number, format: float }
+    DevflowJobList:
+      type: object
+      required: [summary, items]
+      properties:
+        summary: { $ref: "#/components/schemas/DevflowBoardSummary" }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DevflowJob" }
+    DevflowBatch:
+      type: object
+      required: [batchId, title, requester, concurrency, pilotJobId, pilotPassed, createdAt, jobs]
+      properties:
+        batchId: { type: string, example: B-03 }
+        title: { type: string }
+        requester: { type: string }
+        concurrency: { type: integer }
+        pilotJobId: { type: string }
+        pilotPassed: { type: boolean }
+        createdAt: { type: string }
+        jobs:
+          type: array
+          items: { $ref: "#/components/schemas/DevflowJob" }
+    DevflowBatchPreviewRow:
+      type: object
+      required: [targetAgent, title, mode, owner]
+      properties:
+        targetAgent: { type: string }
+        title: { type: string }
+        mode: { $ref: "#/components/schemas/DevflowMode" }
+        owner: { type: string }
+        flag:
+          type: string
+          nullable: true
+          description: "预检问题。为空表示可生产。用 bad: 或 warn: 前缀区分严重程度"
+    DevflowSettings:
+      type: object
+      required: [budgetCny, maxFixRounds, holdoutPercent, minSeed, keyCapCny, dailyLimit, concurrency, templates]
+      properties:
+        budgetCny: { type: number, format: float }
+        maxFixRounds: { type: integer }
+        holdoutPercent: { type: integer }
+        minSeed: { type: integer }
+        keyCapCny: { type: number, format: float }
+        dailyLimit: { type: integer }
+        concurrency: { type: integer }
+        templates:
+          type: array
+          items: { type: string }

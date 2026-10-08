@@ -15,6 +15,7 @@
   --warn: #f1b44c;
   --bad: #f46a6a;
   --soft: #5b9cf6;
+  --violet: #b48cf2;
   --mono: ui-monospace, 'SF Mono', Menlo, monospace;
 
   --el-color-primary: var(--acc);
