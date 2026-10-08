@@ -79,11 +79,10 @@ def test_main_dispatches_new_and_rejects_later_commands(tmp_path, monkeypatch, c
     main(["new", "hello-agent"])
     assert (tmp_path / "hello-agent" / "agent.yaml").is_file()
     assert "keel dev" in capsys.readouterr().out
-    for command in ("eval", "register", "release", "retire", "gate"):
-        with pytest.raises(SystemExit) as caught:
-            main([command])
-        assert caught.value.code == 2
-        assert "尚未实现" in capsys.readouterr().err
+    with pytest.raises(SystemExit) as caught:
+        main(["retire"])
+    assert caught.value.code == 2
+    assert "尚未实现" in capsys.readouterr().err
 
 
 def test_dev_env_injection_skips_values_the_user_already_set(tmp_path):
