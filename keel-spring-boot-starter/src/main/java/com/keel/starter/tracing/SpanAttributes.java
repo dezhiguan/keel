@@ -25,6 +25,8 @@ public final class SpanAttributes {
     public static final String RUN_ID = "keel.run.id";
     public static final String RUN_SUSPENDED = "keel.run.suspended";
     public static final String RUN_WAIT_MS = "keel.run.wait_ms";
+    public static final String DEVFLOW_JOB_ID = "keel.devflow.job_id";
+    public static final String DEVFLOW_LABEL = "keel.devflow.label";
     public static final String MODEL = "gen_ai.request.model";
     public static final String INPUT_TOKENS = "gen_ai.usage.input_tokens";
     public static final String OUTPUT_TOKENS = "gen_ai.usage.output_tokens";
