@@ -37,6 +37,97 @@ export function hm(iso?: string | null): string {
   return date.toTimeString().slice(0, 5)
 }
 
+export type PipelineJob = {
+  jobId: string
+  title: string
+  status?: string
+  fixRounds?: number
+  maxFixRounds?: number
+  needReview?: boolean
+  events?: { at?: string | null }[]
+}
+
+export type PipelineSource = {
+  summary: {
+    active: number
+    queued: number
+    waitingHuman: number
+    firstGatePassRate: number
+    spentCny: number
+  }
+  items: PipelineJob[]
+}
+
+export type PipelineAlert = { at: string; jobId: string; text: string }
+
+export type PipelineCards = {
+  active: number | null
+  queued: number | null
+  waiting: number | null
+  shipped: number | null
+  firstPassPct: number | null
+  spentCny: number | null
+  alerts: PipelineAlert[]
+}
+
+const BLANK_PIPELINE: PipelineCards = {
+  active: null,
+  queued: null,
+  waiting: null,
+  shipped: null,
+  firstPassPct: null,
+  spentCny: null,
+  alerts: [],
+}
+
+export function pipelineMoney(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return '—'
+  return `¥${Math.round(value)}`
+}
+
+function clockKey(at: string): string {
+  return /^\d{2}:\d{2}$/.test(at) ? at : ''
+}
+
+function latestClock(job: PipelineJob): string {
+  const at = [...(job.events ?? [])].reverse().find((event) => /^\d{2}:\d{2}$/.test(event.at ?? ''))?.at
+  return at || '—'
+}
+
+export function pipelineCards(source: PipelineSource | null | undefined): PipelineCards {
+  if (!source) return BLANK_PIPELINE
+  const alerts: PipelineAlert[] = []
+  for (const job of source.items) {
+    const rounds = job.fixRounds ?? 0
+    if (rounds > 0 && job.status !== 'DONE' && job.status !== 'CANCEL') {
+      const max = job.maxFixRounds ?? 3
+      alerts.push({
+        at: latestClock(job),
+        jobId: job.jobId,
+        text: `${job.jobId} ${job.title}：第 ${rounds} 轮门禁未通过，进入修复（${rounds}/${max}）`,
+      })
+      continue
+    }
+    if (job.status === 'WAIT' && job.needReview) {
+      alerts.push({
+        at: latestClock(job),
+        jobId: job.jobId,
+        text: `${job.jobId} 等人工 review`,
+      })
+    }
+  }
+  alerts.sort((a, b) => clockKey(b.at).localeCompare(clockKey(a.at)))
+  return {
+    active: source.summary.active,
+    queued: source.summary.queued,
+    waiting: source.summary.waitingHuman,
+    shipped: source.items.filter((job) => job.status === 'DONE').length,
+    firstPassPct: Math.round(source.summary.firstGatePassRate * 100),
+    spentCny: source.summary.spentCny,
+    alerts,
+  }
+}
+
 export const ALERT_KIND: Record<string, [string, string]> = {
   OFFLINE: ['离线', 'p-bad'],
   UNREGISTERED: ['对账', 'p-bad'],
