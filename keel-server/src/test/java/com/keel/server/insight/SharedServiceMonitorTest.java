@@ -12,6 +12,9 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,6 +39,40 @@ class SharedServiceMonitorTest {
             monitor.services();
             assertThat(reads).hasValue(1);
         } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test void concurrentColdReadsShareOneSnapshot() throws Exception {
+        var reads = new AtomicInteger();
+        var started = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/actuator/keel", exchange -> {
+            reads.incrementAndGet();
+            started.countDown();
+            try {
+                release.await(2, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            write(exchange, 200, "{\"knowledgeBases\":[]}");
+        });
+        server.createContext("/actuator/prometheus", exchange -> write(exchange, 200, ""));
+        server.createContext("/", exchange -> write(exchange, 404, ""));
+        server.start();
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var base = "http://127.0.0.1:" + server.getAddress().getPort();
+            var monitor = new SharedServiceMonitor(new RagForgeInsightClient(base, "metrics-reader", "secret"),
+                    new LiteLlmClient("", ""));
+            var first = executor.submit(() -> monitor.services());
+            assertThat(started.await(2, TimeUnit.SECONDS)).isTrue();
+            var second = executor.submit(() -> monitor.services());
+            release.countDown();
+            assertThat(second.get(3, TimeUnit.SECONDS)).isEqualTo(first.get(3, TimeUnit.SECONDS));
+            assertThat(reads).hasValue(1);
+        } finally {
+            release.countDown();
             server.stop(0);
         }
     }
@@ -153,8 +190,12 @@ class SharedServiceMonitorTest {
                   {"kb":"fault-manual","owner":"电力运维组","documents":1,"updatedAt":"2026-10-01T00:00:00Z",
                    "searches24h":0,"zeroHitRate":null,"recallAt5":null,"stale":false}]}
                 """));
-        server.createContext("/api/v1/eval/summary", exchange -> write(exchange, 200,
-                "{\"recallAt5\":0.91,\"zeroResultRate\":0.012,\"evaluatedAt\":\"2026-10-01T00:00:00Z\"}"));
+        var summaryRead = new CountDownLatch(1);
+        server.createContext("/api/v1/eval/summary", exchange -> {
+            write(exchange, 200,
+                    "{\"recallAt5\":0.91,\"zeroResultRate\":0.012,\"evaluatedAt\":\"2026-10-01T00:00:00Z\"}");
+            summaryRead.countDown();
+        });
         var observationHits = new java.util.concurrent.atomic.AtomicInteger();
         server.createContext("/api/public/v2/observations", exchange -> {
             observationHits.incrementAndGet();
@@ -199,7 +240,8 @@ class SharedServiceMonitorTest {
         });
         @SuppressWarnings("unchecked")
         var bases = (List<Map<String, Object>>) rag.get("knowledgeBases");
-        assertThat(bases.get(0)).containsEntry("recallAt5", 0.91).containsEntry("zeroHitRate", 0.012);
+        assertThat(bases.get(0)).containsEntry("recallAt5", null).containsEntry("zeroHitRate", null);
+        assertThat(summaryRead.await(2, TimeUnit.SECONDS)).isTrue();
         assertThat(body.get("consoleUrl")).isEqualTo("https://ragforge.net");
         assertThat(observationHits).hasValue(1);
         monitor.services("all");

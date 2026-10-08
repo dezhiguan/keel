@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,6 +34,7 @@ public class SharedServiceMonitor {
     private static final ExecutorService PROBES = Executors.newVirtualThreadPerTaskExecutor();
     private static final Duration RETRIEVAL_TTL = Duration.ofMinutes(3);
     private static final Duration SERVICES_TTL = Duration.ofSeconds(30);
+    private static final Duration RECALL_TTL = Duration.ofMinutes(3);
 
     private final RagForgeInsightClient ragforge;
     private final LiteLlmClient gateway;
@@ -44,9 +46,13 @@ public class SharedServiceMonitor {
     private List<LangfuseClient.Retrieval> retrievalCache;
     private Instant retrievalCachedAt;
     private final Map<String, CachedServices> servicesCache = new ConcurrentHashMap<>();
+    private final Map<String, CompletableFuture<CachedServices>> servicesInFlight = new ConcurrentHashMap<>();
     private final Set<String> refreshingServices = ConcurrentHashMap.newKeySet();
+    private final Map<String, CachedRecall> recallCache = new ConcurrentHashMap<>();
+    private final AtomicBoolean recallRefresh = new AtomicBoolean();
 
     private record CachedServices(Map<String, Object> value, Instant at) {}
+    private record CachedRecall(JsonNode value, Instant at) {}
 
     public SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway) {
         this(ragforge, gateway, (Function<String, List<String>>) null, new LangfuseClient("", "", ""));
@@ -98,8 +104,22 @@ public class SharedServiceMonitor {
             }
             return cached.value();
         }
-        return servicesCache.computeIfAbsent(scope,
-                key -> new CachedServices(loadServices(key), Instant.now())).value();
+        var created = new CompletableFuture<CachedServices>();
+        var existing = servicesInFlight.putIfAbsent(scope, created);
+        if (existing != null) {
+            return existing.join().value();
+        }
+        try {
+            var result = new CachedServices(loadServices(scope), Instant.now());
+            servicesCache.put(scope, result);
+            created.complete(result);
+            return result.value();
+        } catch (RuntimeException e) {
+            created.completeExceptionally(e);
+            throw e;
+        } finally {
+            servicesInFlight.remove(scope, created);
+        }
     }
 
     private Map<String, Object> loadServices(String scope) {
@@ -261,34 +281,45 @@ public class SharedServiceMonitor {
     }
 
     private void fillRecall(List<Map<String, Object>> knowledge) {
-        var pending = knowledge.stream().filter(row -> row.get("recallAt5") == null).toList();
-        for (int offset = 0; offset < pending.size(); offset += 4) {
-            var batch = pending.subList(offset, Math.min(offset + 4, pending.size()));
-            var reads = batch.stream()
-                    .map(row -> PROBES.submit(() -> ragforge.evalSummary(String.valueOf(row.get("kb")))))
-                    .toList();
-            var available = true;
-            for (int i = 0; i < batch.size(); i++) {
-                var summary = completed(reads.get(i), null);
-                if (summary == null) {
-                    available = false;
-                    continue;
+        var missing = new ArrayList<String>();
+        var now = Instant.now();
+        for (var row : knowledge) {
+            if (row.get("recallAt5") != null) {
+                continue;
+            }
+            var kb = String.valueOf(row.get("kb"));
+            var cached = recallCache.get(kb);
+            if (cached == null || cached.at().plus(RECALL_TTL).isBefore(now)) {
+                missing.add(kb);
+            }
+            if (cached == null || cached.value() == null) {
+                continue;
+            }
+            var recall = number(cached.value(), "recallAt5");
+            if (recall != null) {
+                row.put("recallAt5", recall);
+            }
+            if (row.get("zeroHitRate") == null) {
+                var zero = number(cached.value(), "zeroResultRate");
+                if (zero != null) {
+                    row.put("zeroHitRate", zero);
                 }
-                var row = batch.get(i);
-                var recall = number(summary, "recallAt5");
-                if (recall != null) {
-                    row.put("recallAt5", recall);
-                }
-                if (row.get("zeroHitRate") == null) {
-                    var zero = number(summary, "zeroResultRate");
-                    if (zero != null) {
-                        row.put("zeroHitRate", zero);
+            }
+        }
+        if (!missing.isEmpty() && recallRefresh.compareAndSet(false, true)) {
+            PROBES.execute(() -> {
+                try {
+                    for (var kb : missing) {
+                        var summary = ragforge.evalSummary(kb);
+                        if (summary == null) {
+                            break;
+                        }
+                        recallCache.put(kb, new CachedRecall(summary, Instant.now()));
                     }
+                } finally {
+                    recallRefresh.set(false);
                 }
-            }
-            if (!available) {
-                break;
-            }
+            });
         }
     }
 
