@@ -19,6 +19,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
+from keel.auth.delegation import DelegationDenied, issue_from_environment
 from keel.context import Context
 from keel.manifest import _contract_file
 from keel.protocol.errors import ErrorCode, KeelError
@@ -238,6 +239,14 @@ def create_app(agent) -> Starlette:
         if record["reason"] == "input_required" and not (isinstance(reply, str) and reply.strip()):
             code = ErrorCode.SERVER_INVALID_PARAM
             return JSONResponse(_error(code, trace_id), status_code=code.http)
+        delegation_token = None
+        raw_consent = body.get("consent_id")
+        if isinstance(raw_consent, str) and raw_consent.strip():
+            try:
+                delegation_token = issue_from_environment(raw_consent)
+            except DelegationDenied:
+                code = ErrorCode.RUN_RESUME_DENIED
+                return JSONResponse(_error(code, trace_id), status_code=code.http)
         record["status"] = "DONE"
         save_run(record)
         original = dict(record["input"] or {})
@@ -246,9 +255,11 @@ def create_app(agent) -> Starlette:
             resumed["text"] = reply
         elif record.get("input_text"):
             resumed["text"] = record["input_text"]
-        return await invoke_resume(request, {"input": resumed}, record["run_id"], original)
+        return await invoke_resume(request, {"input": resumed}, record["run_id"], original,
+                                   delegation_token=delegation_token)
 
-    async def invoke_resume(request: Request, data: dict, run_id: str, original: dict):
+    async def invoke_resume(request: Request, data: dict, run_id: str, original: dict,
+                            delegation_token: str | None = None):
         trace_id = record_trace(request)
         events: asyncio.Queue = asyncio.Queue()
         context = Context(agent.name, run_id, trace_id, events, tracer,
@@ -256,6 +267,7 @@ def create_app(agent) -> Starlette:
                           children=agent._children, budget=_budget(request),
                           env=request.headers.get("X-Keel-Env") or os.environ.get("KEEL_ENV"))
         context.resuming = True
+        context.delegation_token = delegation_token
         entry_request = SimpleNamespace(**data, resume=True)
         root = tracer.start_span("agent.resume", attributes={
             attrs.OBSERVATION_TYPE: "agent", attrs.AGENT: agent.name,

@@ -32,20 +32,32 @@ class ApprovalPolicyEngineTest {
     @Test void resumeAllowsAFreshHumanRunAndRefusesTheRest() {
         var fresh = NOW.minus(ApprovalPolicyEngine.RESUME_WINDOW);
         var late = fresh.minusSeconds(1);
-        assertThat(ApprovalPolicyEngine.resume(null, "input_required", null, fresh, NOW)).isEqualTo(ApprovalPolicyEngine.Resume.NOT_FOUND);
-        assertThat(ApprovalPolicyEngine.resume("DONE", "input_required", null, fresh, NOW)).isEqualTo(ApprovalPolicyEngine.Resume.NOT_RESUMABLE);
-        assertThat(ApprovalPolicyEngine.resume("SUSPENDED", "approval", null, fresh, NOW)).isEqualTo(ApprovalPolicyEngine.Resume.NOT_RESUMABLE);
-        assertThat(ApprovalPolicyEngine.resume("SUSPENDED", null, null, fresh, NOW)).isEqualTo(ApprovalPolicyEngine.Resume.NOT_RESUMABLE);
-        assertThat(ApprovalPolicyEngine.resume("SUSPENDED", "handoff", NOW, fresh, NOW)).isEqualTo(ApprovalPolicyEngine.Resume.EXPIRED);
-        assertThat(ApprovalPolicyEngine.resume("SUSPENDED", "input_required", NOW.minusSeconds(1), fresh, NOW))
+        assertThat(ApprovalPolicyEngine.resume(null, "input_required", null, fresh, NOW, null)).isEqualTo(ApprovalPolicyEngine.Resume.NOT_FOUND);
+        assertThat(ApprovalPolicyEngine.resume("DONE", "input_required", null, fresh, NOW, null)).isEqualTo(ApprovalPolicyEngine.Resume.NOT_RESUMABLE);
+        assertThat(ApprovalPolicyEngine.resume("SUSPENDED", "approval", null, fresh, NOW, null)).isEqualTo(ApprovalPolicyEngine.Resume.NOT_RESUMABLE);
+        assertThat(ApprovalPolicyEngine.resume("SUSPENDED", null, null, fresh, NOW, null)).isEqualTo(ApprovalPolicyEngine.Resume.NOT_RESUMABLE);
+        assertThat(ApprovalPolicyEngine.resume("SUSPENDED", "handoff", NOW, fresh, NOW, null)).isEqualTo(ApprovalPolicyEngine.Resume.EXPIRED);
+        assertThat(ApprovalPolicyEngine.resume("SUSPENDED", "input_required", NOW.minusSeconds(1), fresh, NOW, null))
                 .isEqualTo(ApprovalPolicyEngine.Resume.EXPIRED);
-        assertThat(ApprovalPolicyEngine.resume("SUSPENDED", "input_required", null, null, NOW)).isEqualTo(ApprovalPolicyEngine.Resume.DENIED);
-        assertThat(ApprovalPolicyEngine.resume("SUSPENDED", "handoff", null, late, NOW)).isEqualTo(ApprovalPolicyEngine.Resume.DENIED);
-        assertThat(ApprovalPolicyEngine.resume("SUSPENDED", "input_required", NOW.plusSeconds(1), fresh, NOW))
+        assertThat(ApprovalPolicyEngine.resume("SUSPENDED", "input_required", null, null, NOW, null)).isEqualTo(ApprovalPolicyEngine.Resume.DENIED);
+        assertThat(ApprovalPolicyEngine.resume("SUSPENDED", "handoff", null, late, NOW, null)).isEqualTo(ApprovalPolicyEngine.Resume.DENIED);
+        assertThat(ApprovalPolicyEngine.resume("SUSPENDED", "handoff", null, late, NOW, " ")).isEqualTo(ApprovalPolicyEngine.Resume.DENIED);
+        assertThat(ApprovalPolicyEngine.resume("SUSPENDED", "handoff", null, late, NOW, "consent_1"))
+                .isEqualTo(ApprovalPolicyEngine.Resume.ALLOW);
+        assertThat(ApprovalPolicyEngine.resume("SUSPENDED", "input_required", NOW.plusSeconds(1), fresh, NOW, null))
                 .isEqualTo(ApprovalPolicyEngine.Resume.ALLOW);
         assertThat(ApprovalPolicyEngine.resumeWindowOpen(null, NOW)).isFalse();
         assertThat(ApprovalPolicyEngine.resumeWindowOpen(late, NOW)).isFalse();
         assertThat(ApprovalPolicyEngine.resumeWindowOpen(fresh, NOW)).isTrue();
+        assertThat(ApprovalPolicyEngine.passConsent(fresh, "consent_1", NOW)).isNull();
+        assertThat(ApprovalPolicyEngine.passConsent(late, "  ", NOW)).isNull();
+        assertThat(ApprovalPolicyEngine.passConsent(late, null, NOW)).isNull();
+        assertThat(ApprovalPolicyEngine.passConsent(late, "consent_1", NOW)).isEqualTo("consent_1");
+        assertThat(ApprovalPolicyEngine.consentId(null)).isNull();
+        assertThat(ApprovalPolicyEngine.consentId("  ")).isNull();
+        assertThat(ApprovalPolicyEngine.consentId(" consent_abc ")).isEqualTo("consent_abc");
+        assertThatThrownBy(() -> ApprovalPolicyEngine.consentId("nope")).isInstanceOf(KeelException.class)
+                .extracting(e -> ((KeelException) e).code()).isEqualTo(ErrorCode.SERVER_INVALID_PARAM);
     }
 
     @Test void parsesPublicIdsAndRejectsTheRest() {

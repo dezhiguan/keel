@@ -40,8 +40,8 @@ class AgentEndpointClientTest {
         try {
             new AgentEndpointClient().resume(base + "/", "run_1", "rt_1", "approve", null);
             assertThat(seen.get()).contains("\"resume_token\":\"rt_1\"").contains("\"decision\":\"approve\"");
-            new AgentEndpointClient().resume(base, "run_1", null, null, "先修这一台");
-            assertThat(seen.get()).contains("\"text\":\"先修这一台\"");
+            new AgentEndpointClient().resume(base, "run_1", null, null, "先修这一台", "consent_1");
+            assertThat(seen.get()).contains("\"text\":\"先修这一台\"").contains("\"consent_id\":\"consent_1\"");
             assertThatThrownBy(() -> new AgentEndpointClient().resume(base, "run_down", "rt", null, "x"))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("503");

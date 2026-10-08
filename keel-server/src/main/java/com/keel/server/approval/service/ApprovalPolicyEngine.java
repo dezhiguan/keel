@@ -45,7 +45,8 @@ public final class ApprovalPolicyEngine {
         return now.isBefore(decidedAt.plus(Duration.ofHours(cooldownHours)));
     }
 
-    public static Resume resume(String status, String reason, Instant deadline, Instant suspendedAt, Instant now) {
+    public static Resume resume(String status, String reason, Instant deadline, Instant suspendedAt, Instant now,
+                                String consentId) {
         if (status == null) {
             return Resume.NOT_FOUND;
         }
@@ -55,10 +56,31 @@ public final class ApprovalPolicyEngine {
         if (deadline != null && !now.isBefore(deadline)) {
             return Resume.EXPIRED;
         }
-        if (suspendedAt == null || Duration.between(suspendedAt, now).compareTo(RESUME_WINDOW) > 0) {
+        if ((suspendedAt == null || Duration.between(suspendedAt, now).compareTo(RESUME_WINDOW) > 0)
+                && (consentId == null || consentId.isBlank())) {
             return Resume.DENIED;
         }
         return Resume.ALLOW;
+    }
+
+    /** Consent id to hand to the agent. Null while the 10-minute window is still open. */
+    public static String passConsent(Instant suspendedAt, String consentId, Instant now) {
+        if (consentId == null || consentId.isBlank() || resumeWindowOpen(suspendedAt, now)) {
+            return null;
+        }
+        return consentId;
+    }
+
+    /** Null when absent. Throws when the value is not an auth-gateway consent id. */
+    public static String consentId(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        var value = raw.trim();
+        if (!value.matches("consent_[A-Za-z0-9-]{1,55}")) {
+            throw invalid();
+        }
+        return value;
     }
 
     public static boolean resumeWindowOpen(Instant suspendedAt, Instant now) {

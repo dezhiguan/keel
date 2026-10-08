@@ -246,6 +246,9 @@ components:
         patch:
           type: object
           description: 可选。审批人修改后的工具参数
+        consent_id:
+          type: string
+          description: 可选。挂起超过 10 分钟时由 keel-server 带上，SDK 据此换委托 token
 
     Run:
       type: object

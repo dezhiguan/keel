@@ -114,6 +114,13 @@ public class ApprovalService {
             }
             agent = runAgent;
         }
+        var consent = ApprovalPolicyEngine.consentId(request.consentId());
+        if (consent != null) {
+            if (runId == null) {
+                throw invalid();
+            }
+            jdbc.update("UPDATE agent_run SET consent_id = ? WHERE run_id = ? AND consent_id IS NULL", consent, runId);
+        }
         var expires = now.plus(policy == null ? DEFAULT_TIMEOUT : Duration.ofMinutes(policy.timeoutMinutes()));
         var traceId = firstNonBlank(request.traceId(), TraceIds.current());
         audit(agentOrPlatform(agent), env, risk, "pending", subjectRef, traceId);
@@ -196,13 +203,18 @@ public class ApprovalService {
     }
 
     private DecideResult approve(ApprovalRow row, String decidedBy) {
-        if (row.runId() != null && !ApprovalPolicyEngine.resumeWindowOpen(runSuspendedAt(row.runId()), clock.instant())) {
-            // TODO(P0-5): /oauth/delegation-token 的请求体还没核实，超过 10 分钟不能猜接口去换票。
+        var now = clock.instant();
+        var cred = row.runId() == null ? null : credential(row.runId());
+        var suspendedAt = cred == null ? null : cred.suspendedAt();
+        var consent = cred == null ? null : cred.consentId();
+        if (row.runId() != null && !ApprovalPolicyEngine.resumeWindowOpen(suspendedAt, now)
+                && ApprovalPolicyEngine.passConsent(suspendedAt, consent, now) == null) {
             throw new KeelException(ErrorCode.RUN_RESUME_DENIED, ErrorCode.RUN_RESUME_DENIED.message());
         }
         audit(agentOrPlatform(row.agent()), "prod", row.risk().toLowerCase(), "approved", row.subjectRef(), row.traceId());
         if (row.runId() != null) {
-            callResume(row.agent(), row.runId(), "approve", null);
+            callResume(row.agent(), row.runId(), "approve", null,
+                    ApprovalPolicyEngine.passConsent(suspendedAt, consent, now));
             expireRun(row.runId(), "RUNNING", 1);
         }
         if (!mark(row.numericId(), "APPROVED", decidedBy)) {
@@ -211,7 +223,7 @@ public class ApprovalService {
         return new DecideResult(load(row.numericId()), null, null);
     }
 
-    private void callResume(String agent, String runId, String decision, String input) {
+    private void callResume(String agent, String runId, String decision, String input, String consentId) {
         String endpoint;
         try {
             endpoint = registry.invokeEndpoint(agent);
@@ -219,22 +231,24 @@ public class ApprovalService {
             throw new KeelException(ErrorCode.GW_AGENT_OFFLINE, ErrorCode.GW_AGENT_OFFLINE.message());
         }
         try {
-            agents.resume(endpoint, runId, resumeToken(runId), decision, input);
+            agents.resume(endpoint, runId, resumeToken(runId), decision, input, consentId);
         } catch (RuntimeException e) {
             throw new KeelException(ErrorCode.GW_AGENT_OFFLINE, ErrorCode.GW_AGENT_OFFLINE.message());
         }
+    }
+
+    private RunCredential credential(String runId) {
+        var rows = jdbc.query("SELECT created_at, consent_id FROM agent_run WHERE run_id = ?",
+                (rs, row) -> new RunCredential(
+                        rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant(),
+                        rs.getString(2)), runId);
+        return rows.isEmpty() ? null : rows.getFirst();
     }
 
     private String resumeToken(String runId) {
         var tokens = jdbc.query("SELECT resume_token FROM agent_run WHERE run_id = ?",
                 (rs, row) -> rs.getString(1), runId);
         return tokens.isEmpty() || tokens.getFirst() == null ? "" : tokens.getFirst();
-    }
-
-    private Instant runSuspendedAt(String runId) {
-        var rows = jdbc.query("SELECT created_at FROM agent_run WHERE run_id = ?",
-                (rs, row) -> rs.getTimestamp(1).toInstant(), runId);
-        return rows.isEmpty() ? null : rows.getFirst();
     }
 
     private boolean mark(long id, String status, String decidedBy) {
@@ -421,5 +435,7 @@ public class ApprovalService {
     }
 
     private record Due(long id, String runId, String agent, String risk, String subjectRef, String traceId, String env) {}
+
+    private record RunCredential(Instant suspendedAt, String consentId) {}
 
 }

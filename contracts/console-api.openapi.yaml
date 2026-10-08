@@ -1133,6 +1133,7 @@ paths:
                 payloadDigest: { type: string }
                 policyName: { type: string, nullable: true }
                 env: { $ref: "#/components/schemas/EnvName" }
+                consentId: { type: string, nullable: true, description: 可选。记到已有 run 上，供超时后换委托 token }
       responses:
         "200":
           description: OK
@@ -1239,6 +1240,7 @@ paths:
                 actorUser: { type: string }
                 deadline: { type: string, format: date-time, nullable: true }
                 checkpointRef: { type: string, nullable: true }
+                consentId: { type: string, nullable: true, description: 可选。建任务时的 consent，超时恢复用 }
       responses:
         "200":
           description: OK

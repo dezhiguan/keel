@@ -9,4 +9,5 @@ public record OpenRun(
         String prompt,
         String actorUser,
         String deadline,
-        String checkpointRef) {}
+        String checkpointRef,
+        String consentId) {}

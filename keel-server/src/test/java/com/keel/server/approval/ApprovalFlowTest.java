@@ -198,6 +198,17 @@ class ApprovalFlowTest {
                 .andExpect(jsonPath("$.code").value("RUN_RESUME_DENIED"));
         org.assertj.core.api.Assertions.assertThat(runStatus(late)).isEqualTo("SUSPENDED");
 
+        var delegated = id("delegated");
+        mvc.perform(post("/api/v1/runs").contentType("application/json").content("""
+                {"runId":"%s","agent":"inbox-agent","reason":"input_required","prompt":"等几天","actorUser":"amy","consentId":"consent_job"}
+                """.formatted(delegated))).andExpect(status().isOk());
+        jdbc.update("UPDATE agent_run SET created_at = now() - interval '11 minutes' WHERE run_id = ?", delegated);
+        RESUMES.clear();
+        mvc.perform(post("/api/v1/runs/" + delegated + "/input").contentType("application/json").content("{\"text\":\"继续\"}"))
+                .andExpect(status().isOk());
+        org.assertj.core.api.Assertions.assertThat(RESUMES).anySatisfy(line ->
+                org.assertj.core.api.Assertions.assertThat(line).contains("consent_job"));
+
         var expired = id("deadline");
         mvc.perform(post("/api/v1/runs").contentType("application/json").content("""
                 {"runId":"%s","agent":"inbox-agent","reason":"input_required","prompt":"已经过期","actorUser":"amy","deadline":"2020-01-01T00:00:00Z"}
@@ -229,6 +240,17 @@ class ApprovalFlowTest {
                 .andExpect(jsonPath("$.code").value("RUN_RESUME_DENIED"));
         var still = jdbc.queryForObject("SELECT status FROM approval_request WHERE id = ?", String.class, numeric(waiting));
         org.assertj.core.api.Assertions.assertThat(still).isEqualTo("PENDING");
+
+        var granted = id("granted");
+        suspend(granted, 11);
+        jdbc.update("UPDATE agent_run SET consent_id = 'consent_release' WHERE run_id = ?", granted);
+        var lateApproval = open("tool.call", granted, "inbox-agent", granted);
+        RESUMES.clear();
+        mvc.perform(post("/api/v1/approvals/" + lateApproval + "/decision")
+                        .contentType("application/json").content("{\"decision\":\"APPROVE\"}"))
+                .andExpect(jsonPath("$.data.status").value("APPROVED"));
+        org.assertj.core.api.Assertions.assertThat(RESUMES).anySatisfy(line ->
+                org.assertj.core.api.Assertions.assertThat(line).contains("consent_release"));
         mvc.perform(get("/api/v1/runs").param("size", "100"))
                 .andExpect(jsonPath("$.data.items[*].runId", not(hasItem(old))));
 

@@ -42,6 +42,7 @@ class ErrorCode(str, Enum):
     AUTH_LOCKED = 'AUTH_LOCKED'
     AUTH_SMS_RATE_LIMITED = 'AUTH_SMS_RATE_LIMITED'
     AUTH_GATEWAY_UNAVAILABLE = 'AUTH_GATEWAY_UNAVAILABLE'
+    GIT_UPSTREAM_FAILED = 'GIT_UPSTREAM_FAILED'
 
     @property
     def retryable(self) -> bool:
@@ -96,4 +97,5 @@ _DETAILS = {
     ErrorCode.AUTH_LOCKED: ('登录失败次数过多，请 15 分钟后再试', False, 423),
     ErrorCode.AUTH_SMS_RATE_LIMITED: ('操作太频繁，请稍后再试', True, 429),
     ErrorCode.AUTH_GATEWAY_UNAVAILABLE: ('登录服务暂时不可用，请稍后再试', True, 503),
+    ErrorCode.GIT_UPSTREAM_FAILED: ('GitHub 调用失败', True, 502),
 }

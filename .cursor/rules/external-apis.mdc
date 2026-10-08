@@ -47,5 +47,6 @@ alwaysApply: true
 - 用户 token 的 aud 统一为 `keel-api`。网关按 roles / scopes 准入后**换票**成目标智能体的 aud。不要写「检查 JWT 的 aud 是否等于目标智能体」，用户 token 不可能同时是 10 个智能体的 aud。
 - 客户端认证只接受 private_key_jwt（RS256），从客户端的 `jwks_uri` 取公钥；assertion 有效期 ≤ 10 分钟，jti 不可重放。
 - 访问 token 900 秒，换票 token 600 秒。等待人工审批超过 10 分钟的流程，批准后必须重新换票；用户会话也失效的改用 `/oauth/delegation-token`。
+- 委托 token（2026-10-08 读 `OAuthConsentController`）：`POST /oauth/delegation-token`，表单字段 `consent_id`、`requested_audience`、`requested_scopes`、`client_id`、`client_assertion_type`、`client_assertion`。签发的 token 仍是 600 秒、`principal_type=agent`。consent 由用户 access token 调 `POST /oauth/consents` 创建，默认 30 天，粒度是用户 + 客户端 + scopes + 知识库，没有单次流程号。
 - JWKS：`GET /.well-known/jwks.json`，响应缓存 1 小时。
 - 换票要求「被换 token 的 aud」和「目标 aud」都在客户端的 `allowed_audiences` 里，这张表由 keel-server 根据 manifest 自动生成。

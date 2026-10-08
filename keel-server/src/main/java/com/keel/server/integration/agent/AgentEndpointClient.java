@@ -88,6 +88,11 @@ public class AgentEndpointClient {
     public record Answer(String text, String traceId) {}
 
     public void resume(String endpoint, String runId, String resumeToken, String decision, String inputText) {
+        resume(endpoint, runId, resumeToken, decision, inputText, null);
+    }
+
+    public void resume(String endpoint, String runId, String resumeToken, String decision, String inputText,
+                       String consentId) {
         var payload = json.createObjectNode();
         payload.put("resume_token", resumeToken == null ? "" : resumeToken);
         if (decision != null) {
@@ -95,6 +100,9 @@ public class AgentEndpointClient {
         }
         if (inputText != null) {
             payload.putObject("input").put("text", inputText);
+        }
+        if (consentId != null && !consentId.isBlank()) {
+            payload.put("consent_id", consentId);
         }
         var base = trim(endpoint);
         try {

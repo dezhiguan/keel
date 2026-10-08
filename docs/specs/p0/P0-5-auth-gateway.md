@@ -66,7 +66,7 @@ manifest 的 `auth.roles` 靠它做准入。**这个 claim 目前不存在**，�
 
 - **`allowed_audiences` 的生成时机**。manifest 的 `delegates` 变了，这张表要跟着变。本任务只负责 auth-gateway 侧读这张表；写由 keel-server 在 P1-7 做。两边的字段含义要在本任务里约定清楚并写进本文件，不要留到 P1-7 再对。
 
-- **待确认**：`/oauth/consents` 和 `/oauth/delegation-token` 的现有实现程度。P0-1a 的运行恢复要用委托 token 兜底（审批等待超时后用户会话也失效的情况），但这两个接口现在是什么行为、授权粒度是按智能体还是按单次流程，我没有核实过。本任务要把结论查清楚写回这里，P3-1 才能动。
+- **已核实（2026-10-08，读 auth-gateway 源码）**：`POST /oauth/consents` 用用户 access token 创建 consent，粒度是用户 + 客户端 + scopes + 知识库 + 过期时间，默认 30 天，没有目标 aud，也没有单次流程号。`POST /oauth/delegation-token` 是表单：`consent_id`、`requested_audience`、`requested_scopes`、`client_id`、`client_assertion_type`、`client_assertion`。签出 600 秒的 `principal_type=agent` token。Keel 侧接入见 D0-3。
 
 ## 验收标准
 

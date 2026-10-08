@@ -174,6 +174,23 @@ class GatewayTest {
                 .isEqualTo(ErrorCode.LLM_BUDGET_EXCEEDED);
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void codingModelUsesTheSameDayListPrice() throws Exception {
+        try (var input = GatewayTest.class.getResourceAsStream("/application.yaml")) {
+            assertThat(input).isNotNull();
+            Map<String, Object> root = new org.yaml.snakeyaml.Yaml().load(input);
+            var models = (Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) root.get("keel")).get("llm")).get("models");
+            var flash = (Map<String, Object>) models.get("qwen3.8-flash");
+            assertThat(flash.get("input-cny-per-token")).isEqualTo("0.0000008");
+            assertThat(flash.get("output-cny-per-token")).isEqualTo("0.0000027");
+        }
+        var catalog = new ModelCatalog(Map.of("qwen3.8-flash", new ModelCatalog.Model(
+                "qwen3.8-flash", new BigDecimal("0.0000008"), new BigDecimal("0.0000027"),
+                "https://dashscope.aliyuncs.com/compatible-mode", "")));
+        assertThat(catalog.require("qwen3.8-flash").priceConfigured()).isTrue();
+    }
+
     private static Gateway gateway(HttpServer server) {
         return new Gateway(catalog(server), new BudgetCounter(), new Upstream());
     }

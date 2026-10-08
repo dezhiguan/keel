@@ -11,4 +11,5 @@ public record OpenApproval(
         String traceId,
         String payloadDigest,
         String policyName,
-        String env) {}
+        String env,
+        String consentId) {}

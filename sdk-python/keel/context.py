@@ -69,6 +69,7 @@ class Context:
         self._events = events
         self.manifest = manifest
         self.resuming = False
+        self.delegation_token: str | None = None
         self.pending: dict | None = None
         self.budget = dict(budget or {"cny": 1.0, "steps": 8})
         self._children = children or {}

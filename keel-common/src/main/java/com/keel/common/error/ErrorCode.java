@@ -41,7 +41,8 @@ public enum ErrorCode {
     AUTH_CAPTCHA_REQUIRED("为了保护账号，请填写图形验证码后再登录", false, 423),
     AUTH_LOCKED("登录失败次数过多，请 15 分钟后再试", false, 423),
     AUTH_SMS_RATE_LIMITED("操作太频繁，请稍后再试", true, 429),
-    AUTH_GATEWAY_UNAVAILABLE("登录服务暂时不可用，请稍后再试", true, 503);
+    AUTH_GATEWAY_UNAVAILABLE("登录服务暂时不可用，请稍后再试", true, 503),
+    GIT_UPSTREAM_FAILED("GitHub 调用失败", true, 502);
     private final String message;
     private final boolean retryable;
     private final int http;

@@ -230,3 +230,8 @@ codes:
     message: 登录服务暂时不可用，请稍后再试
     retryable: true
     http: 503
+
+  GIT_UPSTREAM_FAILED:
+    message: GitHub 调用失败
+    retryable: true
+    http: 502

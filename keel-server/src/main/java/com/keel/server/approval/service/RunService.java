@@ -97,14 +97,15 @@ public class RunService {
         var deadline = deadline(request.deadline(), now);
         var traceId = firstNonBlank(request.traceId(), TraceIds.current());
         var token = "rt_" + UUID.randomUUID().toString().replace("-", "");
+        var consent = ApprovalPolicyEngine.consentId(request.consentId());
         audits.append(agent, env, "run.suspend", "high", "pending", request.runId(), traceId);
         jdbc.update("""
                 INSERT INTO agent_run
                     (run_id, agent_name, env, trace_id, status, suspend_reason, suspend_ref, checkpoint_ref,
-                     actor_user, deadline, prompt, resume_token)
-                VALUES (?, ?, ?, ?, 'SUSPENDED', ?, ?, ?, ?, ?, ?, ?)
+                     actor_user, deadline, prompt, resume_token, consent_id)
+                VALUES (?, ?, ?, ?, 'SUSPENDED', ?, ?, ?, ?, ?, ?, ?, ?)
                 """, request.runId(), agent, env, traceId, request.reason(), request.runId(),
-                checkpoint, actor, Timestamp.from(deadline), prompt, token);
+                checkpoint, actor, Timestamp.from(deadline), prompt, token, consent);
         return load(request.runId());
     }
 
@@ -144,7 +145,8 @@ public class RunService {
                 row == null ? null : row.reason(),
                 row == null ? null : row.deadline(),
                 row == null ? null : row.suspendedAt(),
-                clock.instant());
+                clock.instant(),
+                row == null ? null : row.consentId());
         return switch (verdict) {
             case NOT_FOUND -> throw new KeelException(ErrorCode.RUN_NOT_FOUND, ErrorCode.RUN_NOT_FOUND.message());
             case NOT_RESUMABLE -> throw new KeelException(ErrorCode.RUN_NOT_RESUMABLE, ErrorCode.RUN_NOT_RESUMABLE.message());
@@ -156,7 +158,8 @@ public class RunService {
             }
             case ALLOW -> {
                 audits.append(row.agent(), row.env(), "run.resume", "high", "approved", runId, row.traceId());
-                callResume(row.agent(), runId, row.token(), text);
+                callResume(row.agent(), runId, row.token(), text,
+                        ApprovalPolicyEngine.passConsent(row.suspendedAt(), row.consentId(), clock.instant()));
                 var updated = jdbc.update("""
                         UPDATE agent_run
                         SET status = 'DONE', resumed_count = resumed_count + 1, updated_at = now()
@@ -170,7 +173,7 @@ public class RunService {
         };
     }
 
-    private void callResume(String agent, String runId, String token, String text) {
+    private void callResume(String agent, String runId, String token, String text, String consentId) {
         String endpoint;
         try {
             endpoint = registry.invokeEndpoint(agent);
@@ -178,7 +181,7 @@ public class RunService {
             throw new KeelException(ErrorCode.GW_AGENT_OFFLINE, ErrorCode.GW_AGENT_OFFLINE.message());
         }
         try {
-            agents.resume(endpoint, runId, token == null ? "" : token, null, text);
+            agents.resume(endpoint, runId, token == null ? "" : token, null, text, consentId);
         } catch (RuntimeException e) {
             throw new KeelException(ErrorCode.GW_AGENT_OFFLINE, ErrorCode.GW_AGENT_OFFLINE.message());
         }
@@ -206,13 +209,14 @@ public class RunService {
                 rs.getString("trace_id"), rs.getString("suspend_reason"), rs.getString("prompt"),
                 rs.getString("actor_user"), offset(rs, "created_at"), offset(rs, "deadline"));
         return new RunRow(rs.getString("status"), view.reason(), view.agent(), view.env(), view.traceId(),
-                instant(rs, "deadline"), instant(rs, "created_at"), rs.getString("resume_token"), view);
+                instant(rs, "deadline"), instant(rs, "created_at"), rs.getString("resume_token"),
+                rs.getString("consent_id"), view);
     }
 
     private static String selectSql() {
         return """
                 SELECT run_id, agent_name, env, trace_id, status, suspend_reason, prompt, actor_user,
-                       created_at, deadline, resume_token
+                       created_at, deadline, resume_token, consent_id
                 FROM agent_run
                 """;
     }
@@ -273,5 +277,5 @@ public class RunService {
     }
 
     private record RunRow(String status, String reason, String agent, String env, String traceId, Instant deadline,
-                          Instant suspendedAt, String token, SuspendedRunView view) {}
+                          Instant suspendedAt, String token, String consentId, SuspendedRunView view) {}
 }
