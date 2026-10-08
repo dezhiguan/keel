@@ -964,6 +964,34 @@ paths:
                     properties:
                       data: { $ref: "#/components/schemas/ToolDetail" }
 
+  /tools/{name}/grants:
+    parameters:
+      - $ref: "#/components/parameters/ToolName"
+    post:
+      tags: [tools]
+      operationId: grantTool
+      summary: 把共享工具授权给智能体
+      description: 只接受控制台用户。granted_by 取当前登录用户，不从正文读取。服务身份不能调用。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agent, versionRange]
+              properties:
+                agent: { type: string }
+                versionRange: { type: string, maxLength: 128 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+        "403":
+          description: 服务身份或只读会话
+          $ref: "#/components/responses/Error"
+
   /tools/{name}/versions:
     parameters:
       - $ref: "#/components/parameters/ToolName"

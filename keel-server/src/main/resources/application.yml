@@ -22,3 +22,8 @@ mybatis-plus:
 logging:
   pattern:
     level: "%5p [trace_id=%X{trace_id:-} agent=%X{agent:-}]"
+
+keel:
+  service:
+    # 未配置时工具目录不接受智能体断言，仍只认控制台登录。
+    audience: ${KEEL_SERVICE_AUDIENCE:}

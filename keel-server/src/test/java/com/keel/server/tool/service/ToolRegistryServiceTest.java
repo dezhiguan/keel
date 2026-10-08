@@ -1,6 +1,9 @@
 package com.keel.server.tool.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.keel.common.error.ErrorCode;
+import com.keel.server.auth.ConsolePrincipal;
+import com.keel.server.common.KeelException;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -8,6 +11,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ToolRegistryServiceTest {
     private final ObjectMapper json = new ObjectMapper();
@@ -43,5 +47,20 @@ class ToolRegistryServiceTest {
         assertThat(ToolRegistryService.visibleInEnv("test", "echo", "askdb", Map.of(), Set.of("askdb"))).isTrue();
         assertThat(ToolRegistryService.visibleInEnv("dev", "echo", "askdb", Map.of(), Set.of("wind"))).isFalse();
         assertThat(ToolRegistryService.visibleInEnv(null, "echo", null, Map.of(), Set.of())).isTrue();
+    }
+
+    @Test void onlyASharedLiveToolCanBeGrantedByAConsoleUser() {
+        assertThat(ToolGrantPolicy.rejection("SHARED", "ONLINE", "coder", "^1.0")).isNull();
+        assertThat(ToolGrantPolicy.rejection("PRIVATE", "ONLINE", "coder", "^1.0")).contains("共享");
+        assertThat(ToolGrantPolicy.rejection("SHARED", "RETIRED", "coder", "^1.0")).contains("下线");
+        assertThat(ToolGrantPolicy.rejection("SHARED", "ONLINE", "coder", "")).contains("不能为空");
+        assertThat(ToolGrantPolicy.rejection("SHARED", "ONLINE", "coder", "x".repeat(129))).contains("不能为空");
+        assertThatThrownBy(() -> ToolGrantPolicy.requireConsoleWriter(ConsolePrincipal.service("coder")))
+                .isInstanceOf(KeelException.class)
+                .extracting(error -> ((KeelException) error).code())
+                .isEqualTo(ErrorCode.AUTH_CONSOLE_FORBIDDEN);
+        assertThatThrownBy(() -> ToolGrantPolicy.requireConsoleWriter(ConsolePrincipal.preview()))
+                .isInstanceOf(KeelException.class);
+        assertThat(ToolGrantPolicy.requireConsoleWriter(ConsolePrincipal.dev()).username()).isEqualTo("dev");
     }
 }

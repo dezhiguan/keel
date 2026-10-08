@@ -25,7 +25,7 @@
 | D0-1 | `keel register` / `release` / `eval` / `gate` | CLI 只有 new、dev | P0-10 续 / P2 |
 | D0-2 | keel-audit 落 PostgreSQL | 哈希链在进程内存 | P1-11 续 |
 | D0-3 | 委托授权 `/oauth/delegation-token`；挂起超过 10 分钟可恢复 | 请求体已按 auth-gateway 源码接入。没有 consent 时仍返回 `RUN_RESUME_DENIED` | P0-5 续 / P3-1 续 |
-| D0-4 | 工具注册表的服务身份读接口、授权写入 | `/api/v1/tools` 只认控制台登录 | P2 tool 模块 |
+| D0-4 | 工具注册表的服务身份读接口、授权写入 | 智能体断言可读目录；`POST /tools/{name}/grants` 只认控制台用户 | P2 tool 模块 |
 | D0-5 | 薄网关加编码模型 | `qwen3.8-flash`，2026-10-08 百炼中国站标准价 | P1-2 续 |
 
 ## 本方案任务
@@ -33,9 +33,9 @@
 | ID | 任务 | 执行者 | 前置 | 期 |
 |---|---|---|---|---|
 | DF-1 | 契约：console-api 的 devflow 接口；agents 加 `layer`、`devflowJobId`；审批待办加 `source`；错误码 `DEVFLOW_*`；追踪属性 `keel.devflow.job_id` | Cursor | — | D1 |
-| DF-2 | keel-server devflow 模块：V8 表、状态机、接管 / 交还、谱系校验、审计；服务身份的工具目录读接口。另含控制台页面先行时留下的后端接口：`GET /devflow/jobs/{id}/review`、`POST /devflow/jobs/{id}/seed-cases`、审批单与挂起运行的 `devflowJobId` / `devflowGate`（DF-9c）；`EvalResult.holdout`（DF-9d 评测，数据来自 DF-8）；审计按 `kind` 过滤（DF-9d 审计）；`ModelGateway.devflowCost`（DF-9d 模型网关） | Cursor | DF-1 D0-4 | D1 |
+| DF-2 | keel-server devflow 模块：V8 表、状态机、接管 / 交还、谱系校验、审计；服务身份的工具目录读接口已在 D0-4 完成。另含控制台页面先行时留下的后端接口：`GET /devflow/jobs/{id}/review`、`POST /devflow/jobs/{id}/seed-cases`、审批单与挂起运行的 `devflowJobId` / `devflowGate`（DF-9c）；`EvalResult.holdout`（DF-9d 评测，数据来自 DF-8）；审计按 `kind` 过滤（DF-9d 审计）；`ModelGateway.devflowCost`（DF-9d 模型网关） | Cursor | DF-1 D0-4 | D1 |
 | DF-3 | 沙箱：命名空间、配额、网络策略、SandboxService、假薄网关 / 假 Langfuse sidecar | Cursor | DF-2 | D1 |
-| DF-4 | Git / CI MCP 服务、分支保护、工具登记 | Codex | D0-4。GitHub 适配与分支保护已在 D0 落地，登记仍等 D0-4 | D1 |
+| DF-4 | Git / CI MCP 服务、分支保护、工具登记 | Codex | D0-4 已完成。GitHub 适配与分支保护已落地，工具登记仍待做 | D1 |
 | **DF-5** | **元智能体 meta-agent**，分四步交付，见下 | Cursor | 各步不同 | D1–D2 |
 | DF-6 | meta-agent 生产 spec-agent、dev-lead（人机协作） | meta-agent + 人 | DF-5d | D2 |
 | DF-7 | meta-agent 生产 dev-agent、eval-agent、code-review、ci-doctor、release-agent | meta-agent + 人 | DF-6 | D2 |

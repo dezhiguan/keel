@@ -198,6 +198,31 @@ public class ToolRegistryService {
         jdbc.update("UPDATE tool SET status = 'RETIRED', updated_at = now() WHERE name = ?", name);
     }
 
+    public void grant(String toolName, String agent, String versionRange, String grantedBy) {
+        var rows = jdbc.query("SELECT scope, status FROM tool WHERE name = ?",
+                (rs, n) -> new String[]{rs.getString("scope"), rs.getString("status")}, toolName);
+        if (rows.isEmpty()) {
+            throw new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message());
+        }
+        var rejection = ToolGrantPolicy.rejection(rows.get(0)[0], rows.get(0)[1], agent, versionRange);
+        if (rejection != null) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, rejection);
+        }
+        var agents = jdbc.queryForObject("SELECT count(*) FROM agent WHERE name = ?", Integer.class, agent);
+        if (agents == null || agents == 0) {
+            throw new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message());
+        }
+        if (grantedBy == null || grantedBy.isBlank() || grantedBy.length() > 64) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, ErrorCode.SERVER_INVALID_PARAM.message());
+        }
+        jdbc.update("""
+                INSERT INTO agent_tool_grant (agent_name, tool_name, version_range, granted_by, status)
+                VALUES (?, ?, ?, ?, 'ACTIVE')
+                ON CONFLICT (agent_name, tool_name, version_range)
+                DO UPDATE SET status = 'ACTIVE', granted_by = EXCLUDED.granted_by, updated_at = now()
+                """, agent, toolName, versionRange, grantedBy);
+    }
+
     static boolean blocksRetire(List<String> envs) {
         return envs.stream().anyMatch("prod"::equals);
     }

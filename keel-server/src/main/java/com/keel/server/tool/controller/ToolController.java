@@ -1,8 +1,10 @@
 package com.keel.server.tool.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.keel.server.auth.ConsolePrincipal;
 import com.keel.server.common.PageResult;
 import com.keel.server.common.R;
+import com.keel.server.tool.service.ToolGrantPolicy;
 import com.keel.server.tool.service.ToolRegistryService;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
@@ -63,5 +65,13 @@ public class ToolController {
     public R<Map<String, Object>> retire(@PathVariable String name) {
         tools.retire(name);
         return R.ok(Map.of("name", name));
+    }
+
+    @PostMapping("/{name}/grants")
+    public R<Map<String, Object>> grant(@PathVariable String name, @RequestBody JsonNode body) {
+        var principal = ToolGrantPolicy.requireConsoleWriter(ConsolePrincipal.current());
+        var agent = body.path("agent").asText("");
+        tools.grant(name, agent, body.path("versionRange").asText(""), principal.username());
+        return R.ok(Map.of("name", name, "agent", agent));
     }
 }

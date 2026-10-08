@@ -29,6 +29,10 @@ public record ConsolePrincipal(String mode, String userId, String username, Stri
         return new ConsolePrincipal("PREVIEW", "", "", "预览访客", "", "VIEWER", List.of(), true);
     }
 
+    public static ConsolePrincipal service(String agent) {
+        return new ConsolePrincipal("SERVICE", agent, agent, agent, "", "", List.of(), true);
+    }
+
     public MeController.CurrentUser toUser() {
         return new MeController.CurrentUser(userId, displayName, org, platformRole, roles, List.of(), 0, mode, readOnly);
     }

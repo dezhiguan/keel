@@ -23,13 +23,15 @@ public class ConsoleSessionFilter extends OncePerRequestFilter {
     private final ConsoleTokenService tokens;
     private final Environment environment;
     private final ConsoleUsers consoleUsers;
+    private final ServiceIdentity serviceIdentity;
 
     public ConsoleSessionFilter(ConsoleAuthProperties properties, ConsoleTokenService tokens, Environment environment,
-                                ConsoleUsers consoleUsers) {
+                                ConsoleUsers consoleUsers, ServiceIdentity serviceIdentity) {
         this.properties = properties;
         this.tokens = tokens;
         this.environment = environment;
         this.consoleUsers = consoleUsers;
+        this.serviceIdentity = serviceIdentity;
     }
 
     @Override
@@ -43,6 +45,20 @@ public class ConsoleSessionFilter extends OncePerRequestFilter {
             }
             if (properties.openForTests()) {
                 ConsolePrincipal.set(request, ConsolePrincipal.dev());
+                chain.doFilter(request, response);
+                return;
+            }
+            if (CatalogAccess.readable(request.getMethod(), request.getRequestURI()) && serviceIdentity.applies(request)) {
+                try {
+                    serviceIdentity.authenticate(request);
+                } catch (KeelException e) {
+                    AuthResponses.write(response, e);
+                    return;
+                }
+                var principal = request.getAttribute(ConsolePrincipal.ATTRIBUTE);
+                if (principal instanceof ConsolePrincipal service) {
+                    MDC.put("agent", service.username());
+                }
                 chain.doFilter(request, response);
                 return;
             }
