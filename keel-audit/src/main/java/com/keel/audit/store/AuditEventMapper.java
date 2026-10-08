@@ -1,5 +1,7 @@
 package com.keel.audit.store;
 
+import com.keel.audit.chain.ChainStore;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -8,6 +10,7 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 /**
  * Inserts audit rows. This class never updates or deletes audit_event.
@@ -53,6 +56,58 @@ public class AuditEventMapper {
             statement.setString(1, agent);
             try (ResultSet rows = statement.executeQuery()) {
                 return rows.next() ? rows.getString(1) : null;
+            }
+        }
+    }
+
+    /** Serializes the first insert too. SELECT FOR UPDATE does not lock a missing head row. */
+    public void advisoryLock(Connection connection, String agent) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT pg_advisory_xact_lock(hashtext(?))")) {
+            statement.setString(1, agent);
+            statement.execute();
+        }
+    }
+
+    public ChainStore.Head readHead(Connection connection, String agent) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT hash, count FROM audit_chain_head WHERE agent = ? FOR UPDATE")) {
+            statement.setString(1, agent);
+            try (ResultSet rows = statement.executeQuery()) {
+                if (!rows.next()) {
+                    return null;
+                }
+                return new ChainStore.Head(rows.getString(1), rows.getLong(2));
+            }
+        }
+    }
+
+    public void upsertHead(Connection connection, String agent, String hash, long count) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("""
+                INSERT INTO audit_chain_head (agent, hash, count) VALUES (?, ?, ?)
+                ON CONFLICT (agent) DO UPDATE SET hash = EXCLUDED.hash, count = EXCLUDED.count
+                """)) {
+            statement.setString(1, agent);
+            statement.setString(2, hash);
+            statement.setLong(3, count);
+            statement.executeUpdate();
+        }
+    }
+
+    public List<ChainStore.Link> listEvents(Connection connection, String agent) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("""
+                SELECT event_id, agent, prev_hash, hash, canonical_json
+                FROM audit_event WHERE agent = ?
+                """)) {
+            statement.setString(1, agent);
+            try (ResultSet rows = statement.executeQuery()) {
+                var links = new java.util.ArrayList<ChainStore.Link>();
+                while (rows.next()) {
+                    links.add(new ChainStore.Link(
+                            rows.getString(1), rows.getString(2), rows.getString(3),
+                            rows.getString(4), rows.getString(5)));
+                }
+                return links;
             }
         }
     }

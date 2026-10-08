@@ -1,0 +1,5 @@
+# 设置 KEEL_AUDIT_JDBC_URL、KEEL_AUDIT_JDBC_USER、KEEL_AUDIT_JDBC_PASSWORD 后，
+# 哈希链写入 PostgreSQL（库 keel_audit）。三个都没设时用进程内链，只适合本地单测。
+spring:
+  application:
+    name: keel-audit
