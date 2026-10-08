@@ -94,16 +94,15 @@ def _requirement(text: str) -> dict:
 
 
 def _target(requirement: dict) -> str | None:
-    # TODO(DF-1): use DEVFLOW_LINEAGE_FORBIDDEN for lineage refusals once it is registered.
     if requirement.get("layer", "dev") != "dev":
-        raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "元智能体只生产研发智能体，业务智能体由研发流水线生产")
+        raise KeelError(ErrorCode.DEVFLOW_LINEAGE_FORBIDDEN, "元智能体只生产研发智能体，业务智能体由研发流水线生产")
     if requirement.get("kind", "CREATE") != "CREATE":
         raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "改造已有智能体要读注册表里的现有 manifest，DF-5d 之后支持")
     target = requirement.get("target_agent")
     if target is None:
         return None
     if target == SELF:
-        raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "元智能体只能由人修改")
+        raise KeelError(ErrorCode.DEVFLOW_LINEAGE_FORBIDDEN, "元智能体只能由人修改")
     if not isinstance(target, str) or not NAME.match(target):
         raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "target_agent 不合规：小写字母开头，3～40 位，字母数字和连字符")
     return target

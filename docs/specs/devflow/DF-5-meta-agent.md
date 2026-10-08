@@ -74,7 +74,7 @@ POST /v1/runs/{run_id}/resume
 
 - **只做新建**：`kind` 为 `CHANGE` 时拒绝（`SERVER_INVALID_PARAM`）。改造要先读注册表里的现有 manifest，智能体现在没有身份可读，归 DF-5d。
 - **只生产研发层**：表单里 `layer` 为 `biz` 时直接拒绝（`SERVER_INVALID_PARAM`，提示业务智能体由研发流水线生产）。`layer` 缺省按 `dev` 处理。
-- **不能改自己**：`target_agent`（或模型给出的 `metadata.name`）等于 `meta-agent` 时拒绝（`SERVER_INVALID_PARAM`）。专用错误码 `DEVFLOW_LINEAGE_FORBIDDEN` 在 DF-1 登记后再换，代码里留 `TODO(DF-1)`。
+- **不能改自己**：需求里的 `target_agent` 等于 `meta-agent`，或 `layer` 不是研发层时，拒绝并返回 `DEVFLOW_LINEAGE_FORBIDDEN`。模型若把 `metadata.name` 写成 `meta-agent`，仍由 manifest 校验拒绝。名字不合规、改造尚未支持仍用 `SERVER_INVALID_PARAM`。
 - **名字规则**：`metadata.name` 必须匹配 `^[a-z][a-z0-9-]{1,38}[a-z0-9]$`，这样拼上 `-{env}` 后正好满足薄网关别名规则。
 - **校验走工具**：`manifest.validate`、`catalog.lookup` 两个本地工具都通过 `ctx.tools.call` 调用，链路上有 tool span，审计按白名单只记 `target_agent`、`version`。
 - **manifest 校验**：用 SDK 同一份 `manifest.schema.json`（`jsonschema` Draft 2020-12），再加四条业务规则：

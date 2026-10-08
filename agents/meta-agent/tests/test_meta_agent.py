@@ -131,9 +131,13 @@ def test_two_invalid_drafts_end_with_manifest_invalid(gateway):
 
 
 def test_lineage_and_name_rules_reject_before_calling_the_model(gateway):
-    cases = [{**REQUIREMENT, "layer": "biz"}, {**REQUIREMENT, "target_agent": "meta-agent"},
-             {**REQUIREMENT, "target_agent": "Bad_Name"}, {**REQUIREMENT, "kind": "CHANGE"}]
-    for case in cases:
+    lineage = [{**REQUIREMENT, "layer": "biz"}, {**REQUIREMENT, "target_agent": "meta-agent"}]
+    invalid = [{**REQUIREMENT, "target_agent": "Bad_Name"}, {**REQUIREMENT, "kind": "CHANGE"}]
+    for case in lineage:
+        kind, error = terminal(invoke(json.dumps(case, ensure_ascii=False)))
+        assert kind == "error", case
+        assert error["code"] == "DEVFLOW_LINEAGE_FORBIDDEN", case
+    for case in invalid:
         kind, error = terminal(invoke(json.dumps(case, ensure_ascii=False)))
         assert kind == "error", case
         assert error["code"] == "SERVER_INVALID_PARAM", case

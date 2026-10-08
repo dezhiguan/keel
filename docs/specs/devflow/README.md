@@ -15,8 +15,8 @@
 | 已完成（控制台） | [DF-9b 智能体页](DF-9b-agents-console.md)：分类加元智能体，卡片带来源，谱系视图，新建向导加「由智能体生产」。未注册员工占位 |
 | 已完成（控制台） | DF-9d 链路追踪：按研发任务筛选，行上标来源。没有任务号时用来源占位。其余 DF-9d 页面仍待做 |
 | 已完成（控制台 mock） | [DF-9c 审批中心](DF-9c-approvals.md)：加「研发任务」分组和 H1 / H2 / H4 / 协作 review 关口处理页，审批单和挂起运行带 `devflowJobId` / `devflowGate`。review、seed-cases 接口只在 MSW，keel-server 归 DF-2 |
-| 可以立刻开工 | DF-1 契约（页面用到的 jobs 路径已在 DF-9a 写入 console-api，追踪属性 `keel.devflow.job_id` 已在 DF-9d 链路切片登记，智能体 `layer` / `devflowJobId` 已在 DF-9b 写入，其余字段仍在 DF-1） |
-| 等前置 | 其余，见下表"前置" |
+| 已完成 | [DF-1 契约](DF-1-contracts.md)：`DEVFLOW_*` 错误码、审批 `source=devflow`、审计 `kind`、阶段回报 / 沙箱 / 隐藏考题路径。看板等路径此前已由控制台切片写入 |
+| 可以开工 | DF-2 研发任务账本（DF-1 与 D0-4 已齐）。沙箱、工具登记、隐藏考题仍等各自的前置 |
 
 ## D0 底座前置（不在本目录写 spec，归属原任务）
 

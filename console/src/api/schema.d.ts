@@ -666,6 +666,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tools/{name}/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["ToolName"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 把共享工具授权给智能体
+         * @description 只接受控制台用户。granted_by 取当前登录用户，不从正文读取。服务身份不能调用。
+         */
+        post: operations["grantTool"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tools/{name}/versions": {
         parameters: {
             query?: never;
@@ -1102,6 +1124,115 @@ export interface paths {
          *     任务不存在 404 SERVER_NOT_FOUND；任务不在 H2 409 RUN_NOT_RESUMABLE。
          */
         post: operations["acceptDevflowSeedCases"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/jobs/{jobId}/stages/{stage}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+                stage: components["schemas"]["DevflowStage"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 研发员工回写阶段结论
+         * @description 工具 devflow.stage.report 的提供方。调用方是该任务的研发员工服务身份，控制台用户不能代写。
+         *     产物只存引用，不存原文。任务不存在 404 SERVER_NOT_FOUND。
+         *     花费将超过预算时 409 DEVFLOW_BUDGET_EXCEEDED；修复轮次用完时 409 DEVFLOW_FIX_ROUNDS_EXHAUSTED。
+         */
+        post: operations["reportDevflowStage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/sandbox/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 在沙箱里执行一次测试
+         * @description 工具 sandbox.run 的提供方。repo 必须在 keel-agents 组织下。
+         *     报告截断到 64KB，truncated 为 true 表示被截断。超时 504 DEVFLOW_SANDBOX_TIMEOUT。
+         */
+        post: operations["startSandboxRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/sandbox/runs/{runId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        /** 读取沙箱测试报告 */
+        get: operations["getSandboxRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/holdout/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * CI 读取隐藏考题
+         * @description 只接受 CI 客户端身份。控制台和智能体不能调用，响应里才有用例内容。
+         *     任务没有隐藏考题时 404 SERVER_NOT_FOUND。
+         */
+        get: operations["getDevflowHoldout"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/holdout-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * CI 上报隐藏考题聚合分
+         * @description 只接受 CI 客户端身份。只收按 tag 的聚合分，不接收单条答案。
+         *     未过门禁时 409 DEVFLOW_HOLDOUT_FAILED。
+         */
+        post: operations["submitDevflowHoldoutResult"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2062,6 +2193,66 @@ export interface components {
             dailyLimit: number;
             concurrency: number;
             templates: string[];
+        };
+        DevflowStageReport: {
+            /** @enum {string} */
+            status: "OK" | "FAILED";
+            summary: string;
+            traceId?: string;
+            /** Format: float */
+            costCny?: number;
+            artifact?: {
+                /** @enum {string} */
+                kind: "SPEC" | "MANIFEST" | "CODE" | "EVALSET" | "REVIEW" | "GATE_REPORT";
+                /** @description git sha、数据集名或报告 id */
+                ref: string;
+                sha256?: string;
+                /** @enum {string} */
+                origin: "HUMAN" | "AGENT";
+            };
+        };
+        SandboxRunRequest: {
+            jobId: string;
+            /**
+             * @description keel-agents 组织下的仓库名
+             * @example refund-explainer
+             */
+            repo: string;
+            /**
+             * @description git ref
+             * @example refs/heads/feature
+             */
+            ref: string;
+        };
+        SandboxRun: {
+            runId: string;
+            /** @enum {string} */
+            status: "QUEUED" | "RUNNING" | "DONE" | "FAILED" | "TIMEOUT";
+            /** @description 测试报告，最长 64KB */
+            report?: string;
+            truncated: boolean;
+        };
+        DevflowHoldout: {
+            jobId: string;
+            cases: {
+                caseId: string;
+                input: {
+                    [key: string]: unknown;
+                };
+                expected: {
+                    [key: string]: unknown;
+                };
+                tags: string[];
+            }[];
+        };
+        DevflowHoldoutResult: {
+            jobId: string;
+            byTag: {
+                tag: string;
+                /** Format: float */
+                score: number;
+                count: number;
+            }[];
         };
         /** @description 关口处理页数据。按 gate 只填对应的字段，其余省略。隐藏考题只有条数和分数 */
         DevflowReview: {
@@ -3181,6 +3372,37 @@ export interface operations {
             };
         };
     };
+    grantTool: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["ToolName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    agent: string;
+                    versionRange: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description 服务身份或只读会话 */
+            403: components["responses"]["Error"];
+        };
+    };
     publishToolVersion: {
         parameters: {
             query?: never;
@@ -3307,6 +3529,8 @@ export interface operations {
                 env?: components["parameters"]["Env"];
                 status?: components["schemas"]["ApprovalStatus"];
                 agent?: string;
+                /** @description 为 devflow 时只返回带 devflowJobId 的审批单。缺省为全部 */
+                source?: "devflow";
                 page?: components["parameters"]["Page"];
                 size?: components["parameters"]["Size"];
             };
@@ -3353,6 +3577,8 @@ export interface operations {
                     payloadDigest?: string;
                     policyName?: string | null;
                     env?: components["schemas"]["EnvName"];
+                    /** @description 可选。记到已有 run 上，供超时后换委托 token */
+                    consentId?: string | null;
                 };
             };
         };
@@ -3413,6 +3639,8 @@ export interface operations {
             query?: {
                 env?: components["parameters"]["Env"];
                 agent?: string;
+                /** @description 为 devflow 时只返回带 devflowJobId 的挂起运行。缺省为全部 */
+                source?: "devflow";
                 page?: components["parameters"]["Page"];
                 size?: components["parameters"]["Size"];
             };
@@ -3458,6 +3686,8 @@ export interface operations {
                     /** Format: date-time */
                     deadline?: string | null;
                     checkpointRef?: string | null;
+                    /** @description 可选。建任务时的 consent，超时恢复用 */
+                    consentId?: string | null;
                 };
             };
         };
@@ -3518,6 +3748,8 @@ export interface operations {
                 agent?: string;
                 risk?: components["schemas"]["Risk"];
                 action?: components["schemas"]["AuditAction"];
+                /** @description 可选。action=config.change 时按 payload.kind 等值过滤，如 devflow.stage、devflow.takeover、drift */
+                kind?: string;
                 decision?: components["schemas"]["AuditDecision"];
                 traceId?: string;
                 from?: string;
@@ -3923,6 +4155,144 @@ export interface operations {
                 };
             };
             404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    reportDevflowStage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+                stage: components["schemas"]["DevflowStage"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DevflowStageReport"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            jobId: string;
+                            stage: components["schemas"]["DevflowStage"];
+                            attempt: number;
+                            /** @enum {string} */
+                            status: "OK" | "FAILED";
+                        };
+                    };
+                };
+            };
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    startSandboxRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SandboxRunRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["SandboxRun"];
+                    };
+                };
+            };
+        };
+    };
+    getSandboxRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["SandboxRun"];
+                    };
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    getDevflowHoldout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowHoldout"];
+                    };
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    submitDevflowHoldoutResult: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DevflowHoldoutResult"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
             409: components["responses"]["Error"];
         };
     };

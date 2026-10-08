@@ -42,7 +42,13 @@ public enum ErrorCode {
     AUTH_LOCKED("登录失败次数过多，请 15 分钟后再试", false, 423),
     AUTH_SMS_RATE_LIMITED("操作太频繁，请稍后再试", true, 429),
     AUTH_GATEWAY_UNAVAILABLE("登录服务暂时不可用，请稍后再试", true, 503),
-    GIT_UPSTREAM_FAILED("GitHub 调用失败", true, 502);
+    GIT_UPSTREAM_FAILED("GitHub 调用失败", true, 502),
+    DEVFLOW_BUDGET_EXCEEDED("研发任务花费已达到预算上限", false, 409),
+    DEVFLOW_FIX_ROUNDS_EXHAUSTED("修复轮次已用完", false, 409),
+    DEVFLOW_HOLDOUT_FAILED("隐藏考题未通过门禁", false, 409),
+    DEVFLOW_SANDBOX_TIMEOUT("沙箱执行超过 10 分钟", true, 504),
+    DEVFLOW_GRANT_MISSING("缺少共享工具授权", false, 403),
+    DEVFLOW_LINEAGE_FORBIDDEN("不能向上生产，也不能修改自己", false, 403);
     private final String message;
     private final boolean retryable;
     private final int http;

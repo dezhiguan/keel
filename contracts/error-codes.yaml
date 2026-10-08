@@ -235,3 +235,34 @@ codes:
     message: GitHub 调用失败
     retryable: true
     http: 502
+
+  # ── 研发任务 ────────────────────────────────────────────────────
+  DEVFLOW_BUDGET_EXCEEDED:
+    message: 研发任务花费已达到预算上限
+    retryable: false
+    http: 409
+
+  DEVFLOW_FIX_ROUNDS_EXHAUSTED:
+    message: 修复轮次已用完
+    retryable: false
+    http: 409
+
+  DEVFLOW_HOLDOUT_FAILED:
+    message: 隐藏考题未通过门禁
+    retryable: false
+    http: 409
+
+  DEVFLOW_SANDBOX_TIMEOUT:
+    message: 沙箱执行超过 10 分钟
+    retryable: true
+    http: 504
+
+  DEVFLOW_GRANT_MISSING:
+    message: 缺少共享工具授权
+    retryable: false
+    http: 403
+
+  DEVFLOW_LINEAGE_FORBIDDEN:
+    message: 不能向上生产，也不能修改自己
+    retryable: false
+    http: 403

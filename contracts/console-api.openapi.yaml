@@ -1115,6 +1115,10 @@ paths:
         - name: agent
           in: query
           schema: { type: string }
+        - name: source
+          in: query
+          schema: { type: string, enum: [devflow] }
+          description: 为 devflow 时只返回带 devflowJobId 的审批单。缺省为全部
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/Size"
       responses:
@@ -1226,6 +1230,10 @@ paths:
         - name: agent
           in: query
           schema: { type: string }
+        - name: source
+          in: query
+          schema: { type: string, enum: [devflow] }
+          description: 为 devflow 时只返回带 devflowJobId 的挂起运行。缺省为全部
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/Size"
       responses:
@@ -1336,6 +1344,10 @@ paths:
         - name: action
           in: query
           schema: { $ref: "#/components/schemas/AuditAction" }
+        - name: kind
+          in: query
+          schema: { type: string, example: devflow.stage }
+          description: 可选。action=config.change 时按 payload.kind 等值过滤，如 devflow.stage、devflow.takeover、drift
         - name: decision
           in: query
           schema: { $ref: "#/components/schemas/AuditDecision" }
@@ -1750,6 +1762,144 @@ paths:
                           acceptedAgentCount: { type: integer }
         "404":
           $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /devflow/jobs/{jobId}/stages/{stage}/report:
+    parameters:
+      - $ref: "#/components/parameters/DevflowJobId"
+      - name: stage
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/DevflowStage" }
+    post:
+      tags: [devflow]
+      operationId: reportDevflowStage
+      summary: 研发员工回写阶段结论
+      description: |
+        工具 devflow.stage.report 的提供方。调用方是该任务的研发员工服务身份，控制台用户不能代写。
+        产物只存引用，不存原文。任务不存在 404 SERVER_NOT_FOUND。
+        花费将超过预算时 409 DEVFLOW_BUDGET_EXCEEDED；修复轮次用完时 409 DEVFLOW_FIX_ROUNDS_EXHAUSTED。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DevflowStageReport" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [jobId, stage, attempt, status]
+                        properties:
+                          jobId: { type: string }
+                          stage: { $ref: "#/components/schemas/DevflowStage" }
+                          attempt: { type: integer }
+                          status: { type: string, enum: [OK, FAILED] }
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /devflow/sandbox/runs:
+    post:
+      tags: [devflow]
+      operationId: startSandboxRun
+      summary: 在沙箱里执行一次测试
+      description: |
+        工具 sandbox.run 的提供方。repo 必须在 keel-agents 组织下。
+        报告截断到 64KB，truncated 为 true 表示被截断。超时 504 DEVFLOW_SANDBOX_TIMEOUT。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SandboxRunRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/SandboxRun" }
+
+  /devflow/sandbox/runs/{runId}:
+    parameters:
+      - name: runId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [devflow]
+      operationId: getSandboxRun
+      summary: 读取沙箱测试报告
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/SandboxRun" }
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /devflow/holdout/{jobId}:
+    parameters:
+      - $ref: "#/components/parameters/DevflowJobId"
+    get:
+      tags: [devflow]
+      operationId: getDevflowHoldout
+      summary: CI 读取隐藏考题
+      description: |
+        只接受 CI 客户端身份。控制台和智能体不能调用，响应里才有用例内容。
+        任务没有隐藏考题时 404 SERVER_NOT_FOUND。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowHoldout" }
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /devflow/holdout-results:
+    post:
+      tags: [devflow]
+      operationId: submitDevflowHoldoutResult
+      summary: CI 上报隐藏考题聚合分
+      description: |
+        只接受 CI 客户端身份。只收按 tag 的聚合分，不接收单条答案。
+        未过门禁时 409 DEVFLOW_HOLDOUT_FAILED。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DevflowHoldoutResult" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
         "409":
           $ref: "#/components/responses/Error"
 
@@ -2887,6 +3037,68 @@ components:
         templates:
           type: array
           items: { type: string }
+    DevflowStageReport:
+      type: object
+      required: [status, summary]
+      properties:
+        status: { type: string, enum: [OK, FAILED] }
+        summary: { type: string }
+        traceId: { type: string }
+        costCny: { type: number, format: float }
+        artifact:
+          type: object
+          required: [kind, ref, origin]
+          properties:
+            kind: { type: string, enum: [SPEC, MANIFEST, CODE, EVALSET, REVIEW, GATE_REPORT] }
+            ref: { type: string, description: git sha、数据集名或报告 id }
+            sha256: { type: string }
+            origin: { type: string, enum: [HUMAN, AGENT] }
+    SandboxRunRequest:
+      type: object
+      required: [jobId, repo, ref]
+      properties:
+        jobId: { type: string }
+        repo: { type: string, description: keel-agents 组织下的仓库名, example: refund-explainer }
+        ref: { type: string, description: git ref, example: refs/heads/feature }
+    SandboxRun:
+      type: object
+      required: [runId, status, truncated]
+      properties:
+        runId: { type: string }
+        status: { type: string, enum: [QUEUED, RUNNING, DONE, FAILED, TIMEOUT] }
+        report: { type: string, description: 测试报告，最长 64KB }
+        truncated: { type: boolean }
+    DevflowHoldout:
+      type: object
+      required: [jobId, cases]
+      properties:
+        jobId: { type: string }
+        cases:
+          type: array
+          items:
+            type: object
+            required: [caseId, input, expected, tags]
+            properties:
+              caseId: { type: string }
+              input: { type: object, additionalProperties: true }
+              expected: { type: object, additionalProperties: true }
+              tags:
+                type: array
+                items: { type: string }
+    DevflowHoldoutResult:
+      type: object
+      required: [jobId, byTag]
+      properties:
+        jobId: { type: string }
+        byTag:
+          type: array
+          items:
+            type: object
+            required: [tag, score, count]
+            properties:
+              tag: { type: string }
+              score: { type: number, format: float }
+              count: { type: integer, minimum: 0 }
     DevflowReview:
       type: object
       description: 关口处理页数据。按 gate 只填对应的字段，其余省略。隐藏考题只有条数和分数
