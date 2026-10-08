@@ -123,9 +123,7 @@ cd sdk-python && ../.venv/bin/python -m pytest tests/test_runtime.py -q
 
 ### M4 · DF-5d 门禁、发布申请、任务账本
 
-- 前置：DF-2（任务账本、谱系校验、服务身份）、D0-1（register / gate）、D0-3（委托授权）、DF-8（隐藏考题）。
-- 注册 staging、跑门禁和隐藏考题；通过后调用 `git.pr.merge`（`risk: high`、`approval: required`）挂起等发布审批。
-- 现场从本地文件改为 devflow 任务账本；每次状态变化写 `config.change` 审计（`kind=devflow.stage`）。
+可执行范围见 [DF-5d-ledger.md](DF-5d-ledger.md)：确认后开研发任务并回报 SPEC，停在 H1。注册、门禁、隐藏考题和合并申请仍不做，原因写在该 spec 的「明确不做」。
 
 ## 明确不做
 

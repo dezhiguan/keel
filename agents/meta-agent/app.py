@@ -156,19 +156,32 @@ def _finish(ctx, state: dict):
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "spec.json").write_text(_dump(state["spec"]), encoding="utf-8")
     (folder / "agent.yaml").write_text(_yaml(state["manifest"]), encoding="utf-8")
+    from keel.cli.ledger import open_job
     from keel.cli.new import create_from_spec
     from keel.cli.repo import open_draft
+    from keel.cli.server import ServerRejected
     project = create_from_spec(folder / "spec.json", root=folder)
     title = str(state["spec"].get("title") or state["target_agent"])
     try:
         opened = open_draft(project, title=title, body=str(state["spec"].get("goal") or ""))
     except ValueError as exc:
         raise KeelError(ErrorCode.GIT_UPSTREAM_FAILED, str(exc)) from exc
+    try:
+        job = open_job(title=title, target_agent=state["target_agent"], goal=str(state["spec"].get("goal") or ""))
+    except ValueError as exc:
+        raise KeelError(ErrorCode.SERVER_INVALID_PARAM, str(exc)) from exc
+    except ServerRejected as exc:
+        try:
+            code = ErrorCode(exc.code)
+        except ValueError:
+            code = ErrorCode.SERVER_INTERNAL_ERROR
+        raise KeelError(code, str(exc)) from exc
     repo_line = "仓库未建：未配置 KEEL_GIT_CI_URL。" if opened is None else f"PR：{opened.get('repo')} #{opened.get('number')}"
+    job_line = "任务账本未写：未配置 KEEL_SERVER_URL。" if job is None else f"任务 {job.get('jobId')}，停在 {job.get('stage')}。"
     ctx.step("confirmed")
     return ctx.final(f"{_render(state)}\n\n产物：`{folder}/spec.json`、`{folder}/agent.yaml`\n"
-                     f"骨架：`{project}`\n{repo_line}\n\n"
-                     "后续步骤：staging 门禁与发布申请。合并要等发布审批。")
+                     f"骨架：`{project}`\n{repo_line}\n{job_line}\n\n"
+                     "后续步骤：等人确认 H1 之后再注册 staging、跑门禁。合并要等发布审批。")
 
 
 def _render(state: dict) -> str:

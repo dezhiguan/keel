@@ -88,6 +88,7 @@ def test_draft_then_confirm_writes_a_loadable_manifest(gateway):
     assert (folder / "spec-agent" / "app.py").is_file()
     assert "骨架" in final["answer"]
     assert "仓库未建" in final["answer"]
+    assert "任务账本未写" in final["answer"]
     assert len(gateway.requests) == 1
 
 
