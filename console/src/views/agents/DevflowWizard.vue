@@ -102,10 +102,10 @@ async function submit() {
           <div class="hint">任何模式下都能随时人工接管。产出只进 staging，上生产要过发布审批。</div>
         </div>
         <div class="grid2">
-          <div class="field"><label>标题 *</label><input v-model="form.title" class="inp"></div>
-          <div class="field"><label>智能体 ID *</label><input v-model="form.agent" class="inp mono"><div class="hint">小写字母开头，3～40 位</div></div>
+          <div class="field"><label>标题<b>*</b></label><input v-model="form.title" class="inp"></div>
+          <div class="field"><label>智能体 ID<b>*</b></label><input v-model="form.agent" class="inp mono"><div class="hint">小写字母开头，3～40 位</div></div>
         </div>
-        <div class="field"><label>一句话目标 *</label><textarea v-model="form.goal" class="inp" /></div>
+        <div class="field"><label>一句话目标<b>*</b></label><textarea v-model="form.goal" class="inp" /></div>
         <div class="field">
           <label>模板</label>
           <div class="tplgrid">
@@ -117,10 +117,10 @@ async function submit() {
       </template>
       <template v-else-if="step === 1">
         <div class="grid2">
-          <div class="field"><label>谁用、在什么场景 *</label><textarea v-model="form.users" class="inp" /></div>
-          <div class="field"><label>输入与输出示例 *</label><textarea v-model="form.io" class="inp" /></div>
+          <div class="field"><label>谁用、在什么场景<b>*</b></label><textarea v-model="form.users" class="inp" /></div>
+          <div class="field"><label>输入与输出示例<b>*</b></label><textarea v-model="form.io" class="inp" /></div>
         </div>
-        <div class="field"><label>怎样算做得好 *</label><textarea v-model="form.success" class="inp" /></div>
+        <div class="field"><label>怎样算做得好<b>*</b></label><textarea v-model="form.success" class="inp" /></div>
         <div class="grid2">
           <div class="field">
             <label>共享工具（取自工具页注册表）</label>

@@ -148,6 +148,7 @@ select.inp {
 .opt small { color: var(--mute); display: block; margin-top: 2px; }
 .field { margin-top: 12px; }
 .field label { display: block; color: var(--mute); font-size: 12px; margin-bottom: 6px; }
+.field label b { color: var(--bad); font-weight: 400; margin-left: 2px; }
 .field .inp { width: 100%; box-sizing: border-box; }
 .hint { color: var(--mute); font-size: 12px; margin-top: 4px; }
 .hint.err, .inp.err { color: var(--bad); border-color: var(--bad); }
