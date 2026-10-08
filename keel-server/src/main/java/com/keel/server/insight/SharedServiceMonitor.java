@@ -189,9 +189,40 @@ public class SharedServiceMonitor {
             serviceRows = new ArrayList<>(withPlatform(service));
         }
         body.put("services", serviceRows);
+        body.put("components", platformComponents(serviceRows));
         body.put("ragforge", rag);
         body.put("consoleUrl", "https://ragforge.net");
         return body;
+    }
+
+    /** Existing platform rows keep the health probe status. Sandbox quota is not wired yet, so usage stays empty. */
+    private static List<Map<String, Object>> platformComponents(List<Map<String, Object>> services) {
+        return List.of(
+                platform("keel-server", "keel-system", statusOf(services, "keel-server"), "注册中心 · 工具 · 审批"),
+                platform("keel-llm", "keel-system", statusOf(services, "薄网关"), "模型网关"),
+                platform("keel-audit", "keel-system", statusOf(services, "keel-audit"), "审计"),
+                platform("keel-gateway", "keel-system", statusOf(services, "keel-gateway"), "入口网关"),
+                platform("console", "keel-system", null, "控制台"),
+                platform("keel-devflow-sandbox", "keel-devflow-sandbox", null, "一次性 Job，10 分钟超时，只出包镜像源"));
+    }
+
+    private static Object statusOf(List<Map<String, Object>> services, String name) {
+        for (var row : services) {
+            if (name.equals(row.get("name"))) {
+                return row.get("status");
+            }
+        }
+        return null;
+    }
+
+    private static Map<String, Object> platform(String name, String namespace, Object status, String note) {
+        var row = new LinkedHashMap<String, Object>();
+        row.put("name", name);
+        row.put("namespace", namespace);
+        row.put("status", status);
+        row.put("usage", null);
+        row.put("note", note);
+        return row;
     }
 
     private static <T> T completed(java.util.concurrent.Future<T> future, T fallback) {

@@ -339,7 +339,7 @@ export interface paths {
         };
         /**
          * 共享服务页全部数据
-         * @description 服务健康来自 K8s 探测，指标来自 Prometheus，知识库来自 rag-forge。调用方和模型成本按环境过滤。知识库没有环境字段，不按环境拆开。
+         * @description 服务健康来自 K8s 探测，指标来自 Prometheus，知识库来自 rag-forge。调用方和模型成本按环境过滤。知识库没有环境字段，不按环境拆开。平台组件表在服务健康之外给出命名空间和用量；研发沙箱配额未接入时 usage 为空。
          */
         get: operations["getSharedServices"];
         put?: never;
@@ -1452,6 +1452,22 @@ export interface components {
                 errorRate?: string;
                 /** @enum {string} */
                 status?: "ONLINE" | "DEGRADED" | "OFFLINE";
+            }[];
+            /** @description 平台组件。状态沿用服务健康探测；用量查不到时为空，控制台对研发沙箱显示占位。 */
+            components?: {
+                /** @example keel-devflow-sandbox */
+                name?: string;
+                /** @example keel-devflow-sandbox */
+                namespace?: string;
+                /** @enum {string|null} */
+                status?: "ONLINE" | "DEGRADED" | "OFFLINE" | null;
+                /**
+                 * @description 核数、内存、运行中的 Job 和排队。没有配额数据时为空
+                 * @example 1.5 / 4 核 · 3 / 8Gi · 运行 2 · 排队 0
+                 */
+                usage?: string | null;
+                /** @example 一次性 Job，10 分钟超时，只出包镜像源 */
+                note?: string | null;
             }[];
             ragforge?: {
                 kpi?: {

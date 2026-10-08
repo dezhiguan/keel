@@ -119,6 +119,8 @@ describe('mock handlers', () => {
     const services = await call('GET', '/insight/services')
     expect(services.status).toBe(200)
     expect(services.json.data.services.length).toBeGreaterThan(0)
+    expect(services.json.data.components.map((row: { name: string }) => row.name)).toContain('keel-devflow-sandbox')
+    expect(services.json.data.components.find((row: { name: string }) => row.name === 'keel-devflow-sandbox').usage).toBeNull()
     await expect(call('GET', '/insight/traces')).rejects.toThrow()
     await expect(call('GET', '/insight/traces/tr_missing')).rejects.toThrow()
     await expect(call('GET', '/audit/events')).rejects.toThrow()

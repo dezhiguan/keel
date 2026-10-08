@@ -8,6 +8,7 @@ import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { agentStatus, ago, fmtN, fmtPct } from '@/utils/format'
 import { trendText } from '@/views/overview/overviewFormat'
+import { platformRows } from './platform'
 
 type PageSize = 10 | 20 | 50 | 100
 
@@ -35,6 +36,7 @@ const kbSize = ref<PageSize>(10)
 
 const rag = computed(() => data.value?.ragforge)
 const services = computed(() => data.value?.services ?? [])
+const platform = computed(() => platformRows(data.value?.components, services.value))
 const knowledge = computed(() => rag.value?.knowledgeBases ?? [])
 const healthRows = computed(() => services.value.slice((healthPage.value - 1) * healthSize.value, healthPage.value * healthSize.value))
 const kbRows = computed(() => knowledge.value.slice((kbPage.value - 1) * kbSize.value, kbPage.value * kbSize.value))
@@ -106,23 +108,40 @@ watch(() => envStore.env, load, { immediate: true })
       </button>
     </div>
 
-    <div v-if="tab === 'health'" class="card">
-      <h3>服务健康</h3>
-      <table class="t">
-        <thead><tr><th>服务</th><th>角色</th><th>实例</th><th>P95</th><th>错误率</th><th>状态</th></tr></thead>
-        <tbody>
-          <tr v-for="s in healthRows" :key="s.name">
-            <td class="nm"><b>{{ s.name }}</b></td>
-            <td>{{ s.role }}</td>
-            <td class="mono">{{ s.instances ?? '—' }}</td>
-            <td class="mono">{{ s.p95 ?? '—' }}</td>
-            <td class="mono">{{ s.errorRate ?? '—' }}</td>
-            <td><StatusPill v-bind="agentStatus(s.status)" /></td>
-          </tr>
-        </tbody>
-      </table>
-      <Pager v-model:page="healthPage" v-model:size="healthSize" :total="services.length" />
-    </div>
+    <template v-if="tab === 'health'">
+      <div class="card">
+        <h3>服务健康</h3>
+        <table class="t">
+          <thead><tr><th>服务</th><th>角色</th><th>实例</th><th>P95</th><th>错误率</th><th>状态</th></tr></thead>
+          <tbody>
+            <tr v-for="s in healthRows" :key="s.name">
+              <td class="nm"><b>{{ s.name }}</b></td>
+              <td>{{ s.role }}</td>
+              <td class="mono">{{ s.instances ?? '—' }}</td>
+              <td class="mono">{{ s.p95 ?? '—' }}</td>
+              <td class="mono">{{ s.errorRate ?? '—' }}</td>
+              <td><StatusPill v-bind="agentStatus(s.status)" /></td>
+            </tr>
+          </tbody>
+        </table>
+        <Pager v-model:page="healthPage" v-model:size="healthSize" :total="services.length" />
+      </div>
+      <div class="card">
+        <h3>平台组件<small v-if="platform.sandboxPlaceholder">研发沙箱用量尚未接入，数字为占位</small></h3>
+        <table class="t">
+          <thead><tr><th>组件</th><th>命名空间</th><th>状态</th><th>用量</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr v-for="row in platform.rows" :key="row.name">
+              <td class="mono">{{ row.name }}</td>
+              <td class="mono">{{ row.namespace }}</td>
+              <td><StatusPill v-bind="agentStatus(row.status ?? undefined)" /></td>
+              <td class="mono">{{ row.usage || '—' }}</td>
+              <td class="mut">{{ row.note || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </template>
 
     <template v-else-if="rag">
       <div class="kpis">

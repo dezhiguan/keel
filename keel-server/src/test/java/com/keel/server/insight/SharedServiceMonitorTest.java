@@ -88,6 +88,14 @@ class SharedServiceMonitorTest {
         assertThat(service.get("status")).isNull();
         assertThat(named(body, "keel-gateway")).containsEntry("role", "入口网关 · 自研轻量版").containsEntry("p95", null).containsEntry("status", null);
         assertThat(named(body, "Langfuse")).containsEntry("role", "追踪 · 评测（Cloud 日本）").containsEntry("instances", null);
+        assertThat(componentNames(body)).containsExactly(
+                "keel-server", "keel-llm", "keel-audit", "keel-gateway", "console", "keel-devflow-sandbox");
+        assertThat(componentNamed(body, "keel-devflow-sandbox"))
+                .containsEntry("namespace", "keel-devflow-sandbox")
+                .containsEntry("status", null)
+                .containsEntry("usage", null)
+                .containsEntry("note", "一次性 Job，10 分钟超时，只出包镜像源");
+        assertThat(componentNamed(body, "keel-gateway")).containsEntry("namespace", "keel-system").containsEntry("status", null);
     }
 
     @Test void insightAndStageMeansFillTheSharedServicePage() throws Exception {
@@ -279,6 +287,9 @@ class SharedServiceMonitorTest {
         assertThat(named(body, "Langfuse")).containsEntry("status", "ONLINE").containsEntry("instances", "云端").containsEntry("p95", null);
         assertThat(named(body, "keel-gateway")).containsEntry("status", null).containsEntry("p95", null);
         assertThat(named(body, "rag-forge")).containsEntry("status", null);
+        assertThat(componentNamed(body, "keel-llm")).containsEntry("status", "ONLINE").containsEntry("usage", null);
+        assertThat(componentNamed(body, "keel-gateway")).containsEntry("status", null);
+        assertThat(componentNamed(body, "keel-devflow-sandbox")).containsEntry("usage", null);
         server.stop(0);
     }
 
@@ -293,6 +304,21 @@ class SharedServiceMonitorTest {
     @SuppressWarnings("unchecked")
     private static List<String> names(Map<String, Object> body) {
         return ((List<Map<String, Object>>) body.get("services")).stream()
+                .map(row -> String.valueOf(row.get("name")))
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> componentNamed(Map<String, Object> body, String name) {
+        return ((List<Map<String, Object>>) body.get("components")).stream()
+                .filter(row -> name.equals(row.get("name")))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> componentNames(Map<String, Object> body) {
+        return ((List<Map<String, Object>>) body.get("components")).stream()
                 .map(row -> String.valueOf(row.get("name")))
                 .toList();
     }

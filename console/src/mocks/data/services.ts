@@ -12,6 +12,14 @@ export const sharedServices: SharedServices = {
     { name: '薄网关', role: '模型网关', instances: '2/2', p95: '12ms 开销', errorRate: '0.2%', status: 'ONLINE' },
     { name: 'Langfuse', role: '追踪 · 评测（Cloud 日本）', instances: '云端', p95: null, status: 'ONLINE' },
   ],
+  components: [
+    { name: 'keel-server', namespace: 'keel-system', status: 'ONLINE', usage: null, note: '注册中心 · 工具 · 审批' },
+    { name: 'keel-llm', namespace: 'keel-system', status: 'ONLINE', usage: null, note: '模型网关' },
+    { name: 'keel-audit', namespace: 'keel-system', status: 'ONLINE', usage: null, note: '审计' },
+    { name: 'keel-gateway', namespace: 'keel-system', status: 'ONLINE', usage: null, note: '入口网关' },
+    { name: 'console', namespace: 'keel-system', status: null, usage: null, note: '控制台' },
+    { name: 'keel-devflow-sandbox', namespace: 'keel-devflow-sandbox', status: null, usage: null, note: '一次性 Job，10 分钟超时，只出包镜像源' },
+  ],
   ragforge: {
     kpi: {
       searches24h: 9870,
