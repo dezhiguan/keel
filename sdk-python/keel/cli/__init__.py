@@ -7,7 +7,8 @@ def main(argv=None) -> None:
     parser = argparse.ArgumentParser(prog="keel")
     commands = parser.add_subparsers(dest="command", required=True)
     new = commands.add_parser("new", help="Create an agent project")
-    new.add_argument("name")
+    new.add_argument("name", nargs="?")
+    new.add_argument("--from-spec", help="Build the project from a confirmed spec.json and its agent.yaml")
     new.add_argument("--template", default="hello-agent",
                      choices=("hello-agent", "chat-rag", "tool-agent", "graph-agent",
                               "supervisor", "java-spring"))
@@ -44,7 +45,14 @@ def main(argv=None) -> None:
     commands.add_parser("retire")
     args = parser.parse_args(argv)
     try:
-        if args.command == "new":
+        if args.command == "new" and args.from_spec:
+            if args.name:
+                parser.error("从需求单生成时名字以 agent.yaml 为准")
+            from keel.cli.new import create_from_spec
+            create_from_spec(args.from_spec)
+        elif args.command == "new":
+            if not args.name:
+                parser.error("需要智能体名字")
             from keel.cli.new import create_project
             create_project(args.name, template=args.template)
         elif args.command == "dev":

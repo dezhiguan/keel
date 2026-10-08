@@ -1,5 +1,6 @@
 """Create a minimal offline agent project."""
 
+import json
 import re
 from pathlib import Path
 
@@ -14,6 +15,26 @@ def template_dir(name: str) -> Path:
     if not (root / "agent.yaml").is_file() and not any(root.glob("*.yaml")):
         raise FileNotFoundError(f"Template {name} is not installed")
     return root
+
+
+def create_from_spec(spec_file: str | Path, *, root: str | Path = ".") -> Path:
+    spec_path = Path(spec_file)
+    if not spec_path.is_file():
+        raise FileNotFoundError(f"找不到需求单 {spec_path}")
+    manifest_path = spec_path.with_name("agent.yaml")
+    if not manifest_path.is_file():
+        raise FileNotFoundError("需求单旁边要有 agent.yaml")
+    sheet = json.loads(spec_path.read_text(encoding="utf-8"))
+    if not isinstance(sheet, dict) or not str(sheet.get("title") or "").strip():
+        raise ValueError("需求单要有标题")
+    loaded = load_manifest(manifest_path)
+    language = getattr(loaded.spec.runtime, "language", None)
+    template = "java-spring" if str(language or "") == "java" else "tool-agent"
+    project = create_project(loaded.metadata.name, template=template, root=root)
+    (project / "agent.yaml").write_text(manifest_path.read_text(encoding="utf-8"), encoding="utf-8")
+    (project / "spec.json").write_text(spec_path.read_text(encoding="utf-8"), encoding="utf-8")
+    load_manifest(project / "agent.yaml")
+    return project
 
 
 def create_project(name: str, *, template: str = "hello-agent", root: str | Path = ".") -> Path:

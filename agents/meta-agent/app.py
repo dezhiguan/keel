@@ -156,9 +156,12 @@ def _finish(ctx, state: dict):
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "spec.json").write_text(_dump(state["spec"]), encoding="utf-8")
     (folder / "agent.yaml").write_text(_yaml(state["manifest"]), encoding="utf-8")
+    from keel.cli.new import create_from_spec
+    project = create_from_spec(folder / "spec.json", root=folder)
     ctx.step("confirmed")
-    return ctx.final(f"{_render(state)}\n\n产物：`{folder}/spec.json`、`{folder}/agent.yaml`\n\n"
-                     "后续步骤（DF-5b 以后）：生成项目骨架并在沙箱验证、建仓库开 PR、staging 门禁与发布申请。")
+    return ctx.final(f"{_render(state)}\n\n产物：`{folder}/spec.json`、`{folder}/agent.yaml`\n"
+                     f"骨架：`{project}`\n\n"
+                     "后续步骤：建仓库开 PR、staging 门禁与发布申请。沙箱里跑测试仍未做。")
 
 
 def _render(state: dict) -> str:

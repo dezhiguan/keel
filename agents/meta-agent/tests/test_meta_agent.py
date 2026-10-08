@@ -83,6 +83,10 @@ def test_draft_then_confirm_writes_a_loadable_manifest(gateway):
     assert loaded.metadata.name == "spec-agent"
     assert loaded.spec.runtime.endpoint == "http://spec-agent.agents.svc.cluster.local:8000"
     assert json.loads((folder / "spec.json").read_text(encoding="utf-8"))["title"] == "需求分析师"
+    skeleton = load_manifest(folder / "spec-agent" / "agent.yaml")
+    assert skeleton.metadata.name == "spec-agent"
+    assert (folder / "spec-agent" / "app.py").is_file()
+    assert "骨架" in final["answer"]
     assert len(gateway.requests) == 1
 
 

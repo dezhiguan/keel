@@ -113,11 +113,9 @@ cd sdk-python && ../.venv/bin/python -m pytest tests/test_runtime.py -q
 
 ## 后续步骤（本次不做）
 
-### M2 · DF-5b 生成骨架并在沙箱验证
+### M2 · DF-5b 生成骨架
 
-- 前置：DF-3 沙箱；SDK 加 `keel new --from-spec spec.json`。
-- 确认后用需求单生成项目骨架，填业务代码和单测，提交到沙箱跑 `pytest` 和协议自检；失败按报告修复，最多 3 轮。
-- 生成的代码只在沙箱里执行，meta-agent 进程内不执行。
+可执行范围见 [DF-5b-scaffold.md](DF-5b-scaffold.md)：`keel new --from-spec` 按已确认的需求单和 `agent.yaml` 复制模板。沙箱里跑 pytest 仍不做，原因写在该 spec 的「明确不做」。
 
 ### M3 · DF-5c 仓库与人机协作
 

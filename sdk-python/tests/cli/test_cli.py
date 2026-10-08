@@ -64,6 +64,35 @@ def test_new_project_matches_schema_and_ignores_local_state(tmp_path):
     assert "ctx.step('greet')" in (project / "app.py").read_text()
 
 
+def test_from_spec_copies_the_template_and_keeps_the_confirmed_manifest(tmp_path, monkeypatch, capsys):
+    from keel.cli.new import create_from_spec
+
+    source = tmp_path / "draft"
+    source.mkdir()
+    (source / "spec.json").write_text('{"title": "需求分析师", "goal": "起草"}', encoding="utf-8")
+    (source / "agent.yaml").write_text(
+        "apiVersion: keel/v1\nkind: Agent\nmetadata:\n  name: spec-agent\n"
+        "spec:\n  runtime:\n    language: python\n    endpoint: http://spec-agent.agents.svc:8000\n",
+        encoding="utf-8")
+    project = create_from_spec(source / "spec.json", root=tmp_path / "out")
+    assert (project / "app.py").is_file()
+    assert json.loads((project / "spec.json").read_text(encoding="utf-8"))["title"] == "需求分析师"
+    manifest = __import__("yaml").safe_load((project / "agent.yaml").read_text())
+    assert manifest["metadata"]["name"] == "spec-agent"
+    assert manifest["spec"]["runtime"]["endpoint"] == "http://spec-agent.agents.svc:8000"
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    (empty / "spec.json").write_text("{}", encoding="utf-8")
+    (empty / "agent.yaml").write_text((source / "agent.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+    with pytest.raises(ValueError, match="标题"):
+        create_from_spec(empty / "spec.json", root=tmp_path / "out2")
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit) as caught:
+        main(["new", "other-name", "--from-spec", str(source / "spec.json")])
+    assert caught.value.code == 2
+    assert "agent.yaml" in capsys.readouterr().err
+
+
 def test_new_rejects_bad_names_and_unshipped_templates(tmp_path):
     with pytest.raises(ValueError, match="metadata.name"):
         create_project("Hi", root=tmp_path)
