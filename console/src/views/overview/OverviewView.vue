@@ -158,18 +158,6 @@ watch(() => envStore.env, () => {
     </div>
     <p v-if="pipeline.active == null" class="pipe-note">研发任务账本尚未接入，以上数字为占位。</p>
 
-    <section class="card pipe-alerts">
-      <h3>告警<small>新增一类：研发任务</small></h3>
-      <p v-if="!pipeline.alerts.length" class="empty">{{ pipeline.active == null ? '账本接入后显示研发任务告警' : '暂无研发任务告警' }}</p>
-      <ul v-else class="alerts">
-        <li v-for="alert in pipeline.alerts" :key="`${alert.jobId}-${alert.text}`">
-          <span class="tm">{{ alert.at }}</span>
-          <span class="pill nd p-warn">研发任务</span>
-          <RouterLink :to="`/jobs/${alert.jobId}`">{{ alert.text }}</RouterLink>
-        </li>
-      </ul>
-    </section>
-
     <section class="card">
       <h3>智能体<small>点击行查看详情</small><span class="sp" /><div class="chipsel">
         <button v-for="[key, label] in CATEGORIES" :key="key" :class="{ on: category === key }" @click="setCategory(key)">{{ label }}</button>
@@ -239,11 +227,7 @@ watch(() => envStore.env, () => {
 .kpi .d a { color: var(--soft); text-decoration: none; }
 .note { font-size: 11px; margin-top: 3px; }
 .card { margin-bottom: 0; }
-.pipe-alerts { margin-bottom: 14px; }
-.pipe-alerts .empty { padding: 8px 0; text-align: left; }
 .pipe-note { margin: -6px 0 14px; font-size: 12px; color: var(--mute); }
-.alerts a { color: var(--soft); text-decoration: none; }
-.alerts a:hover { text-decoration: underline; }
 .envtag {
   font-family: var(--mono);
   font-size: 11.5px;
