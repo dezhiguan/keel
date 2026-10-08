@@ -10,7 +10,7 @@
 | `architecture/` | 全平台实现 | [技术文档](architecture/Keel-技术文档.html) |
 | `specs/` | 任务 spec | [模板](specs/_TEMPLATE.md) · [P0](specs/p0/) · [P1](specs/p1/) |
 | `TASKS.md` | 任务拆解 | [TASKS](TASKS.md) |
-| `design/` | 全流程智能体化（草案） | [方案](design/Keel-全流程智能体化方案.html) · [前端方案与原型](console/Keel-全流程智能体化控制台.html) |
+| `design/` | 全流程智能体化（草案） | [方案](design/Keel-全流程智能体化方案.html) · [前端方案与原型](console/Keel-全流程智能体化控制台.html) · [任务拆解](specs/devflow/README.md) |
 
 ## 按包
 

@@ -1,0 +1,39 @@
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  name: meta-agent
+  displayName: 元智能体
+  owner: 研发效能组 / amy
+spec:
+  runtime:
+    type: code
+    language: python
+    endpoint: http://meta-agent.agents.svc.cluster.local:8000
+    liveness: k8s
+  auth:
+    audience: meta-agent
+  models:
+    default: qwen-plus
+    budget:
+      dailyCny: 50
+  tools:
+    - name: manifest.validate
+      access: read
+      risk: low
+    - name: catalog.lookup
+      access: read
+      risk: low
+  guardrails:
+    inputInjection: enforce
+  audit:
+    captureFields: [target_agent, version]
+  eval:
+    dataset: meta-agent/dev-employee-specs
+  prompts:
+    source: langfuse
+    label: production
+    items:
+      - name: draft
+        type: text
+      - name: revise
+        type: text

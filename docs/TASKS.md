@@ -3,6 +3,8 @@
 来源：`docs/architecture/Keel-技术文档.html` 第 14 节里程碑 + 第 4/5/8/9 节的服务与流程拆开到可执行粒度。
 每条任务对应 `docs/specs/p0/` 或 `docs/specs/p1/` 下一份 spec。动手前先读 spec，不要拿着这张表直接改代码。
 
+全流程智能体化（元智能体、研发智能体、研发任务）的任务单独拆在 [`docs/specs/devflow/README.md`](specs/devflow/README.md)，编号 DF-*，依赖本表的 D0 前置项。
+
 ## 当前进度（2026-10-04）
 
 2026-10-04 选型调整：追踪改用 **Langfuse Cloud 日本节点** `https://jp.cloud.langfuse.com`（已从云服务器实测读写）。模型网关改为 **自研薄网关 `keel-llm`**，日预算按人民币，不再部署 LiteLLM，也不再购买观测节点。P1-1、P1-2 按新 spec 重做。P1-8 已按 LiteLLM `/key/generate` 和美元预算写过的客户端要改到薄网关管理接口。`agent_resource.type` 仍用已落库的 `litellm_key`。
