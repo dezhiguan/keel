@@ -31,6 +31,12 @@ public class DevflowController {
         return R.ok(devflow.list(layer, status, stage, batch, mine, actor()));
     }
 
+    @PostMapping("/jobs")
+    public R<DevflowTypes.Job> createJob(@RequestBody DevflowTypes.Draft body) {
+        requireWrite();
+        return R.ok(devflow.submit(body, actor()));
+    }
+
     @GetMapping("/jobs/{jobId}")
     public R<DevflowTypes.Job> job(@PathVariable String jobId) {
         return R.ok(devflow.job(jobId));

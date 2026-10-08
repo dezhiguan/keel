@@ -1498,6 +1498,29 @@ paths:
                   - type: object
                     properties:
                       data: { $ref: "#/components/schemas/DevflowJobList" }
+    post:
+      tags: [devflow]
+      operationId: createDevflowJob
+      summary: 提交由智能体生产的需求
+      description: 内存账本。研发类强制人机协作。元智能体不能改造。真实谱系校验归 DF-2。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DevflowJobDraft" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowJob" }
+        "400":
+          $ref: "#/components/responses/Error"
 
   /devflow/jobs/{jobId}:
     parameters:
@@ -1974,6 +1997,8 @@ components:
         name: { type: string, example: offshore-wind }
         displayName: { type: string, example: 风机维检 }
         category: { type: string, enum: [biz, dev] }
+        layer: { type: string, enum: [META, DEV, BIZ], description: 元智能体 / 研发 / 业务。缺省时控制台按 category 推断 }
+        devflowJobId: { type: string, nullable: true, description: 生产或最近一次改造它的研发任务。没有则省略 }
         language: { type: string, example: Python }
         runtime: { type: string, enum: [code, dify] }
         template: { type: string, example: graph-agent }
@@ -2633,6 +2658,26 @@ components:
         at: { type: string, description: 展示用时间，短格式，如 10:53 或 10-07 }
         actor: { type: string }
         summary: { type: string }
+    DevflowJobDraft:
+      type: object
+      required: [title, targetAgent, goal]
+      properties:
+        title: { type: string }
+        targetAgent: { type: string }
+        layer: { $ref: "#/components/schemas/DevflowLayer" }
+        kind: { $ref: "#/components/schemas/DevflowKind" }
+        mode: { $ref: "#/components/schemas/DevflowMode" }
+        goal: { type: string }
+        template: { type: string }
+        dailyBudgetCny: { type: number, format: float }
+        seedCount: { type: integer }
+        tools:
+          type: array
+          items: { type: string }
+        knowledge:
+          type: array
+          items: { type: string }
+        ownerOrg: { type: string }
     DevflowJob:
       type: object
       required: [jobId, title, layer, kind, mode, status, stage, targetAgent, producerAgent, template, spentCny, budgetCny, fixRounds, maxFixRounds, needReview, requester, ownerOrg, goal, tools, knowledge, seed, events]

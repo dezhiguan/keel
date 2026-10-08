@@ -55,6 +55,10 @@ public final class DevflowTypes {
 
     public record Assist(String instruction) {}
 
+    public record Draft(String title, String targetAgent, String layer, String kind, String mode, String goal,
+                        String template, Double dailyBudgetCny, Integer seedCount, List<String> tools,
+                        List<String> knowledge, String ownerOrg) {}
+
     public record Settings(double budgetCny, int maxFixRounds, int holdoutPercent, int minSeed, double keyCapCny,
                            int dailyLimit, int concurrency, List<String> templates) {
         static Settings defaults() {

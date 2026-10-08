@@ -54,6 +54,40 @@ public class DevflowService {
         return new DevflowTypes.JobList(summary, items);
     }
 
+    public synchronized DevflowTypes.Job submit(DevflowTypes.Draft draft, String actor) {
+        if (draft == null || blank(draft.title()) || blank(draft.goal()) || blank(draft.targetAgent())) {
+            throw invalid("标题、目标和智能体 ID 必填");
+        }
+        if (!draft.targetAgent().matches("^[a-z][a-z0-9-]{1,38}[a-z0-9]$")) {
+            throw invalid("智能体 ID 不合规");
+        }
+        String layer = draft.layer() == null || draft.layer().isBlank() ? "BIZ" : draft.layer();
+        if (!Set.of("DEV", "BIZ").contains(layer)) throw invalid("分类只能是业务或研发");
+        String kind = draft.kind() == null || draft.kind().isBlank() ? "CREATE" : draft.kind();
+        if ("CHANGE".equals(kind) && "meta-agent".equals(draft.targetAgent())) {
+            throw invalid("元智能体只能由人直接修改");
+        }
+        if ("CREATE".equals(kind) && jobs.stream().anyMatch(job -> draft.targetAgent().equals(job.targetAgent()) && !"CANCEL".equals(job.status()))) {
+            throw invalid("该 ID 已存在；要改已有智能体请选改造");
+        }
+        String mode = "DEV".equals(layer) ? "COLLAB" : (draft.mode() == null || draft.mode().isBlank() ? "AUTO" : draft.mode());
+        if (draft.dailyBudgetCny() != null && draft.dailyBudgetCny() > settings.keyCapCny()) {
+            throw invalid("日预算超过上限");
+        }
+        List<DevflowTypes.ToolRef> tools = draft.tools() == null ? List.of() : draft.tools().stream()
+                .map(name -> new DevflowTypes.ToolRef(name, "LOW", "—")).toList();
+        var job = new DevflowTypes.Job(nextId(), draft.title().trim(), layer, kind, mode, "RUN", "SPEC",
+                draft.targetAgent(), "DEV".equals(layer) ? "meta-agent" : "dev-lead",
+                blank(draft.template()) ? "tool-agent" : draft.template(), 0,
+                "DEV".equals(layer) ? 120 : settings.budgetCny(), 0, settings.maxFixRounds(), null, false, null, null,
+                actor, blank(draft.ownerOrg()) ? "研发效能组" : draft.ownerOrg(), draft.goal().trim(), tools,
+                draft.knowledge() == null ? List.of() : List.copyOf(draft.knowledge()),
+                new DevflowTypes.Seed(draft.seedCount() == null ? 0 : draft.seedCount(), 0, 0),
+                List.of(new DevflowTypes.Event(now(), actor, "提交需求")));
+        jobs.add(0, job);
+        return job;
+    }
+
     public synchronized DevflowTypes.Job job(String jobId) {
         return jobs.stream().filter(job -> job.jobId().equals(jobId)).findFirst()
                 .orElseThrow(() -> new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message()));
@@ -188,6 +222,10 @@ public class DevflowService {
 
     private static KeelException invalid(String message) {
         return new KeelException(ErrorCode.SERVER_INVALID_PARAM, message);
+    }
+
+    private static boolean blank(String value) {
+        return value == null || value.isBlank();
     }
 
     private static String now() {

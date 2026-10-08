@@ -13,6 +13,23 @@ export function listDevflowJobs() {
   return get<DevflowJobList>('/devflow/jobs')
 }
 
+export function createDevflowJob(body: {
+  title: string
+  targetAgent: string
+  layer: 'DEV' | 'BIZ'
+  kind: 'CREATE' | 'CHANGE'
+  mode: 'AUTO' | 'COLLAB' | 'SCAFFOLD'
+  goal: string
+  template: string
+  dailyBudgetCny: number
+  seedCount: number
+  tools: string[]
+  knowledge: string[]
+  ownerOrg: string
+}) {
+  return post<DevflowJob>('/devflow/jobs', body)
+}
+
 export function getDevflowJob(jobId: string) {
   return get<DevflowJob>(`/devflow/jobs/${encodeURIComponent(jobId)}`)
 }

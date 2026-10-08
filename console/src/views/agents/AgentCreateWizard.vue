@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { checkAgentName, previewManifest, registerAgent, type SelfCheckReport } from '@/api/agents'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
-import { nameError, registerBody, type WizardForm } from './wizard'
+import DevflowWizard from './DevflowWizard.vue'
+import { nameError, registerBody, type DevflowKind, type WizardForm } from './wizard'
 
 const STEPS = ['创建方式', '基本信息', '模板与资源', '预览并注册']
 const TEMPLATES: [string, string, string][] = [
@@ -16,8 +17,12 @@ const TEMPLATES: [string, string, string][] = [
   ['java-spring', 'Java', 'Spring Boot + keel-starter'],
 ]
 
+const route = useRoute()
 const router = useRouter()
 const envStore = useEnvStore()
+const method = ref(route.query.method === 'devflow' ? 'devflow' : route.query.method === 'dify' ? 'dify' : 'code')
+const changeAgent = typeof route.query.agent === 'string' ? route.query.agent : ''
+const changeKind: DevflowKind = route.query.kind === 'CHANGE' ? 'CHANGE' : 'CREATE'
 const step = ref(1)
 const busy = ref(false)
 const taken = ref(false)
@@ -82,10 +87,22 @@ async function submit() {
   <div>
     <div class="vh">
       <h2>新建智能体</h2>
-      <span class="sub">登记到注册中心。回声模板会立刻写一条探针链路和审计</span>
+      <span class="sub">{{ method === 'devflow' ? '由智能体生产。填需求表单，研发流水线或元智能体生产，可随时人工接管' : '登记到注册中心。回声模板会立刻写一条探针链路和审计' }}</span>
       <span class="sp" />
       <button class="btn ghost" type="button" @click="router.push('/agents')">返回列表</button>
     </div>
+    <div class="card method">
+      <div class="field" style="margin-top: 0">
+        <label>方式</label>
+        <div class="radio h">
+          <label :class="{ on: method === 'code' }"><input v-model="method" type="radio" value="code"><div>代码开发<small>人工编写，keel new 生成骨架（现有）</small></div></label>
+          <label :class="{ on: method === 'dify' }"><input v-model="method" type="radio" value="dify"><div>低代码 Dify<small>在 Dify 配好应用后接入（现有，P3）</small></div></label>
+          <label :class="{ on: method === 'devflow' }"><input v-model="method" type="radio" value="devflow"><div>由智能体生产 <span class="tag-new">新增</span><small>填需求表单，研发流水线或元智能体生产，可随时人工接管</small></div></label>
+        </div>
+      </div>
+    </div>
+    <DevflowWizard v-if="method === 'devflow'" :agent="changeAgent" :kind="changeKind" :taken-names="[]" />
+    <template v-else>
     <div class="stepper">
       <div v-for="(label, index) in STEPS" :key="label" :class="{ on: step === index + 1, done: step > index + 1 }">
         <i>{{ step > index + 1 ? '✓' : index + 1 }}</i>{{ label }}
@@ -95,8 +112,9 @@ async function submit() {
       <div class="card">
         <template v-if="step === 1">
           <h3>选择创建方式</h3>
+          <p v-if="method === 'dify'" class="mut">低代码 Dify 沿用现有向导，后续三步不变。</p>
           <div class="opts">
-            <div class="opt on"><b>代码开发</b><small>先用回声模板把链路和审计跑通</small></div>
+            <div class="opt on"><b>{{ method === 'dify' ? '低代码 Dify' : '代码开发' }}</b><small>{{ method === 'dify' ? '在 Dify 配好应用后接入' : '先用回声模板把链路和审计跑通' }}</small></div>
           </div>
           <div class="field">
             <label>归类</label>
@@ -176,5 +194,6 @@ async function submit() {
         <pre class="code">{{ yaml || '到最后一步会向服务端要预览' }}</pre>
       </div>
     </div>
+    </template>
   </div>
 </template>

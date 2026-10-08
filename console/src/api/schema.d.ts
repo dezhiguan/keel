@@ -940,7 +940,11 @@ export interface paths {
          */
         get: operations["listDevflowJobs"];
         put?: never;
-        post?: never;
+        /**
+         * 提交由智能体生产的需求
+         * @description 内存账本。研发类强制人机协作。元智能体不能改造。真实谱系校验归 DF-2。
+         */
+        post: operations["createDevflowJob"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1272,6 +1276,13 @@ export interface components {
             displayName?: string;
             /** @enum {string} */
             category?: "biz" | "dev";
+            /**
+             * @description 元智能体 / 研发 / 业务。缺省时控制台按 category 推断
+             * @enum {string}
+             */
+            layer?: "META" | "DEV" | "BIZ";
+            /** @description 生产或最近一次改造它的研发任务。没有则省略 */
+            devflowJobId?: string | null;
             /** @example Python */
             language?: string;
             /** @enum {string} */
@@ -1889,6 +1900,21 @@ export interface components {
             at: string;
             actor: string;
             summary: string;
+        };
+        DevflowJobDraft: {
+            title: string;
+            targetAgent: string;
+            layer?: components["schemas"]["DevflowLayer"];
+            kind?: components["schemas"]["DevflowKind"];
+            mode?: components["schemas"]["DevflowMode"];
+            goal: string;
+            template?: string;
+            /** Format: float */
+            dailyBudgetCny?: number;
+            seedCount?: number;
+            tools?: string[];
+            knowledge?: string[];
+            ownerOrg?: string;
         };
         DevflowJob: {
             /** @example DF-0019 */
@@ -3520,6 +3546,33 @@ export interface operations {
                     };
                 };
             };
+        };
+    };
+    createDevflowJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DevflowJobDraft"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowJob"];
+                    };
+                };
+            };
+            400: components["responses"]["Error"];
         };
     };
     getDevflowJob: {

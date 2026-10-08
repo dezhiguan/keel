@@ -1,30 +1,46 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
-import { getAgentUsage, listAgents, mergeUsage, type AgentPage, type AgentStatus, type ListAgentsQuery } from '@/api/agents'
+import { getAgentUsage, listAgents, mergeUsage, type AgentPage, type AgentStatus } from '@/api/agents'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { agentStatus, fmtN } from '@/utils/format'
-import { avatarColor, avatarLetter, cardChips, cardCost, scoreText } from './agentDrawer'
+import { cardCost, scoreText } from './agentDrawer'
+import AgentLineage from './AgentLineage.vue'
+import { mergeEmployees, type EmployeeCard, type Layer } from './employees'
 
 const STATUSES: AgentStatus[] = ['DRAFT', 'REGISTERED', 'ONLINE', 'DEGRADED', 'OFFLINE', 'RETIRED']
-const CATEGORIES: [NonNullable<ListAgentsQuery['category']>, string][] = [['all', '全部'], ['biz', '业务'], ['dev', '研发']]
+const CATEGORIES: [Layer | 'all', string][] = [['all', '全部'], ['biz', '业务'], ['dev', '研发'], ['meta', '元智能体（新）']]
+const LAYER_LABEL: Record<Layer, string> = { meta: '元', dev: '研发', biz: '业务' }
 
 const route = useRoute()
 const router = useRouter()
 const envStore = useEnvStore()
 const result = ref<AgentPage | null>(null)
 const loading = ref(false)
+const view = ref<'card' | 'tree'>('card')
 const filter = reactive<{
-  category: NonNullable<ListAgentsQuery['category']>
+  category: Layer | 'all'
   status: AgentStatus | ''
   q: string
   page: number
-  size: NonNullable<ListAgentsQuery['size']>
+  size: 10 | 20 | 50 | 100
 }>({ category: 'all', status: '', q: '', page: 1, size: 10 })
+const cards = computed(() => mergeEmployees(result.value?.items ?? []))
+const shown = computed(() => {
+  const q = filter.q.trim().toLowerCase()
+  return cards.value.filter((card) => {
+    if (filter.category !== 'all' && card.layer !== filter.category) return false
+    if (filter.status && card.status !== filter.status) return false
+    if (!q) return true
+    return `${card.displayName} ${card.name} ${card.description}`.toLowerCase().includes(q)
+  })
+})
+const pageRows = computed(() => shown.value.slice((filter.page - 1) * filter.size, filter.page * filter.size))
+const registered = computed(() => result.value?.total ?? 0)
 
 function open(name?: string) {
   if (!name) return
@@ -39,11 +55,9 @@ async function load() {
   try {
     const page = await listAgents({
       env,
-      category: filter.category,
-      status: filter.status || undefined,
-      q: filter.q.trim() || undefined,
-      page: filter.page,
-      size: filter.size,
+      category: 'all',
+      page: 1,
+      size: 100,
     })
     if (current !== ticket) return
     result.value = page
@@ -78,6 +92,14 @@ function setCategory(category: typeof filter.category) {
   search()
 }
 
+function yuan(value: number | null) {
+  return value == null ? '—' : `¥${Number.isInteger(value) ? value : value.toFixed(1)}`
+}
+
+function mark(card: EmployeeCard) {
+  return card.name.slice(0, 2).toUpperCase()
+}
+
 let typing: ReturnType<typeof setTimeout> | undefined
 function onInput() {
   clearTimeout(typing)
@@ -92,7 +114,7 @@ watch(() => [filter.page, filter.size], load, { immediate: true })
   <div>
     <div class="vh">
       <h2>智能体</h2>
-      <span class="sub">注册中心 · 共 {{ result?.total ?? 0 }} 个</span>
+      <span class="sub">注册中心 · 共 {{ registered }} 个 · 未注册的按原型占位</span>
       <span class="sp" />
       <button v-write class="btn pri" @click="router.push('/agents/new')">+ 新建智能体</button>
     </div>
@@ -105,30 +127,43 @@ watch(() => [filter.page, filter.size], load, { immediate: true })
         <option value="">全部状态</option>
         <option v-for="s in STATUSES" :key="s" :value="s">{{ agentStatus(s).label }}</option>
       </select>
+      <span class="sp" />
+      <div class="chipsel">
+        <button type="button" :class="{ on: view === 'card' }" @click="view = 'card'">卡片</button>
+        <button type="button" :class="{ on: view === 'tree' }" @click="view = 'tree'">谱系（新）</button>
+      </div>
     </div>
 
-    <div v-loading="loading" class="agrid">
-      <div v-for="a in result?.items ?? []" :key="a.name" class="acard" role="button" tabindex="0" @click="open(a.name)" @keydown.enter="open(a.name)">
-        <div class="hd">
-          <div class="av" :style="{ background: `${avatarColor(a.name)}22`, color: avatarColor(a.name) }">{{ avatarLetter(a.displayName) }}</div>
-          <div class="ttl"><b>{{ a.displayName }}</b><small>{{ a.name }}</small></div>
-          <span class="sp" />
-          <StatusPill v-bind="agentStatus(a.status)" />
+    <AgentLineage v-if="view === 'tree'" :cards="shown" @open="open" />
+    <template v-else>
+      <div v-loading="loading" class="agrid">
+        <div v-for="card in pageRows" :key="card.name" class="acard" role="button" tabindex="0" @click="open(card.name)" @keydown.enter="open(card.name)">
+          <div class="hd">
+            <div class="av" :style="{ background: card.color, color: '#fff' }">{{ mark(card) }}</div>
+            <div class="ttl"><b>{{ card.displayName }}</b><small>{{ card.name }} · {{ card.template }}</small></div>
+            <span class="sp" />
+            <span class="ly" :class="card.layer">{{ LAYER_LABEL[card.layer] }}</span>
+            <StatusPill v-if="card.status" v-bind="agentStatus(card.status as AgentStatus)" />
+          </div>
+          <p>{{ card.description }}</p>
+          <div class="src">来源 <span v-if="card.placeholder" class="tag-new">占位</span><span v-else class="tag-new">新</span>：
+            <RouterLink v-if="card.jobId" :to="`/jobs/${card.jobId}`" @click.stop>{{ card.source }}</RouterLink>
+            <template v-else>{{ card.source }}</template>
+            · 负责人 {{ card.owner }}
+          </div>
+          <div class="st3">
+            <div>{{ card.placeholder ? '本月调用' : '24h 调用' }}<b>{{ fmtN(card.calls) }}</b></div>
+            <div>质量<b>{{ scoreText(card.score) }}</b></div>
+            <div>日预算<b>{{ yuan(card.budget) }}</b></div>
+            <div>本月花费<b>{{ cardCost(card.cost) }}</b></div>
+          </div>
         </div>
-        <div class="meta">
-          <span v-for="chip in cardChips(a)" :key="chip" class="chip">{{ chip }}</span>
-        </div>
-        <div class="stats">
-          <div>24h 调用<b>{{ fmtN(a.calls24h) }}</b></div>
-          <div>评测分<b :style="a.score != null && a.score < 0.85 ? { color: 'var(--bad)' } : undefined">{{ scoreText(a.score) }}</b></div>
-          <div>成本<b>{{ cardCost(a.costCny) }}</b></div>
+        <div class="acard new" @click="router.push('/agents/new')">
+          <b>+</b>新建智能体
+          <small class="mono" style="font-size: 11px">keel new 或向导</small>
         </div>
       </div>
-      <div class="acard new" @click="router.push('/agents/new')">
-        <b>+</b>新建智能体
-        <small class="mono" style="font-size: 11px">keel new 或向导</small>
-      </div>
-    </div>
-    <Pager v-model:page="filter.page" v-model:size="filter.size" :total="result?.total ?? 0" />
+      <Pager v-model:page="filter.page" v-model:size="filter.size" :total="shown.length" />
+    </template>
   </div>
 </template>

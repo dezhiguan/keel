@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import StatusPill from '@/components/StatusPill.vue'
 import { getAgent, getAgentUsage, mergeUsage, type AgentDetail } from '@/api/agents'
+import { listDevflowJobs, type DevflowJob } from '@/api/devflow'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { agentStatus, orDash } from '@/utils/format'
@@ -19,12 +20,14 @@ import {
   sourceLabel,
   versionRows,
 } from './agentDrawer'
+import { cannotChange, employeeByName, type EmployeeCard } from './employees'
 
 const TABS = [
   ['ov', '概览'],
   ['yaml', 'agent.yaml'],
   ['inst', '实例与资源'],
   ['ver', '版本'],
+  ['dev', '研发记录'],
 ] as const
 
 type Tab = (typeof TABS)[number][0]
@@ -33,6 +36,8 @@ const route = useRoute()
 const router = useRouter()
 const envStore = useEnvStore()
 const detail = ref<AgentDetail | null>(null)
+const catalog = ref<EmployeeCard | null>(null)
+const jobs = ref<DevflowJob[]>([])
 const loading = ref(false)
 const tab = ref<Tab>('ov')
 const shown = ref(false)
@@ -72,8 +77,14 @@ async function load(agent: string) {
     const result = await getAgent(agent)
     if (current !== ticket) return
     detail.value = result
+    catalog.value = employeeByName(agent) ?? null
   } catch (error) {
     if (current !== ticket) return
+    const known = employeeByName(agent)
+    if (known) {
+      catalog.value = known
+      return
+    }
     ElMessage.error(`加载智能体失败：${toKeelError(error).message}`)
     return
   } finally {
@@ -87,6 +98,13 @@ async function load(agent: string) {
   } catch (error) {
     if (current !== ticket) return
     ElMessage.error(`加载用量失败：${toKeelError(error).message}`)
+  }
+  try {
+    const board = await listDevflowJobs()
+    if (current !== ticket) return
+    jobs.value = (board.items ?? []).filter((job) => job.targetAgent === agent)
+  } catch {
+    if (current === ticket) jobs.value = []
   }
 }
 
@@ -127,6 +145,8 @@ watch(name, async (agent) => {
   shown.value = false
   if (!agent) {
     detail.value = null
+    catalog.value = null
+    jobs.value = []
     document.body.style.overflow = ''
     return
   }
@@ -163,7 +183,7 @@ onUnmounted(() => {
         </div>
         <div class="db">
           <div class="dtabs">
-            <button v-for="[key, label] in TABS" :key="key" type="button" :class="{ on: tab === key }" @click="tab = key">{{ label }}</button>
+            <button v-for="[key, label] in TABS" :key="key" type="button" :class="{ on: tab === key }" :style="key === 'dev' ? { color: 'var(--acc)' } : undefined" @click="tab = key">{{ label }}</button>
           </div>
           <div v-loading="loading" class="dbody">
 
@@ -246,6 +266,35 @@ onUnmounted(() => {
             </table>
           </template>
 
+          <template v-else-if="tab === 'dev'">
+            <div v-if="catalog" class="kv">
+              <span>分类</span><b><span class="ly" :class="catalog.layer">{{ catalog.layer === 'meta' ? '元' : catalog.layer === 'dev' ? '研发' : '业务' }}</span> {{ catalog.layer === 'meta' ? '元智能体' : catalog.layer === 'dev' ? '研发' : '业务' }}</b>
+              <span>来源</span>
+              <b>
+                <RouterLink v-if="catalog.jobId" :to="`/jobs/${catalog.jobId}`">{{ catalog.source }}</RouterLink>
+                <template v-else>{{ catalog.source }}</template>
+              </b>
+              <span>负责人</span><b>{{ catalog.owner }}</b>
+            </div>
+            <h4>研发记录 <small>生产和改造它的任务</small></h4>
+            <table v-if="jobs.length" class="t">
+              <tbody>
+                <tr v-for="job in jobs" :key="job.jobId" class="click" @click="router.push(`/jobs/${job.jobId}`)">
+                  <td class="mono">{{ job.jobId }}</td>
+                  <td>{{ job.kind === 'CREATE' ? '新建' : '改造' }}</td>
+                  <td>{{ job.mode }}</td>
+                  <td>{{ job.status }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-else class="mut">{{ catalog?.jobId ? `占位来源 ${catalog.source}，任务账本里还没有这条记录` : '人工编写，没有研发任务记录' }}</p>
+            <h4>不能做的事</h4>
+            <ul class="forbid">
+              <li>修改自己或上级（{{ cannotChange(catalog?.layer || (detail?.category === 'dev' ? 'dev' : 'biz')) }}）</li>
+              <li>授予任何工具或知识库权限；读隐藏考题内容</li>
+            </ul>
+          </template>
+
           <template v-else-if="detail && tab === 'ver'">
             <table class="t">
               <thead><tr><th>版本</th><th>环境</th><th>变更</th><th>评测分</th><th>门禁</th><th>时间</th></tr></thead>
@@ -271,8 +320,10 @@ onUnmounted(() => {
         <div class="df">
           <span v-if="detail?.status === 'RETIRED'" class="mut retired">已下线，历史追踪、评测、审计可查</span>
           <template v-else>
+            <button v-if="(catalog?.layer || 'biz') !== 'meta'" v-write class="btn" type="button" @click="router.push({ path: '/agents/new', query: { method: 'devflow', kind: 'CHANGE', agent: name } })">发起改造任务</button>
+            <span v-else class="mut">元智能体只能由人直接改代码。</span>
             <button class="btn ghost" type="button" @click="viewTraces">查看链路</button>
-            <button v-write class="btn danger" type="button" @click="retiring = true">下线</button>
+            <button v-if="detail" v-write class="btn danger" type="button" @click="retiring = true">下线</button>
             <button
               v-if="detail?.env === 'staging'"
               v-write

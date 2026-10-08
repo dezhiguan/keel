@@ -20,6 +20,22 @@ class DevflowServiceTest {
     }
 
     @Test
+    void submitLocksResearchWorkToCollaborationAndRejectsTheMetaAgent() {
+        var service = new DevflowService();
+        var draft = new DevflowTypes.Draft("升级模板", "weekly-report", "DEV", "CREATE", "AUTO", "能生成 chat-rag",
+                "graph-agent", 20.0, 0, List.of("rag.search"), List.of(), "研发效能组");
+        var job = service.submit(draft, "官德志");
+        assertThat(job.mode()).isEqualTo("COLLAB");
+        assertThat(job.producerAgent()).isEqualTo("meta-agent");
+        assertThat(job.jobId()).isEqualTo("DF-0001");
+        assertThatThrownBy(() -> service.submit(new DevflowTypes.Draft("改自己", "meta-agent", "DEV", "CHANGE", "COLLAB",
+                "不行", "graph-agent", 20.0, 0, List.of(), List.of(), "研发效能组"), "官德志"))
+                .isInstanceOf(KeelException.class)
+                .extracting(error -> ((KeelException) error).code())
+                .isEqualTo(ErrorCode.SERVER_INVALID_PARAM);
+    }
+
+    @Test
     void missingJobIsNotFoundAndWatchCannotBeCancelled() {
         var service = new DevflowService();
         assertThatThrownBy(() -> service.job("DF-0019"))
