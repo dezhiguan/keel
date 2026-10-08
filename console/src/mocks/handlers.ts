@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { sharedServices } from './data/services'
+import { latestEval } from './data/eval'
 import { dependentsOf, toolDetail, tools } from './data/tools'
 import { approvals, suspendedRuns } from './data/approvals'
 import {
@@ -85,6 +86,10 @@ export const handlers = [
   http.get(`${BASE}/me`, () => ok(consoleSession === 'user' ? consoleUser : previewUser)),
 
   http.get(`${BASE}/insight/services`, () => ok(sharedServices)),
+  http.get(`${BASE}/eval/:agent/latest`, ({ params }) => {
+    const found = latestEval(String(params.agent))
+    return found ? ok(found) : fail(404, 'SERVER_NOT_FOUND', '没有评测记录')
+  }),
 
   http.get(`${BASE}/tools`, ({ request }) => {
     const url = new URL(request.url)

@@ -162,7 +162,7 @@ describe('mock handlers', () => {
     expect((await call('GET', '/devflow/jobs/DF-0017/review')).status).toBe(409)
   })
 
-  it('still mocks shared services while traces, audit, costs and eval are real', async () => {
+  it('still mocks shared services and the eval sample while traces, audit and costs stay real', async () => {
     const services = await call('GET', '/insight/services')
     expect(services.status).toBe(200)
     expect(services.json.data.services.length).toBeGreaterThan(0)
@@ -174,7 +174,12 @@ describe('mock handlers', () => {
     await expect(call('GET', '/insight/costs')).rejects.toThrow()
     await expect(call('POST', '/audit/verify')).rejects.toThrow()
     await expect(call('POST', '/audit/exports')).rejects.toThrow()
-    await expect(call('GET', '/eval/offshore-wind/latest')).rejects.toThrow()
+    const handwritten = await call('GET', '/eval/offshore-wind/latest')
+    expect(handwritten.status).toBe(200)
+    expect(handwritten.json.data.holdout).toBeUndefined()
+    const produced = await call('GET', '/eval/code-review/latest')
+    expect(produced.json.data.holdout).toEqual({ score: 0.72, minScore: 0.85, cases: 9 })
+    expect(JSON.stringify(produced.json.data.holdout)).not.toContain('input')
     await expect(call('POST', '/eval/offshore-wind/runs')).rejects.toThrow()
   })
 })

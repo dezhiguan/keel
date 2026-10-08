@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import StatusPill from '@/components/StatusPill.vue'
 import { getEvalRun, getLatestEval, runEval, type EvalResult } from '@/api/eval'
-import { openApproval } from '@/api/approvals'
+import { listSuspendedRuns, openApproval } from '@/api/approvals'
 import { listAgents } from '@/api/agents'
 import { toKeelError } from '@/api/http'
 import { useApprovalsStore } from '@/stores/approvals'
 import { useEnvStore } from '@/stores/env'
 import { useUserStore } from '@/stores/user'
 import type { StatusTone } from '@/utils/format'
-import { deltaText, expectedSubject, formatScore, gateRule } from './evalCopy'
+import { reviewPath } from '@/views/tools/approvalGroups'
+import { deltaText, expectedSubject, formatScore, gateRule, holdoutGap, holdoutGapAlarm, holdoutGapText } from './evalCopy'
 
 const VERDICT: Record<string, { label: string; tone: StatusTone }> = {
   IMPROVED: { label: '提升', tone: 'ok' },
@@ -25,6 +27,8 @@ const approvalsStore = useApprovalsStore()
 const agent = ref('')
 const agentOptions = ref<string[]>([])
 const result = ref<EvalResult | null>(null)
+const pending = ref<{ jobId: string; agent: string }[]>([])
+const gap = computed(() => holdoutGap(result.value?.scoreTotal, result.value?.holdout?.score))
 const loading = ref(false)
 const progress = ref<number | null>(null)
 const expecting = ref(false)
@@ -116,8 +120,23 @@ async function submitExpected() {
 
 onMounted(async () => {
   await loadAgents()
+  await loadPending()
 })
-watch(() => envStore.env, loadAgents)
+watch(() => envStore.env, () => {
+  loadAgents()
+  loadPending()
+})
+
+async function loadPending() {
+  try {
+    const page = await listSuspendedRuns({ size: 100, env: envStore.env })
+    pending.value = (page.items ?? [])
+      .filter((run) => run.devflowGate === 'H2' && run.devflowJobId)
+      .map((run) => ({ jobId: run.devflowJobId as string, agent: run.agent ?? '' }))
+  } catch {
+    pending.value = []
+  }
+}
 
 async function loadAgents() {
   try {
@@ -150,12 +169,27 @@ watch(agent, () => {
       <button v-write class="btn pri" :disabled="!agent || progress !== null" @click="run">▶ 运行回归</button>
     </div>
 
+    <div class="card">
+      <h3>待评测确认<small>和审批中心是同一批待办</small></h3>
+      <template v-if="pending.length">
+        <RouterLink v-for="item in pending" :key="item.jobId" class="btn sm" :to="reviewPath(item.jobId)">{{ item.jobId }} {{ item.agent }} · 去确认</RouterLink>
+      </template>
+      <span v-else class="mut">无</span>
+    </div>
+
     <template v-if="result">
       <div class="gate" :class="{ pass: result.passed }">
         <div class="big">{{ formatScore(result.scoreTotal) }}</div>
         <div>
           <b>{{ result.passed ? '门禁通过，可以发布' : '门禁未通过，发布到 prod 已被阻止' }}</b><br />
-          <span class="mut">{{ gateRule(result) }}</span>
+          <span class="mut">{{ gateRule(result) }}</span><br />
+          <span class="mut">
+            隐藏考题 {{ result.holdout ? formatScore(result.holdout.score) : '—' }}
+            · 分差 <span :class="{ down: holdoutGapAlarm(gap) }">{{ holdoutGapText(gap) }}</span>
+            <span v-if="holdoutGapAlarm(gap)" class="down">疑似针对可见用例特判</span>
+            <span v-if="!result.holdout">人工编写的智能体没有隐藏考题</span>
+            <RouterLink v-if="result.devflowJobId" :to="`/jobs/${result.devflowJobId}`">来源 {{ result.devflowJobId }}</RouterLink>
+          </span>
         </div>
         <span class="sp" />
         <button v-if="!result.passed" class="btn" type="button" @click="markExpected">标记为预期变化</button>

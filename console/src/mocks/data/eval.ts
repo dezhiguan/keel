@@ -41,5 +41,8 @@ export function latestEval(agent: string): EvalResult | null {
     ranAt: new Date(Date.now() - 3_600_000).toISOString(),
     dimensions,
     newFailures: [],
+    ...(agent === 'code-review'
+      ? { devflowJobId: 'DF-0008', holdout: { score: 0.72, minScore: 0.85, cases: 9 } }
+      : {}),
   }
 }

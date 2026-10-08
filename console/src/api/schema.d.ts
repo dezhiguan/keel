@@ -1869,6 +1869,16 @@ export interface components {
                 tags?: string[];
                 reason?: string;
             }[];
+            /** @description 由研发流水线生产时的任务号。人工编写的智能体省略。 */
+            devflowJobId?: string | null;
+            /** @description 隐藏考题聚合分。没有用例正文。 */
+            holdout?: {
+                /** Format: float */
+                score?: number;
+                /** Format: float */
+                minScore?: number;
+                cases?: number;
+            } | null;
         };
         ToolSummary: {
             /** @example work_order_create */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { EvalResult } from '@/api/eval'
-import { deltaText, expectedSubject, formatScore, gateRule } from './evalCopy'
+import { deltaText, expectedSubject, formatScore, gateRule, holdoutGap, holdoutGapAlarm, holdoutGapText } from './evalCopy'
 
 const failed: EvalResult = {
   agent: 'offshore-wind',
@@ -25,5 +25,14 @@ describe('eval copy', () => {
 
   it('omits the regression clause when the gate passed', () => {
     expect(gateRule({ ...failed, passed: true })).toBe('规则：总分 ≥ 0.85（研发智能体 ≥ 0.80），且任一维度退步不超过 2pt。')
+  })
+
+  it('flags a holdout gap wider than 0.10 and leaves a missing score blank', () => {
+    expect(holdoutGap(0.86, 0.72)).toBe(-0.14)
+    expect(holdoutGapText(-0.14)).toBe('-0.14')
+    expect(holdoutGapAlarm(-0.14)).toBe(true)
+    expect(holdoutGapAlarm(0.1)).toBe(false)
+    expect(holdoutGap(0.84, undefined)).toBeNull()
+    expect(holdoutGapText(null)).toBe('—')
   })
 })

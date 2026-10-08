@@ -26,6 +26,21 @@ export function deltaText(delta: number | null | undefined): string {
   return `${delta > 0 ? '+' : ''}${delta}pt`
 }
 
+/** Hidden score minus the visible total. Absent when either side is missing. */
+export function holdoutGap(scoreTotal: number | null | undefined, holdoutScore: number | null | undefined): number | null {
+  if (scoreTotal == null || holdoutScore == null || Number.isNaN(scoreTotal) || Number.isNaN(holdoutScore)) return null
+  return Math.round((holdoutScore - scoreTotal) * 100) / 100
+}
+
+export function holdoutGapAlarm(gap: number | null): boolean {
+  return gap != null && Math.abs(gap) > 0.1
+}
+
+export function holdoutGapText(gap: number | null): string {
+  if (gap == null) return '—'
+  return `${gap > 0 ? '+' : ''}${gap.toFixed(2)}`
+}
+
 export function expectedSubject(agent: string, result: EvalResult | null): string {
   const hit = (result?.dimensions ?? []).find((row) => row.verdict === 'EXCEEDED' && row.deltaPt != null && row.tag)
   const text = hit?.tag && hit.deltaPt != null ? `${hit.tag} ${hit.deltaPt}pt 标记为预期` : `${agent} 标记为预期`

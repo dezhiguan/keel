@@ -2702,6 +2702,18 @@ components:
                 type: array
                 items: { type: string }
               reason: { type: string }
+        devflowJobId:
+          type: string
+          nullable: true
+          description: 由研发流水线生产时的任务号。人工编写的智能体省略。
+        holdout:
+          type: object
+          nullable: true
+          description: 隐藏考题聚合分。没有用例正文。
+          properties:
+            score: { type: number, format: float }
+            minScore: { type: number, format: float }
+            cases: { type: integer }
 
     # ------------------------------------------------------------ 工具
     ToolSummary:
