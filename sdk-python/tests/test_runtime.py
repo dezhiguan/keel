@@ -175,3 +175,29 @@ def test_disconnect_cancels_invocation(tmp_path):
         assert cancelled.is_set()
 
     asyncio.run(scenario())
+
+
+def test_input_required_resume_reads_reply_and_can_suspend_again(tmp_path):
+    agent = Agent.from_manifest(agent_file(tmp_path))
+    seen = []
+
+    @agent.entry
+    async def handle(req, ctx):
+        seen.append((getattr(req, "resume", False), req.input["text"]))
+        if len(seen) < 3:
+            return ctx.suspend("input_required", ref=ctx.run_id, prompt="继续?")
+        return ctx.final("done")
+
+    app = agent.asgi()
+    first = frames(asyncio.run(call(app, "POST", "/v1/invoke", json={"input": {"text": "需求"}})))[-1]["data"]
+    path = f"/v1/runs/{first['run_id']}/resume"
+    missing = asyncio.run(call(app, "POST", path, json={"resume_token": first["resume_token"]}))
+    assert missing.status_code == 400
+    assert missing.json()["code"] == ErrorCode.SERVER_INVALID_PARAM.value
+    second = frames(asyncio.run(call(app, "POST", path, json={
+        "resume_token": first["resume_token"], "input": {"text": "改一下"}})))[-1]
+    assert second["event"] == "suspend"
+    third = frames(asyncio.run(call(app, "POST", path, json={
+        "resume_token": second["data"]["resume_token"], "input": {"text": "确认"}})))[-1]
+    assert third["event"] == "final"
+    assert seen == [(False, "需求"), (True, "改一下"), (True, "确认")]

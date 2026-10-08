@@ -234,14 +234,21 @@ def create_app(agent) -> Starlette:
         if record["reason"] == "approval" and not await _approval_granted(record):
             code = ErrorCode.RUN_NOT_RESUMABLE
             return JSONResponse(_error(code, trace_id), status_code=code.http)
+        reply = body.get("input", {}).get("text") if isinstance(body.get("input"), dict) else None
+        if record["reason"] == "input_required" and not (isinstance(reply, str) and reply.strip()):
+            code = ErrorCode.SERVER_INVALID_PARAM
+            return JSONResponse(_error(code, trace_id), status_code=code.http)
         record["status"] = "DONE"
         save_run(record)
-        resumed = dict(record["input"] or {})
-        if record.get("input_text"):
+        original = dict(record["input"] or {})
+        resumed = dict(original)
+        if record["reason"] == "input_required":
+            resumed["text"] = reply
+        elif record.get("input_text"):
             resumed["text"] = record["input_text"]
-        return await invoke_resume(request, {"input": resumed}, record["run_id"])
+        return await invoke_resume(request, {"input": resumed}, record["run_id"], original)
 
-    async def invoke_resume(request: Request, data: dict, run_id: str):
+    async def invoke_resume(request: Request, data: dict, run_id: str, original: dict):
         trace_id = record_trace(request)
         events: asyncio.Queue = asyncio.Queue()
         context = Context(agent.name, run_id, trace_id, events, tracer,
@@ -263,6 +270,9 @@ def create_app(agent) -> Starlette:
                     if inspect.isawaitable(result):
                         result = await result
                     if isinstance(result, (FinalEvent, SuspendEvent, ErrorEvent)):
+                        if isinstance(result, SuspendEvent):
+                            root.set_attribute(attrs.RUN_SUSPENDED, True)
+                            _remember(agent.name, run_id, trace_id, original, result, context.pending)
                         events.put_nowait(result)
                     elif result is not None:
                         events.put_nowait(context.final(str(result)))
