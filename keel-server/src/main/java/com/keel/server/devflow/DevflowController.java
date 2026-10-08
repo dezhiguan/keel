@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -20,9 +21,11 @@ import java.util.Map;
 @RequestMapping("/api/v1/devflow")
 public class DevflowController {
     private final DevflowService devflow;
+    private final SandboxService sandbox;
 
-    public DevflowController(DevflowService devflow) {
+    public DevflowController(DevflowService devflow, SandboxService sandbox) {
         this.devflow = devflow;
+        this.sandbox = sandbox;
     }
 
     @GetMapping("/jobs")
@@ -103,6 +106,19 @@ public class DevflowController {
     public R<DevflowTypes.Batch> create(@RequestBody DevflowTypes.BatchCreate body) {
         requireWrite();
         return R.ok(devflow.create(body == null ? null : body.title(), body == null ? null : body.rows(), actor()));
+    }
+
+    @PostMapping("/sandbox/runs")
+    public R<DevflowTypes.SandboxRun> startSandbox(@RequestBody DevflowTypes.SandboxRequest body) {
+        var principal = requireService();
+        var request = body == null ? new DevflowTypes.SandboxRequest(null, null, null) : body;
+        return R.ok(sandbox.start(request.jobId(), request.repo(), request.ref(), principal.username(), Instant.now()));
+    }
+
+    @GetMapping("/sandbox/runs/{runId}")
+    public R<DevflowTypes.SandboxRun> sandboxRun(@PathVariable String runId) {
+        requireService();
+        return R.ok(sandbox.get(runId, Instant.now()));
     }
 
     @GetMapping("/settings")

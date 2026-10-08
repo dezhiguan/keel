@@ -87,4 +87,8 @@ public final class DevflowTypes {
     public record SeedResult(int humanCount, int holdoutCount, int acceptedAgentCount) {}
 
     public record Step(Job job, boolean exhausted) {}
+
+    public record SandboxRequest(String jobId, String repo, String ref) {}
+
+    public record SandboxRun(String runId, String status, String report, boolean truncated) {}
 }

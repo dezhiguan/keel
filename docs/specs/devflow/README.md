@@ -5,7 +5,7 @@
 
 执行者沿用 `docs/TASKS.md` 的判断标准：安全与一致性关键、首次对接外部系统的交给 Cursor；照原型实现页面、薄封装交给 Codex。
 
-## 当前进度（2026-10-08）
+## 当前进度（2026-10-09）
 
 | 状态 | 任务 |
 |---|---|
@@ -16,7 +16,8 @@
 | 已完成（控制台） | DF-9d 链路追踪：按研发任务筛选，行上标来源。没有任务号时用来源占位。其余 DF-9d 页面仍待做 |
 | 已完成（控制台 mock） | [DF-9c 审批中心](DF-9c-approvals.md)：加「研发任务」分组和 H1 / H2 / H4 / 协作 review 关口处理页，审批单和挂起运行带 `devflowJobId` / `devflowGate`。review、seed-cases 接口只在 MSW，keel-server 归 DF-2 |
 | 已完成 | [DF-1 契约](DF-1-contracts.md)：`DEVFLOW_*` 错误码、审批 `source=devflow`、审计 `kind`、阶段回报 / 沙箱 / 隐藏考题路径。看板等路径此前已由控制台切片写入 |
-| 已完成 | [DF-2 账本](DF-2-ledger.md)：任务落 PostgreSQL（V10），接管 / 交还 / 阶段回报 / 谱系 / 审计。沙箱、工具登记、隐藏考题切分仍待做 |
+| 已完成 | [DF-3 沙箱](DF-3-sandbox.md)：命名空间、配额、拒绝公网的网络策略、沙箱 Job。假薄网关和假 Langfuse 只在 Pod 内应答。不克隆仓库，工具登记仍待做 |
+| 已完成 | [DF-2 账本](DF-2-ledger.md)：任务落 PostgreSQL（V10），接管 / 交还 / 阶段回报 / 谱系 / 审计。工具登记、隐藏考题切分仍待做 |
 
 ## D0 底座前置（不在本目录写 spec，归属原任务）
 
@@ -34,7 +35,7 @@
 |---|---|---|---|---|
 | DF-1 | 契约：console-api 的 devflow 接口；agents 加 `layer`、`devflowJobId`；审批待办加 `source`；错误码 `DEVFLOW_*`；追踪属性 `keel.devflow.job_id` | Cursor | — | D1 |
 | DF-2 | keel-server devflow 模块：V10 表（V8 已被委托同意占用）、状态机、接管 / 交还、谱系校验、审计。目录读已在 D0-4 完成。关口只读、种子用例条数、审批 `source`、审计 `kind`、`devflowCost` 已接上。`EvalResult.holdout` 仍等 DF-8 | Cursor | DF-1 D0-4 | D1 |
-| DF-3 | 沙箱：命名空间、配额、网络策略、SandboxService、假薄网关 / 假 Langfuse sidecar | Cursor | DF-2 | D1 |
+| DF-3 | 沙箱：V11 运行记录、命名空间配额与只出 DNS 的网络策略、SandboxService、假薄网关 / 假 Langfuse sidecar。不克隆仓库，`sandbox.run` 登记仍等 DF-4 | Cursor | DF-2 | D1 |
 | DF-4 | Git / CI MCP 服务、分支保护、工具登记 | Codex | D0-4 已完成。GitHub 适配与分支保护已落地，工具登记仍待做 | D1 |
 | **DF-5** | **元智能体 meta-agent**，分四步交付，见下 | Cursor | 各步不同 | D1–D2 |
 | DF-6 | meta-agent 生产 spec-agent、dev-lead（人机协作） | meta-agent + 人 | DF-5d | D2 |

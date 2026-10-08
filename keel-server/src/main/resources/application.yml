@@ -27,3 +27,5 @@ keel:
   service:
     # 未配置时工具目录不接受智能体断言，仍只认控制台登录。
     audience: ${KEEL_SERVICE_AUDIENCE:}
+  sandbox:
+    image: ${KEEL_SANDBOX_IMAGE:keel-sandbox:local}
