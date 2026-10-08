@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keel 全流程智能体化方案</title>
+<style>
+:root{
+  --paper:#f2eee4; --ink:#101a2b; --ink2:#3a4557; --mute:#7b8190;
+  --line:#cdc3af; --accent:#d9480f; --teal:#0b7a75; --soft:#2d5fa8; --warn:#a86b00; --violet:#6b46b5;
+  --c-bg:#0a101a; --c-panel:#101826; --c-line:#1f2b3f; --c-text:#cdd6e4; --c-mute:#6b7990; --c-acc:#ff7a45; --c-teal:#2ec4b6;
+  --serif:"Songti SC","STSong","Noto Serif SC","Source Han Serif SC",serif;
+  --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --mono:"SF Mono","Menlo","JetBrains Mono","Consolas",monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);color:var(--ink);background:var(--paper);line-height:1.75;font-size:15px;
+  background-image:linear-gradient(rgba(16,26,43,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(16,26,43,.045) 1px,transparent 1px);background-size:28px 28px,28px 28px}
+::selection{background:var(--accent);color:#fff}
+a{color:var(--soft)}
+.side{position:fixed;left:0;top:0;bottom:0;width:208px;padding:36px 22px;border-right:1px solid var(--line);background:rgba(242,238,228,.9);backdrop-filter:blur(6px);z-index:20;display:flex;flex-direction:column}
+.side .brand{font-family:var(--serif);font-size:24px;font-weight:700;letter-spacing:.04em;line-height:1.25}
+.side .brand small{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:var(--mute);font-weight:400;margin-top:4px}
+.side nav{margin-top:28px;display:flex;flex-direction:column;gap:2px}
+.side nav a{text-decoration:none;font-size:13.5px;color:var(--ink2);padding:6px 8px;border-radius:4px;display:flex;gap:10px;align-items:baseline;transition:.2s}
+.side nav a span{font-family:var(--mono);font-size:11px;color:var(--mute)}
+.side nav a:hover,.side nav a.on{background:var(--ink);color:var(--paper)}
+.side nav a:hover span,.side nav a.on span{color:var(--c-acc)}
+.side .foot{margin-top:auto;font-family:var(--mono);font-size:10.5px;color:var(--mute);line-height:1.6}
+main{margin-left:208px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 56px}
+@media (max-width:1100px){.side{display:none}main{margin-left:0}.wrap{padding:0 24px}}
+.hero{padding:80px 0 52px;border-bottom:1px solid var(--line)}
+.hero .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;color:var(--accent);text-transform:uppercase}
+.hero h1{font-family:var(--serif);font-size:66px;line-height:1.08;margin:18px 0 10px;font-weight:900}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero .sub{font-family:var(--serif);font-size:22px;color:var(--ink2)}
+.hero p.lead{margin-top:24px;font-size:16px;max-width:860px;color:var(--ink2)}
+.hero .meta{margin-top:22px;display:flex;flex-wrap:wrap;gap:8px}
+.tag{font-family:var(--mono);font-size:11.5px;padding:3px 9px;border:1px solid var(--ink);border-radius:2px}
+.tag.fill{background:var(--ink);color:var(--paper)}
+.tag.acc{border-color:var(--accent);color:var(--accent)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);margin-top:48px;border-top:2px solid var(--ink);border-bottom:1px solid var(--line)}
+.stats div{padding:18px;border-right:1px solid var(--line)}
+.stats div:last-child{border-right:none}
+.stats b{font-family:var(--serif);font-size:40px;display:block;line-height:1.1}
+.stats b i{font-style:normal;font-size:18px;color:var(--mute);margin-left:4px}
+.stats span{font-size:13px;color:var(--mute)}
+section.sec{padding:80px 0 20px}
+.sec-h{display:grid;grid-template-columns:96px 1fr;gap:12px;margin-bottom:30px;align-items:end}
+.sec-h .no{font-family:var(--mono);font-size:54px;line-height:1;color:var(--accent);font-weight:300}
+.sec-h h2{font-family:var(--serif);font-size:36px;line-height:1.2;font-weight:800}
+.sec-h p{grid-column:2;color:var(--ink2);max-width:780px;margin-top:6px}
+h3.sub{font-family:var(--serif);font-size:22px;margin:40px 0 14px}
+p.txt{color:var(--ink2);max-width:880px;margin:10px 0}
+ul.txt{margin:10px 0 10px 20px;color:var(--ink2);max-width:880px}
+ul.txt li{margin-bottom:6px}
+.note{border-left:3px solid var(--accent);background:rgba(217,72,15,.06);padding:14px 18px;margin:22px 0;font-size:14.5px}
+.note b{color:var(--accent)}
+.note.teal{border-left-color:var(--teal);background:rgba(11,122,117,.06)}
+.note.teal b{color:var(--teal)}
+code{font-family:var(--mono);font-size:12.5px;background:rgba(16,26,43,.07);padding:1px 5px;border-radius:3px}
+table.doc{width:100%;border-collapse:collapse;font-size:14px;background:rgba(255,255,255,.35)}
+table.doc th{font-family:var(--mono);font-weight:500;font-size:11.5px;letter-spacing:.08em;text-align:left;color:var(--mute);padding:10px 12px;border-bottom:2px solid var(--ink)}
+table.doc td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.y{color:var(--teal);font-weight:600}.n{color:var(--accent);font-weight:600}.h{color:var(--warn);font-weight:600}
+
+/* tiers */
+.tiers{border:2px solid var(--ink);background:#fbf9f4}
+.tier{display:grid;grid-template-columns:170px 1fr;border-bottom:1px dashed var(--line)}
+.tier:last-child{border-bottom:none}
+.tier .tn{padding:20px 18px;border-right:1px solid var(--line)}
+.tier .tn b{font-family:var(--serif);font-size:19px;display:block}
+.tier .tn small{font-family:var(--mono);font-size:11px;color:var(--mute)}
+.tier .tn .by{margin-top:8px;font-size:12.5px;color:var(--accent)}
+.tier .tb{padding:16px 18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.emp{border:1px solid var(--ink);background:#fff;padding:8px 12px;font-size:13px;min-width:132px}
+.emp small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--mute)}
+.emp.meta{background:var(--ink);color:var(--paper)}
+.emp.meta small{color:#9aa6b8}
+.emp.dev{border-color:var(--violet)}
+.emp.biz{border-color:var(--teal)}
+.emp.dash{border-style:dashed;background:transparent;color:var(--mute)}
+.arrow{font-family:var(--mono);font-size:12px;color:var(--mute);padding:6px 18px;background:rgba(16,26,43,.04);border-bottom:1px dashed var(--line)}
+
+.roster{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.ag{border:1px solid var(--ink);background:rgba(255,255,255,.45);padding:18px;position:relative;display:flex;flex-direction:column}
+.ag.meta{background:var(--ink);color:var(--paper)}
+.ag.meta p,.ag.meta li{color:#d6dbe4}
+.ag .badge{position:absolute;top:-10px;right:10px;font-size:10.5px;background:var(--violet);color:#fff;padding:0 7px;border-radius:2px}
+.ag.meta .badge{background:var(--accent)}
+.ag .id{font-family:var(--mono);font-size:12px;color:var(--violet)}
+.ag.meta .id{color:var(--c-acc)}
+.ag h4{font-family:var(--serif);font-size:20px;margin:2px 0 8px}
+.ag h4 small{font-family:var(--sans);font-size:12.5px;color:var(--mute);font-weight:400;margin-left:6px}
+.ag.meta h4 small{color:#9aa6b8}
+.ag p{font-size:13.5px;color:var(--ink2)}
+.ag ul{margin:10px 0 0 16px;font-size:13px;color:var(--ink2)}
+.ag ul li{margin-bottom:4px}
+.ag .foot{margin-top:auto;padding-top:12px;border-top:1px dashed var(--line);font-family:var(--mono);font-size:11.5px;color:var(--mute);line-height:1.7}
+.ag.meta .foot{border-top-color:#3a4557;color:#9aa6b8}
+
+.pipe{border:2px solid var(--ink);background:#fbf9f4;padding:22px}
+.pipe h4{font-family:var(--serif);font-size:17px;margin-bottom:12px}
+.lane{display:grid;grid-template-columns:repeat(11,1fr);gap:6px;align-items:stretch}
+.st{border:1px solid var(--ink);background:#fff;padding:10px 8px;font-size:12.5px;min-height:112px}
+.st b{display:block;font-family:var(--mono);font-size:10.5px;color:var(--mute)}
+.st h5{font-family:var(--serif);font-size:14.5px;margin:2px 0 4px;line-height:1.3}
+.st span{font-size:11.5px;color:var(--ink2);line-height:1.5;display:block}
+.st.human{background:var(--accent);border-color:var(--accent);color:#fff}
+.st.human b,.st.human span{color:#ffe2d3}
+.st.auto{border-color:var(--teal)}
+.st.mix{border-color:var(--violet);background:rgba(107,70,181,.06)}
+.st.loop{border-style:dashed}
+.legend{display:flex;gap:18px;margin-top:14px;font-size:12.5px;color:var(--mute);flex-wrap:wrap}
+.legend i{display:inline-block;width:11px;height:11px;margin-right:6px;vertical-align:-1px;border:1px solid}
+.loopnote{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--ink2);border-top:1px dashed var(--line);padding-top:10px}
+
+.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.mode{border:1px solid var(--ink);padding:18px;background:rgba(255,255,255,.45)}
+.mode .k{font-family:var(--mono);font-size:12px;color:var(--accent)}
+.mode h4{font-family:var(--serif);font-size:19px;margin:2px 0 8px}
+.mode p,.mode li{font-size:13.5px;color:var(--ink2)}
+.mode ul{margin:8px 0 0 16px}
+.mode .use{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:12.5px;color:var(--teal)}
+
+.sm{border:1px solid var(--ink);background:var(--c-bg);color:var(--c-text);padding:20px 22px;font-family:var(--mono);font-size:12.6px;line-height:1.85;overflow:auto;white-space:pre}
+.sm .k{color:var(--c-acc)}.sm .c{color:#5f7089}.sm .t{color:var(--c-teal)}.sm .v{color:#c792ea}
+.trio{display:grid;grid-template-columns:repeat(3,1fr);border:2px solid var(--ink)}
+.trio > div{padding:22px 22px;border-right:2px solid var(--ink)}
+.trio > div:last-child{border-right:none}
+.trio > div:first-child{background:var(--ink);color:var(--paper)}
+.trio > div:first-child li{color:#d6dbe4}
+.trio h4{font-family:var(--serif);font-size:19px;margin-bottom:10px}
+.trio li{margin:0 0 8px 18px;font-size:13.5px}
+.trio code{background:rgba(127,127,127,.15)}
+pre.code{border:1px solid var(--ink);background:var(--c-bg);color:var(--c-text);padding:18px 20px;font-family:var(--mono);font-size:12.5px;line-height:1.7;overflow:auto;white-space:pre;margin-top:10px}
+pre.code .c{color:#5f7089;font-style:italic}
+.k8s{border:2px solid var(--ink);padding:18px;background:#fbf9f4}
+.ns{border:1px dashed var(--ink2);padding:12px;margin-bottom:12px}
+.ns:last-child{margin-bottom:0}
+.ns > b{font-family:var(--mono);font-size:11.5px;color:var(--mute);display:block;margin-bottom:8px}
+.boxes{display:flex;flex-wrap:wrap;gap:8px}
+.box{border:1px solid var(--ink);padding:7px 10px;font-size:12.5px;background:#fff;position:relative}
+.box small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--mute)}
+.box.new{border-color:var(--accent)}
+.box.new::after{content:"新增";position:absolute;top:-9px;right:6px;font-size:10px;background:var(--accent);color:#fff;padding:0 5px;border-radius:2px}
+.box.chg{border-color:var(--soft)}
+.box.chg::after{content:"改动";position:absolute;top:-9px;right:6px;font-size:10px;background:var(--soft);color:#fff;padding:0 5px;border-radius:2px}
+.box.agent{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.box.agent small{color:#9aa6b8}
+.deploy{display:grid;grid-template-columns:1.25fr 1fr;gap:24px}
+.road{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.phase{border:1px solid var(--ink);background:rgba(255,255,255,.4);padding:16px;display:flex;flex-direction:column}
+.phase .ph{font-family:var(--mono);font-size:12px;color:var(--accent)}
+.phase h4{font-family:var(--serif);font-size:18px;margin:4px 0 2px}
+.phase .wk{font-size:12px;color:var(--mute);margin-bottom:10px}
+.phase li{font-size:12.8px;margin:0 0 6px 16px;color:var(--ink2)}
+.phase .ok{margin-top:auto;padding-top:12px;border-top:1px dashed var(--line);font-size:12.5px;color:var(--teal)}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid var(--ink)}
+.kpis div{padding:16px;border-right:1px solid var(--line);background:rgba(255,255,255,.35)}
+.kpis div:last-child{border-right:none}
+.kpis b{font-family:var(--serif);font-size:26px;display:block}
+.kpis span{font-size:12.5px;color:var(--mute)}
+footer{margin-top:90px;padding:36px 0 60px;border-top:2px solid var(--ink);font-size:13px;color:var(--mute);display:flex;justify-content:space-between;gap:20px}
+.reveal{opacity:0;transform:translateY(14px);transition:opacity .6s ease,transform .6s ease}
+.reveal.in{opacity:1;transform:none}
+@media (max-width:900px){.roster,.road,.kpis,.stats,.modes{grid-template-columns:1fr 1fr}.lane{grid-template-columns:repeat(3,1fr)}.trio,.deploy{grid-template-columns:1fr}.trio > div{border-right:none;border-bottom:2px solid var(--ink)}}
+</style>
+</head>
+<body>
+
+<aside class="side">
+  <div class="brand">Keel<br>全流程智能体化<small>DIGITAL WORKFORCE</small></div>
+  <nav id="toc">
+    <a href="#s1"><span>01</span>数字员工体系</a>
+    <a href="#s2"><span>02</span>新增哪些数字员工</a>
+    <a href="#s3"><span>03</span>两条生产线</a>
+    <a href="#s4"><span>04</span>人工介入开发</a>
+    <a href="#s5"><span>05</span>守住三条线</a>
+    <a href="#s6"><span>06</span>平台改动</a>
+    <a href="#s7"><span>07</span>沙箱与部署</a>
+    <a href="#s8"><span>08</span>开工前置条件</a>
+    <a href="#s9"><span>09</span>指标、成本与风险</a>
+    <a href="#s10"><span>10</span>落地路线</a>
+    <a href="#s11"><span>11</span>待确认事项</a>
+  </nav>
+  <div class="foot">方案 v0.1 · 草案<br>2026-10-08 · amy<br>前端方案与原型：<br><a href="../console/Keel-全流程智能体化控制台.html">Keel-全流程智能体化控制台.html</a></div>
+</aside>
+
+<main>
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow reveal">Design Doc · Agentic Delivery</div>
+  <h1 class="reveal">全流程<em>智能体化</em></h1>
+  <div class="sub reveal">元智能体生产研发员工，研发员工批量生产业务员工；人随时能接手开发，上生产必须人批</div>
+  <p class="lead reveal">Keel 底座已经承担了鉴权、模型、追踪、审计、评测和发布门禁。本方案在底座之上把研发流程本身交给智能体，并把每个智能体当成一名<b>数字员工</b>：有岗位说明书（<code>agent.yaml</code>）、入职考核（评测与门禁）、试用期（staging）、权限、预算和人类直属负责人。研发流程由智能体执行，但产出的是代码仓库、PR 和 staging 预览环境，<b>不直接部署生产</b>。</p>
+  <div class="meta reveal">
+    <span class="tag fill">手写 1 个元智能体</span><span class="tag fill">元智能体生产 7 名研发员工</span><span class="tag fill">研发流水线批量生产业务员工</span><span class="tag">三种开发模式 · 随时人工接管</span><span class="tag acc">不改 keel/v1 契约枚举</span>
+  </div>
+  <div class="stats reveal">
+    <div><b>1<i>个</i></b><span>需要人手写的智能体：元智能体，其余都由智能体生产</span></div>
+    <div><b>3<i>层</i></b><span>元智能体 → 研发数字员工 → 业务数字员工，只能向下生产</span></div>
+    <div><b>4<i>个</i></b><span>人工关口：需求确认、评测确认、授权审批、发布审批</span></div>
+    <div><b>0<i>次</i></b><span>智能体直接部署生产的机会，生产发布只经人批 + CI</span></div>
+  </div>
+</header>
+
+<!-- 01 -->
+<section class="sec" id="s1">
+  <div class="sec-h reveal"><div class="no">01</div><h2>数字员工体系</h2><p>所有智能体都是数字员工，按"谁生产谁"分成三层。上层生产下层，同层之间和下层对上层都不能修改，人在每一层都保有最终决定权。</p></div>
+
+  <div class="tiers reveal">
+    <div class="tier">
+      <div class="tn"><b>元智能体</b><small>META · 1 名</small><div class="by">由人手写、只由人修改</div></div>
+      <div class="tb"><div class="emp meta">meta-agent<small>元智能体</small></div><span style="font-size:13px;color:var(--ink2)">负责生产和升级研发数字员工。它是整个体系里唯一手写的智能体，相当于"带新人的架构师"。</span></div>
+    </div>
+    <div class="arrow">↓ 元智能体生产线：人机协作模式强制开启，每个 PR 都要人工 review，四个关口全部由平台管理员把关</div>
+    <div class="tier">
+      <div class="tn"><b>研发数字员工</b><small>DEV · 7 名</small><div class="by">由元智能体生产</div></div>
+      <div class="tb">
+        <div class="emp dev">dev-lead<small>研发组长</small></div><div class="emp dev">spec-agent<small>需求分析师</small></div><div class="emp dev">dev-agent<small>开发工程师</small></div><div class="emp dev">eval-agent<small>测试工程师</small></div><div class="emp dev">code-review<small>代码评审员</small></div><div class="emp dev">ci-doctor<small>CI 诊断员</small></div><div class="emp dev">release-agent<small>发布工程师</small></div>
+      </div>
+    </div>
+    <div class="arrow">↓ 研发流水线：由 dev-lead 编排，支持批量需求；开发模式按任务选择，四个关口由业务方和负责人把关</div>
+    <div class="tier">
+      <div class="tn"><b>业务数字员工</b><small>BIZ · 批量</small><div class="by">由研发流水线生产</div></div>
+      <div class="tb">
+        <div class="emp biz">release-notes<small>发布说明</small></div><div class="emp biz">weekly-report<small>周报汇总</small></div><div class="emp biz">oncall-handoff<small>值班交接</small></div><div class="emp biz">kb-curator<small>知识库巡检</small></div><div class="emp dash">……<small>按需求批量生产</small></div>
+        <div class="emp dash">askdb · careermate …<small>存量业务员工照常手写维护</small></div>
+      </div>
+    </div>
+  </div>
+
+  <h3 class="sub reveal">数字员工的一生，对应 Keel 里的什么</h3>
+  <table class="doc reveal">
+    <thead><tr><th>员工概念</th><th>Keel 里的对应物</th><th>谁负责</th></tr></thead>
+    <tbody>
+      <tr><td>招聘需求</td><td>研发任务的需求表单（单个或批量）</td><td>业务方</td></tr>
+      <tr><td>岗位说明书</td><td><code>agent.yaml</code>：职责、能用的工具、风险等级、预算、审计字段</td><td>spec-agent 起草，人确认</td></tr>
+      <tr><td>工号与门禁卡</td><td>智能体名、OAuth 客户端、<code>allowed_audiences</code>、工具授权</td><td>keel-server 开通，所有者审批</td></tr>
+      <tr><td>入职考核</td><td>评测集 + 隐藏考题 + <code>keel gate</code> 门禁</td><td>考题由人出</td></tr>
+      <tr><td>试用期</td><td>staging 环境，只对内开放</td><td>release-agent</td></tr>
+      <tr><td>转正</td><td><code>keel release</code> 到 prod，提示词打 <code>production</code> 标签</td><td>负责人审批后由 CI 执行</td></tr>
+      <tr><td>工资</td><td>薄网关虚拟 Key 的人民币日预算 <code>dailyBudgetCny</code></td><td>负责人</td></tr>
+      <tr><td>工作记录</td><td>Langfuse 链路 + keel-audit 审计</td><td>底座自动</td></tr>
+      <tr><td>请示上级</td><td>高风险工具调用挂起，等审批后恢复</td><td>审批人</td></tr>
+      <tr><td>绩效</td><td>质量分、点踩率、成本、门禁分数趋势</td><td>负责人看控制台</td></tr>
+      <tr><td>培训升级</td><td>"改造任务"：改代码或提示词，再过门禁</td><td>研发流水线或人</td></tr>
+      <tr><td>离职</td><td><code>keel retire</code>：吊销 Key、删 Secret、回收资源</td><td>负责人</td></tr>
+    </tbody>
+  </table>
+  <div class="note reveal"><b>每名数字员工都有一位人类直属负责人。</b>负责人对它的岗位说明书、权限、预算和上线负责。数字员工可以生产其他数字员工，但出了问题能追到一个具体的人。</div>
+
+  <div class="note teal reveal"><b>和已规划研发智能体的关系。</b>技术文档里的 dev-copilot、prd-agent、test-gen 面向"通用业务代码"的研发（从 ai-multi-agent-dev-platform 拆出，P3），和全流程智能体化是两条线。code-review、ci-doctor 原计划 P3 手写，本方案改为由元智能体生产，作为研发数字员工上岗。test-gen 在支持 java-spring 模板时作为可选研发员工接入。</div>
+</section>
+
+<!-- 02 -->
+<section class="sec" id="s2">
+  <div class="sec-h reveal"><div class="no">02</div><h2>新增哪些数字员工</h2><p>手写 1 个元智能体，由它生产 7 名研发数字员工。全部是普通 Keel 智能体：有自己的 manifest、虚拟 Key、预算、评测集和门禁，和业务员工走同一套注册与发布流程，没有任何特权。</p></div>
+
+  <div class="roster reveal">
+    <div class="ag meta">
+      <span class="badge">元智能体 · 手写</span>
+      <div class="id">meta-agent</div>
+      <h4>元智能体<small>带新人的架构师</small></h4>
+      <p>生产和升级研发数字员工。研发员工还不存在时它要能独自走完全流程，所以它是一个自带"需求 → 评测草稿 → 开发 → 门禁"步骤的单体智能体，比研发流水线慢，但每一步都有人看着。</p>
+      <ul>
+        <li>模板 <code>graph-agent</code>，Python，<b>人工编写、只由人修改</b></li>
+        <li>只接"研发层"任务，不生产业务员工</li>
+        <li>它的任务强制人机协作模式：每个 PR 必须有人工 review 通过</li>
+        <li>四个关口的审批人都是平台管理员</li>
+      </ul>
+      <div class="foot">工具：devflow.job.read · devflow.stage.report · sandbox.run · git.repo.create · git.branch.push · git.pr.open · ci.workflow.dispatch · git.pr.merge（high）<br>日预算：¥50（估算）</div>
+    </div>
+    <div class="ag">
+      <span class="badge">研发 · 元智能体生产</span>
+      <div class="id">dev-lead</div>
+      <h4>研发组长<small>流水线总控</small></h4>
+      <p>接收业务员工的生产任务（单个或批量），按阶段委派给其他研发员工，管预算、修复轮次、人工关口和人工接管。自己不写代码、不改配置。</p>
+      <ul>
+        <li>模板 <code>supervisor</code></li>
+        <li>delegates：spec-agent、eval-agent、dev-agent、code-review、ci-doctor、release-agent</li>
+        <li>批量任务按并发上限排队</li>
+      </ul>
+      <div class="foot">工具：devflow.job.read · devflow.stage.report · devflow.batch.read<br>日预算：¥30</div>
+    </div>
+    <div class="ag">
+      <span class="badge">研发 · 元智能体生产</span>
+      <div class="id">spec-agent</div>
+      <h4>需求分析师</h4>
+      <p>把需求表单变成需求单：目标用户、输入输出、成功标准、模板、工具与知识库、风险等级、预算建议，并起草岗位说明书 <code>agent.yaml</code>。批量需求时还会找出彼此重复的需求。</p>
+      <ul>
+        <li>模板 <code>graph-agent</code>；输入护栏 <code>inputInjection: enforce</code></li>
+        <li>只能从工具注册表选工具，风险等级不得低于登记值</li>
+      </ul>
+      <div class="foot">工具：devflow.catalog.search · devflow.stage.report<br>产物：需求单 · manifest 草稿 · 授权清单</div>
+    </div>
+    <div class="ag">
+      <span class="badge">研发 · 元智能体生产</span>
+      <div class="id">dev-agent</div>
+      <h4>开发工程师</h4>
+      <p>按 <code>keel new</code> 模板生成项目，写业务代码、工具、提示词兜底副本和单测，在沙箱里跑 <code>pytest</code> 和协议自检，通过后推分支、开 PR。协作模式下以人的提交为准，不覆盖人写的代码。</p>
+      <ul>
+        <li>模板 <code>graph-agent</code>；F4 起支持 java-spring</li>
+        <li>代码只在沙箱执行；看不到隐藏考题</li>
+        <li>和人的改动冲突时挂起问人（<code>input_required</code>）</li>
+      </ul>
+      <div class="foot">工具：sandbox.run · git.repo.create · git.branch.push · git.pr.open<br>需要编码模型，见第 11 节</div>
+    </div>
+    <div class="ag">
+      <span class="badge">研发 · 元智能体生产</span>
+      <div class="id">eval-agent</div>
+      <h4>测试工程师</h4>
+      <p>在人给的种子用例上扩充边界、对抗、注入类用例，按 tags 补齐覆盖，起草领域评分函数 <code>@scorer</code>。扩充用例经人审过才计入门禁。</p>
+      <ul>
+        <li>模板 <code>tool-agent</code></li>
+        <li>不能修改或删除人给的用例；拿不到隐藏考题</li>
+      </ul>
+      <div class="foot">工具：devflow.job.read · sandbox.run · devflow.stage.report</div>
+    </div>
+    <div class="ag">
+      <span class="badge">研发 · 元智能体生产</span>
+      <div class="id">code-review</div>
+      <h4>代码评审员<small>原计划 P3 手写</small></h4>
+      <p>评审流水线上的每个 PR，包括人写的提交。重点查：是否绕过 <code>ctx.llm</code>、审计字段是否超白名单、高风险工具是否声明审批、是否针对可见用例特判。</p>
+      <div class="foot">工具：git.pr.diff · git.pr.comment · 知识库 dev-standards</div>
+    </div>
+    <div class="ag">
+      <span class="badge">研发 · 元智能体生产</span>
+      <div class="id">ci-doctor</div>
+      <h4>CI 诊断员<small>原计划 P3 手写</small></h4>
+      <p>CI 或门禁失败时读日志和门禁报告，按维度定位退步原因，给 dev-agent 或接手的人一份修复清单。</p>
+      <div class="foot">工具：ci.log.fetch · keel.gate.report.read</div>
+    </div>
+    <div class="ag">
+      <span class="badge">研发 · 元智能体生产</span>
+      <div class="id">release-agent</div>
+      <h4>发布工程师</h4>
+      <p>部署 PR 分支到 staging、跑门禁和隐藏考题，读报告。通过后申请合并 PR；合并是高风险工具，自动挂起等发布审批，批准后由 CI 跑 <code>keel release</code>。上线后观察 7 天。</p>
+      <ul>
+        <li>模板 <code>tool-agent</code>；不直接调 <code>keel release</code></li>
+        <li>质量退化只能提回滚审批单，不能自己回滚</li>
+      </ul>
+      <div class="foot">工具：ci.workflow.dispatch · keel.gate.report.read · git.pr.merge（risk: high）</div>
+    </div>
+  </div>
+
+  <h3 class="sub reveal">岗位说明书要点</h3>
+  <table class="doc reveal">
+    <thead><tr><th>数字员工</th><th>层</th><th>模板</th><th>关键工具（risk）</th><th>它自己的评测集（人出题）</th><th>门禁起步线</th></tr></thead>
+    <tbody>
+      <tr><td><code>meta-agent</code></td><td>元</td><td>graph-agent</td><td>sandbox.run（mid）· git.*（low～mid）· <b>git.pr.merge（high）</b></td><td><code>meta-agent/dev-employee-builds</code></td><td>0.80</td></tr>
+      <tr><td><code>dev-lead</code></td><td>研发</td><td>supervisor</td><td>devflow.job.read · devflow.stage.report（low）</td><td><code>dev-lead/orchestration</code></td><td>0.85</td></tr>
+      <tr><td><code>spec-agent</code></td><td>研发</td><td>graph-agent</td><td>devflow.catalog.search（low）</td><td><code>spec-agent/requirements</code></td><td>0.80</td></tr>
+      <tr><td><code>dev-agent</code></td><td>研发</td><td>graph-agent</td><td>sandbox.run（mid）· git.repo.create（mid）· git.pr.open（low）</td><td><code>dev-agent/build-tasks</code></td><td>0.75</td></tr>
+      <tr><td><code>eval-agent</code></td><td>研发</td><td>tool-agent</td><td>sandbox.run（mid）</td><td><code>eval-agent/case-quality</code></td><td>0.80</td></tr>
+      <tr><td><code>code-review</code></td><td>研发</td><td>tool-agent</td><td>git.pr.diff（low）· git.pr.comment（mid）</td><td><code>code-review/findings</code></td><td>0.80</td></tr>
+      <tr><td><code>ci-doctor</code></td><td>研发</td><td>tool-agent</td><td>ci.log.fetch · keel.gate.report.read（low）</td><td><code>ci-doctor/diagnosis</code></td><td>0.80</td></tr>
+      <tr><td><code>release-agent</code></td><td>研发</td><td>tool-agent</td><td>ci.workflow.dispatch（mid）· <b>git.pr.merge（high）</b></td><td><code>release-agent/decisions</code></td><td>0.90</td></tr>
+    </tbody>
+  </table>
+  <p class="txt reveal">研发员工的评测集由人用历史手写智能体回放制作，例如 dev-agent 的考题是 30 个"需求单 → 期望通过的测试"。门禁分数线是起步值，试点后按实测调整。</p>
+</section>
+
+<!-- 03 -->
+<section class="sec" id="s3">
+  <div class="sec-h reveal"><div class="no">03</div><h2>两条生产线</h2><p>两条线走同一套阶段和关口，区别在谁来干活、谁来批。研发层任务只能由元智能体接，业务层任务只能由研发流水线接。</p></div>
+
+  <table class="doc reveal">
+    <thead><tr><th></th><th>元智能体生产线</th><th>研发流水线</th></tr></thead>
+    <tbody>
+      <tr><td>产出</td><td>研发数字员工（新建或升级）</td><td>业务数字员工（新建或改造）</td></tr>
+      <tr><td>谁干活</td><td>meta-agent 一个人走完全部步骤</td><td>dev-lead 编排 6 名研发员工分工</td></tr>
+      <tr><td>开发模式</td><td>强制人机协作，每个 PR 都要人工 review</td><td>按任务选：全托管 / 人机协作 / 只生成骨架</td></tr>
+      <tr><td>关口审批人</td><td>H1～H4 全部是平台管理员</td><td>H1 需求人、H2 业务负责人、H3 所有者、H4 负责人</td></tr>
+      <tr><td>批量</td><td>不支持，一次一个</td><td>支持批次，按并发上限排队</td></tr>
+      <tr><td>量级</td><td>一共 7 名研发员工，偶尔升级</td><td>按业务需求持续生产</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="sub reveal">阶段与关口（两条线共用）</h3>
+  <div class="pipe reveal">
+    <div class="lane">
+      <div class="st auto"><b>S1</b><h5>需求分析</h5><span>需求单、岗位说明书草稿、授权清单</span></div>
+      <div class="st human"><b>H1</b><h5>需求确认</h5><span>确认或退回；批量可逐条确认</span></div>
+      <div class="st auto"><b>S2</b><h5>评测准备</h5><span>人上传种子用例，智能体扩充</span></div>
+      <div class="st human"><b>H2</b><h5>评测确认</h5><span>审扩充用例，服务端切出隐藏考题</span></div>
+      <div class="st human"><b>H3</b><h5>授权审批</h5><span>工具 / 知识库所有者，与 S3 并行</span></div>
+      <div class="st mix"><b>S3</b><h5>开发</h5><span>智能体写、人写或一起写，看开发模式</span></div>
+      <div class="st auto"><b>S4</b><h5>代码评审</h5><span>code-review；协作模式再加人工 review</span></div>
+      <div class="st auto loop"><b>S5</b><h5>staging 门禁</h5><span>部署 PR 分支，跑门禁和隐藏考题</span></div>
+      <div class="st human"><b>H4</b><h5>发布审批</h5><span>批准才合并 PR</span></div>
+      <div class="st auto"><b>S6</b><h5>发布</h5><span>CI 跑 keel gate + keel release</span></div>
+      <div class="st auto"><b>S7</b><h5>上线观察</h5><span>7 天盯质量分和成本</span></div>
+    </div>
+    <div class="loopnote">S5 不过 → ci-doctor 诊断 → 回 S3 修复（最多 3 轮，可配）。S3～S5 任何时候都可以人工接管，接管后修复轮次暂停计数。超出轮次或预算耗尽 → 任务 FAILED，仓库和 PR 保留，由负责人决定接手或放弃。</div>
+    <div class="legend"><span><i style="background:#fff;border-color:var(--teal)"></i>智能体执行</span><span><i style="background:rgba(107,70,181,.1);border-color:var(--violet)"></i>智能体 / 人按模式分工</span><span><i style="background:var(--accent);border-color:var(--accent)"></i>人工关口</span><span><i style="border-style:dashed;border-color:var(--ink)"></i>可能循环</span></div>
+  </div>
+
+  <h3 class="sub reveal">四个关口复用现有机制，不新增契约枚举</h3>
+  <table class="doc reveal">
+    <thead><tr><th>关口</th><th>落在哪套现有机制</th><th>超时</th></tr></thead>
+    <tbody>
+      <tr><td><b>H1 需求确认</b></td><td>总控（meta-agent 或 dev-lead）发 <code>event: suspend</code>，<code>reason=input_required</code>；处理后调 <code>/v1/runs/{id}/resume</code></td><td>72 小时</td></tr>
+      <tr><td><b>H2 评测确认</b></td><td>同上；确认时上传、审核用例，keel-server 切分隐藏考题</td><td>72 小时</td></tr>
+      <tr><td><b>H3 授权审批</b></td><td>现有共享工具授权流程，写 <code>agent_tool_grant</code>；high 风险工具的审批策略由平台管理员绑定</td><td>按审批策略</td></tr>
+      <tr><td><b>H4 发布审批</b></td><td>调 <code>git.pr.merge</code>（<code>risk: high</code>）触发现有 <code>approval_request</code>，<code>subject_type=tool.call</code>，<code>reason=approval</code></td><td>7 天</td></tr>
+    </tbody>
+  </table>
+  <div class="note teal reveal"><b>等几天后怎么恢复。</b>关口可能等很久，远超换票 token 的 600 秒和用户会话的有效期。按 auth-gateway 的规则，恢复时必须重新换票；用户会话也失效的改用 <code>/oauth/delegation-token</code>（建任务时授权一次）。两者都没有时返回 <code>RUN_RESUME_DENIED</code>，任务停在原关口，提示重新授权。</div>
+
+  <h3 class="sub reveal">批量生产业务员工</h3>
+  <ul class="txt reveal">
+    <li>业务方在控制台上传一张需求表（每行一名员工：名称、目标、场景、输入输出、成功标准、负责人），生成一个<b>批次</b>，每行是一个独立任务。</li>
+    <li>spec-agent 先整批过一遍：标出彼此重复或能合并的需求、标出缺信息的行，再逐条出需求单。</li>
+    <li>H1、H2 支持在批次视图里逐条确认，一屏看完；但每个任务仍单独记审计、单独挂起和恢复。</li>
+    <li>批次按并发上限排队（默认同时 3 个，受每日任务上限和 Langfuse 额度约束），某一条失败不影响其他条。</li>
+  </ul>
+
+  <h3 class="sub reveal">任务状态机（devflow_job.status）</h3>
+<pre class="sm reveal"><span class="k">QUEUED</span>(批次排队) ──▶ <span class="k">SPEC</span> ──▶ <span class="t">WAIT_SPEC</span>(H1) ──▶ <span class="k">EVAL</span> ──▶ <span class="t">WAIT_EVAL</span>(H2) ──▶ <span class="k">BUILD</span> ◀────── 修复（fix_rounds &lt; max）
+                      ▲              │退回                         <span class="t">WAIT_GRANT</span>(H3) 并行  │                │
+                      └──────────────┘                                             ▼                │
+                                                                  <span class="k">REVIEW</span> ──▶ <span class="k">STAGING_GATE</span> ──不过──▶ <span class="k">DIAGNOSE</span>
+                                                                                   │通过
+                                                                                   ▼
+                                                    <span class="t">WAIT_RELEASE</span>(H4) ──批准──▶ <span class="k">RELEASING</span> ──▶ <span class="k">WATCHING</span>(7 天) ──▶ <span class="k">DONE</span>
+
+<span class="v">HUMAN_DEV</span>：BUILD / REVIEW / STAGING_GATE / DIAGNOSE / FAILED 均可"人工接管"进入；"交还"后回到 <span class="k">REVIEW</span>
+         骨架模式下 BUILD 产出骨架 PR 后自动进入 <span class="v">HUMAN_DEV</span>
+
+<span class="c">任意阶段：预算耗尽 / 修复超限 / 隐藏考题不过 / 人工取消 / 关口超时</span>
+       ──▶ <span class="k">FAILED</span> · <span class="k">CANCELLED</span> · <span class="k">EXPIRED</span>   <span class="c">（已开通的 staging 资源按逆序回收；仓库与 PR 保留）</span></pre>
+</section>
+
+<!-- 04 -->
+<section class="sec" id="s4">
+  <div class="sec-h reveal"><div class="no">04</div><h2>人工介入开发</h2><p>智能体生产的数字员工不是黑盒。每名员工都有独立的 Git 仓库，人和研发员工在同一个 PR 上协作；流水线只负责把员工送到 staging，上生产由人决定。</p></div>
+
+  <div class="modes reveal">
+    <div class="mode"><div class="k">AUTO</div><h4>全托管</h4><p>研发员工写全部代码，人只在四个关口出手。</p><ul><li>人可以随时往 PR 推提交，dev-agent 以人的提交为准</li><li>出问题可以一键接管</li></ul><div class="use">适合：只读、低风险、需求清楚的员工，如发布说明、周报</div></div>
+    <div class="mode"><div class="k">COLLAB</div><h4>人机协作</h4><p>研发员工写代码，每一轮 PR 必须有一名人工 reviewer 通过才进门禁。人写的代码，智能体不能覆盖。</p><ul><li>分支保护要求至少 1 个人工 approve</li><li>和人的改动冲突时 dev-agent 挂起问人</li></ul><div class="use">适合：有写操作或 mid 风险工具的员工；元智能体生产研发员工时强制使用</div></div>
+    <div class="mode"><div class="k">SCAFFOLD</div><h4>只生成骨架</h4><p>研发员工只出需求单、岗位说明书、评测集和项目骨架 PR，然后任务进入人工开发；人写完点"提交门禁"，后面的评审、门禁、发布照常走。</p><div class="use">适合：业务逻辑复杂、需要对接内部系统、含 high 风险工具的员工</div></div>
+  </div>
+
+  <h3 class="sub reveal">随时接管与交还</h3>
+  <table class="doc reveal">
+    <thead><tr><th>动作</th><th>什么时候能做</th><th>发生什么</th></tr></thead>
+    <tbody>
+      <tr><td><b>人工接管</b></td><td>开发、评审、门禁、诊断阶段，或任务失败后</td><td>任务进入 <code>HUMAN_DEV</code>；dev-agent 停止推送；修复轮次暂停计数；接管人成为该任务的当前开发者，记 <code>config.change</code> 审计</td></tr>
+      <tr><td><b>请智能体帮忙</b></td><td>人工开发中</td><td>在任务里给 dev-agent 发一条具体指令（例如"补齐 tools/ 的单测"），它只在指定范围内改，改完回到人工开发</td></tr>
+      <tr><td><b>交还智能体</b></td><td>人工开发中</td><td>回到 <code>REVIEW</code>：code-review 评审包括人写部分在内的全部改动，然后进门禁；dev-agent 后续修复以人的提交为基线</td></tr>
+      <tr><td><b>提交门禁</b></td><td>骨架模式人工开发完成</td><td>同"交还"，但后续修复默认仍由人来做</td></tr>
+      <tr><td><b>放弃</b></td><td>任意阶段</td><td>任务 CANCELLED，staging 资源逆序回收，仓库保留只读</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="sub reveal">为什么说"不直接部署"</h3>
+  <ul class="txt reveal">
+    <li>流水线的产出是三样东西：<code>keel-agents/{name}</code> 仓库、一个 PR、一个 staging 预览环境。staging 只对内开放，经网关路由只对测试身份可见。</li>
+    <li>上生产只有一条路：H4 批准 → 合并 PR → 仓库 CI 跑 <code>keel gate --env prod</code> 和 <code>keel release</code>。研发员工没有任何直接调发布接口的工具。</li>
+    <li>keel-server 对由智能体生产的员工多一条校验：发布记录必须关联一张已批准的 <code>git.pr.merge</code> 审批单，否则 <code>keel release</code> 被拒。</li>
+    <li>协作模式和研发层任务再加一道 Git 分支保护：没有人工 approve 的 PR 合不进去，即使审批单批了也一样。</li>
+  </ul>
+</section>
+
+<!-- 05 -->
+<section class="sec" id="s5">
+  <div class="sec-h reveal"><div class="no">05</div><h2>守住三条线</h2><p>智能体生产智能体，最大的风险不是代码写得不好，而是自己出题自己考、自己给自己开权限、自己改自己。这三条线在机制上堵死，不靠提示词约束。</p></div>
+
+  <div class="trio reveal">
+    <div><h4>考题由人出</h4><ul>
+      <li>种子用例由业务负责人上传，打 <code>origin:human</code>，每个任务至少 30 条（起步值）</li>
+      <li>H2 确认时 keel-server 随机切出 30% 作为隐藏考题，存 keel 库 <code>devflow_holdout</code>，不进 Langfuse 数据集</li>
+      <li>研发员工没有读隐藏考题的工具；沙箱不放行 Langfuse 和 keel-server</li>
+      <li>隐藏考题只在 CI 里用 CI 身份拉取、本地跑，只回写按 tag 的聚合分</li>
+      <li>研发员工自己的考题也由人出，eval-agent 不能给研发员工出题</li>
+    </ul></div>
+    <div><h4>权限由人批</h4><ul>
+      <li>共享工具和知识库只能经所有者审批写入 <code>agent_tool_grant</code>，没有任何数字员工能写</li>
+      <li>spec-agent 只能选注册表里的工具，风险不能低于登记值；注册自检再校验一次</li>
+      <li>含 <code>risk: high</code> 工具的员工，审批策略由平台管理员绑定</li>
+      <li><code>production</code> 提示词标签只经 <code>keel release</code></li>
+      <li>流水线新建 Key 的日预算上限 ¥50（可配），超出要平台管理员审批</li>
+    </ul></div>
+    <div><h4>不能改自己和上级</h4><ul>
+      <li>生产方向只能向下：人 → 元智能体 → 研发员工 → 业务员工</li>
+      <li>meta-agent 只能由人修改；它的仓库不在 <code>keel-agents/</code> 组织下，研发员工没有写权限</li>
+      <li>研发员工的升级只能由 meta-agent 发起任务，研发流水线拒绝接研发层任务</li>
+      <li>任何员工都不能接"修改自己"的任务；keel-server 按 <code>devflow_job.target_agent</code> 与执行者比对后拒绝</li>
+      <li>研发员工改提示词同样要经 staging 回归和 <code>keel release</code></li>
+    </ul></div>
+  </div>
+
+  <h3 class="sub reveal">权限矩阵</h3>
+  <table class="doc reveal">
+    <thead><tr><th>动作</th><th>meta-agent</th><th>dev-lead</th><th>spec / eval</th><th>dev-agent</th><th>release-agent</th><th>人</th></tr></thead>
+    <tbody>
+      <tr><td>生产 / 升级研发员工</td><td class="y">✓（人机协作）</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td><td class="y">✓</td></tr>
+      <tr><td>生产 / 改造业务员工</td><td class="n">✗</td><td class="y">编排</td><td class="y">需求 / 评测</td><td class="y">开发</td><td class="y">发布申请</td><td class="y">✓</td></tr>
+      <tr><td>在沙箱执行代码</td><td class="y">✓</td><td class="n">✗</td><td class="h">仅 eval</td><td class="y">✓</td><td class="n">✗</td><td>—</td></tr>
+      <tr><td>建仓库、推分支、开 PR</td><td class="y">✓</td><td class="n">✗</td><td class="n">✗</td><td class="y">✓</td><td class="n">✗</td><td class="y">✓</td></tr>
+      <tr><td>合并 PR（触发生产发布）</td><td class="h">需 H4</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td><td class="h">需 H4</td><td class="y">✓</td></tr>
+      <tr><td>读隐藏考题内容</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td><td class="n">只读聚合分</td><td class="y">业务负责人</td></tr>
+      <tr><td>授予工具 / 知识库权限</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td><td class="y">所有者</td></tr>
+      <tr><td>修改 meta-agent</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td><td class="y">平台管理员</td></tr>
+    </tbody>
+  </table>
+  <div class="note reveal"><b>一处残余风险。</b>按现行约定四个环境共用一个 Langfuse 项目，所有智能体 Secret 里是同一对项目 Key，Hobby 套餐没有只读或按数据集隔离的 Key。研发员工没有读 Langfuse 的工具、沙箱也不放行 Langfuse，隐藏考题本身不进 Langfuse；但隐藏考题在 CI 里跑时产生的 generation 追踪仍会进同一个项目。开工前要定：这部分追踪关闭上报，还是接受风险。见第 11 节。</div>
+</section>
+
+<!-- 06 -->
+<section class="sec" id="s6">
+  <div class="sec-h reveal"><div class="no">06</div><h2>平台改动</h2><p>按"模块化单体"原则，研发任务账本、批次、沙箱调度放进 keel-server 新的顶层包 <code>devflow/</code>，不新建服务。改动顺序遵守契约先行：先改 <code>contracts/</code>，再改 Java 和 Python。</p></div>
+
+  <h3 class="sub reveal">keel-server 新增 devflow 包</h3>
+<pre class="code reveal">keel-server/src/main/java/com/keel/server/devflow/
+├── controller/
+│   ├── DevflowJobController       <span class="c"># 控制台：建任务、列表、详情、取消、接管、交还、上传种子用例</span>
+│   ├── DevflowBatchController     <span class="c"># 控制台：上传需求表建批次、批次进度、批量确认</span>
+│   ├── DevflowStageController     <span class="c"># 研发员工回写阶段结论（devflow.stage.report 的提供方）</span>
+│   └── DevflowSandboxController   <span class="c"># sandbox.run 的提供方</span>
+├── service/
+│   ├── DevflowJobService          <span class="c"># 状态机、预算、修复轮次、接管；每次状态变化写 config.change 审计</span>
+│   ├── DevflowDispatcher          <span class="c"># 研发层任务派给 meta-agent，业务层派给 dev-lead；批次按并发上限出队</span>
+│   ├── LineageGuard            <span class="c"># 只能向下生产、不能改自己和上级</span>
+│   ├── HoldoutService          <span class="c"># 切分隐藏考题；只对 CI 身份开放；只收聚合分</span>
+│   ├── SandboxService          <span class="c"># fabric8 在 keel-devflow-sandbox 建 Job，收回测试报告</span>
+│   └── DevflowReleaseGuard        <span class="c"># 由智能体生产的员工发布时校验 git.pr.merge 审批单</span>
+├── mapper/
+└── model/                      <span class="c"># entity / dto / enums（DevflowJobStatus、DevflowStage、DevflowMode、DevflowLayer）</span></pre>
+  <p class="txt reveal">模块边界：devflow 调 registry、tool、approval、release 只走对方 service 接口；Git 托管和 CI 的封装放 <code>integration/git</code>、<code>integration/ci</code>。任务详情的链路图复用 insight 的 <code>TraceQueryService</code>。</p>
+
+  <h3 class="sub reveal">新增表（keel 库，Flyway V8__devflow.sql）</h3>
+  <table class="doc reveal">
+    <thead><tr><th>表</th><th>关键字段</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>devflow_job</code></td><td>job_id(pk, DF-xxxx)、batch_id、layer(DEV/BIZ)、kind(CREATE/CHANGE)、mode(AUTO/COLLAB/SCAFFOLD)、title、requester、owner_user、owner_org、target_agent、producer_agent、template、status、stage、human_dev_user、budget_cny、spent_cny、fix_rounds、max_fix_rounds、run_id、trace_id、repo_url、pr_url、created_at</td><td>研发任务主表。layer=DEV 时 producer 只能是 meta-agent，mode 只能是 COLLAB</td></tr>
+      <tr><td><code>devflow_batch</code></td><td>batch_id(pk)、title、requester、total、concurrency、status、created_at</td><td>批量需求，一行需求一个 devflow_job</td></tr>
+      <tr><td><code>devflow_stage_run</code></td><td>id、job_id、stage、actor(智能体名或 user:xxx)、attempt、status、trace_id、cost_cny、summary、started_at、ended_at</td><td>每个阶段每次尝试一行；人工开发也记一行，actor 为人</td></tr>
+      <tr><td><code>devflow_artifact</code></td><td>id、job_id、kind(SPEC/MANIFEST/CODE/EVALSET/REVIEW/GATE_REPORT)、ref、sha256、origin(HUMAN/AGENT)、created_at</td><td>只存引用（git sha、数据集名、报告 id），不存原文</td></tr>
+      <tr><td><code>devflow_holdout</code></td><td>job_id、case_id、input_json、expected_json、tags、created_by、created_at</td><td>隐藏考题。只有 HoldoutService 能读；没有任何控制台或智能体接口返回内容</td></tr>
+      <tr><td><code>devflow_setting</code></td><td>key、value_json、updated_by、updated_at</td><td>默认预算、修复上限、隐藏考题比例、并发、允许的模板、Key 预算上限</td></tr>
+    </tbody>
+  </table>
+  <p class="txt reveal">现有表的改动：<code>agent</code> 加可空列 <code>devflow_job_id</code>、<code>layer</code>（META/DEV/BIZ，存量员工为 BIZ），用于控制台的"来源"和"层级"显示、谱系图和发布校验。<code>approval_request</code>、<code>agent_run</code> 不改。</p>
+
+  <h3 class="sub reveal">新增接口（先写进 contracts/console-api.openapi.yaml）</h3>
+  <table class="doc reveal">
+    <thead><tr><th>接口</th><th>调用方</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>POST /api/v1/devflow/jobs</code></td><td>控制台</td><td>提交需求（layer、mode、需求字段），返回 job_id；同时完成一次委托授权。layer=DEV 只允许平台管理员</td></tr>
+      <tr><td><code>POST /api/v1/devflow/batches</code> · <code>GET /{id}</code></td><td>控制台</td><td>上传需求表建批次；批次进度与每条任务状态</td></tr>
+      <tr><td><code>GET /api/v1/devflow/jobs?layer&amp;status&amp;stage&amp;batch&amp;mine</code> · <code>/{id}</code></td><td>控制台</td><td>看板与详情：阶段时间线、产物、成本、关联 trace 和审批单</td></tr>
+      <tr><td><code>POST /api/v1/devflow/jobs/{id}/takeover</code> · <code>/handback</code> · <code>/assist</code></td><td>控制台</td><td>人工接管、交还智能体、请 dev-agent 在指定范围内帮忙</td></tr>
+      <tr><td><code>POST /api/v1/devflow/jobs/{id}/cancel</code></td><td>控制台</td><td>取消，staging 资源逆序回收</td></tr>
+      <tr><td><code>POST /api/v1/devflow/jobs/{id}/seed-cases</code></td><td>控制台</td><td>H2 上传种子用例，服务端切分隐藏考题；响应只有条数和 tag 分布</td></tr>
+      <tr><td><code>POST /api/v1/devflow/jobs/{id}/stages/{stage}/report</code></td><td>研发员工</td><td>工具 <code>devflow.stage.report</code></td></tr>
+      <tr><td><code>POST /api/v1/devflow/sandbox/runs</code> · <code>GET /{runId}</code></td><td>meta-agent、dev-agent、eval-agent</td><td>工具 <code>sandbox.run</code>，返回测试报告（截断到 64KB）</td></tr>
+      <tr><td><code>GET /api/v1/devflow/holdout/{jobId}</code> · <code>POST /api/v1/devflow/holdout-results</code></td><td>CI（keel gate）</td><td>只接受 CI 客户端身份；只收按 tag 的聚合分</td></tr>
+      <tr><td><code>GET/PUT /api/v1/devflow/settings</code></td><td>控制台</td><td>研发任务规则（改设置写 config.change 审计）</td></tr>
+      <tr><td>现有 <code>GET /api/v1/agents</code> · <code>/{name}</code></td><td>控制台</td><td>加可选字段 <code>layer</code>、<code>devflowJobId</code>，智能体页据此显示分类、来源和谱系。不新增单独的"员工"接口</td></tr>
+      <tr><td>现有审批待办接口</td><td>控制台</td><td>加 <code>source=devflow</code> 筛选，审批中心据此显示"研发任务"分组</td></tr>
+    </tbody>
+  </table>
+  <h3 class="sub reveal">控制台：现有页面和新增内容一起看</h3>
+  <p class="txt reveal">只新增一个菜单"研发任务"，其余都是现有页面的增强。数字员工就是智能体，不另做员工列表；创建入口只有智能体页的新建向导；"等人"的事统一进审批中心（技术文档规定挂起原因 <code>approval</code>、<code>input_required</code>、<code>handoff</code> 共用一套待办）。</p>
+  <table class="doc reveal">
+    <thead><tr><th>页面</th><th>改动</th><th>本次加什么</th><th>期</th></tr></thead>
+    <tbody>
+      <tr><td>总览</td><td>增强</td><td>"研发流水线"卡片（进行中、等人处理、首次门禁通过率、本月花费）；告警加"研发任务"类</td><td>D2</td></tr>
+      <tr><td>智能体</td><td>增强</td><td>现有"业务 / 研发"分类加一档"元智能体"；卡片加来源（人工编写或由哪个任务生产）；谱系视图；详情加"研发记录"标签和"发起改造"</td><td>D1</td></tr>
+      <tr><td>新建智能体（向导）</td><td>增强</td><td>第一步"方式"在"代码开发、低代码 Dify"之外加"由智能体生产"，后接需求表单：分类、开发模式、需求、种子用例</td><td>D1 研发类 · D3 业务类</td></tr>
+      <tr><td><b>研发任务</b></td><td><b>新增</b></td><td>看板、任务详情（阶段、产物、人工接管 / 交还 / 请智能体帮忙）、批次、规则。放在"运营"里、智能体之后</td><td>D1 · 批次和规则 D4</td></tr>
+      <tr><td>共享服务</td><td>增强</td><td>平台组件表加 <code>keel-devflow-sandbox</code> 的配额与排队</td><td>D1</td></tr>
+      <tr><td>链路追踪</td><td>增强</td><td>按研发任务筛选（<code>keel.devflow.job_id</code>），行上标来源</td><td>D2</td></tr>
+      <tr><td>评测中心</td><td>增强</td><td>门禁列表加"隐藏考题（聚合）"和"分差"两列；待评测确认入口</td><td>D2</td></tr>
+      <tr><td>提示词</td><td>不变</td><td>研发智能体的提示词同样在这里管理；研发任务生成的版本提交说明带任务号</td><td>—</td></tr>
+      <tr><td>工具</td><td>增强</td><td>登记 devflow / sandbox / git / ci 工具；H3 授权走现有授权流程</td><td>D0</td></tr>
+      <tr><td>审批中心</td><td>增强</td><td>新增分组"研发任务"：需求确认、评测确认（input_required）、发布审批（tool.call · git.pr.merge）、协作 review 入口；待办数合并</td><td>D1</td></tr>
+      <tr><td>审计中心</td><td>增强</td><td><code>config.change</code> 下按 kind（<code>devflow.stage</code>、<code>devflow.takeover</code>）筛选</td><td>D1</td></tr>
+      <tr><td>模型网关</td><td>增强</td><td>"研发成本"视图：按研发智能体、按任务；新增编码模型</td><td>D2</td></tr>
+    </tbody>
+  </table>
+  <p class="txt reveal">人工关口不新增接口：H1、H2 用现有 <code>GET /api/v1/runs?status=SUSPENDED</code> 和 <code>/v1/runs/{id}/resume</code>，H3、H4 用现有 <code>/api/v1/approvals</code>。</p>
+
+  <h3 class="sub reveal">新增共享工具（登记到工具注册表）</h3>
+  <table class="doc reveal">
+    <thead><tr><th>工具</th><th>提供方</th><th>access · risk</th><th>授予给</th></tr></thead>
+    <tbody>
+      <tr><td><code>devflow.job.read</code> · <code>devflow.stage.report</code> · <code>devflow.batch.read</code></td><td>keel-server</td><td>read · low / write · low / read · low</td><td>meta-agent、全部研发员工</td></tr>
+      <tr><td><code>devflow.catalog.search</code></td><td>keel-server</td><td>read · low</td><td>meta-agent、spec-agent</td></tr>
+      <tr><td><code>sandbox.run</code></td><td>keel-server</td><td>exec · mid</td><td>meta-agent、dev-agent、eval-agent</td></tr>
+      <tr><td><code>git.repo.create</code> · <code>git.branch.push</code> · <code>git.pr.open</code></td><td>Git MCP 服务</td><td>write · mid / low / low</td><td>meta-agent、dev-agent（仓库只能建在 <code>keel-agents/</code> 下）</td></tr>
+      <tr><td><code>git.pr.diff</code> · <code>git.pr.comment</code></td><td>Git MCP 服务</td><td>read · low / write · mid</td><td>code-review</td></tr>
+      <tr><td><code>git.pr.merge</code></td><td>Git MCP 服务</td><td><b>write · high</b>，绑定"智能体发布审批"策略</td><td>meta-agent、release-agent</td></tr>
+      <tr><td><code>ci.workflow.dispatch</code> · <code>ci.log.fetch</code> · <code>keel.gate.report.read</code></td><td>CI MCP 服务 · keel-server</td><td>exec · mid / read · low / read · low</td><td>meta-agent、release-agent、ci-doctor</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="sub reveal">契约与 SDK 改动</h3>
+  <ul class="txt reveal">
+    <li><b>不改枚举</b>：审计 action、suspend reason、approval subject_type 全部沿用。研发任务的状态变化和人工接管记 <code>config.change</code>，payload 带 <code>kind=devflow.stage</code> / <code>kind=devflow.takeover</code>（和漂移检查的 <code>kind=drift</code> 写法一致）。</li>
+    <li><b>新增错误码</b>（登记到 <code>contracts/error-codes.yaml</code>）：<code>DEVFLOW_BUDGET_EXCEEDED</code>、<code>DEVFLOW_FIX_ROUNDS_EXHAUSTED</code>、<code>DEVFLOW_HOLDOUT_FAILED</code>、<code>DEVFLOW_SANDBOX_TIMEOUT</code>、<code>DEVFLOW_GRANT_MISSING</code>、<code>DEVFLOW_LINEAGE_FORBIDDEN</code>。</li>
+    <li><b>manifest</b>：不加字段。层级和来源记在 keel-server 的 <code>agent</code> 表，不进智能体侧契约。</li>
+    <li><b>SDK</b>：<code>keel gate</code> 加 <code>--holdout</code>；<code>keel new</code> 加 <code>--from-spec spec.json</code>，dev-agent 和人都能用需求单直接生成骨架。</li>
+    <li><b>追踪属性</b>：研发任务的 trace 根节点加 <code>keel.devflow.job_id</code>，先登记到 <code>contracts/trace-attributes.md</code>。</li>
+  </ul>
+</section>
+
+<!-- 07 -->
+<section class="sec" id="s7">
+  <div class="sec-h reveal"><div class="no">07</div><h2>沙箱与部署</h2><p>智能体生成的代码只在一次性的沙箱 Job 里执行。沙箱不挂任何 Secret、不挂 ServiceAccount token，对外只放行包镜像源。</p></div>
+  <div class="deploy reveal">
+    <div class="k8s">
+      <div class="ns"><b>keel-system</b><div class="boxes">
+        <div class="box chg">keel-server ×2<small>devflow 模块 · 建 Job 的 RBAC</small></div>
+        <div class="box chg">keel-console ×2<small>全流程菜单</small></div>
+        <div class="box chg">keel-llm ×2<small>新增编码模型与单价</small></div>
+        <div class="box">keel-audit ×2</div><div class="box">keel-gateway ×2</div>
+      </div></div>
+      <div class="ns"><b>agents</b><div class="boxes">
+        <div class="box agent new">meta-agent<small>×1 · 手写</small></div>
+        <div class="box agent new">dev-lead<small>×1</small></div><div class="box agent new">spec-agent<small>×1</small></div><div class="box agent new">dev-agent<small>×1</small></div><div class="box agent new">eval-agent<small>×1</small></div><div class="box agent new">code-review<small>×1</small></div><div class="box agent new">ci-doctor<small>×1</small></div><div class="box agent new">release-agent<small>×1</small></div>
+        <div class="box" style="border-style:dashed">流水线生产的业务员工<small>各自 1～2，先进 staging</small></div>
+      </div></div>
+      <div class="ns"><b>keel-devflow-sandbox（新增）</b><div class="boxes">
+        <div class="box new">sandbox Job<small>一次性 · 10 分钟超时</small></div>
+        <div class="box new">ResourceQuota<small>4 核 · 8Gi · 最多 4 个并发</small></div>
+        <div class="box new">NetworkPolicy<small>只出 PyPI / Maven 镜像</small></div>
+        <div class="box new">假薄网关 / 假 Langfuse<small>sidecar，测试用</small></div>
+      </div></div>
+    </div>
+    <table class="doc">
+      <thead><tr><th>项</th><th>做法</th></tr></thead>
+      <tbody>
+        <tr><td>元智能体 + 研发员工</td><td>每个 requests 100m / 256Mi，limits 1 核 / 1Gi；8 个合计 requests 0.8 核、约 2Gi（估算）</td></tr>
+        <tr><td>沙箱资源</td><td>单 Job limits 1 核 / 2Gi；命名空间配额 4 核 / 8Gi，排队不抢占业务</td></tr>
+        <tr><td>沙箱里调模型</td><td>不调真模型，按测试约束起假的薄网关和 Langfuse HTTP 服务；真模型只在 staging 门禁里用</td></tr>
+        <tr><td>沙箱代码来源</td><td>只接受 <code>keel-agents/</code> 组织下的 git ref，用只读 deploy key 拉取</td></tr>
+        <tr><td>沙箱权限</td><td><code>automountServiceAccountToken: false</code>，不挂 Secret，只读根文件系统 + 临时卷</td></tr>
+        <tr><td>keel-server RBAC</td><td>新增 Role：在 <code>keel-devflow-sandbox</code> 里 create / get / delete Job、读 Pod 日志</td></tr>
+        <tr><td>薄网关 Key</td><td>8 个各一把 <code>{agent}-{env}</code>，如 <code>meta-agent-prod</code>；预算按人民币 <code>dailyBudgetCny</code></td></tr>
+        <tr><td>命名空间</td><td>按技术文档第 12 节放 <code>agents</code>；目前 echo-agent 临时在 keel-system，数字员工不沿用</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 08 -->
+<section class="sec" id="s8">
+  <div class="sec-h reveal"><div class="no">08</div><h2>开工前置条件</h2><p>全流程智能体化跑在底座上，底座这几块不齐就跑不通。下表对照 2026-10-08 的仓库现状。</p></div>
+  <table class="doc reveal">
+    <thead><tr><th>前置项</th><th>现状</th><th>为什么必须</th><th>归属</th></tr></thead>
+    <tbody>
+      <tr><td><code>keel register</code> / <code>release</code> / <code>eval</code> / <code>gate</code></td><td class="n">未实现（CLI 只有 new、dev）</td><td>release-agent 和 CI 靠它们注册、跑门禁、发布</td><td>P0-10 续 / P2</td></tr>
+      <tr><td>keel-audit 落 PostgreSQL</td><td class="n">哈希链在进程内存</td><td>每个生产动作、每次接管都要可追溯</td><td>P1-11 续</td></tr>
+      <tr><td>审批中心与运行生命周期</td><td class="h">待办已有，resume 链路待 P3-1 定稿</td><td>四个关口都靠挂起与恢复</td><td>P3-1（需提前）</td></tr>
+      <tr><td>工具注册与授权 API</td><td class="h">控制台工具页已有，授权写入待补</td><td>H3 授权、git / ci / sandbox 工具登记</td><td>P2 tool 模块</td></tr>
+      <tr><td>委托授权 <code>/oauth/delegation-token</code></td><td class="h">auth-gateway 已有，Keel 未接</td><td>关口等几天后恢复</td><td>P0-5 续</td></tr>
+      <tr><td>Git MCP、CI MCP 服务</td><td class="n">没有</td><td>建仓库、开 PR、合并、触发 workflow、分支保护</td><td>D0 新建</td></tr>
+      <tr><td>薄网关编码模型</td><td class="n">只有 qwen-plus、deepseek-v3</td><td>meta-agent、dev-agent 需要编码能力强的模型</td><td>D0，单价按厂商当天价目</td></tr>
+      <tr><td>keel-gateway 轻量版</td><td class="h">骨架</td><td><b>不阻塞</b>：研发流水线的流量是集群内调用；staging 预览对测试身份开放时才需要</td><td>P2</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 09 -->
+<section class="sec" id="s9">
+  <div class="sec-h reveal"><div class="no">09</div><h2>指标、成本与风险</h2><p>这套流程好不好用看下面五个数。目标值是业务批量生产开始时的起步线，试点后再定正式值。</p></div>
+  <div class="kpis reveal">
+    <div><b>≤ 1 工作日</b><span>需求提交 → staging 门禁通过（全托管，不含人工等待）</span></div>
+    <div><b>≥ 50%</b><span>首次门禁通过率；3 轮内 ≥ 85%</span></div>
+    <div><b>≤ 30%</b><span>需要人工接管的任务占比</span></div>
+    <div><b>0 条</b><span>生成代码违规：厂商 SDK、硬编码 Key、超白名单审计字段</span></div>
+    <div><b>待实测</b><span>每个任务的模型花费，默认预算上限 ¥80</span></div>
+  </div>
+  <p class="txt reveal">成本口径：任务花费 = 该任务 trace 下所有研发员工（或 meta-agent）的薄网关 <code>costCny</code> 之和 + 门禁评测花费，以薄网关为准。沙箱不调真模型，不计费；人工开发不计入模型花费。</p>
+
+  <h3 class="sub reveal">风险与对策</h3>
+  <table class="doc reveal">
+    <thead><tr><th>风险</th><th>表现</th><th>对策</th></tr></thead>
+    <tbody>
+      <tr><td>元智能体能力不够</td><td>meta-agent 生产的研发员工质量差</td><td>研发层强制人机协作，人补完代码再过门禁；研发员工的考题由人出，不达标不上岗</td></tr>
+      <tr><td>错误逐层放大</td><td>研发员工的缺陷复制到一批业务员工</td><td>研发员工升级要过门禁 + 平台管理员审批；业务批次先跑 1 条试产，过门禁后再放开整批</td></tr>
+      <tr><td>循环烧钱</td><td>修复反复失败</td><td>任务预算硬上限 + 修复 3 轮上限；相同失败连续两次直接 FAILED</td></tr>
+      <tr><td>为考试而写代码</td><td>针对可见用例硬编码</td><td>隐藏考题独立计分；可见与隐藏分差超过 0.10 告警；code-review 专查特判</td></tr>
+      <tr><td>人机改动冲突</td><td>智能体覆盖人写的代码</td><td>dev-agent 以人的提交为基线，冲突时挂起问人；code-review 对比提交作者</td></tr>
+      <tr><td>员工泛滥</td><td>批量生产出大量低价值员工</td><td>每条需求必填负责人；上线观察期零流量的按现有对账规则标 ZOMBIE，提示离职</td></tr>
+      <tr><td>Langfuse 额度</td><td>Hobby 每月 5 万单位</td><td>批量生产（D3）前升 Core；之前每天限 3 个任务</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 10 -->
+<section class="sec" id="s10">
+  <div class="sec-h reveal"><div class="no">10</div><h2>落地路线</h2><p>按"先有元智能体，再有研发员工，最后批量生产业务员工"的顺序，共约 14 周。每期结束都有能演示的结果。</p></div>
+  <div class="road reveal">
+    <div class="phase"><div class="ph">D0</div><h4>补底座</h4><div class="wk">第 1–2 周</div><ul><li>四个 CLI 命令</li><li>keel-audit 落 PG</li><li>挂起 / 恢复、委托授权</li><li>Git、CI MCP 服务</li><li>薄网关加编码模型</li></ul><div class="ok">手写的员工能完整走 register → gate → release</div></div>
+    <div class="phase"><div class="ph">D1</div><h4>元智能体上岗</h4><div class="wk">第 3–5 周</div><ul><li>devflow 模块：表、接口、沙箱、谱系校验</li><li>手写 meta-agent</li><li>控制台：研发任务页（看板、详情、人工接管）；智能体页分类与来源；新建向导"由智能体生产"；审批中心"研发任务"分组</li></ul><div class="ok">meta-agent 以人机协作模式生产出第 1 名研发员工 spec-agent</div></div>
+    <div class="phase"><div class="ph">D2</div><h4>研发员工到齐</h4><div class="wk">第 6–9 周</div><ul><li>meta-agent 生产其余 6 名研发员工</li><li>隐藏考题、修复循环</li><li>H4 发布审批与分支保护</li><li>控制台：评测确认、发布审批；总览、评测中心、链路追踪、模型网关的增强；智能体谱系视图</li></ul><div class="ok">7 名研发员工全部过门禁上岗</div></div>
+    <div class="phase"><div class="ph">D3</div><h4>业务员工试产</h4><div class="wk">第 10–11 周</div><ul><li>dev-lead 编排研发流水线</li><li>试点 release-notes（全托管）、oncall-handoff（协作）</li><li>指标复盘</li></ul><div class="ok">2 名业务员工从需求到 prod，人只在关口和协作 review 出手</div></div>
+    <div class="phase"><div class="ph">D4</div><h4>批量生产</h4><div class="wk">第 12–14 周</div><ul><li>批次与批量确认</li><li>改造任务（升级已有员工）</li><li>全部模板，java-spring 接 test-gen</li><li>升 Langfuse Core</li></ul><div class="ok">一个批次 5 名业务员工，达到第 09 节指标</div></div>
+  </div>
+
+  <h3 class="sub reveal">任务拆分（每条先写 spec，放 docs/specs/devflow/）</h3>
+  <table class="doc reveal">
+    <thead><tr><th>ID</th><th>任务</th><th>执行者</th><th>前置</th></tr></thead>
+    <tbody>
+      <tr><td>DF-1</td><td>契约：console-api 的 devflow 接口、错误码、追踪属性 <code>keel.devflow.job_id</code></td><td>Cursor</td><td>—</td></tr>
+      <tr><td>DF-2</td><td>keel-server devflow 模块：V8 表、状态机、接管、谱系校验、审计</td><td>Cursor</td><td>DF-1</td></tr>
+      <tr><td>DF-3</td><td>沙箱：命名空间、配额、网络策略、SandboxService、假依赖 sidecar</td><td>Cursor</td><td>DF-2</td></tr>
+      <tr><td>DF-4</td><td>Git / CI MCP 服务、分支保护、工具登记</td><td>Codex</td><td>P2 tool 模块</td></tr>
+      <tr><td>DF-5</td><td>手写 meta-agent 及其评测集</td><td>Cursor + 人</td><td>DF-2 DF-3 DF-4</td></tr>
+      <tr><td>DF-6</td><td>meta-agent 生产 spec-agent、dev-lead（人机协作）</td><td>meta-agent + 人</td><td>DF-5</td></tr>
+      <tr><td>DF-7</td><td>meta-agent 生产 dev-agent、eval-agent、code-review、ci-doctor、release-agent</td><td>meta-agent + 人</td><td>DF-6</td></tr>
+      <tr><td>DF-8</td><td>HoldoutService、<code>keel gate --holdout</code>、DevflowReleaseGuard</td><td>Cursor</td><td>DF-2</td></tr>
+      <tr><td>DF-9</td><td>控制台：新增研发任务页 + 9 个现有页面的增强（按原型）</td><td>Codex</td><td>DF-1</td></tr>
+      <tr><td>DF-10</td><td>业务员工试产与指标复盘</td><td>研发流水线 + 人</td><td>DF-7 DF-8 DF-9</td></tr>
+      <tr><td>DF-11</td><td>批次、批量确认、改造任务</td><td>Cursor</td><td>DF-10</td></tr>
+    </tbody>
+  </table>
+  <p class="txt reveal">DF-6、DF-7 的执行者是 meta-agent 本身：这一步就是在验证"智能体生产智能体"。人以协作模式参与每个 PR 的 review 和必要的补写。</p>
+</section>
+
+<!-- 11 -->
+<section class="sec" id="s11">
+  <div class="sec-h reveal"><div class="no">11</div><h2>待确认事项</h2><p>这些现在定不了，标出来避免开工时猜一个实现。</p></div>
+  <table class="doc reveal">
+    <thead><tr><th>事项</th><th>为什么现在定不了</th><th>什么时候定</th></tr></thead>
+    <tbody>
+      <tr><td>隐藏考题在 CI 里跑时的追踪是否上报 Langfuse</td><td>共享项目 Key 无法做读隔离；关闭上报会让这部分门禁在 Langfuse 里不可见（薄网关仍有花费记录）</td><td>D2 开工前</td></tr>
+      <tr><td>meta-agent、dev-agent 用哪个编码模型、单价</td><td>薄网关缺单价拒绝启动，必须按厂商当天价目填写，未核实前不写进配置</td><td>D0</td></tr>
+      <tr><td>Git 托管放哪</td><td>当前流水线在 GitHub；<code>keel-agents</code> 放 GitHub 组织还是 Cursor Origin，影响 MCP 服务和分支保护的实现</td><td>D0</td></tr>
+      <tr><td>H4 两人会签</td><td>现有审批策略是否支持会签还没定</td><td>P3-1 定稿时</td></tr>
+      <tr><td>研发员工的门禁分数线</td><td>没有历史数据，第 02 节的数是起步值</td><td>D2</td></tr>
+      <tr><td>每任务预算 ¥80、Key 预算上限 ¥50、批次并发 3</td><td>估算值，取决于编码模型单价和修复轮次</td><td>D3 试产后</td></tr>
+      <tr><td>prd-agent 与 spec-agent 是否合并</td><td>prd-agent 还没从旧平台拆出</td><td>D4</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer>
+  <div>Keel 全流程智能体化方案 v0.1（草案）· 2026-10-08<br>实现细节以 <code>docs/architecture/Keel-技术文档.html</code> 为准；外部接口按 <code>.cursor/rules/external-apis.mdc</code></div>
+  <div>前端方案与原型：<a href="../console/Keel-全流程智能体化控制台.html">docs/console/Keel-全流程智能体化控制台.html</a></div>
+</footer>
+</div>
+</main>
+<script>
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.08});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+const links=[...document.querySelectorAll('#toc a')];
+const secs=links.map(a=>document.querySelector(a.getAttribute('href')));
+addEventListener('scroll',()=>{let cur=0;secs.forEach((s,i)=>{if(s&&s.getBoundingClientRect().top<140)cur=i});links.forEach((a,i)=>a.classList.toggle('on',i===cur))},{passive:true});
+</script>
+</body>
+</html>
