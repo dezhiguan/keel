@@ -533,7 +533,7 @@ paths:
       tags: [services]
       operationId: getSharedServices
       summary: 共享服务页全部数据
-      description: 服务健康来自 K8s 探测，指标来自 Prometheus，知识库来自 rag-forge。调用方和模型成本按环境过滤。知识库没有环境字段，不按环境拆开。
+      description: 服务健康来自 K8s 探测，指标来自 Prometheus，知识库来自 rag-forge。调用方和模型成本按环境过滤。知识库没有环境字段，不按环境拆开。平台组件表在服务健康之外给出命名空间和用量；研发沙箱配额未接入时 usage 为空。
       parameters:
         - $ref: "#/components/parameters/Env"
       responses:
@@ -556,7 +556,7 @@ paths:
       summary: trace 列表
       description: |
         原型里这一块是写死的五条「最近调用」，正式实现必须是真列表：
-        可按智能体筛选、可分页、可按状态过滤。
+        可按智能体、状态、研发任务筛选，可分页。研发任务对应根节点属性 keel.devflow.job_id。
       parameters:
         - $ref: "#/components/parameters/Env"
         - name: agent
@@ -580,6 +580,10 @@ paths:
         - name: to
           in: query
           schema: { type: string, format: date-time }
+        - name: jobId
+          in: query
+          description: 研发任务号，对应根节点属性 keel.devflow.job_id。缺省为全部
+          schema: { type: string, example: DF-0019 }
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/Size"
       responses:
@@ -2195,6 +2199,21 @@ components:
               p95: { type: string, nullable: true, example: 0.78s }
               errorRate: { type: string, example: 0.6%（429） }
               status: { type: string, enum: [ONLINE, DEGRADED, OFFLINE] }
+        components:
+          type: array
+          description: 平台组件。状态沿用服务健康探测；用量查不到时为空，控制台对研发沙箱显示占位。
+          items:
+            type: object
+            properties:
+              name: { type: string, example: keel-devflow-sandbox }
+              namespace: { type: string, example: keel-devflow-sandbox }
+              status: { type: string, nullable: true, enum: [ONLINE, DEGRADED, OFFLINE] }
+              usage:
+                type: string
+                nullable: true
+                description: 核数、内存、运行中的 Job 和排队。没有配额数据时为空
+                example: "1.5 / 4 核 · 3 / 8Gi · 运行 2 · 排队 0"
+              note: { type: string, nullable: true, example: 一次性 Job，10 分钟超时，只出包镜像源 }
         ragforge:
           type: object
           properties:
@@ -2267,6 +2286,8 @@ components:
         pendingReason: { type: string, nullable: true, description: 仍在挂起时的原因。空表示当前没有等人 }
         runId: { type: string, nullable: true }
         suspendCount: { type: integer, nullable: true, description: 这次调用挂起过的次数。没有挂起则省略 }
+        devflowJobId: { type: string, description: 根节点属性 keel.devflow.job_id。没有研发任务时省略, example: DF-0019 }
+        devflowLabel: { type: string, description: 根节点属性 keel.devflow.label，行上跟在任务号后面。没有时省略, example: 第 2 轮门禁 }
 
     TraceDetail:
       type: object

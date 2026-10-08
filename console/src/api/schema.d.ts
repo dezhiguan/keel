@@ -360,7 +360,7 @@ export interface paths {
         /**
          * trace 列表
          * @description 原型里这一块是写死的五条「最近调用」，正式实现必须是真列表：
-         *     可按智能体筛选、可分页、可按状态过滤。
+         *     可按智能体、状态、研发任务筛选，可分页。研发任务对应根节点属性 keel.devflow.job_id。
          */
         get: operations["listTraces"];
         put?: never;
@@ -1527,6 +1527,16 @@ export interface components {
             runId?: string | null;
             /** @description 这次调用挂起过的次数。没有挂起则省略 */
             suspendCount?: number | null;
+            /**
+             * @description 根节点属性 keel.devflow.job_id。没有研发任务时省略
+             * @example DF-0019
+             */
+            devflowJobId?: string;
+            /**
+             * @description 根节点属性 keel.devflow.label，行上跟在任务号后面。没有时省略
+             * @example 第 2 轮门禁
+             */
+            devflowLabel?: string;
         };
         TraceDetail: {
             summary?: components["schemas"]["TraceSummary"];
@@ -2525,6 +2535,8 @@ export interface operations {
                 minDurationMs?: number;
                 from?: string;
                 to?: string;
+                /** @description 研发任务号，对应根节点属性 keel.devflow.job_id。缺省为全部 */
+                jobId?: string;
                 page?: components["parameters"]["Page"];
                 size?: components["parameters"]["Size"];
             };

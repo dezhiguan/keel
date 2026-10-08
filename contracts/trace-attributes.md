@@ -43,6 +43,8 @@ Python SDK 和 Java starter 产生的属性键集合必须完全一致。这份�
 | `keel.run.id` | 字符串 | 一次执行的 id |
 | `keel.run.suspended` | 布尔 | 本次执行中途挂起过 |
 | `keel.run.wait_ms` | 整数 | 人工等待时长。**不计入智能体耗时**，控制台按它算「人工等待 4m12s」 |
+| `keel.devflow.job_id` | 字符串，如 `DF-0019` | 这次调用属于哪个研发任务。写在根节点上。控制台按它筛选，并在行上链到该任务 |
+| `keel.devflow.label` | 字符串，如 `第 2 轮门禁` | 可选。跟在任务号后面，说明这次调用在任务里的哪一步。没有就不写 |
 
 `keel.status` 的三档来自 askdb 现有的 `OK_STATUSES` / `SOFT_STATUSES` 口径。P1-17 迁移时要一一映射过去，**映射前先确认 askdb `trace.py` 里的实际取值**，映射错了质量指标会整体漂移。
 

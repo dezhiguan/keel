@@ -71,8 +71,9 @@ public class InsightController {
                                          @RequestParam(required = false) Instant from,
                                          @RequestParam(required = false) Instant to,
                                          @RequestParam(defaultValue = "false") boolean multi,
-                                         @RequestParam(required = false) Integer minDurationMs) {
-        return R.ok(traces.list(page, size, agent == null ? "" : agent, env, status, from, to, multi, minDurationMs));
+                                         @RequestParam(required = false) Integer minDurationMs,
+                                         @RequestParam(required = false) String jobId) {
+        return R.ok(traces.list(page, size, agent == null ? "" : agent, env, status, from, to, multi, minDurationMs, jobId));
     }
 
     @GetMapping("/costs")

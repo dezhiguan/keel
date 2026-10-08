@@ -287,6 +287,26 @@ class TraceQueryServiceTest {
         server.stop(0);
     }
 
+    @Test void listFiltersByDevflowJobOnTheRootObservation() throws Exception {
+        var server = server(new ArrayList<>(), """
+                {"data":[
+                  {"id":"root","traceId":"tr-job","name":"dev-lead","startTime":"2026-10-08T02:00:00.000Z","endTime":"2026-10-08T02:06:12.000Z","metadata":{"keel.agent":"dev-lead","keel.env":"dev","keel.status":"ok","keel.devflow.job_id":"DF-0019","keel.devflow.label":"第 2 轮门禁","langfuse.observation.type":"agent"}},
+                  {"id":"child","traceId":"tr-job","parentObservationId":"root","name":"gate","startTime":"2026-10-08T02:01:00.000Z","endTime":"2026-10-08T02:06:12.000Z","metadata":{"keel.agent":"dev-lead","keel.devflow.job_id":"DF-9999","langfuse.observation.type":"tool"}},
+                  {"id":"other","traceId":"tr-plain","name":"askdb","startTime":"2026-10-08T03:00:00.000Z","endTime":"2026-10-08T03:00:01.000Z","metadata":{"keel.agent":"askdb","keel.env":"dev","keel.status":"ok","langfuse.observation.type":"agent"}}
+                ]}
+                """);
+        var service = new TraceQueryService(client(server), "https://jp.cloud.langfuse.com", "proj-1", Map.of());
+        @SuppressWarnings("unchecked")
+        var matched = (List<Map<String, Object>>) service.list(1, 10, "", "dev", null, null, null, false, null, "DF-0019").get("items");
+        assertThat(matched).extracting(item -> item.get("traceId")).containsExactly("tr-job");
+        assertThat(matched.getFirst().get("devflowJobId")).isEqualTo("DF-0019");
+        assertThat(matched.getFirst().get("devflowLabel")).isEqualTo("第 2 轮门禁");
+        @SuppressWarnings("unchecked")
+        var others = (List<Map<String, Object>>) service.list(1, 10, "", "dev", null, null, null, false, null, "DF-0001").get("items");
+        assertThat(others).isEmpty();
+        server.stop(0);
+    }
+
     private LangfuseClient client(HttpServer server) {
         return new LangfuseClient("http://127.0.0.1:" + server.getAddress().getPort(), "pk", "sk");
     }

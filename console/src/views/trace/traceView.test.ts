@@ -3,6 +3,8 @@ import { traceDetail } from '@/mocks/data/traces'
 import {
   agentChain,
   graphEdges,
+  sourceText,
+  traceJobPlaceholders,
   humanWait,
   initialTab,
   isGraphLandmark,
@@ -26,6 +28,11 @@ describe('trace view helpers', () => {
     expect(showTokens(10578)).toBe('10,578')
     expect(userLine('u_88', '运维工程师')).toBe('u_88 运维工程师')
     expect(agentChain(['ops-copilot', 'askdb', 'offshore-wind'])).toBe('ops-copilot → askdb、offshore-wind')
+    expect(sourceText('DF-0019', '第 2 轮门禁')).toBe('DF-0019 · 第 2 轮门禁')
+    expect(sourceText('DF-0019', '')).toBe('DF-0019')
+    expect(sourceText('', '修复')).toBe('')
+    expect(traceJobPlaceholders('')).toEqual([])
+    expect(traceJobPlaceholders('DF-0019').map((row) => row.label)).toEqual(['第 2 轮门禁', '修复'])
   })
 
   it('hides the collaboration graph for a single agent and picks a real node', () => {

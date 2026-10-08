@@ -107,6 +107,11 @@ public class TraceQueryService {
 
     public Map<String, Object> list(int page, int size, String agent, String env, String status,
                                     Instant from, Instant to, boolean multiOnly, Integer minDurationMs) {
+        return list(page, size, agent, env, status, from, to, multiOnly, minDurationMs, null);
+    }
+
+    public Map<String, Object> list(int page, int size, String agent, String env, String status,
+                                    Instant from, Instant to, boolean multiOnly, Integer minDurationMs, String jobId) {
         try {
             var rows = rootObservations(from);
             var byTrace = new LinkedHashMap<String, List<JsonNode>>();
@@ -131,7 +136,7 @@ public class TraceQueryService {
                     }
                 }
                 items.sort(Comparator.comparing((Map<String, Object> item) -> String.valueOf(item.getOrDefault("startedAt", ""))).reversed());
-                var matched = items.stream().filter(item -> matches(item, agent, env, status, from, to, multiOnly, minDurationMs)).toList();
+                var matched = items.stream().filter(item -> matches(item, agent, env, status, from, to, multiOnly, minDurationMs, jobId)).toList();
                 return page(page, size, matched);
             }
         } catch (LangfuseRateLimit limited) {
@@ -139,7 +144,7 @@ public class TraceQueryService {
         } catch (RuntimeException ignored) {
             // Langfuse 没配好或读失败时，改看本机探针写下的 trace。限流不走这条，否则会把直接上报的调用藏起来。
         }
-        return saved.list(page, size, agent, env, status, from, to, multiOnly, minDurationMs);
+        return filterJob(saved.list(page, size, agent, env, status, from, to, multiOnly, minDurationMs), jobId);
     }
 
     /** Reuse a coarse upstream window, then apply the exact user filters in memory. */
@@ -185,8 +190,33 @@ public class TraceQueryService {
         }
     }
 
+    private static Map<String, Object> filterJob(Map<String, Object> listed, String jobId) {
+        if (jobId == null || jobId.isBlank() || listed == null) {
+            return listed;
+        }
+        var raw = listed.get("items");
+        if (!(raw instanceof List<?> items)) {
+            return listed;
+        }
+        var matched = new ArrayList<Map<String, Object>>();
+        for (var item : items) {
+            if (item instanceof Map<?, ?> row && jobId.equals(row.get("devflowJobId"))) {
+                @SuppressWarnings("unchecked")
+                var copy = (Map<String, Object>) row;
+                matched.add(copy);
+            }
+        }
+        var data = new LinkedHashMap<String, Object>(listed);
+        data.put("items", matched);
+        data.put("total", matched.size());
+        return data;
+    }
+
     private static boolean matches(Map<String, Object> item, String agent, String env, String status,
-                                   Instant from, Instant to, boolean multiOnly, Integer minDurationMs) {
+                                   Instant from, Instant to, boolean multiOnly, Integer minDurationMs, String jobId) {
+        if (jobId != null && !jobId.isBlank() && !jobId.equals(item.get("devflowJobId"))) {
+            return false;
+        }
         if (agent != null && !agent.isBlank()) {
             var agents = item.get("agents");
             var hit = agent.equals(item.get("rootAgent"))

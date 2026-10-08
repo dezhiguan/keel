@@ -191,6 +191,8 @@ public final class TraceAssembly {
         put(item, "userId", firstMeta(spans, "langfuse.user.id"));
         put(item, "env", env(spans));
         put(item, "runId", firstMeta(spans, "keel.run.id"));
+        put(item, "devflowJobId", rootMeta(spans, "keel.devflow.job_id"));
+        put(item, "devflowLabel", rootMeta(spans, "keel.devflow.label"));
         if (!agents.isEmpty()) {
             item.put("rootAgent", agents.getFirst());
             item.put("agents", agents);
@@ -465,6 +467,24 @@ public final class TraceAssembly {
             }
         }
         return "";
+    }
+
+    /** Root observation wins. A child that carries the key is used only when the root does not. */
+    private static String rootMeta(List<Span> spans, String key) {
+        String fallback = "";
+        for (Span span : spans) {
+            var value = span.meta.getOrDefault(key, "");
+            if (value.isBlank()) {
+                continue;
+            }
+            if (span.parent.isBlank()) {
+                return value;
+            }
+            if (fallback.isBlank()) {
+                fallback = value;
+            }
+        }
+        return fallback;
     }
 
     private static Instant startInstant(JsonNode row) {

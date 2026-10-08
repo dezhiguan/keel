@@ -34,6 +34,29 @@ export function agentChain(agents?: string[]) {
   return agents.length === 1 ? agents[0] : `${agents[0]} → ${agents.slice(1).join('、')}`
 }
 
+export function sourceText(jobId?: string | null, label?: string | null) {
+  if (!jobId) return ''
+  return label ? `${jobId} · ${label}` : jobId
+}
+
+export interface TraceJobPlaceholder {
+  traceId: string
+  rootAgent: string
+  jobId: string
+  label: string
+  duration: string
+  cost: string
+}
+
+/** Prototype rows used when a job is selected and no trace carries that job id yet. */
+export function traceJobPlaceholders(jobId: string): TraceJobPlaceholder[] {
+  if (!jobId) return []
+  return [
+    { traceId: '4f2a…91c', rootAgent: 'dev-lead', jobId, label: '第 2 轮门禁', duration: '6m12s', cost: '¥2.10' },
+    { traceId: 'a81e…03d', rootAgent: 'dev-lead', jobId, label: '修复', duration: '11m40s', cost: '¥5.80' },
+  ]
+}
+
 export function initialTab(multi: boolean): TraceTab {
   return multi ? 'graph' : 'lanes'
 }
