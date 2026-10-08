@@ -33,13 +33,16 @@ public class AuditConsoleController {
     public Object events(@RequestParam(required = false) String agent,
                          @RequestParam(required = false) String risk,
                          @RequestParam(defaultValue = "all") String env,
+                         @RequestParam(required = false) String action,
+                         @RequestParam(required = false) String kind,
                          @RequestParam(defaultValue = "1") int page,
                          @RequestParam(defaultValue = "10") int size) {
         if (!auditUrl.isBlank()) {
             return forward("/api/v1/audit/events?agent=" + value(agent) + "&risk=" + value(risk)
-                    + "&env=" + value(env) + "&page=" + page + "&size=" + size);
+                    + "&env=" + value(env) + "&action=" + value(action) + "&kind=" + value(kind)
+                    + "&page=" + page + "&size=" + size);
         }
-        return R.ok(store.page(agent, risk, env, page, size));
+        return R.ok(store.page(agent, risk, env, action, kind, page, size));
     }
 
     @PostMapping("/verify")

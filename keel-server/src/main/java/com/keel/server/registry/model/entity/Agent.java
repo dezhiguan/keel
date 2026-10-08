@@ -24,6 +24,8 @@ public class Agent {
     private String liveness;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
+    private String layer;
+    private String devflowJobId;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -49,4 +51,8 @@ public class Agent {
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(OffsetDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public String getLayer() { return layer; }
+    public void setLayer(String layer) { this.layer = layer; }
+    public String getDevflowJobId() { return devflowJobId; }
+    public void setDevflowJobId(String devflowJobId) { this.devflowJobId = devflowJobId; }
 }

@@ -70,17 +70,27 @@ public class JdbcAuditStore implements AuditStore {
 
     @Override
     public Map<String, Object> page(String agent, String risk, String env, int page, int size) {
+        return page(agent, risk, env, "", "", page, size);
+    }
+
+    @Override
+    public Map<String, Object> page(String agent, String risk, String env, String action, String kind, int page, int size) {
         var agentFilter = agent == null ? "" : agent;
         var riskFilter = risk == null ? "" : risk.toLowerCase(Locale.ROOT);
         var envFilter = env == null || env.isBlank() || "all".equals(env) ? "" : env;
+        var actionFilter = action == null ? "" : action;
+        var kindFilter = kind == null ? "" : kind;
         var total = jdbc.queryForObject("""
                 SELECT count(*) FROM console_audit_event
                 WHERE (? = '' OR agent = ?) AND (? = '' OR risk = ?) AND (? = '' OR env = ?)
-                """, Integer.class, agentFilter, agentFilter, riskFilter, riskFilter, envFilter, envFilter);
+                  AND (? = '' OR action = ?) AND (? = '' OR payload->>'kind' = ?)
+                """, Integer.class, agentFilter, agentFilter, riskFilter, riskFilter, envFilter, envFilter,
+                actionFilter, actionFilter, kindFilter, kindFilter);
         var rows = jdbc.query("""
                 SELECT event_id, agent, env, ts, action, risk, decision, resource, trace_id, actor_user, payload::text AS payload, input_digest, prev_hash, hash
                 FROM console_audit_event
                 WHERE (? = '' OR agent = ?) AND (? = '' OR risk = ?) AND (? = '' OR env = ?)
+                  AND (? = '' OR action = ?) AND (? = '' OR payload->>'kind' = ?)
                 ORDER BY ts DESC, event_id DESC
                 LIMIT ? OFFSET ?
                 """, (rs, n) -> {
@@ -106,7 +116,8 @@ public class JdbcAuditStore implements AuditStore {
             item.put("hash", storedHash);
             item.put("prevHash", storedPrev == null || storedPrev.isEmpty() ? null : storedPrev);
             return item;
-        }, agentFilter, agentFilter, riskFilter, riskFilter, envFilter, envFilter, size, Math.max(0, (page - 1) * size));
+        }, agentFilter, agentFilter, riskFilter, riskFilter, envFilter, envFilter,
+                actionFilter, actionFilter, kindFilter, kindFilter, size, Math.max(0, (page - 1) * size));
         var data = new LinkedHashMap<String, Object>();
         data.put("page", page);
         data.put("size", size);

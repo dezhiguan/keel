@@ -1,5 +1,6 @@
 package com.keel.server.registry.model.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.keel.server.registry.model.AgentCategories;
 import com.keel.server.registry.model.entity.Agent;
@@ -32,7 +33,9 @@ public record AgentSummary(
         Double score,
         String instances,
         Boolean multiAgent,
-        Integer delegateCount) {
+        Integer delegateCount,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String layer,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String devflowJobId) {
 
     public static AgentSummary of(Agent agent) {
         return of(agent, null, null, null);
@@ -52,7 +55,8 @@ public record AgentSummary(
                 agent.getStatus(), statusNote(agent.getStatus(), instances), null,
                 agent.getOwnerOrg(), agent.getOwnerUser(),
                 null, null, null, null, budget(manifest), null, instances,
-                delegates.isEmpty() ? null : Boolean.TRUE, delegates.isEmpty() ? null : delegates.size());
+                delegates.isEmpty() ? null : Boolean.TRUE, delegates.isEmpty() ? null : delegates.size(),
+                agent.getLayer(), agent.getDevflowJobId());
     }
 
     public AgentSummary withUsage(Long calls24h, Long callsTotal, Double p95Seconds, Double costCny,
@@ -61,7 +65,7 @@ public record AgentSummary(
         Boolean gate = score == null ? gatePassed : Boolean.valueOf(score >= 0.85);
         return new AgentSummary(name, displayName, category, language, runtime, template, env, version, status,
                 statusNote, gate, ownerOrg, ownerUser, calls24h, callsTotal, p95Seconds, costCny,
-                budget, score, instances, multiAgent, delegateCount);
+                budget, score, instances, multiAgent, delegateCount, layer, devflowJobId);
     }
 
     private static String statusNote(AgentStatus status, String instances) {

@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/v1/devflow")
 public class DevflowController {
@@ -34,7 +37,7 @@ public class DevflowController {
     @PostMapping("/jobs")
     public R<DevflowTypes.Job> createJob(@RequestBody DevflowTypes.Draft body) {
         requireWrite();
-        return R.ok(devflow.submit(body, actor()));
+        return R.ok(devflow.submit(body, actor(), serviceAgent()));
     }
 
     @GetMapping("/jobs/{jobId}")
@@ -66,6 +69,26 @@ public class DevflowController {
         return R.ok(devflow.cancel(jobId, actor()));
     }
 
+    @PostMapping("/jobs/{jobId}/stages/{stage}/report")
+    public R<Map<String, Object>> report(@PathVariable String jobId, @PathVariable String stage,
+                                         @RequestBody DevflowTypes.StageReport body) {
+        var principal = requireService();
+        var job = devflow.report(jobId, stage, body, principal.username());
+        return R.ok(Map.of("jobId", job.jobId(), "stage", job.stage(), "attempt", job.fixRounds() + 1, "status", body.status()));
+    }
+
+    @GetMapping("/jobs/{jobId}/review")
+    public R<Map<String, Object>> review(@PathVariable String jobId) {
+        return R.ok(devflow.review(jobId));
+    }
+
+    @PostMapping("/jobs/{jobId}/seed-cases")
+    public R<DevflowTypes.SeedResult> seed(@PathVariable String jobId, @RequestBody DevflowTypes.SeedAccept body) {
+        requireWrite();
+        var ids = body == null ? List.<String>of() : body.acceptedCaseIds();
+        return R.ok(devflow.acceptSeeds(jobId, ids, actor()));
+    }
+
     @GetMapping("/batches")
     public R<DevflowTypes.BatchList> batches() {
         return R.ok(devflow.batches());
@@ -94,7 +117,7 @@ public class DevflowController {
         if (principal != null && !"ADMIN".equals(principal.platformRole())) {
             throw new KeelException(ErrorCode.AUTH_CONSOLE_FORBIDDEN, "规则仅平台管理员可改");
         }
-        return R.ok(devflow.save(body));
+        return R.ok(devflow.save(body, actor()));
     }
 
     private static void requireWrite() {
@@ -108,5 +131,21 @@ public class DevflowController {
         var principal = ConsolePrincipal.current();
         if (principal == null || principal.displayName() == null || principal.displayName().isBlank()) return "平台管理员";
         return principal.displayName();
+    }
+
+    private static String serviceAgent() {
+        var principal = ConsolePrincipal.current();
+        if (principal == null || !"SERVICE".equals(principal.mode())) {
+            return null;
+        }
+        return principal.username();
+    }
+
+    private static ConsolePrincipal requireService() {
+        var principal = ConsolePrincipal.current();
+        if (principal == null || !"SERVICE".equals(principal.mode())) {
+            throw new KeelException(ErrorCode.AUTH_CONSOLE_FORBIDDEN, ErrorCode.AUTH_CONSOLE_FORBIDDEN.message());
+        }
+        return principal;
     }
 }

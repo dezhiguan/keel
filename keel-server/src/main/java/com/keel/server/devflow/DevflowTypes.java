@@ -40,6 +40,18 @@ public final class DevflowTypes {
                     spentCny, budgetCny, fixRounds, maxFixRounds, batchId, needReview, humanDevUser, watchDay,
                     requester, ownerOrg, goal, tools, knowledge, seed, events);
         }
+
+        Job withProgress(String status, String stage, double spentCny, int fixRounds, List<Event> events) {
+            return new Job(jobId, title, layer, kind, mode, status, stage, targetAgent, producerAgent, template,
+                    spentCny, budgetCny, fixRounds, maxFixRounds, batchId, needReview, humanDevUser, watchDay,
+                    requester, ownerOrg, goal, tools, knowledge, seed, events);
+        }
+
+        Job withSeed(Seed seed, List<Event> events) {
+            return new Job(jobId, title, layer, kind, mode, status, stage, targetAgent, producerAgent, template,
+                    spentCny, budgetCny, fixRounds, maxFixRounds, batchId, needReview, humanDevUser, watchDay,
+                    requester, ownerOrg, goal, tools, knowledge, seed, events);
+        }
     }
 
     public record Batch(String batchId, String title, String requester, int concurrency, String pilotJobId,
@@ -65,4 +77,14 @@ public final class DevflowTypes {
             return new Settings(80, 3, 30, 30, 50, 3, 3, List.of("tool-agent"));
         }
     }
+
+    public record StageReport(String status, String summary, String traceId, Double costCny, Artifact artifact) {}
+
+    public record Artifact(String kind, String ref, String sha256, String origin) {}
+
+    public record SeedAccept(List<String> acceptedCaseIds) {}
+
+    public record SeedResult(int humanCount, int holdoutCount, int acceptedAgentCount) {}
+
+    public record Step(Job job, boolean exhausted) {}
 }

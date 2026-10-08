@@ -4,6 +4,7 @@ import com.keel.common.error.ErrorCode;
 import com.keel.server.common.Audited;
 import com.keel.server.common.KeelException;
 import com.keel.server.common.R;
+import com.keel.server.devflow.DevflowService;
 import com.keel.server.insight.AgentUsageService;
 import com.keel.server.insight.CostService;
 import com.keel.server.insight.OverviewService;
@@ -34,15 +35,18 @@ public class InsightController {
     private final SharedServiceMonitor services;
     private final AgentRegistryService agents;
     private final AgentUsageService usage;
+    private final DevflowService devflow;
 
     public InsightController(OverviewService overviewService, TraceQueryService traces, CostService costs,
-                             SharedServiceMonitor services, AgentRegistryService agents, AgentUsageService usage) {
+                             SharedServiceMonitor services, AgentRegistryService agents, AgentUsageService usage,
+                             DevflowService devflow) {
         this.overviewService = overviewService;
         this.traces = traces;
         this.costs = costs;
         this.services = services;
         this.agents = agents;
         this.usage = usage;
+        this.devflow = devflow;
     }
 
     @GetMapping("/overview")
@@ -110,6 +114,10 @@ public class InsightController {
         body.put("models", models);
         body.put("totalCny", cost.totalCny());
         body.put("keys", keys);
+        var devflowCost = devflow.cost();
+        if (devflowCost != null) {
+            body.put("devflowCost", devflowCost);
+        }
         return R.ok(body);
     }
 

@@ -1,6 +1,7 @@
 package com.keel.server.approval.service;
 
 import com.keel.common.error.ErrorCode;
+import com.keel.server.approval.InboxSource;
 import com.keel.server.approval.model.OpenRun;
 import com.keel.server.approval.model.SuspendedRunView;
 import com.keel.server.common.KeelException;
@@ -49,24 +50,27 @@ public class RunService {
     }
 
     @Transactional
-    public PageResult<SuspendedRunView> page(String agent, String env, int page, int size) {
+    public PageResult<SuspendedRunView> page(String agent, String env, int page, int size, String source) {
         if (page < 1 || (size != 10 && size != 20 && size != 50 && size != 100)) {
             throw invalid();
         }
         expireDue();
         var agentFilter = agent == null ? "" : agent;
         var envFilter = ApprovalPolicyEngine.scope(env);
+        var devflow = InboxSource.flag(source);
         var total = jdbc.queryForObject("""
                 SELECT count(*) FROM agent_run
                 WHERE status = 'SUSPENDED' AND suspend_reason IN ('input_required', 'handoff')
                   AND (? = '' OR agent_name = ?) AND (? = '' OR env = ?)
-                """, Long.class, agentFilter, agentFilter, envFilter, envFilter);
+                  AND (? = '' OR devflow_job_id IS NOT NULL)
+                """, Long.class, agentFilter, agentFilter, envFilter, envFilter, devflow);
         var items = jdbc.query(selectSql() + """
                  WHERE status = 'SUSPENDED' AND suspend_reason IN ('input_required', 'handoff')
                    AND (? = '' OR agent_name = ?) AND (? = '' OR env = ?)
+                   AND (? = '' OR devflow_job_id IS NOT NULL)
                  ORDER BY created_at DESC, run_id DESC
                  LIMIT ? OFFSET ?
-                """, this::map, agentFilter, agentFilter, envFilter, envFilter, size, (page - 1L) * size);
+                """, this::map, agentFilter, agentFilter, envFilter, envFilter, devflow, size, (page - 1L) * size);
         return new PageResult<>(page, size, total == null ? 0 : total, items);
     }
 
@@ -207,7 +211,8 @@ public class RunService {
     private RunRow mapRow(ResultSet rs, int row) throws SQLException {
         var view = new SuspendedRunView(rs.getString("run_id"), rs.getString("agent_name"), rs.getString("env"),
                 rs.getString("trace_id"), rs.getString("suspend_reason"), rs.getString("prompt"),
-                rs.getString("actor_user"), offset(rs, "created_at"), offset(rs, "deadline"));
+                rs.getString("actor_user"), offset(rs, "created_at"), offset(rs, "deadline"),
+                rs.getString("devflow_job_id"), rs.getString("devflow_gate"));
         return new RunRow(rs.getString("status"), view.reason(), view.agent(), view.env(), view.traceId(),
                 instant(rs, "deadline"), instant(rs, "created_at"), rs.getString("resume_token"),
                 rs.getString("consent_id"), view);
@@ -216,7 +221,7 @@ public class RunService {
     private static String selectSql() {
         return """
                 SELECT run_id, agent_name, env, trace_id, status, suspend_reason, prompt, actor_user,
-                       created_at, deadline, resume_token, consent_id
+                       created_at, deadline, resume_token, consent_id, devflow_job_id, devflow_gate
                 FROM agent_run
                 """;
     }

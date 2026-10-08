@@ -1,6 +1,7 @@
 package com.keel.server.approval.service;
 
 import com.keel.common.error.ErrorCode;
+import com.keel.server.approval.InboxSource;
 import com.keel.server.approval.model.ApprovalView;
 import com.keel.server.approval.model.OpenApproval;
 import com.keel.server.common.KeelException;
@@ -48,7 +49,7 @@ public class ApprovalService {
     }
 
     @Transactional
-    public PageResult<ApprovalView> page(String status, String agent, String env, int page, int size) {
+    public PageResult<ApprovalView> page(String status, String agent, String env, int page, int size, String source) {
         if (page < 1 || (size != 10 && size != 20 && size != 50 && size != 100)) {
             throw invalid();
         }
@@ -59,15 +60,18 @@ public class ApprovalService {
         var statusFilter = status == null ? "" : status;
         var agentFilter = agent == null ? "" : agent;
         var envFilter = ApprovalPolicyEngine.scope(env);
+        var devflow = InboxSource.flag(source);
         var total = jdbc.queryForObject("""
                 SELECT count(*) FROM approval_request
                 WHERE (? = '' OR status = ?) AND (? = '' OR agent_name = ?) AND (? = '' OR env = ?)
-                """, Long.class, statusFilter, statusFilter, agentFilter, agentFilter, envFilter, envFilter);
+                  AND (? = '' OR devflow_job_id IS NOT NULL)
+                """, Long.class, statusFilter, statusFilter, agentFilter, agentFilter, envFilter, envFilter, devflow);
         var items = jdbc.query(selectSql() + """
                  WHERE (? = '' OR r.status = ?) AND (? = '' OR r.agent_name = ?) AND (? = '' OR r.env = ?)
+                   AND (? = '' OR r.devflow_job_id IS NOT NULL)
                  ORDER BY r.created_at DESC, r.id DESC
                  LIMIT ? OFFSET ?
-                """, this::map, statusFilter, statusFilter, agentFilter, agentFilter, envFilter, envFilter, size, (page - 1L) * size);
+                """, this::map, statusFilter, statusFilter, agentFilter, agentFilter, envFilter, envFilter, devflow, size, (page - 1L) * size);
         return new PageResult<>(page, size, total == null ? 0 : total, items);
     }
 
@@ -348,14 +352,15 @@ public class ApprovalService {
                 subjectType.startsWith("tool.") ? subjectRef : null, rs.getString("risk"), rs.getString("trace_id"),
                 rs.getString("actor_user"), rs.getString("summary"), rs.getString("payload_digest"),
                 rs.getString("status"), offset(rs, "created_at"), offset(rs, "expires_at"),
-                rs.getString("decided_by"), offset(rs, "decided_at")));
+                rs.getString("decided_by"), offset(rs, "decided_at"),
+                rs.getString("devflow_job_id"), rs.getString("devflow_gate")));
     }
 
     private static String selectSql() {
         return """
                 SELECT r.id, r.subject_type, r.subject_ref, r.agent_name, r.run_id, r.trace_id, r.actor_user,
                        r.payload_digest, r.summary, r.status, r.risk, r.expires_at, r.decided_by, r.decided_at,
-                       r.created_at, p.name AS policy_name
+                       r.created_at, r.devflow_job_id, r.devflow_gate, p.name AS policy_name
                 FROM approval_request r
                 LEFT JOIN approval_policy p ON p.id = r.policy_id
                 """;

@@ -13,5 +13,9 @@ public interface AuditStore {
 
     Map<String, Object> page(String agent, String risk, String env, int page, int size);
 
+    default Map<String, Object> page(String agent, String risk, String env, String action, String kind, int page, int size) {
+        return page(agent, risk, env, page, size);
+    }
+
     Map<String, Object> verify(String agent);
 }
