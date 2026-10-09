@@ -1,6 +1,8 @@
 import { http, HttpResponse } from 'msw'
 import { sharedServices } from './data/services'
 import { latestEval } from './data/eval'
+import { auditEvents } from './data/audit'
+import { filterAuditPage } from '../views/audit/auditDrawer'
 import { dependentsOf, toolDetail, tools } from './data/tools'
 import { approvals, suspendedRuns } from './data/approvals'
 import {
@@ -86,6 +88,18 @@ export const handlers = [
   http.get(`${BASE}/me`, () => ok(consoleSession === 'user' ? consoleUser : previewUser)),
 
   http.get(`${BASE}/insight/services`, () => ok(sharedServices)),
+  http.get(`${BASE}/audit/events`, ({ request }) => {
+    const url = new URL(request.url)
+    const action = url.searchParams.get('action') || undefined
+    const kind = url.searchParams.get('kind') || undefined
+    const agent = url.searchParams.get('agent')
+    const risk = url.searchParams.get('risk')
+    let items = auditEvents
+    if (agent) items = items.filter((event) => event.agent === agent)
+    if (risk) items = items.filter((event) => event.risk === risk)
+    items = filterAuditPage(items, action, kind)
+    return ok(paged(url, items))
+  }),
   http.get(`${BASE}/eval/:agent/latest`, ({ params }) => {
     const found = latestEval(String(params.agent))
     return found ? ok(found) : fail(404, 'SERVER_NOT_FOUND', '没有评测记录')

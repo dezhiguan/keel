@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Pager from '@/components/Pager.vue'
@@ -9,7 +9,7 @@ import { listAuditEvents, requestAuditExport, verifyAuditChain, type AuditEvent,
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { RISK, hms, type StatusTone } from '@/utils/format'
-import { eventTime, payloadText, shortHash } from './auditDrawer'
+import { EVENT_KINDS, eventKind, eventTime, filterAuditPage, payloadText, shortHash } from './auditDrawer'
 
 const DECISION: Record<NonNullable<AuditEvent['decision']>, { label: string; tone: StatusTone }> = {
   allowed: { label: '允许', tone: 'ok' },
@@ -27,12 +27,24 @@ const loading = ref(false)
 const verifying = ref(false)
 const selected = ref<AuditEvent | null>(null)
 const shown = ref(false)
-const filter = reactive<{ agent?: string; risk?: ListAuditQuery['risk']; page: number; size: NonNullable<ListAuditQuery['size']> }>({
+const ACTIONS = ['invoke', 'tool.call', 'sql.execute', 'approval', 'config.change', 'data.export', 'run.suspend', 'run.resume', 'agent.register', 'release.gate'] as const
+
+const filter = reactive<{
+  agent?: string
+  risk?: ListAuditQuery['risk']
+  action?: ListAuditQuery['action']
+  kind?: string
+  page: number
+  size: NonNullable<ListAuditQuery['size']>
+}>({
   agent: undefined,
   risk: undefined,
+  action: undefined,
+  kind: undefined,
   page: 1,
   size: 10,
 })
+const rows = computed(() => filterAuditPage(result.value?.items ?? [], filter.action, filter.kind))
 
 async function loadAgents() {
   try {
@@ -46,7 +58,15 @@ async function loadAgents() {
 async function load() {
   loading.value = true
   try {
-    result.value = await listAuditEvents({ env: envStore.env, agent: filter.agent, risk: filter.risk, page: filter.page, size: filter.size })
+    result.value = await listAuditEvents({
+      env: envStore.env,
+      agent: filter.agent,
+      risk: filter.risk,
+      action: filter.action,
+      kind: filter.action === 'config.change' ? filter.kind : undefined,
+      page: filter.page,
+      size: filter.size,
+    })
   } catch (error) {
     ElMessage.error(`加载审计事件失败：${toKeelError(error).message}`)
   } finally {
@@ -61,6 +81,11 @@ function search() {
 
 function setRisk(risk?: ListAuditQuery['risk']) {
   filter.risk = risk
+  search()
+}
+
+function onAction() {
+  if (filter.action !== 'config.change') filter.kind = undefined
   search()
 }
 
@@ -147,6 +172,15 @@ loadAgents()
         <option :value="undefined">全部智能体</option>
         <option v-for="a in agents" :key="a" :value="a">{{ a }}</option>
       </select>
+      <select v-model="filter.action" class="inp" @change="onAction">
+        <option :value="undefined">全部动作</option>
+        <option v-for="action in ACTIONS" :key="action" :value="action">{{ action }}</option>
+      </select>
+      <select v-if="filter.action === 'config.change'" v-model="filter.kind" class="inp" @change="search">
+        <option :value="undefined">全部事件类型</option>
+        <option v-for="item in EVENT_KINDS" :key="item.value" :value="item.value">{{ item.label }}</option>
+      </select>
+      <span v-if="filter.action === 'config.change' && filter.kind" class="mut">当前页内过滤</span>
       <div class="chipsel">
         <button :class="{ on: !filter.risk }" @click="setRisk(undefined)">全部风险</button>
         <button v-for="r in (['HIGH', 'MID', 'LOW'] as const)" :key="r" :class="{ on: filter.risk === r }" @click="setRisk(r)">{{ RISK[r].label }}</button>
@@ -158,16 +192,16 @@ loadAgents()
       <table class="t">
         <thead><tr><th>时间</th><th>智能体</th><th>操作人</th><th>动作</th><th>资源</th><th>风险</th><th>结果</th></tr></thead>
         <tbody>
-          <tr v-for="e in result?.items ?? []" :key="e.eventId" class="click" @click="selected = e">
+          <tr v-for="e in rows" :key="e.eventId" class="click" @click="selected = e">
             <td class="mono">{{ hms(e.ts) }}</td>
             <td>{{ e.agent }}</td>
             <td>{{ e.actor?.userId }}</td>
-            <td class="mono">{{ e.action }}</td>
+            <td class="mono">{{ e.action }} <span v-if="eventKind(e.payload)">{{ eventKind(e.payload) }}</span></td>
             <td>{{ e.resource }}</td>
             <td><span class="pill nd" :class="RISK[e.risk!].cls">{{ RISK[e.risk!].label }}</span></td>
             <td><StatusPill v-bind="DECISION[e.decision!]" /></td>
           </tr>
-          <tr v-if="!result?.items?.length && !loading"><td colspan="7" class="empty">没有符合条件的记录</td></tr>
+          <tr v-if="!rows.length && !loading"><td colspan="7" class="empty">没有符合条件的记录</td></tr>
         </tbody>
       </table>
       <Pager v-model:page="filter.page" v-model:size="filter.size" :total="result?.total ?? 0" />

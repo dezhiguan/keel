@@ -162,7 +162,7 @@ describe('mock handlers', () => {
     expect((await call('GET', '/devflow/jobs/DF-0017/review')).status).toBe(409)
   })
 
-  it('still mocks shared services and the eval sample while traces, audit and costs stay real', async () => {
+  it('still mocks shared services, eval samples, and audit events while traces and costs stay real', async () => {
     const services = await call('GET', '/insight/services')
     expect(services.status).toBe(200)
     expect(services.json.data.services.length).toBeGreaterThan(0)
@@ -170,7 +170,14 @@ describe('mock handlers', () => {
     expect(services.json.data.components.find((row: { name: string }) => row.name === 'keel-devflow-sandbox').usage).toBeNull()
     await expect(call('GET', '/insight/traces')).rejects.toThrow()
     await expect(call('GET', '/insight/traces/tr_missing')).rejects.toThrow()
-    await expect(call('GET', '/audit/events')).rejects.toThrow()
+    const takeover = await call('GET', '/audit/events?action=config.change&kind=devflow.takeover&size=100')
+    expect(takeover.status).toBe(200)
+    expect(takeover.json.data.items.map((event: { resource: string }) => event.resource)).toContain('DF-0015 王工接管开发')
+    expect(takeover.json.data.items.every((event: { payload: { kind?: string } }) => event.payload.kind === 'devflow.takeover')).toBe(true)
+    const stage = await call('GET', '/audit/events?action=config.change&kind=devflow.stage&size=100')
+    expect(stage.json.data.items.map((event: { resource: string }) => event.resource)).toContain('DF-0020 SPEC → H1')
+    const suspended = await call('GET', '/audit/events?action=run.suspend&size=100')
+    expect(suspended.json.data.items.map((event: { resource: string }) => event.resource)).toContain('DF-0021 等人工 review')
     await expect(call('GET', '/insight/costs')).rejects.toThrow()
     await expect(call('POST', '/audit/verify')).rejects.toThrow()
     await expect(call('POST', '/audit/exports')).rejects.toThrow()

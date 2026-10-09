@@ -9,6 +9,7 @@
 
 | 状态 | 任务 |
 |---|---|
+| 已完成（控制台） | [DF-9d 审计](DF-9d-audit.md)：动作选 `config.change` 时按 `devflow.stage`、`devflow.takeover`、`drift` 筛选，行上显示 `payload.kind` |
 | 已完成（控制台） | [DF-9d 评测](DF-9d-eval.md)：结论旁显示隐藏考题聚合分和分差，分差超过 0.10 标红。待评测确认链到关口页。没有聚合分时显示「—」 |
 | 已完成 | [DF-5d 任务账本](DF-5d-ledger.md)：确认后以服务身份开研发任务并回报 SPEC，停在 H1。不注册、不跑门禁、不申请合并 |
 | 已完成 | [DF-5c 建仓库并开 PR](DF-5c-repo.md)：确认后经 Git 服务建库、推 `draft`、开 PR。不合并。未配置地址时不访问网络 |

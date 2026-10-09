@@ -11,7 +11,10 @@ const head: [string, ...Seed][] = [
   ['12:22:19', 'cs-bot', '访客 v_8812', 'data.export', '对话记录导出', 'HIGH', 'denied', { range: '7d', reason: '未登录用户无导出权限' }, 'tr_c20f5a11'],
   ['11:58:40', 'code-review', 'ci_bot', 'tool.call', 'git.pr.comment', 'MID', 'allowed', { pr: 'order-service#142', findings: 4 }, 'tr_19ab7e02'],
   ['11:20:05', 'careermate', 'u_2031', 'tool.call', 'resume.update', 'MID', 'allowed', { resume_id: 88213, fields: ['project_exp'] }, 'tr_77aa01d4'],
+  ['10:53:00', 'meta-agent', 'amy', 'run.suspend', 'DF-0021 等人工 review', 'LOW', 'allowed', { jobId: 'DF-0021' }, null],
   ['10:20:33', 'offshore-wind', 'amy', 'config.change', 'prompt v12 → v13', 'MID', 'allowed', { prompt: 'answer', from: 12, to: 13 }, null],
+  ['09:29:00', 'dev-lead', '王工', 'config.change', 'DF-0015 王工接管开发', 'MID', 'allowed', { kind: 'devflow.takeover' }, null],
+  ['09:12:00', 'dev-lead', 'dev-lead', 'config.change', 'DF-0020 SPEC → H1', 'LOW', 'allowed', { kind: 'devflow.stage' }, null],
   ['09:05:12', 'prd-agent', 'amy', 'agent.register', 'prd-agent v0.3.0 · staging', 'LOW', 'allowed', { selfcheck: '7/7' }, null],
 ]
 
