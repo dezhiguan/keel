@@ -108,6 +108,9 @@ function onInput() {
 
 watch(() => envStore.env, search)
 watch(() => [filter.page, filter.size], load, { immediate: true })
+watch(() => route.query.drawer, (drawer, previous) => {
+  if (previous && !drawer) load()
+})
 </script>
 
 <template>

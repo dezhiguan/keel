@@ -25,6 +25,7 @@ keel-server/src/test/java/com/keel/server/devflow/DevflowServiceTest.java
 
 - 列表只拉注册中心。没有登记的名字不补原型卡片。
 - 详情原有概览、manifest、实例、版本保留，多一个「研发记录」。元智能体不提供发起改造。
+- 确认下线调用 `POST /api/v1/agents/{name}/retire`，环境取详情里的 `env`。成功后抽屉改成已下线。
 - 「由智能体生产」提交进内存任务账本。研发类锁定人机协作。元智能体不能作为改造对象。
 
 ## 验收标准

@@ -71,8 +71,12 @@ mvn -o -pl :keel-server test
 - [ ] 审计写入失败时 `POST /api/v1/agents` 失败，库中没有半截 ACTIVE 资源
 - [ ] 测试不连接真实的薄网关、Langfuse、auth-gateway
 
+## 下线
+
+`POST /api/v1/agents/{name}/retire` 请求体必填 `env`。先同步写 `agent.retire` 审计，再按开通的逆序回收该环境仍为 ACTIVE 的外部资源，状态置 `RETIRED`，并追加一行 `route_snapshot`。没有开通记录的步骤跳过。回收失败把该资源标成 `REVOKE_FAILED` 并中止，状态保持原样。已经是 `RETIRED` 的再次调用直接返回。历史版本、追踪、评测不删。不停止 Deployment，那一步等实例探测接上。
+
 ## 明确不做
 
 - 不实现 RSA、换票、虚拟 Key、数据集导入的真实 HTTP（P1-7、P1-8）
-- 不实现下线的完整产品流程以外的发布（`POST /releases` 是 P2-11）
+- 不实现发布（`POST /releases` 是 P2-11）
 - 不实现网关路由推送

@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import StatusPill from '@/components/StatusPill.vue'
-import { getAgent, getAgentUsage, mergeUsage, type AgentDetail } from '@/api/agents'
+import { getAgent, getAgentUsage, mergeUsage, retireAgent, type AgentDetail } from '@/api/agents'
 import { listDevflowJobs, type DevflowJob } from '@/api/devflow'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
@@ -117,10 +117,24 @@ function viewTraces() {
   router.push('/traces')
 }
 
-function confirmRetire() {
-  retiring.value = false
-  retireInput.value = ''
-  ElMessage.info('下线尚未接入')
+const retireBusy = ref(false)
+
+async function confirmRetire() {
+  const agent = name.value
+  const env = detail.value?.env
+  if (!agent || retireInput.value !== agent || !env) return
+  retireBusy.value = true
+  try {
+    await retireAgent(agent, env)
+    ElMessage.warning(`${agent} 已下线`)
+    retiring.value = false
+    retireInput.value = ''
+    await load(agent)
+  } catch (error) {
+    ElMessage.error(`下线失败：${toKeelError(error).message}`)
+  } finally {
+    retireBusy.value = false
+  }
 }
 
 function onKey(event: KeyboardEvent) {
@@ -324,7 +338,7 @@ onUnmounted(() => {
       <div v-if="retiring" class="modal on" role="dialog" aria-label="下线智能体">
         <div class="mh">下线智能体</div>
         <div class="mb">
-          <p>下线后将<b>吊销薄网关虚拟 Key、删除 Secret、停止部署</b>，历史追踪、评测和审计保留。</p>
+          <p>下线后将<b>吊销薄网关虚拟 Key、删除 Secret</b>，历史追踪、评测和审计保留。正在跑的实例要另行停掉。</p>
           <div class="field">
             <label>输入智能体 ID <b class="mono">{{ name }}</b> 确认</label>
             <input v-model="retireInput" class="inp" autocomplete="off">
@@ -332,7 +346,7 @@ onUnmounted(() => {
         </div>
         <div class="mf">
           <button class="btn" type="button" @click="retiring = false">取消</button>
-          <button v-write class="btn danger" type="button" :disabled="retireInput !== name" @click="confirmRetire">确认下线</button>
+          <button v-write class="btn danger" type="button" :disabled="retireInput !== name || retireBusy" @click="confirmRetire">{{ retireBusy ? '下线中…' : '确认下线' }}</button>
         </div>
       </div>
     </template>

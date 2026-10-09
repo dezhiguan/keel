@@ -83,6 +83,26 @@ public class LifecycleService {
         return report;
     }
 
+    /** Revoke the environment's external resources and mark the agent RETIRED. History rows stay. */
+    public void retire(String name, String env) {
+        if (!env.equals("dev") && !env.equals("test") && !env.equals("staging") && !env.equals("prod")) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, ErrorCode.SERVER_INVALID_PARAM.message());
+        }
+        var existing = agents.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Agent>()
+                .eq(Agent::getName, name).eq(Agent::getKind, Agent.KIND_AGENT));
+        if (existing == null) {
+            throw new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message());
+        }
+        if (existing.getStatus() == AgentStatus.RETIRED) {
+            return;
+        }
+        audits.append(name, env, "agent.retire", "high", "allowed", name, null);
+        provisioning.retire(name, env);
+        existing.setStatus(AgentStatus.RETIRED);
+        agents.updateById(existing);
+        jdbc.update("INSERT INTO route_snapshot (changed_agent) VALUES (?)", name);
+    }
+
     private void insertAgent(JsonNode manifest) {
         var runtime = manifest.path("spec").path("runtime");
         var agent = new Agent();

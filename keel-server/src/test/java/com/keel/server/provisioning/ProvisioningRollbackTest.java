@@ -117,5 +117,37 @@ class ProvisioningRollbackTest {
         public boolean hasActive(String agent, String env) {
             return !active.isEmpty();
         }
+
+        String statusOf(String type) {
+            return rows.get(type);
+        }
+
+        public List<String> activeTypes(String agent, String env) {
+            var newestFirst = new ArrayList<>(active);
+            java.util.Collections.reverse(newestFirst);
+            return newestFirst;
+        }
+    }
+
+    @Test void retireRevokesActiveResourcesInReverseAndSkipsMissingOnes() {
+        var calls = new ArrayList<String>();
+        var ledger = new MemoryLedger();
+        var service = service(calls, -1, false, ledger, passed(), (agent, env) -> { });
+        service.register("askdb", "dev", "http://askdb", JsonNodeFactory.instance.objectNode());
+        calls.clear();
+        ledger.mark("askdb", "dev", "secret", "REVOKED");
+        service.retire("askdb", "dev");
+        assertThat(calls).containsExactly("revoke:dataset", "revoke:litellm_key", "revoke:oauth_client");
+        assertThat(ledger.active).isEmpty();
+    }
+
+    @Test void retireStopsWhenARevokeFailsAndLeavesThatResourceActive() {
+        var calls = new ArrayList<String>();
+        var ledger = new MemoryLedger();
+        var service = service(calls, -1, true, ledger, passed(), (agent, env) -> { });
+        service.register("askdb", "dev", "http://askdb", JsonNodeFactory.instance.objectNode());
+        assertThatThrownBy(() -> service.retire("askdb", "dev")).isInstanceOf(IllegalStateException.class);
+        assertThat(ledger.statusOf("dataset")).isEqualTo("REVOKE_FAILED");
+        assertThat(ledger.active).containsExactly("oauth_client", "litellm_key", "secret");
     }
 }

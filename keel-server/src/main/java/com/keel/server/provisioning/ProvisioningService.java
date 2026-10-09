@@ -56,9 +56,35 @@ public class ProvisioningService {
         return report;
     }
 
+    /**
+     * Revoke every still-active resource for this environment, last provisioned first.
+     * A step that was never activated is skipped. Revoke failure stays on the ledger and stops the retire.
+     */
+    public void retire(String agent, String env) {
+        var active = new java.util.LinkedHashSet<>(ledger.activeTypes(agent, env));
+        var done = new ArrayList<ProvisionStep>();
+        for (var i = steps.size() - 1; i >= 0; i--) {
+            var step = steps.get(i);
+            if (active.remove(step.resourceType())) {
+                done.add(step);
+            }
+        }
+        for (var type : active) {
+            ledger.mark(agent, env, type, "REVOKED");
+        }
+        revokeAll(agent, env, done);
+    }
+
     private void rollback(String agent, String env, List<ProvisionStep> done) {
+        var reverse = new ArrayList<ProvisionStep>();
         for (var i = done.size() - 1; i >= 0; i--) {
-            var step = done.get(i);
+            reverse.add(done.get(i));
+        }
+        revokeAll(agent, env, reverse);
+    }
+
+    private void revokeAll(String agent, String env, List<ProvisionStep> done) {
+        for (var step : done) {
             try {
                 step.revoke(agent, env);
                 ledger.mark(agent, env, step.resourceType(), "REVOKED");

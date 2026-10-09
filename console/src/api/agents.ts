@@ -52,6 +52,10 @@ export function registerAgent(body: Record<string, unknown>) {
   return post<SelfCheckReport>('/agents', body)
 }
 
+export function retireAgent(name: string, env: 'dev' | 'test' | 'staging' | 'prod') {
+  return post<{ name?: string; status?: string }>(`/agents/${encodeURIComponent(name)}/retire`, { env })
+}
+
 export function chatWithAgent(name: string, text: string) {
   return post<{ text?: string; traceId?: string | null }>(`/agents/${encodeURIComponent(name)}/chat`, { text }, { timeout: 60_000 })
 }

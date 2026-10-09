@@ -37,4 +37,13 @@ public class JdbcResourceLedger implements ResourceLedger {
                 """, Integer.class, agent, env);
         return count != null && count > 0;
     }
+
+    @Override
+    public java.util.List<String> activeTypes(String agent, String env) {
+        return jdbc.query("""
+                SELECT type FROM agent_resource
+                WHERE agent_name = ? AND env = ? AND status = 'ACTIVE'
+                ORDER BY id DESC
+                """, (rs, row) -> rs.getString("type"), agent, env);
+    }
 }

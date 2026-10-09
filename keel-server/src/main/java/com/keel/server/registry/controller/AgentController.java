@@ -76,4 +76,10 @@ public class AgentController {
     public R<java.util.Map<String, Object>> chat(@PathVariable String name, @RequestBody JsonNode body) {
         return R.ok(chats.chat(name, body.path("text").asText("")));
     }
+
+    @PostMapping("/{name}/retire")
+    public R<java.util.Map<String, Object>> retire(@PathVariable String name, @RequestBody JsonNode body) {
+        lifecycleService.retire(name, body.path("env").asText(""));
+        return R.ok(java.util.Map.of("name", name, "status", "RETIRED"));
+    }
 }
