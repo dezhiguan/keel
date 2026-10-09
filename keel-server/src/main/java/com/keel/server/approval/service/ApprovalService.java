@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -142,7 +143,7 @@ public class ApprovalService {
 
     /**
      * Applies the decision and commits before returning an error for a row that was just expired.
-     * TODO(P0-5): decidedBy comes from the auth-gateway JWT, not the fixed local admin.
+     * {@code decidedBy} is the signed-in console username.
      */
     public ApprovalView decide(String rawId, String decision, String decidedBy) {
         var result = transactions.execute(status -> applyDecide(rawId, decision, decidedBy));
@@ -187,7 +188,7 @@ public class ApprovalService {
                     throw new KeelException(ErrorCode.APPROVAL_EXPIRED, "单子已过期或已被处理");
                 }
                 expireRun(row.runId(), "EXPIRED", 0);
-                audit(agentOrPlatform(row.agent()), "prod", row.risk().toLowerCase(), "denied", row.subjectRef(), row.traceId());
+                audit(agentOrPlatform(row.agent()), "prod", row.risk().toLowerCase(), "denied", row.subjectRef(), row.traceId(), decidedBy);
                 yield new DecideResult(load(row.numericId()), ErrorCode.APPROVAL_EXPIRED, ErrorCode.APPROVAL_EXPIRED.message());
             }
             case REJECT -> reject(row, decidedBy);
@@ -196,7 +197,7 @@ public class ApprovalService {
     }
 
     private DecideResult reject(ApprovalRow row, String decidedBy) {
-        audit(agentOrPlatform(row.agent()), "prod", row.risk().toLowerCase(), "rejected", row.subjectRef(), row.traceId());
+        audit(agentOrPlatform(row.agent()), "prod", row.risk().toLowerCase(), "rejected", row.subjectRef(), row.traceId(), decidedBy);
         if (row.runId() != null) {
             expireRun(row.runId(), "FAILED", 0);
         }
@@ -215,7 +216,7 @@ public class ApprovalService {
                 && ApprovalPolicyEngine.passConsent(suspendedAt, consent, now) == null) {
             throw new KeelException(ErrorCode.RUN_RESUME_DENIED, ErrorCode.RUN_RESUME_DENIED.message());
         }
-        audit(agentOrPlatform(row.agent()), "prod", row.risk().toLowerCase(), "approved", row.subjectRef(), row.traceId());
+        audit(agentOrPlatform(row.agent()), "prod", row.risk().toLowerCase(), "approved", row.subjectRef(), row.traceId(), decidedBy);
         if (row.runId() != null) {
             callResume(row.agent(), row.runId(), "approve", null,
                     ApprovalPolicyEngine.passConsent(suspendedAt, consent, now));
@@ -277,6 +278,10 @@ public class ApprovalService {
 
     private void audit(String agent, String env, String risk, String decision, String resource, String traceId) {
         audits.append(agent, env, "approval", risk, decision, resource, traceId);
+    }
+
+    private void audit(String agent, String env, String risk, String decision, String resource, String traceId, String actor) {
+        audits.append(agent, env, "approval", risk, decision, resource, traceId, actor, Map.of());
     }
 
     private ApprovalView load(long id) {

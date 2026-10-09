@@ -55,7 +55,7 @@ POST /api/v1/runs
 - 人工介入只列出 `SUSPENDED` 且 `suspend_reason` 为 `input_required` 或 `handoff` 的 run。`approval` 原因留在审批单里。
 - 从挂起算起超过 600 秒，恢复返回 `RUN_RESUME_DENIED`，不换票、不调用智能体。委托 token 的请求体尚未核实，禁止猜一个 body 去打 auth-gateway。
 - 审批决策和挂起恢复先同步写审计（`AuditStore.append`）。写失败抛 `AUDIT_WRITE_FAILED`，业务更新回滚。审计行只有 INSERT。
-- 当前没有登录态。决策人记 `dev`，列表不做审批人过滤。`TODO(P0-5)`：JWT 接入后按 `approval_policy` 过滤，并改用 token 里的用户。
+- 人工批准、驳回、回复挂起执行时，操作人取当前登录账号的 username，写入 `approval_request.decided_by` 和审计 `actor_user`。测试里 `open-for-tests` 把登录用户设成 `dev`。超时任务自动过期仍记 `keel`。列表不做审批人过滤。
 - 总览 `pendingApprovals` 计 `PENDING` 审批单数量。
 
 ## 验收标准

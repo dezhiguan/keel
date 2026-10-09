@@ -93,6 +93,9 @@ class ApprovalFlowTest {
                         .content("{\"decision\":\"APPROVE\",\"comment\":\"可以\"}"))
                 .andExpect(jsonPath("$.data.status").value("APPROVED"))
                 .andExpect(jsonPath("$.data.decidedBy").value("dev"));
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT actor_user FROM console_audit_event WHERE action = 'approval' AND decision = 'approved' AND resource = ?",
+                String.class, ref)).isEqualTo("dev");
         mvc.perform(post("/api/v1/approvals/" + approvalId + "/decision")
                         .contentType("application/json")
                         .content("{\"decision\":\"REJECT\"}"))
@@ -177,6 +180,9 @@ class ApprovalFlowTest {
         RESUMES.clear();
         mvc.perform(post("/api/v1/runs/" + run + "/input").contentType("application/json").content("{\"text\":\"先修 WT-07\"}"))
                 .andExpect(status().isOk());
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT actor_user FROM console_audit_event WHERE action = 'run.resume' AND resource = ?",
+                String.class, run)).isEqualTo("dev");
         org.assertj.core.api.Assertions.assertThat(RESUMES).anySatisfy(line -> org.assertj.core.api.Assertions.assertThat(line).contains("先修 WT-07"));
         mvc.perform(post("/api/v1/runs/" + run + "/input").contentType("application/json").content("{\"text\":\"again\"}"))
                 .andExpect(status().isConflict())

@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -113,11 +114,12 @@ public class RunService {
         return load(request.runId());
     }
 
-    public void answer(String runId, String text) {
+    public void answer(String runId, String text, String actor) {
         if (!ApprovalPolicyEngine.runId(runId) || text == null || text.isBlank()) {
             throw invalid();
         }
-        var expired = transactions.execute(status -> applyAnswer(runId, text.trim()));
+        var who = required(actor, 128);
+        var expired = transactions.execute(status -> applyAnswer(runId, text.trim(), who));
         if (Boolean.TRUE.equals(expired)) {
             throw new KeelException(ErrorCode.RUN_EXPIRED, ErrorCode.RUN_EXPIRED.message());
         }
@@ -142,7 +144,7 @@ public class RunService {
         }
     }
 
-    private boolean applyAnswer(String runId, String text) {
+    private boolean applyAnswer(String runId, String text, String actor) {
         var row = lock(runId);
         var verdict = ApprovalPolicyEngine.resume(
                 row == null ? null : row.status(),
@@ -157,11 +159,11 @@ public class RunService {
             case DENIED -> throw new KeelException(ErrorCode.RUN_RESUME_DENIED, ErrorCode.RUN_RESUME_DENIED.message());
             case EXPIRED -> {
                 jdbc.update("UPDATE agent_run SET status = 'EXPIRED', updated_at = now() WHERE run_id = ? AND status = 'SUSPENDED'", runId);
-                audits.append(row.agent(), row.env(), "run.suspend", "high", "denied", runId, row.traceId());
+                audits.append(row.agent(), row.env(), "run.suspend", "high", "denied", runId, row.traceId(), actor, Map.of());
                 yield true;
             }
             case ALLOW -> {
-                audits.append(row.agent(), row.env(), "run.resume", "high", "approved", runId, row.traceId());
+                audits.append(row.agent(), row.env(), "run.resume", "high", "approved", runId, row.traceId(), actor, Map.of());
                 callResume(row.agent(), runId, row.token(), text,
                         ApprovalPolicyEngine.passConsent(row.suspendedAt(), row.consentId(), clock.instant()));
                 var updated = jdbc.update("""

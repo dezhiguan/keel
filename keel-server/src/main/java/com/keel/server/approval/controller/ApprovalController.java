@@ -4,6 +4,7 @@ import com.keel.server.approval.model.ApprovalView;
 import com.keel.server.approval.model.DecisionBody;
 import com.keel.server.approval.model.OpenApproval;
 import com.keel.server.approval.service.ApprovalService;
+import com.keel.server.auth.ConsolePrincipal;
 import com.keel.server.common.PageResult;
 import com.keel.server.common.R;
 import jakarta.validation.constraints.Min;
@@ -43,8 +44,7 @@ public class ApprovalController {
 
     @PostMapping("/{id}/decision")
     public R<ApprovalView> decide(@PathVariable String id, @RequestBody DecisionBody body) {
-        // TODO(P0-5): take the approver from the auth-gateway JWT instead of the fixed local admin.
         var decision = body == null ? null : body.decision();
-        return R.ok(approvals.decide(id, decision, "dev"));
+        return R.ok(approvals.decide(id, decision, ConsolePrincipal.requireUsername()));
     }
 }

@@ -4,6 +4,7 @@ import com.keel.server.approval.model.OpenRun;
 import com.keel.server.approval.model.RunInput;
 import com.keel.server.approval.model.SuspendedRunView;
 import com.keel.server.approval.service.RunService;
+import com.keel.server.auth.ConsolePrincipal;
 import com.keel.server.common.PageResult;
 import com.keel.server.common.R;
 import jakarta.validation.constraints.Min;
@@ -42,7 +43,7 @@ public class RunController {
 
     @PostMapping("/{runId}/input")
     public R<Void> input(@PathVariable String runId, @RequestBody RunInput body) {
-        runs.answer(runId, body == null ? null : body.text());
+        runs.answer(runId, body == null ? null : body.text(), ConsolePrincipal.requireUsername());
         return R.ok(null);
     }
 }
