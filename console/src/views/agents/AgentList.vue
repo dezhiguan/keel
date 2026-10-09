@@ -142,7 +142,7 @@ watch(() => route.query.drawer, (drawer, previous) => {
       <div v-loading="loading" class="agrid">
         <div v-for="card in pageRows" :key="card.name" class="acard" role="button" tabindex="0" @click="open(card.name)" @keydown.enter="open(card.name)">
           <div class="hd">
-            <div class="av" :style="{ background: card.color, color: '#fff' }">{{ mark(card) }}</div>
+            <div class="av" :style="{ background: card.color, color: '#0a101a', fontSize: '12px' }">{{ mark(card) }}</div>
             <div class="ttl"><b>{{ card.displayName }}</b><small>{{ card.name }} · {{ card.template }}</small></div>
             <span class="sp" />
             <span class="ly" :class="card.layer">{{ LAYER_LABEL[card.layer] }}</span>

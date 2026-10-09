@@ -39,6 +39,35 @@ export type RegistryAgent = {
 
 const LAYER_FROM_API: Record<string, Layer> = { META: 'meta', DEV: 'dev', BIZ: 'biz', meta: 'meta', dev: 'dev', biz: 'biz' }
 
+/** 原型《全流程智能体化控制台》卡片左上角角标色，字色为 #0a101a。 */
+const BADGE_COLORS: Record<string, string> = {
+  'meta-agent': '#ff7a45',
+  'dev-lead': '#f1b44c',
+  'spec-agent': '#e8c26a',
+  'dev-agent': '#5b9cf6',
+  'eval-agent': '#34c38f',
+  'code-review': '#e36fae',
+  'ci-doctor': '#f46a6a',
+  'release-agent': '#b48cf2',
+  'prd-agent': '#c9a35a',
+  'dev-copilot': '#ffb08f',
+  careermate: '#2ec4b6',
+  askdb: '#8fb6ff',
+  'ticket-triage': '#4fd1c5',
+  'meeting-minutes': '#6fd3e3',
+}
+
+const BADGE_PALETTE = Object.values(BADGE_COLORS)
+
+/** 名单里的智能体用原型色；其余按名字稳定取色，避免全部落成灰色。 */
+export function badgeColor(name = '') {
+  const named = BADGE_COLORS[name]
+  if (named) return named
+  let hash = 0
+  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
+  return BADGE_PALETTE[hash % BADGE_PALETTE.length]
+}
+
 export function layerOf(agent: RegistryAgent): Layer {
   if (agent.layer && LAYER_FROM_API[agent.layer]) return LAYER_FROM_API[agent.layer]
   if (agent.name === 'meta-agent') return 'meta'
@@ -60,7 +89,7 @@ function fromRegistry(agent: RegistryAgent): EmployeeCard {
     displayName: agent.displayName || agent.name || '',
     template: agent.template || agent.language || '—',
     layer,
-    color: '#8a97ab',
+    color: badgeColor(agent.name),
     description: '已在注册中心登记的智能体。',
     source,
     jobId,
