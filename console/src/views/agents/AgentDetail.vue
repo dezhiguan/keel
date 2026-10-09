@@ -20,7 +20,7 @@ import {
   sourceLabel,
   versionRows,
 } from './agentDrawer'
-import { cannotChange, employeeByName, type EmployeeCard } from './employees'
+import { cannotChange, layerOf } from './employees'
 
 const TABS = [
   ['ov', '概览'],
@@ -36,7 +36,6 @@ const route = useRoute()
 const router = useRouter()
 const envStore = useEnvStore()
 const detail = ref<AgentDetail | null>(null)
-const catalog = ref<EmployeeCard | null>(null)
 const jobs = ref<DevflowJob[]>([])
 const loading = ref(false)
 const tab = ref<Tab>('ov')
@@ -48,6 +47,7 @@ const name = computed(() => {
   const value = route.query.drawer
   return typeof value === 'string' ? value : ''
 })
+const layer = computed(() => layerOf({ name: detail.value?.name || name.value, layer: detail.value?.layer, category: detail.value?.category }))
 
 const rows = computed(() => (detail.value ? versionRows(detail.value) : []))
 const releaseOk = computed(() => (detail.value ? canRelease(detail.value) : false))
@@ -77,14 +77,8 @@ async function load(agent: string) {
     const result = await getAgent(agent)
     if (current !== ticket) return
     detail.value = result
-    catalog.value = employeeByName(agent) ?? null
   } catch (error) {
     if (current !== ticket) return
-    const known = employeeByName(agent)
-    if (known) {
-      catalog.value = known
-      return
-    }
     ElMessage.error(`加载智能体失败：${toKeelError(error).message}`)
     return
   } finally {
@@ -145,7 +139,6 @@ watch(name, async (agent) => {
   shown.value = false
   if (!agent) {
     detail.value = null
-    catalog.value = null
     jobs.value = []
     document.body.style.overflow = ''
     return
@@ -267,15 +260,6 @@ onUnmounted(() => {
           </template>
 
           <template v-else-if="tab === 'dev'">
-            <div v-if="catalog" class="kv">
-              <span>分类</span><b><span class="ly" :class="catalog.layer">{{ catalog.layer === 'meta' ? '元' : catalog.layer === 'dev' ? '研发' : '业务' }}</span> {{ catalog.layer === 'meta' ? '元智能体' : catalog.layer === 'dev' ? '研发' : '业务' }}</b>
-              <span>来源</span>
-              <b>
-                <RouterLink v-if="catalog.jobId" :to="`/jobs/${catalog.jobId}`">{{ catalog.source }}</RouterLink>
-                <template v-else>{{ catalog.source }}</template>
-              </b>
-              <span>负责人</span><b>{{ catalog.owner }}</b>
-            </div>
             <h4>研发记录 <small>生产和改造它的任务</small></h4>
             <table v-if="jobs.length" class="t">
               <tbody>
@@ -287,10 +271,10 @@ onUnmounted(() => {
                 </tr>
               </tbody>
             </table>
-            <p v-else class="mut">{{ catalog?.jobId ? `占位来源 ${catalog.source}，任务账本里还没有这条记录` : '人工编写，没有研发任务记录' }}</p>
+            <p v-else class="mut">人工编写，没有研发任务记录</p>
             <h4>不能做的事</h4>
             <ul class="forbid">
-              <li>修改自己或上级（{{ cannotChange(catalog?.layer || (detail?.category === 'dev' ? 'dev' : 'biz')) }}）</li>
+              <li>修改自己或上级（{{ cannotChange(layer) }}）</li>
               <li>授予任何工具或知识库权限；读隐藏考题内容</li>
             </ul>
           </template>
@@ -320,7 +304,7 @@ onUnmounted(() => {
         <div class="df">
           <span v-if="detail?.status === 'RETIRED'" class="mut retired">已下线，历史追踪、评测、审计可查</span>
           <template v-else>
-            <button v-if="(catalog?.layer || 'biz') !== 'meta'" v-write class="btn" type="button" @click="router.push({ path: '/agents/new', query: { method: 'devflow', kind: 'CHANGE', agent: name } })">发起改造任务</button>
+            <button v-if="layer !== 'meta'" v-write class="btn" type="button" @click="router.push({ path: '/agents/new', query: { method: 'devflow', kind: 'CHANGE', agent: name } })">发起改造任务</button>
             <span v-else class="mut">元智能体只能由人直接改代码。</span>
             <button class="btn ghost" type="button" @click="viewTraces">查看链路</button>
             <button v-if="detail" v-write class="btn danger" type="button" @click="retiring = true">下线</button>

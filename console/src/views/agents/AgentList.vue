@@ -114,7 +114,7 @@ watch(() => [filter.page, filter.size], load, { immediate: true })
   <div>
     <div class="vh">
       <h2>智能体</h2>
-      <span class="sub">注册中心 · 共 {{ registered }} 个 · 未注册的按原型占位</span>
+      <span class="sub">注册中心 · 共 {{ registered }} 个</span>
       <span class="sp" />
       <button v-write class="btn pri" @click="router.push('/agents/new')">+ 新建智能体</button>
     </div>
