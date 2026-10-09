@@ -9,6 +9,7 @@ import { getOverview, type Overview } from '@/api/overview'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { agentStatus, fmtN } from '@/utils/format'
+import { agentType } from '@/views/agents/employees'
 import { ALERT_KIND, fmtMoney, fmtScore, fmtSeconds, hm, pipelineCards, pipelineMoney, techLabel, trendText, type PipelineCards } from './overviewFormat'
 
 type Category = 'all' | 'biz' | 'dev'
@@ -174,8 +175,9 @@ watch(() => envStore.env, () => {
           <tr v-for="agent in rows" :key="agent.name" class="click" @click="open(agent.name)">
             <td class="nm"><b>{{ agent.displayName }}</b><small class="mono">{{ agent.name }}</small></td>
             <td>
-              <span v-if="agent.category === 'biz'" class="pill nd p-teal">业务</span>
-              <span v-else-if="agent.category === 'dev'" class="pill nd p-acc">研发</span>
+              <span v-if="agentType(agent) === 'meta'" class="pill nd p-acc">元智能体</span>
+              <span v-else-if="agentType(agent) === 'biz'" class="pill nd p-teal">业务</span>
+              <span v-else-if="agentType(agent) === 'dev'" class="pill nd p-acc">研发</span>
               <span v-else class="mut">—</span>
             </td>
             <td>{{ techLabel(agent) }}</td>

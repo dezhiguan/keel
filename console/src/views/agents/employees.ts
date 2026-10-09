@@ -69,9 +69,16 @@ export function badgeColor(name = '') {
 }
 
 export function layerOf(agent: RegistryAgent): Layer {
-  if (agent.layer && LAYER_FROM_API[agent.layer]) return LAYER_FROM_API[agent.layer]
-  if (agent.name === 'meta-agent') return 'meta'
-  return agent.category === 'dev' ? 'dev' : 'biz'
+  return agentType(agent) ?? (agent.category === 'dev' ? 'dev' : 'biz')
+}
+
+/** 总览「类型」列：元智能体单独一档；分不出来留空，不猜成业务。 */
+export function agentType(agent: { name?: string | null; category?: string | null; layer?: string | null }): Layer | null {
+  const layer = agent.layer ? LAYER_FROM_API[agent.layer] : undefined
+  if (layer === 'meta' || agent.name === 'meta-agent') return 'meta'
+  if (layer === 'dev' || layer === 'biz') return layer
+  if (agent.category === 'dev' || agent.category === 'biz') return agent.category
+  return null
 }
 
 export function mergeEmployees(agents: RegistryAgent[]): EmployeeCard[] {

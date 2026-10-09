@@ -1,3 +1,5 @@
+import { agentType } from './employees'
+
 const COLORS: Record<string, string> = {
   careermate: '#2ec4b6', askdb: '#5b9cf6', 'offshore-wind': '#34c38f', 'cs-bot': '#b48cf2', 'ops-copilot': '#ff7a45',
   'prd-agent': '#f1b44c', 'code-review': '#e36fae', 'test-gen': '#6fd3e3', 'ci-doctor': '#f46a6a', 'dev-copilot': '#ffb08f',
@@ -130,8 +132,9 @@ export function canRelease(agent: Pick<DrawerAgent, 'env' | 'gatePassed' | 'stat
   return agent.env === 'staging' && agent.gatePassed === true && agent.status !== 'DRAFT' && agent.status !== 'OFFLINE'
 }
 
-export function kindLine(agent: { category?: string; runtime?: string; language?: string }) {
-  const category = agent.category === 'biz' ? '业务智能体' : agent.category === 'dev' ? '研发智能体' : ''
+export function kindLine(agent: { name?: string; category?: string | null; layer?: string | null; runtime?: string; language?: string }) {
+  const type = agentType(agent)
+  const category = type === 'meta' ? '元智能体' : type === 'biz' ? '业务智能体' : type === 'dev' ? '研发智能体' : ''
   const language = agent.runtime === 'dify' ? 'Dify' : (agent.language ?? '')
   return [category, language].filter(Boolean).join(' · ') || '—'
 }

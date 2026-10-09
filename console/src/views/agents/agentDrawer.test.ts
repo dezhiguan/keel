@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { avatarLetter, canRelease, cardChips, cardCost, highlightYaml, readyPill, scoreText, versionRows } from './agentDrawer'
+import { avatarLetter, canRelease, cardChips, cardCost, highlightYaml, kindLine, readyPill, scoreText, versionRows } from './agentDrawer'
 
 describe('agent drawer', () => {
   it('matches the registry card chips', () => {
@@ -16,6 +16,11 @@ describe('agent drawer', () => {
     expect(cardCost(0)).toBe('¥0.0')
     expect(cardCost(0.00342)).toBe('¥0.0034')
     expect(cardCost(null)).toBe('—')
+  })
+
+  it('labels the meta-agent type on its own', () => {
+    expect(kindLine({ name: 'meta-agent', language: 'Python' })).toBe('元智能体 · Python')
+    expect(kindLine({ category: 'biz', language: 'Java' })).toBe('业务智能体 · Java')
   })
 
   it('takes the character after the middle dot', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { badgeColor, lineageNodes, mergeEmployees } from './employees'
+import { agentType, badgeColor, lineageNodes, mergeEmployees } from './employees'
 
 describe('badgeColor', () => {
   it('uses the prototype colors for known agents', () => {
@@ -11,6 +11,15 @@ describe('badgeColor', () => {
   it('picks a stable palette color for agents outside the prototype list', () => {
     expect(badgeColor('echo')).toBe(badgeColor('echo'))
     expect(badgeColor('echo')).not.toBe('#8a97ab')
+  })
+})
+
+describe('agentType', () => {
+  it('treats meta-agent as its own type even without a category', () => {
+    expect(agentType({ name: 'meta-agent', language: 'Python' })).toBe('meta')
+    expect(agentType({ name: 'meta-agent', category: 'dev', layer: 'DEV' })).toBe('meta')
+    expect(agentType({ name: 'dev-lead', category: 'dev' })).toBe('dev')
+    expect(agentType({ name: 'echo' })).toBeNull()
   })
 })
 
