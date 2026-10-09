@@ -25,7 +25,7 @@ public record AgentDetail(
     public static AgentDetail of(Agent agent, AgentVersion latest, String instances,
                                  List<AgentInstance> rows, JsonNode manifest) {
         var summary = AgentSummary.of(agent, latest, instances, manifest);
-        return new AgentDetail(summary, null, latest == null ? null : latest.getManifestHash(),
+        return new AgentDetail(summary, ManifestYaml.of(manifest), latest == null ? null : latest.getManifestHash(),
                 texts(manifest, "knowledge", "kb"),
                 texts(manifest, "tools", "name"),
                 models(manifest),
