@@ -658,7 +658,7 @@ X-Keel-Eval-Run: &lt;run_id&gt;                 <span class="c"># 评测流量�
       <tr><td><code>GET /admin/v1/keys/{alias}</code> · <code>/admin/v1/spend</code> · <code>/admin/v1/models</code></td><td>预算、分页花费明细（人民币 costCny）、模型单价。缺单价的模型拒绝启动</td></tr>
       <tr><td rowspan="8">Langfuse v4</td><td><code>POST /api/public/otel/v1/traces</code></td><td>OTLP/HTTP 上报；Basic Auth（公钥:私钥）；<b>必须带请求头 <code>x-langfuse-ingestion-version: 4</code></b>，否则数据约 15 分钟后才可见</td></tr>
       <tr><td><code>GET /api/public/v2/observations</code> · <code>/v2/metrics</code> · <code>/v3/scores</code></td><td>控制台追踪、总览、质量。旧的 <code>/api/public/traces</code> 等接口不要用；2026-09-16 及之后创建的云端组织上，<code>GET /api/public/traces</code> 返回 410</td></tr>
-      <tr><td><code>GET /api/public/experiments</code> · <code>/experiment-items</code></td><td>读实验结果（门禁对比）；写实验用 Python SDK 的实验运行器，<b>不用</b>已废弃的 <code>dataset-run-items</code></td></tr>
+      <tr><td><code>GET /api/public/experiments</code> · <code>/experiment-items</code></td><td>读实验结果（门禁对比）。评测中心只取近 90 天的一页（空了再取 2020 起的一页），不跟 cursor；experiment-items 用实验时间前后的窄窗口。结果缓存 45 秒。写实验用 Python SDK 的实验运行器，<b>不用</b>已废弃的 <code>dataset-run-items</code></td></tr>
       <tr><td><code>/api/public/datasets</code> · <code>/dataset-items</code></td><td>注册时导入用例、坏案例回流</td></tr>
       <tr><td><code>PATCH /api/public/v2/prompts/{name}/versions/{version}</code></td><td>挪标签：body <code>{"newLabels":[…]}</code>。一个标签同时只在一个版本上，挪过去旧版本自动失去它；<code>latest</code> 由 Langfuse 维护，不能手动设</td></tr>
       <tr><td><code>GET /api/public/v2/prompts/{name}?label=</code> · <code>?version=</code></td><td>SDK 运行时取提示词、keel-server 复制前读原文。<code>label</code> 和 <code>version</code> 互斥；标签不存在返回 404，不会退回 production。名字带 <code>/</code> 时整体 URL 编码</td></tr>

@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -26,6 +27,10 @@ public class EvalQueryService {
     private final String host;
     private final String projectId;
     private final Map<String, Run> runs = new ConcurrentHashMap<>();
+    private final Map<String, CachedLatest> latestCache = new ConcurrentHashMap<>();
+    private volatile CachedDatasets datasetsCache;
+    private static final Duration LATEST_TTL = Duration.ofSeconds(45);
+    private static final Duration DATASET_TTL = Duration.ofSeconds(60);
 
     @Autowired
     public EvalQueryService(LangfuseClient langfuse, AgentRegistryService registry,
@@ -46,30 +51,13 @@ public class EvalQueryService {
     }
 
     public Map<String, Object> latest(String agent) {
-        var gate = gate(agent);
-        var index = datasetIndex();
-        var datasetIds = index.idsFor(agent, gate.dataset());
-        JsonNode chosen;
-        try {
-            chosen = newest(loadExperiments(datasetIds), agent, gate.dataset(), datasetIds);
-            if (chosen == null && !datasetIds.isEmpty()) {
-                chosen = newest(loadExperiments(List.of()), agent, gate.dataset(), datasetIds);
-            }
-        } catch (RuntimeException e) {
-            throw new KeelException(ErrorCode.SERVER_NOT_FOUND, "该智能体还没有评测记录");
+        var now = Instant.now();
+        var cached = latestCache.get(agent);
+        if (cached != null && cached.at.plus(LATEST_TTL).isAfter(now)) {
+            return cached.body;
         }
-        if (chosen == null) {
-            throw new KeelException(ErrorCode.SERVER_NOT_FOUND, "该智能体还没有评测记录");
-        }
-        var dataset = index.nameOf(chosen.path("datasetId").asText(""));
-        if (dataset.isBlank()) {
-            dataset = gate.dataset();
-        }
-        var body = result(agent, dataset, gate, chosen, items(chosen));
-        var url = datasetUrl(chosen, index, dataset);
-        if (!url.isBlank()) {
-            body.put("langfuseUrl", url);
-        }
+        var body = loadLatest(agent);
+        latestCache.put(agent, new CachedLatest(body, now));
         return body;
     }
 
@@ -110,6 +98,7 @@ public class EvalQueryService {
         var id = "ev_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         var run = new Run();
         runs.put(id, run);
+        latestCache.remove(agent);
         try {
             run.result = latest(agent);
             run.state = "DONE";
@@ -134,13 +123,50 @@ public class EvalQueryService {
         return body;
     }
 
+    private Map<String, Object> loadLatest(String agent) {
+        var gate = gate(agent);
+        var index = datasetIndex();
+        var datasetIds = index.idsFor(agent, gate.dataset());
+        JsonNode chosen;
+        try {
+            chosen = newest(loadLatestExperiments(datasetIds), agent, gate.dataset(), datasetIds);
+            if (chosen == null && !datasetIds.isEmpty()) {
+                chosen = newest(loadLatestExperiments(List.of()), agent, gate.dataset(), datasetIds);
+            }
+        } catch (RuntimeException e) {
+            throw new KeelException(ErrorCode.SERVER_NOT_FOUND, "该智能体还没有评测记录");
+        }
+        if (chosen == null) {
+            throw new KeelException(ErrorCode.SERVER_NOT_FOUND, "该智能体还没有评测记录");
+        }
+        var dataset = index.nameOf(chosen.path("datasetId").asText(""));
+        if (dataset.isBlank()) {
+            dataset = gate.dataset();
+        }
+        var body = result(agent, dataset, gate, chosen, items(chosen));
+        var url = datasetUrl(chosen, index, dataset);
+        if (!url.isBlank()) {
+            body.put("langfuseUrl", url);
+        }
+        return body;
+    }
+
     private JsonNode items(JsonNode experiment) {
         var id = text(experiment, "id", "experimentId");
         if (id.isBlank()) {
             return null;
         }
+        Instant around = null;
+        var raw = time(experiment);
+        if (!raw.isBlank()) {
+            try {
+                around = Instant.parse(raw);
+            } catch (RuntimeException ignored) {
+                around = null;
+            }
+        }
         try {
-            return langfuse.experimentItems(id);
+            return langfuse.experimentItems(id, around);
         } catch (RuntimeException e) {
             return null;
         }
@@ -254,6 +280,17 @@ public class EvalQueryService {
         return row.path("experimentScores");
     }
 
+    private JsonNode loadLatestExperiments(List<String> datasetIds) {
+        try {
+            return langfuse.experimentsLatest(datasetIds);
+        } catch (RuntimeException filtered) {
+            if (datasetIds.isEmpty()) {
+                throw filtered;
+            }
+            return langfuse.experimentsLatest(List.of());
+        }
+    }
+
     private JsonNode loadExperiments(List<String> datasetIds) {
         try {
             if (datasetIds.isEmpty()) {
@@ -269,6 +306,17 @@ public class EvalQueryService {
     }
 
     private DatasetIndex datasetIndex() {
+        var now = Instant.now();
+        var cached = datasetsCache;
+        if (cached != null && cached.at.plus(DATASET_TTL).isAfter(now)) {
+            return cached.index;
+        }
+        var index = loadDatasetIndex();
+        datasetsCache = new CachedDatasets(index, now);
+        return index;
+    }
+
+    private DatasetIndex loadDatasetIndex() {
         var idByName = new LinkedHashMap<String, String>();
         var nameById = new LinkedHashMap<String, String>();
         try {
@@ -469,4 +517,8 @@ public class EvalQueryService {
         private double progress;
         private Map<String, Object> result;
     }
+
+    private record CachedLatest(Map<String, Object> body, Instant at) {}
+
+    private record CachedDatasets(DatasetIndex index, Instant at) {}
 }

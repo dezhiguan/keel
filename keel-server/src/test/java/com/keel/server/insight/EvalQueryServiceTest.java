@@ -132,4 +132,94 @@ class EvalQueryServiceTest {
         var service = new EvalQueryService(new LangfuseClient("", "", ""), name -> null);
         assertThatThrownBy(() -> service.latest("askdb")).isInstanceOf(KeelException.class);
     }
+
+    @Test void latestReadsOneRecentPageAndReusesItUntilARun() throws Exception {
+        var uris = new ArrayList<String>();
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            var path = exchange.getRequestURI().getPath();
+            uris.add(exchange.getRequestURI().toString());
+            String body;
+            if (path.contains("/datasets")) {
+                body = """
+                        {"data":[{"id":"ds-ask","name":"askdb/smoke"}],"meta":{"page":1,"totalPages":1}}
+                        """;
+            } else if (path.contains("experiment-items")) {
+                body = """
+                        {"data":[{"scores":[{"name":"准确","value":0.90}]}]}
+                        """;
+            } else {
+                body = """
+                        {"data":[
+                          {"id":"exp-1","name":"askdb-candidate","datasetId":"ds-ask","datasetName":"askdb/smoke","createdAt":"2026-10-05T01:00:00Z",
+                           "scores":[{"name":"准确","value":0.50}]}
+                        ],"meta":{"cursor":"more"}}
+                        """;
+            }
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        var service = new EvalQueryService(new LangfuseClient("http://127.0.0.1:" + server.getAddress().getPort(), "pk", "sk"), name -> null);
+        assertThat(service.latest("askdb").get("scoreTotal")).isEqualTo(0.90);
+        int afterFirst = uris.size();
+        assertThat(service.latest("askdb").get("scoreTotal")).isEqualTo(0.90);
+        assertThat(uris).hasSize(afterFirst);
+        service.start("askdb");
+        var experiments = uris.stream().filter(uri -> uri.contains("/api/public/experiments?")).toList();
+        assertThat(experiments).hasSize(2);
+        assertThat(experiments).allSatisfy(uri -> {
+            assertThat(uri).doesNotContain("2020-01-01");
+            assertThat(uri).doesNotContain("cursor=");
+            assertThat(uri).contains("datasetId=ds-ask");
+        });
+        assertThat(uris.stream().filter(uri -> uri.contains("experiment-items")).toList())
+                .allSatisfy(uri -> assertThat(uri).contains("2026-10-04").doesNotContain("2020-01-01"));
+        server.stop(0);
+    }
+
+    @Test void latestUsesOneHistoricalPageWhenTheRecentWindowIsEmpty() throws Exception {
+        var uris = new ArrayList<String>();
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            var path = exchange.getRequestURI().getPath();
+            var query = exchange.getRequestURI().getRawQuery() == null ? "" : exchange.getRequestURI().getRawQuery();
+            uris.add(path + "?" + query);
+            String body;
+            if (path.contains("/datasets")) {
+                body = """
+                        {"data":[{"id":"ds-ask","name":"askdb/smoke"}],"meta":{"page":1,"totalPages":1}}
+                        """;
+            } else if (path.contains("experiment-items")) {
+                body = """
+                        {"data":[{"scores":[{"name":"准确","value":0.70}]}]}
+                        """;
+            } else if (query.contains("2020-01-01")) {
+                body = """
+                        {"data":[
+                          {"id":"exp-old","name":"askdb-candidate","datasetId":"ds-ask","createdAt":"2024-03-01T00:00:00Z",
+                           "scores":[{"name":"准确","value":0.40}]}
+                        ],"meta":{"cursor":"more"}}
+                        """;
+            } else {
+                body = """
+                        {"data":[],"meta":{}}
+                        """;
+            }
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        var service = new EvalQueryService(new LangfuseClient("http://127.0.0.1:" + server.getAddress().getPort(), "pk", "sk"), name -> null);
+        assertThat(service.latest("askdb").get("scoreTotal")).isEqualTo(0.70);
+        var experiments = uris.stream().filter(uri -> uri.contains("/api/public/experiments?")).toList();
+        assertThat(experiments).hasSize(2);
+        assertThat(experiments.stream().filter(uri -> uri.contains("2020-01-01")).toList()).hasSize(1);
+        assertThat(uris).noneMatch(uri -> uri.contains("cursor="));
+        server.stop(0);
+    }
 }

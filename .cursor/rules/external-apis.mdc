@@ -27,6 +27,7 @@ alwaysApply: true
 - generation span 只由 Keel SDK 上报一次。薄网关不向 Langfuse 上报，否则一次调用记两条。
 - 在线评估器配成 observation 级（挂在根 agent 节点上）。v4 不再运行 trace 级评估器。
 - 当前账号是 Hobby：每月 5 万单位、保留 30 天、网页用户 2 个、Metrics API 每天 100 次。每 5 分钟打 metrics 会超限。生产对账和总览轮询前升 Core。追踪数据在 AWS 东京。
+- experiments 列表按最新活动时间倒序。`fromStartTime` 必填（2026-10-11 读 Cloud OpenAPI），窗口越大越慢。评测中心只取一页（`limit=20`），先查近 90 天；这一页为空再查 `2020-01-01` 起的一页，不要跟着 cursor 翻历史。experiment-items 用实验时间前 1 天到后 14 天。
 
 ## 薄网关（keel-llm）
 

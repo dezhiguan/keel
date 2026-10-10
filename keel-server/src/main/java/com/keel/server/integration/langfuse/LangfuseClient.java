@@ -159,24 +159,79 @@ public class LangfuseClient {
     /**
      * Experiments newest-first. Pass dataset ids to ask Langfuse to filter; an empty list reads the project.
      * Core includes datasetId, not datasetName.
+     * This follows the cursor. The eval page uses {@link #experimentsLatest} instead.
      */
     public JsonNode experiments(List<String> datasetIds) {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
         }
-        var filter = "";
-        if (datasetIds != null && !datasetIds.isEmpty()) {
-            filter = "&datasetId=" + URLEncoder.encode(String.join(",", datasetIds), StandardCharsets.UTF_8);
-        }
-        return pages("/api/public/experiments?fromStartTime=2020-01-01T00:00:00.000Z&limit=100&fields=core,scores" + filter);
+        return pages("/api/public/experiments?fromStartTime=2020-01-01T00:00:00.000Z&limit=100&fields=core,scores"
+                + datasetFilter(datasetIds));
     }
 
-    public JsonNode experimentItems(String experimentId) {
+    /**
+     * One page of the newest experiments for the eval page.
+     * Langfuse orders by latest activity descending, and a wide {@code fromStartTime} scans history.
+     * The last 90 days is the fast path. An empty page falls back to one page from 2020, still without a cursor.
+     */
+    public JsonNode experimentsLatest(List<String> datasetIds) {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
         }
-        return pages("/api/public/experiment-items?fromStartTime=2020-01-01T00:00:00.000Z&limit=100&fields=scores&experimentId="
-                + URLEncoder.encode(experimentId, StandardCharsets.UTF_8));
+        var recent = get(experimentsPage(Instant.now().minus(Duration.ofDays(90)), datasetIds));
+        if (hasRows(recent)) {
+            return recent;
+        }
+        return get(experimentsPage(Instant.parse("2020-01-01T00:00:00Z"), datasetIds));
+    }
+
+    public JsonNode experimentItems(String experimentId) {
+        return experimentItems(experimentId, null);
+    }
+
+    /**
+     * Item scores for one experiment. A window around the experiment time stays on the recent index.
+     * An empty window falls back to the historical query so an odd timestamp still returns scores.
+     */
+    public JsonNode experimentItems(String experimentId, Instant around) {
+        if (baseUrl.isBlank() || authorization.isBlank()) {
+            throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
+        }
+        if (around != null) {
+            var page = pages(itemsPath(experimentId, around.minus(Duration.ofDays(1)), around.plus(Duration.ofDays(14))));
+            if (hasRows(page)) {
+                return page;
+            }
+        }
+        return pages(itemsPath(experimentId, Instant.parse("2020-01-01T00:00:00Z"), null));
+    }
+
+    private static String experimentsPage(Instant from, List<String> datasetIds) {
+        return "/api/public/experiments?limit=20&fields=core,scores&fromStartTime="
+                + URLEncoder.encode(from.toString(), StandardCharsets.UTF_8)
+                + datasetFilter(datasetIds);
+    }
+
+    private static String itemsPath(String experimentId, Instant from, Instant to) {
+        var path = "/api/public/experiment-items?limit=100&fields=scores&experimentId="
+                + URLEncoder.encode(experimentId, StandardCharsets.UTF_8)
+                + "&fromStartTime=" + URLEncoder.encode(from.toString(), StandardCharsets.UTF_8);
+        if (to != null) {
+            path += "&toStartTime=" + URLEncoder.encode(to.toString(), StandardCharsets.UTF_8);
+        }
+        return path;
+    }
+
+    private static String datasetFilter(List<String> datasetIds) {
+        if (datasetIds == null || datasetIds.isEmpty()) {
+            return "";
+        }
+        return "&datasetId=" + URLEncoder.encode(String.join(",", datasetIds), StandardCharsets.UTF_8);
+    }
+
+    private static boolean hasRows(JsonNode body) {
+        var data = body.path("data");
+        return data.isArray() && !data.isEmpty();
     }
 
     private JsonNode pages(String path) {
