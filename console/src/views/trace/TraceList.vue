@@ -47,6 +47,7 @@ const filter = reactive<{
   size: 10,
 })
 
+const failed = ref(false)
 const rows = computed(() => {
   const items = result.value?.items ?? []
   if (!filter.jobId) return items
@@ -83,6 +84,7 @@ async function loadJobs() {
 
 async function load() {
   loading.value = true
+  failed.value = false
   try {
     const window = traceWindow(filter.range)
     result.value = await listTraces({
@@ -97,7 +99,8 @@ async function load() {
       size: filter.size,
     })
   } catch (error) {
-    ElMessage.error(`加载链路失败：${toKeelError(error).message}`)
+    failed.value = true
+    ElMessage.error(toKeelError(error).message || '链路暂时拉不到，请稍后再试')
   } finally {
     loading.value = false
   }
@@ -163,6 +166,10 @@ loadJobs()
 
     <div v-loading="loading" class="card">
       <h3>调用记录<small>一行是一次用户调用（一个 trace），点击查看链路详情</small></h3>
+      <p v-if="failed" class="empty" style="padding: 12px 0">
+        链路暂时拉不到，请重试
+        <button type="button" class="btn sm" style="margin-left: 8px" @click="load">重试</button>
+      </p>
       <table class="t">
         <thead><tr><th>问题</th><th>智能体</th><th>来源</th><th>环境</th><th>开始</th><th>耗时</th><th>tokens</th><th>成本</th><th>状态</th></tr></thead>
         <tbody>
@@ -218,12 +225,12 @@ loadJobs()
             <td class="mono">{{ row.cost }}</td>
             <td><span class="pill nd p-soft">占位</span></td>
           </tr>
-          <tr v-if="!rows.length && !placeholders.length && !loading"><td colspan="9" class="empty">没有符合条件的链路</td></tr>
+          <tr v-if="!rows.length && !placeholders.length && !loading && !failed"><td colspan="9" class="empty">没有符合条件的链路</td></tr>
         </tbody>
       </table>
       <Pager v-model:page="filter.page" v-model:size="filter.size" :total="filter.jobId && !rows.length ? 0 : (result?.total ?? 0)" />
       <div class="mut" style="font-size: 11.5px; margin-top: 8px">按 <span class="mono">keel.devflow.job_id</span> 过滤，详情页沿用现有三视图。</div>
-      <div class="srcnote">列表由 keel-server 读 Langfuse Observations API v2，按 trace 收成一行摘要（问题、用量和成本在同一次调用的生成节点上）。智能体、状态、时间筛选和分页都在服务端完成；每行只带摘要，不带节点。点开一行才请求一次详情。</div>
+      <div class="srcnote">列表由 keel-server 读 Langfuse Observations API v2 的根节点摘要，用量来自生成节点的 usage，不拉全文。智能体、状态、时间筛选和分页都在服务端完成；每行只带摘要，不带节点。点开一行才请求一次详情。</div>
     </div>
   </div>
 </template>

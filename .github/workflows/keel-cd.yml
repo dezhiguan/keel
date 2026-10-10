@@ -334,6 +334,49 @@ jobs:
           ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
         run: bash deploy/ci/rollout-service.sh echo-agent deploy/k3s/services/echo-agent.yaml PLACEHOLDER_ECHO_IMAGE
 
+  deploy-chat-demo:
+    name: 部署 chat-demo
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [changes, build-echo]
+    if: needs.changes.outputs.echo == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: 配置 SSH
+        env:
+          SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
+          JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+        run: bash deploy/ci/configure-ssh.sh
+      - name: 用同一份 echo-agent 镜像发布 chat-demo
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${ACR_REGISTRY}" ]]; then echo "ACR_REGISTRY must be set"; exit 1; fi
+          tag="${GITHUB_SHA::12}"
+          pull="${ACR_REGISTRY%/}"
+          sed "s|PLACEHOLDER_ECHO_IMAGE|${pull}/echo-agent:${tag}|" deploy/k3s/services/chat-demo.yaml > /tmp/chat-demo.yaml
+          grep -q "PLACEHOLDER_" /tmp/chat-demo.yaml && { echo "镜像占位符未被替换"; exit 1; }
+          scp -F ~/.ssh/config /tmp/chat-demo.yaml keel-app:/tmp/chat-demo.yaml
+          password_b64="$(printf '%s' "${ACR_PASSWORD}" | base64 -w0)"
+          ssh -T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 keel-app \
+            "ACR_REGISTRY='${ACR_REGISTRY}' ACR_USERNAME='${ACR_USERNAME}' ACR_PASSWORD_B64='${password_b64}' bash -s" <<'EOF'
+          set -euo pipefail
+          ACR_PASSWORD="$(printf '%s' "${ACR_PASSWORD_B64}" | base64 -d)"
+          kubectl create namespace keel-system --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n keel-system create secret docker-registry acr-cred \
+            --docker-server="${ACR_REGISTRY%%/*}" \
+            --docker-username="${ACR_USERNAME}" \
+            --docker-password="${ACR_PASSWORD}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -f /tmp/chat-demo.yaml
+          kubectl -n keel-system rollout status deployment/chat-demo --timeout=180s
+          rm -f /tmp/chat-demo.yaml
+          EOF
+
   deploy-llm:
     name: 部署 keel-llm
     runs-on: ubuntu-latest

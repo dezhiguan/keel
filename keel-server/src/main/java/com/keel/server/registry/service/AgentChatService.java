@@ -1,6 +1,7 @@
 package com.keel.server.registry.service;
 
 import com.keel.common.error.ErrorCode;
+import com.keel.server.auth.ConsolePrincipal;
 import com.keel.server.common.KeelException;
 import com.keel.server.integration.agent.AgentEndpointClient;
 import com.keel.server.integration.audit.AuditStore;
@@ -40,9 +41,10 @@ public class AgentChatService {
         }
         AgentEndpointClient.Answer answer;
         try {
+            var userId = callerLabel();
             answer = "careermate".equals(name)
-                    ? endpoints.invoke(endpoint, text, careerMateToken, name, "dev")
-                    : endpoints.invoke(endpoint, text, null, name, "dev");
+                    ? endpoints.invoke(endpoint, text, careerMateToken, name, "dev", userId)
+                    : endpoints.invoke(endpoint, text, null, name, "dev", userId);
         } catch (RuntimeException e) {
             throw new KeelException(ErrorCode.SERVER_INTERNAL_ERROR,
                     e.getMessage() == null ? ErrorCode.SERVER_INTERNAL_ERROR.message() : e.getMessage());
@@ -52,5 +54,18 @@ public class AgentChatService {
         body.put("text", answer.text());
         body.put("traceId", answer.traceId());
         return body;
+    }
+
+    /** Display name when the console user has one. Preview sessions are not an operator. */
+    private static String callerLabel() {
+        var principal = ConsolePrincipal.current();
+        if (principal == null || principal.readOnly() || "PREVIEW".equals(principal.mode())) {
+            return null;
+        }
+        if (principal.displayName() != null && !principal.displayName().isBlank()) {
+            return principal.displayName();
+        }
+        var id = principal.userId();
+        return id == null || id.isBlank() ? null : id;
     }
 }

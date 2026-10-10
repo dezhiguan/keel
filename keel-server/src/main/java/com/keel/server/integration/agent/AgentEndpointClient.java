@@ -29,10 +29,17 @@ public class AgentEndpointClient {
     }
 
     public Answer invoke(String endpoint, String text, String bridgeToken, String agent, String env) {
+        return invoke(endpoint, text, bridgeToken, agent, env, null);
+    }
+
+    public Answer invoke(String endpoint, String text, String bridgeToken, String agent, String env, String userId) {
         var base = trim(endpoint);
         try {
             var payload = json.createObjectNode();
             payload.putObject("input").put("text", text);
+            if (userId != null && !userId.isBlank()) {
+                payload.putObject("context").put("user_id", userId);
+            }
             var builder = HttpRequest.newBuilder(URI.create(base + "/v1/invoke"))
                     .timeout(Duration.ofSeconds(60))
                     .header("Content-Type", "application/json");

@@ -108,7 +108,10 @@ def test_root_and_langgraph_child_spans_exclude_user_text(tmp_path, monkeypatch)
     async def invoke():
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=agent.asgi()),
                                      base_url="http://test") as client:
-            return await client.post("/v1/invoke", json={"input": {"text": "SECRET USER TEXT"}})
+            return await client.post("/v1/invoke", json={
+                "input": {"text": "SECRET USER TEXT"},
+                "context": {"user_id": "u_88"},
+            })
 
     assert asyncio.run(invoke()).status_code == 200
     spans = memory.get_finished_spans()
@@ -116,7 +119,11 @@ def test_root_and_langgraph_child_spans_exclude_user_text(tmp_path, monkeypatch)
     names = {span.name: span for span in spans}
     assert names["router"].context.trace_id == names["agent.run"].context.trace_id
     assert names["search"].parent.span_id == names["router"].context.span_id
-    assert "SECRET USER TEXT" not in str([(span.name, span.attributes) for span in spans])
+    root = names["agent.run"].attributes
+    assert root["langfuse.observation.input"] == "SECRET USER TEXT"
+    assert root["langfuse.user.id"] == "u_88"
+    assert "SECRET USER TEXT" not in str([
+        (span.name, span.attributes) for span in spans if span.name != "agent.run"])
     provider.shutdown()
 
 

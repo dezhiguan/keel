@@ -58,7 +58,7 @@ def test_litellm_request_generation_span_and_zero_cost_warning(monkeypatch, capl
     assert body["model"] == "qwen-plus"
     span = memory.get_finished_spans()[0]
     assert span.attributes["langfuse.observation.type"] == "generation"
-    assert span.attributes["langfuse.observation.input"] == "hello"
+    assert json.loads(span.attributes["langfuse.observation.input"]) == [{"role": "user", "content": "hello"}]
     assert span.attributes["langfuse.observation.output"] == "hello"
     assert span.attributes["gen_ai.usage.input_tokens"] == 3
     assert "zero cost" in caplog.text

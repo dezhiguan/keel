@@ -25,14 +25,15 @@ def _openai_base(url: str | None) -> str:
 
 
 def _observation_input(messages: list[dict]) -> str:
-    parts = []
+    """Keep roles. A flat join hides the user question behind the system prompt."""
+    rendered = []
     for message in messages:
         content = message.get("content")
-        if isinstance(content, str):
-            parts.append(content)
-        else:
-            parts.append(json.dumps(message, ensure_ascii=False))
-    return "\n".join(parts)
+        if not isinstance(content, str):
+            content = json.dumps(message, ensure_ascii=False)
+        role = message.get("role")
+        rendered.append({"role": role if isinstance(role, str) and role else "user", "content": content})
+    return json.dumps(rendered, ensure_ascii=False)
 
 
 class LlmClient:

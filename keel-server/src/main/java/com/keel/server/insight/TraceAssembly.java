@@ -395,15 +395,21 @@ public final class TraceAssembly {
         return names;
     }
 
+    /** List title is the user's question. The system prompt stays on the generation input summary. */
     private static String question(List<Span> spans) {
         for (Span span : spans) {
-            if (span.parent.isBlank() && !span.input.isBlank()) {
-                return span.input;
+            if (span.parent.isBlank() && !span.userText.isBlank()) {
+                return span.userText;
             }
         }
         for (Span span : spans) {
-            if (!span.input.isBlank()) {
-                return span.input;
+            if ("generation".equals(span.type) && !span.userText.isBlank()) {
+                return span.userText;
+            }
+        }
+        for (Span span : spans) {
+            if (!span.userText.isBlank()) {
+                return span.userText;
             }
         }
         return "";
@@ -524,6 +530,7 @@ public final class TraceAssembly {
         final String parentAgent;
         final String status;
         final String input;
+        final String userText;
         final String output;
         final String model;
         final String fallbackFrom;
@@ -550,7 +557,8 @@ public final class TraceAssembly {
             this.agent = meta.getOrDefault("keel.agent", "");
             this.parentAgent = meta.getOrDefault("keel.parent_agent", "");
             this.status = nodeStatus(row, meta);
-            this.input = observationText(row, "input");
+            this.input = observationBody(row);
+            this.userText = userTurn(row);
             this.output = observationText(row, "output");
             this.model = model(row, meta);
             this.fallbackFrom = meta.getOrDefault("keel.fallback_from", "");
@@ -795,11 +803,93 @@ public final class TraceAssembly {
     }
 
     private static String observationText(JsonNode row, String field) {
+        return textValue(fieldNode(row, field));
+    }
+
+    /** Full text shown on a node. A chat payload keeps every role, including the system prompt. */
+    private static String observationBody(JsonNode row) {
+        var node = fieldNode(row, "input");
+        var messages = messageList(node);
+        if (messages != null) {
+            return formatMessages(messages);
+        }
+        return textValue(node);
+    }
+
+    /** The user question: the last user turn, or the whole text when the payload has no roles. */
+    private static String userTurn(JsonNode row) {
+        var node = fieldNode(row, "input");
+        var messages = messageList(node);
+        if (messages != null) {
+            return userMessage(messages);
+        }
+        return textValue(node);
+    }
+
+    private static JsonNode fieldNode(JsonNode row, String field) {
         var node = row.path(field);
         if (node.isMissingNode() || node.isNull() || (node.isTextual() && node.asText().isBlank())) {
             node = row.path("metadata").path("langfuse.observation." + field);
         }
-        return textValue(node);
+        return node;
+    }
+
+    private static JsonNode messageList(JsonNode node) {
+        var parsed = unwrapJsonText(node);
+        if (parsed != null && parsed.isArray() && looksLikeMessages(parsed)) {
+            return parsed;
+        }
+        if (parsed != null && parsed.isObject()) {
+            var messages = parsed.path("messages");
+            if (messages.isArray() && looksLikeMessages(messages)) {
+                return messages;
+            }
+        }
+        return null;
+    }
+
+    private static boolean looksLikeMessages(JsonNode array) {
+        if (array == null || !array.isArray() || array.isEmpty()) {
+            return false;
+        }
+        var first = array.get(0);
+        return first.isObject() && (first.has("role") || first.has("content"));
+    }
+
+    private static JsonNode unwrapJsonText(JsonNode node) {
+        if (node != null && node.isTextual()) {
+            var text = node.asText().trim();
+            if (text.startsWith("{") || text.startsWith("[")) {
+                try {
+                    var parsed = JSON.readTree(text);
+                    if (parsed.isObject() || parsed.isArray()) {
+                        return parsed;
+                    }
+                } catch (java.io.IOException ignored) {
+                    // Ordinary text that happens to start with a bracket.
+                }
+            }
+        }
+        return node;
+    }
+
+    private static String formatMessages(JsonNode messages) {
+        var text = new StringBuilder();
+        for (var item : messages) {
+            var content = item.isTextual() ? item.asText().trim() : contentOf(item);
+            if (content.isBlank()) {
+                continue;
+            }
+            if (!text.isEmpty()) {
+                text.append('\n');
+            }
+            var role = item.path("role").asText("").trim();
+            if (!role.isBlank()) {
+                text.append('[').append(role).append("] ");
+            }
+            text.append(content);
+        }
+        return text.toString();
     }
 
     private static String textValue(JsonNode node) {

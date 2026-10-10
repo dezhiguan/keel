@@ -43,6 +43,7 @@ public enum ErrorCode {
     AUTH_LOCKED("登录失败次数过多，请 15 分钟后再试", false, 423),
     AUTH_SMS_RATE_LIMITED("操作太频繁，请稍后再试", true, 429),
     AUTH_GATEWAY_UNAVAILABLE("登录服务暂时不可用，请稍后再试", true, 503),
+    INSIGHT_UPSTREAM_UNAVAILABLE("链路暂时拉不到，请稍后再试", true, 503),
     GIT_UPSTREAM_FAILED("GitHub 调用失败", true, 502),
     DEVFLOW_BUDGET_EXCEEDED("研发任务花费已达到预算上限", false, 409),
     DEVFLOW_FIX_ROUNDS_EXHAUSTED("修复轮次已用完", false, 409),

@@ -55,9 +55,11 @@ class AgentEndpointClientTest {
 
     @Test void invokeNamesTheRegisteredAgentAndEnvironment() throws Exception {
         var headers = new java.util.concurrent.atomic.AtomicReference<com.sun.net.httpserver.Headers>();
+        var seen = new AtomicReference<String>();
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/v1/invoke", exchange -> {
             headers.set(exchange.getRequestHeaders());
+            seen.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             var body = """
                     event: final
                     data: {"answer":"ok","trace_id":"tr","run_id":"run"}
@@ -69,10 +71,11 @@ class AgentEndpointClientTest {
         server.start();
         try {
             var answer = new AgentEndpointClient().invoke(
-                    "http://127.0.0.1:" + server.getAddress().getPort(), "hi", null, "prompt-lab", "dev");
+                    "http://127.0.0.1:" + server.getAddress().getPort(), "hi", null, "prompt-lab", "dev", "官德志");
             assertThat(answer.text()).isEqualTo("ok");
             assertThat(headers.get().getFirst("X-Keel-Agent")).isEqualTo("prompt-lab");
             assertThat(headers.get().getFirst("X-Keel-Env")).isEqualTo("dev");
+            assertThat(seen.get()).contains("\"user_id\":\"官德志\"");
         } finally {
             server.stop(0);
         }

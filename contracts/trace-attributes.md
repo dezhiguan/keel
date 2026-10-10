@@ -14,7 +14,7 @@ Python SDK 和 Java starter 产生的属性键集合必须完全一致。这份�
 | 属性 | 取值 | 说明 |
 |---|---|---|
 | `langfuse.observation.type` | `agent` \| `generation` \| `tool` \| `retriever` \| `guardrail` \| `event` | 节点类型 |
-| `langfuse.observation.input` | 字符串 | 这次模型调用的输入。控制台从 Langfuse observation 读回 |
+| `langfuse.observation.input` | 字符串 | 根 span 只放用户问题（调用的 `input.text`）。generation 放带 `role` 的消息 JSON。控制台列表用用户问题，节点输入摘要保留发给模型的全文 |
 | `langfuse.observation.output` | 字符串 | 这次模型调用的回复 |
 | `langfuse.session.id` | 字符串 | 多轮对话归到同一会话 |
 | `langfuse.user.id` | 字符串 | |
@@ -62,6 +62,6 @@ generation span **只由 Keel SDK 上报一次**。薄网关不向 Langfuse 上�
 
 ## 禁止事项
 
-- generation 的 `langfuse.observation.input` / `output` 带这次调用的问题和回复。控制台链路页从 Langfuse 读回这两项并展示
-- 其他 span 属性不放用户原文，也不放厂商 API Key 和检索到的文档全文（只放 citations 的标识）。审计仍只收 manifest `audit.captureFields` 白名单
+- generation 的 `langfuse.observation.input` 是带角色的消息 JSON，`output` 只放模型回复。控制台链路页从 Langfuse 读回这两项并展示。提示词原文只出现在 generation 的 input 里
+- 根 span 的 `langfuse.observation.input` 只放用户问题，不放系统提示词。除此之外，其他 span 属性不放用户原文，也不放厂商 API Key 和检索到的文档全文（只放 citations 的标识）。审计仍只收 manifest `audit.captureFields` 白名单
 - 所有日志必须带 `trace_id` 和 `agent`

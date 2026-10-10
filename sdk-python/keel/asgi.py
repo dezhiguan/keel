@@ -41,7 +41,7 @@ def _error(code: ErrorCode, trace_id: str = "", run_id: str = "", message: str |
 
 
 def _stamp_call(span, data: dict, env: str | None) -> None:
-    """Environment, user and session live on the root span. The question stays on the generation."""
+    """Environment, user and the user's question live on the root span. The prompt stays on the generation."""
     if env:
         span.set_attribute(attrs.ENVIRONMENT, env)
         span.set_attribute(attrs.ENV, env)
@@ -51,6 +51,10 @@ def _stamp_call(span, data: dict, env: str | None) -> None:
     session = data.get("session_id") if isinstance(data, dict) else None
     if isinstance(session, str) and session:
         span.set_attribute(attrs.SESSION_ID, session)
+    raw_input = data.get("input") if isinstance(data, dict) else None
+    question = raw_input.get("text") if isinstance(raw_input, dict) else None
+    if isinstance(question, str) and question.strip():
+        span.set_attribute(attrs.OBSERVATION_INPUT, question.strip())
 
 
 def _caller(header: str | None, fallback: str) -> str:

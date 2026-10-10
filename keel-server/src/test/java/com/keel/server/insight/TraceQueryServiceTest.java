@@ -1,5 +1,7 @@
 package com.keel.server.insight;
 
+import com.keel.common.error.ErrorCode;
+import com.keel.server.auth.ConsoleUsers;
 import com.keel.server.common.KeelException;
 import com.keel.server.integration.langfuse.LangfuseClient;
 import com.keel.server.integration.langfuse.LangfuseRateLimit;
@@ -42,8 +44,8 @@ class TraceQueryServiceTest {
             service.list(1, 10, "", "all", null, now.minus(Duration.ofHours(1)), now, false, null);
             service.list(1, 10, "", "all", null, now.minus(Duration.ofHours(1)), now, false, null);
             service.list(1, 10, "", "all", null, now.minus(Duration.ofHours(24)), now, false, null);
-            assertThat(starts).hasSize(2);
-            var differenceMs = Duration.between(starts.get(1), starts.get(0)).toMillis();
+            assertThat(starts).hasSize(4);
+            var differenceMs = Duration.between(starts.get(2), starts.get(0)).toMillis();
             assertThat(Math.abs(differenceMs - Duration.ofHours(24).toMillis())).isLessThan(2_000L);
         } finally {
             server.stop(0);
@@ -166,10 +168,17 @@ class TraceQueryServiceTest {
         var service = new TraceQueryService(client(server), "https://jp.cloud.langfuse.com", "proj-1", Map.of());
         service.list(1, 10, "", "prod", "ok", java.time.Instant.parse("2026-10-06T00:00:00Z"), java.time.Instant.parse("2026-10-08T00:00:00Z"), false, null);
         service.list(1, 20, "askdb", "prod", "failed", java.time.Instant.parse("2026-10-07T00:00:00Z"), java.time.Instant.parse("2026-10-07T02:00:00Z"), true, null);
-        assertThat(queries).hasSize(1);
-        assertThat(queries.getFirst()).contains("fields=core,basic,io,metadata,model,usage");
-        assertThat(queries.getFirst()).contains("AGENT").contains("GENERATION").contains("TOOL");
-        assertThat(queries.getFirst()).doesNotContain("isRootObservation");
+        assertThat(queries).hasSize(2);
+        assertThat(queries).anySatisfy(query -> {
+            assertThat(query).contains("isRootObservation=true");
+            assertThat(query).contains("fields=core,basic,io,metadata,model,usage");
+        });
+        assertThat(queries).anySatisfy(query -> {
+            assertThat(query).contains("fields=core,basic,metadata,model,usage");
+            assertThat(query).contains("GENERATION").contains("TOOL");
+            assertThat(query).doesNotContain("isRootObservation");
+            assertThat(query).doesNotContain("fields=core,basic,io");
+        });
         server.stop(0);
     }
 
@@ -270,6 +279,60 @@ class TraceQueryServiceTest {
         assertThat(((Number) row.get("costCny")).doubleValue()).isEqualTo(8000 * 0.0000008 + 2578 * 0.000002);
         assertThat(row.get("status")).isEqualTo("fallback");
         assertThat(row.get("durationMs")).isEqualTo(11200);
+        var detail = service.detail("tr-wind");
+        @SuppressWarnings("unchecked")
+        var nodes = (List<Map<String, Object>>) detail.get("nodes");
+        assertThat(nodes).anySatisfy(node -> {
+            if ("llm.chat".equals(node.get("name"))) {
+                assertThat(String.valueOf(node.get("inputSummary"))).contains("[system] 你是助手").contains("[user] WT-07");
+            }
+        });
+        server.stop(0);
+    }
+
+    @Test void listShowsTheConsoleUserNameAndRole() throws Exception {
+        var server = server(new ArrayList<>(), """
+                {"data":[
+                  {"id":"root","traceId":"tr-me","name":"agent.run","startTime":"2026-10-07T01:00:00.000Z","endTime":"2026-10-07T01:00:01.000Z","input":{"text":"你好"},"metadata":{"keel.agent":"chat-demo","keel.env":"dev","keel.status":"ok","langfuse.observation.type":"agent","langfuse.user.id":"官德志"}}
+                ]}
+                """);
+        var service = new TraceQueryService(client(server), "https://jp.cloud.langfuse.com", "proj-1", Map.of(),
+                SavedTraces.EMPTY, null, new ConsoleUsers("amy"));
+        @SuppressWarnings("unchecked")
+        var items = (List<Map<String, Object>>) service.list(1, 10).get("items");
+        assertThat(items.getFirst().get("question")).isEqualTo("你好");
+        assertThat(items.getFirst().get("userId")).isEqualTo("官德志");
+        assertThat(items.getFirst().get("userRole")).isEqualTo("ADMIN");
+        server.stop(0);
+    }
+
+    @Test void listDoesNotTurnAnUpstreamFailureIntoAnEmptyPage() throws Exception {
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            exchange.sendResponseHeaders(500, -1);
+            exchange.close();
+        });
+        server.start();
+        var saved = new SavedTraces() {
+            @Override
+            public void save(String agent, String env, String traceId, String question, int durationMs) {
+            }
+
+            @Override
+            public Map<String, Object> list(int page, int size, String agent) {
+                throw new AssertionError("local list");
+            }
+
+            @Override
+            public Map<String, Object> detail(String traceId) {
+                return null;
+            }
+        };
+        var service = new TraceQueryService(client(server), "https://jp.cloud.langfuse.com", "proj-1", Map.of(), saved);
+        assertThatThrownBy(() -> service.list(1, 10))
+                .isInstanceOf(KeelException.class)
+                .extracting(error -> ((KeelException) error).code())
+                .isEqualTo(ErrorCode.INSIGHT_UPSTREAM_UNAVAILABLE);
         server.stop(0);
     }
 

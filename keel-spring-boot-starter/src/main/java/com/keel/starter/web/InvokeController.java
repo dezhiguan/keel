@@ -49,6 +49,7 @@ public class InvokeController {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM);
         }
         if (!valid(body)) throw new KeelException(ErrorCode.SERVER_INVALID_PARAM);
+        stampCaller(body);
         // TODO(P3-1): persist idempotency_key and return the original run on retries.
         AgentBinding binding = registry.resolve(request);
         String runId = UUID.randomUUID().toString().replace("-", "");
@@ -135,6 +136,18 @@ public class InvokeController {
         if (event instanceof SuspendEvent) return "suspend";
         if (event instanceof ErrorEvent) return "error";
         throw new IllegalArgumentException("Not a terminal event");
+    }
+
+    private static void stampCaller(Map<String, Object> body) {
+        Span span = Span.current();
+        Object context = body.get("context");
+        if (context instanceof Map<?, ?> map && map.get("user_id") instanceof String user && !user.isBlank()) {
+            span.setAttribute(SpanAttributes.USER_ID, user);
+        }
+        Object input = body.get("input");
+        if (input instanceof Map<?, ?> map && map.get("text") instanceof String text && !text.isBlank()) {
+            span.setAttribute(SpanAttributes.OBSERVATION_INPUT, text);
+        }
     }
 
     private static boolean valid(Map<String, Object> body) {

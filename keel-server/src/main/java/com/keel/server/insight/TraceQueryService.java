@@ -2,10 +2,13 @@ package com.keel.server.insight;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.keel.common.error.ErrorCode;
+import com.keel.server.auth.ConsoleUsers;
 import com.keel.server.common.KeelException;
 import com.keel.server.integration.langfuse.LangfuseClient;
 import com.keel.server.integration.langfuse.LangfuseRateLimit;
 import com.keel.server.integration.litellm.LiteLlmClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -21,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class TraceQueryService {
+    private static final Logger log = LoggerFactory.getLogger(TraceQueryService.class);
     private static final Duration LIST_TTL = Duration.ofSeconds(30);
     private static final Duration PRICE_TTL = Duration.ofMinutes(5);
     private static final Duration LIST_WINDOW = Duration.ofDays(7);
@@ -30,6 +34,7 @@ public class TraceQueryService {
     private final Map<String, double[]> pricesCnyPerToken;
     private final LiteLlmClient pricesSource;
     private final SavedTraces saved;
+    private final ConsoleUsers users;
     private final Map<String, CachedRoots> listCache = new ConcurrentHashMap<>();
     private record CachedRoots(List<JsonNode> rows, Instant at) {}
     private final Object priceCache = new Object();
@@ -41,8 +46,9 @@ public class TraceQueryService {
                              @Value("${LANGFUSE_HOST:}") String host,
                              @Value("${LANGFUSE_PROJECT_ID:}") String projectId,
                              SavedTraces saved,
-                             LiteLlmClient pricesSource) {
-        this(langfuse, host, projectId, Map.of(), saved, pricesSource);
+                             LiteLlmClient pricesSource,
+                             ConsoleUsers users) {
+        this(langfuse, host, projectId, Map.of(), saved, pricesSource, users);
     }
 
     public TraceQueryService(LangfuseClient langfuse, String host, String projectId, Map<String, double[]> pricesCnyPerToken) {
@@ -56,12 +62,18 @@ public class TraceQueryService {
 
     public TraceQueryService(LangfuseClient langfuse, String host, String projectId, Map<String, double[]> pricesCnyPerToken,
                              SavedTraces saved, LiteLlmClient pricesSource) {
+        this(langfuse, host, projectId, pricesCnyPerToken, saved, pricesSource, null);
+    }
+
+    public TraceQueryService(LangfuseClient langfuse, String host, String projectId, Map<String, double[]> pricesCnyPerToken,
+                             SavedTraces saved, LiteLlmClient pricesSource, ConsoleUsers users) {
         this.langfuse = langfuse;
         this.host = host == null ? "" : host.replaceAll("/$", "");
         this.projectId = projectId == null ? "" : projectId;
         this.pricesCnyPerToken = pricesCnyPerToken == null ? Map.of() : pricesCnyPerToken;
         this.pricesSource = pricesSource;
         this.saved = saved == null ? SavedTraces.EMPTY : saved;
+        this.users = users;
     }
 
     /** Tests pass a price map. Production reads the thin gateway's CNY-per-token catalog. */
@@ -137,14 +149,30 @@ public class TraceQueryService {
                 }
                 items.sort(Comparator.comparing((Map<String, Object> item) -> String.valueOf(item.getOrDefault("startedAt", ""))).reversed());
                 var matched = items.stream().filter(item -> matches(item, agent, env, status, from, to, multiOnly, minDurationMs, jobId)).toList();
-                return page(page, size, matched);
+                return present(page(page, size, matched));
             }
         } catch (LangfuseRateLimit limited) {
             throw limited;
-        } catch (RuntimeException ignored) {
-            // Langfuse 没配好或读失败时，改看本机探针写下的 trace。限流不走这条，否则会把直接上报的调用藏起来。
+        } catch (RuntimeException ex) {
+            if (unconfigured(ex)) {
+                return present(filterJob(saved.list(page, size, agent, env, status, from, to, multiOnly, minDurationMs), jobId));
+            }
+            log.warn("Langfuse trace list failed", ex);
+            throw new KeelException(ErrorCode.INSIGHT_UPSTREAM_UNAVAILABLE, ErrorCode.INSIGHT_UPSTREAM_UNAVAILABLE.message());
         }
-        return filterJob(saved.list(page, size, agent, env, status, from, to, multiOnly, minDurationMs), jobId);
+        return present(filterJob(saved.list(page, size, agent, env, status, from, to, multiOnly, minDurationMs), jobId));
+    }
+
+    private static boolean unconfigured(Throwable error) {
+        var current = error;
+        while (current != null) {
+            var message = current.getMessage();
+            if (message != null && message.contains("未配置")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     /** Reuse a coarse upstream window, then apply the exact user filters in memory. */
@@ -158,7 +186,7 @@ public class TraceQueryService {
             if (cached != null && cached.at().plus(LIST_TTL).isAfter(now)) {
                 return cached;
             }
-            var body = langfuse.observationsBetween(now.minus(window), now);
+            var body = langfuse.observationsForList(now.minus(window), now);
             var loaded = new ArrayList<JsonNode>();
             body.path("data").forEach(loaded::add);
             return new CachedRoots(List.copyOf(loaded), now);
@@ -180,6 +208,43 @@ public class TraceQueryService {
             data.put("langfuseUrl", host + "/project/" + projectId + "/traces");
         }
         return data;
+    }
+
+    private Map<String, Object> present(Map<String, Object> listed) {
+        if (users == null || listed == null) {
+            return listed;
+        }
+        var raw = listed.get("items");
+        if (raw instanceof List<?> items) {
+            for (var item : items) {
+                if (item instanceof Map<?, ?> row) {
+                    @SuppressWarnings("unchecked")
+                    var summary = (Map<String, Object>) row;
+                    presentUser(summary);
+                }
+            }
+        }
+        return listed;
+    }
+
+    /** The span stores an id. The list shows the console user's name, and the role when the user table has one. */
+    private void presentUser(Map<String, Object> summary) {
+        var raw = summary.get("userId");
+        if (!(raw instanceof String id) || id.isBlank()) {
+            return;
+        }
+        var match = users.only().filter(user -> id.equals(user.username())
+                || id.equals("local-" + user.username())
+                || id.equals(user.displayName())).orElse(null);
+        if (match == null) {
+            return;
+        }
+        if (match.displayName() != null && !match.displayName().isBlank()) {
+            summary.put("userId", match.displayName());
+        }
+        if (match.platformRole() != null && !match.platformRole().isBlank()) {
+            summary.put("userRole", match.platformRole());
+        }
     }
 
     private static void copyPending(Map<String, Object> summary, Map<String, Object> pending) {

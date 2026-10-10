@@ -19,8 +19,10 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /** Langfuse public API. Does not call the removed dataset-run-items route. */
 public class LangfuseClient {
@@ -235,6 +237,71 @@ public class LangfuseClient {
             path += "&toStartTime=" + URLEncoder.encode(to.toString(), StandardCharsets.UTF_8);
         }
         return pages(path);
+    }
+
+    /**
+     * Observations for one console trace-list window.
+     * Roots keep input, because that field is the user question. Every other observation is fetched
+     * without input and output: tokens, status and agent names live in metadata and usage.
+     */
+    public JsonNode observationsForList(Instant from, Instant to) {
+        if (baseUrl.isBlank() || authorization.isBlank()) {
+            throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
+        }
+        var typeFilter = "[{\"type\":\"stringOptions\",\"column\":\"type\",\"operator\":\"any of\","
+                + "\"value\":[\"AGENT\",\"GENERATION\",\"TOOL\",\"RETRIEVER\",\"GUARDRAIL\",\"CHAIN\",\"EMBEDDING\",\"EVALUATOR\"]}]";
+        var encoded = URLEncoder.encode(typeFilter, StandardCharsets.UTF_8);
+        var rest = pages(windowPath("core,basic,metadata,model,usage", encoded, false, from, to));
+        var roots = pages(windowPath("core,basic,io,metadata,model,usage", encoded, true, from, to));
+        return mergeObservations(rest, roots);
+    }
+
+    private String windowPath(String fields, String filter, boolean rootsOnly, Instant from, Instant to) {
+        var path = "/api/public/v2/observations?limit=100&fields=" + fields + "&filter=" + filter;
+        if (rootsOnly) {
+            path += "&isRootObservation=true";
+        }
+        if (from != null) {
+            path += "&fromStartTime=" + URLEncoder.encode(from.toString(), StandardCharsets.UTF_8);
+        }
+        if (to != null) {
+            path += "&toStartTime=" + URLEncoder.encode(to.toString(), StandardCharsets.UTF_8);
+        }
+        return path;
+    }
+
+    /** Later rows replace an earlier copy of the same observation when they carry input. */
+    private JsonNode mergeObservations(JsonNode first, JsonNode second) {
+        var byId = new LinkedHashMap<String, JsonNode>();
+        addRows(byId, first);
+        addRows(byId, second);
+        var data = json.createArrayNode();
+        byId.values().forEach(data::add);
+        var body = json.createObjectNode();
+        body.set("data", data);
+        return body;
+    }
+
+    private static void addRows(Map<String, JsonNode> byId, JsonNode body) {
+        var rows = body.path("data");
+        if (!rows.isArray()) {
+            return;
+        }
+        for (var row : rows) {
+            var id = row.path("id").asText("");
+            if (id.isBlank()) {
+                id = row.path("traceId").asText("") + "|" + row.path("startTime").asText("") + "|" + row.path("name").asText("");
+            }
+            var existing = byId.get(id);
+            if (existing == null || blankInput(existing) && !blankInput(row)) {
+                byId.put(id, row);
+            }
+        }
+    }
+
+    private static boolean blankInput(JsonNode row) {
+        var input = row.path("input");
+        return input.isMissingNode() || input.isNull() || (input.isTextual() && input.asText().isBlank());
     }
 
     /**
