@@ -338,8 +338,14 @@ jobs:
     name: 部署 chat-demo
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [changes, build-echo]
-    if: needs.changes.outputs.echo == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [changes, build-echo, deploy-echo]
+    if: >-
+      always() &&
+      needs.changes.outputs.echo == 'true' &&
+      needs.build-echo.result == 'success' &&
+      (needs.deploy-echo.result == 'success' || needs.deploy-echo.result == 'skipped') &&
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - name: 配置 SSH
@@ -373,7 +379,12 @@ jobs:
             --docker-password="${ACR_PASSWORD}" \
             --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply -f /tmp/chat-demo.yaml
-          kubectl -n keel-system rollout status deployment/chat-demo --timeout=180s
+          if ! kubectl -n keel-system rollout status deployment/chat-demo --timeout=180s; then
+            pods="$(kubectl -n keel-system get pods -l app=chat-demo -o wide)"
+            echo "::error title=chat-demo not ready::${pods}"
+            kubectl -n keel-system describe pods -l app=chat-demo | tail -n 60
+            exit 1
+          fi
           rm -f /tmp/chat-demo.yaml
           EOF
 
