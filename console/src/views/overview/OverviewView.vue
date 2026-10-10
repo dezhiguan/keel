@@ -12,9 +12,9 @@ import { agentStatus, fmtN } from '@/utils/format'
 import { agentType } from '@/views/agents/employees'
 import { ALERT_KIND, fmtMoney, fmtScore, fmtSeconds, hm, pipelineCards, pipelineMoney, techLabel, trendText, type PipelineCards } from './overviewFormat'
 
-type Category = 'all' | 'biz' | 'dev'
+type Category = 'all' | 'biz' | 'dev' | 'meta'
 
-const CATEGORIES: [Category, string][] = [['all', '全部'], ['biz', '业务智能体'], ['dev', '研发智能体']]
+const CATEGORIES: [Category, string][] = [['all', '全部'], ['biz', '业务智能体'], ['dev', '研发智能体'], ['meta', '元智能体']]
 
 const route = useRoute()
 const router = useRouter()
@@ -35,7 +35,7 @@ const uncategorized = computed(() => {
   const known = (kpi.value?.bizCount ?? 0) + (kpi.value?.devCount ?? 0)
   return Math.max(0, total - known)
 })
-const filtered = computed(() => (overview.value?.agents ?? []).filter((agent) => category.value === 'all' || agent.category === category.value))
+const filtered = computed(() => (overview.value?.agents ?? []).filter((agent) => category.value === 'all' || agentType(agent) === category.value))
 const rows = computed(() => filtered.value.slice((page.value - 1) * size.value, page.value * size.value))
 const bars = computed(() =>
   [...(overview.value?.costByAgent ?? [])]
