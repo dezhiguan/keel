@@ -6,6 +6,7 @@ import com.keel.server.common.KeelException;
 import com.keel.server.integration.langfuse.LangfuseClient;
 import com.keel.server.registry.service.AgentRegistryService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -22,16 +23,26 @@ import java.util.function.Function;
 public class EvalQueryService {
     private final LangfuseClient langfuse;
     private final Function<String, JsonNode> manifest;
+    private final String host;
+    private final String projectId;
     private final Map<String, Run> runs = new ConcurrentHashMap<>();
 
     @Autowired
-    public EvalQueryService(LangfuseClient langfuse, AgentRegistryService registry) {
-        this(langfuse, registry::manifestOrEmpty);
+    public EvalQueryService(LangfuseClient langfuse, AgentRegistryService registry,
+                            @Value("${LANGFUSE_HOST:}") String host,
+                            @Value("${LANGFUSE_PROJECT_ID:}") String projectId) {
+        this(langfuse, registry::manifestOrEmpty, host, projectId);
     }
 
     EvalQueryService(LangfuseClient langfuse, Function<String, JsonNode> manifest) {
+        this(langfuse, manifest, "", "");
+    }
+
+    EvalQueryService(LangfuseClient langfuse, Function<String, JsonNode> manifest, String host, String projectId) {
         this.langfuse = langfuse;
         this.manifest = manifest;
+        this.host = host == null ? "" : host;
+        this.projectId = projectId == null ? "" : projectId;
     }
 
     public Map<String, Object> latest(String agent) {
@@ -54,7 +65,12 @@ public class EvalQueryService {
         if (dataset.isBlank()) {
             dataset = gate.dataset();
         }
-        return result(agent, dataset, gate, chosen, items(chosen));
+        var body = result(agent, dataset, gate, chosen, items(chosen));
+        var url = datasetUrl(chosen, index, dataset);
+        if (!url.isBlank()) {
+            body.put("langfuseUrl", url);
+        }
+        return body;
     }
 
     /** Latest experiment score per agent, the same number the eval page shows. Missing agents are omitted. */
@@ -388,6 +404,21 @@ public class EvalQueryService {
         return new Gate(dataset, min, regression);
     }
 
+    /** Langfuse 数据集页用数据集 id，名字里的 / 不能放进路径。 */
+    private String datasetUrl(JsonNode experiment, DatasetIndex index, String datasetName) {
+        if (host.isBlank() || projectId.isBlank()) {
+            return "";
+        }
+        var datasetId = experiment.path("datasetId").asText("");
+        if (datasetId.isBlank()) {
+            datasetId = index.idOf(datasetName);
+        }
+        var path = datasetId.isBlank()
+                ? "/datasets"
+                : "/datasets/" + datasetId + "/experiments";
+        return host + "/project/" + projectId + path;
+    }
+
     private record Gate(String dataset, double minScore, double maxRegressionPt) {}
 
     private record DatasetIndex(Map<String, String> idByName, Map<String, String> nameById) {
@@ -414,6 +445,13 @@ public class EvalQueryService {
                 return "";
             }
             return nameById.getOrDefault(datasetId, "");
+        }
+
+        private String idOf(String name) {
+            if (name == null || name.isBlank()) {
+                return "";
+            }
+            return idByName.getOrDefault(name, "");
         }
 
         private String agentOf(String datasetId) {

@@ -961,7 +961,7 @@ keel eval run --dataset code-review/findings <span class="c"># 和 CI 同一套�
       <tr><td>工具与审批</td><td><code>/tools</code> · <code>/approvals</code></td><td>工具注册表（版本、状态、依赖方）、废弃工具弹窗、审批批准 / 驳回</td><td><code>tools</code> · <code>approvals</code></td></tr>
       <tr><td>审计中心</td><td><code>/audit</code></td><td>筛选、详情抽屉、哈希链校验</td><td><code>audit/events</code></td></tr>
       <tr><td>模型网关</td><td><code>/models</code></td><td>模型、虚拟 Key 与预算</td><td><code>insight/costs</code></td></tr>
-      <tr><td>评测中心</td><td><code>/eval</code></td><td>门禁结论、分维度对比</td><td><code>release</code> · Langfuse</td></tr>
+      <tr><td>评测中心</td><td><code>/eval</code></td><td>门禁结论、分维度对比。「在 Langfuse 中打开」深链到该数据集的实验页 <code>{langfuse}/project/{id}/datasets/{datasetId}/experiments</code></td><td><code>eval</code> · Langfuse</td></tr>
     </tbody>
   </table>
   <div class="note info">权限：平台管理员看全部；智能体负责人只能看和操作自己组织的智能体；审批人只看到分给自己的审批单。菜单和按钮都按角色控制，后端再校验一次。</div>

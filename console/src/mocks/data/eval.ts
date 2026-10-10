@@ -31,6 +31,7 @@ export function latestEval(agent: string): EvalResult | null {
   return {
     agent,
     dataset: `${agent}/main`,
+    langfuseUrl: `https://jp.cloud.langfuse.com/project/keel/datasets/${agent}/experiments`,
     caseCount: dimensions.reduce((n, d) => n + (d.cases ?? 0), 0),
     prodVersion: a.prod,
     candidateVersion: a.candidate,

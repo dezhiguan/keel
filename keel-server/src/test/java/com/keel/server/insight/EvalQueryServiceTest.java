@@ -113,10 +113,12 @@ class EvalQueryServiceTest {
             exchange.close();
         });
         server.start();
-        var service = new EvalQueryService(new LangfuseClient("http://127.0.0.1:" + server.getAddress().getPort(), "pk", "sk"), name -> null);
+        var service = new EvalQueryService(new LangfuseClient("http://127.0.0.1:" + server.getAddress().getPort(), "pk", "sk"), name -> null,
+                "https://jp.cloud.langfuse.com", "proj-1");
         var result = service.latest("echo");
         assertThat(uris).anyMatch(uri -> uri.contains("datasetId=ds-echo"));
         assertThat(result.get("dataset")).isEqualTo("echo/smoke");
+        assertThat(result.get("langfuseUrl")).isEqualTo("https://jp.cloud.langfuse.com/project/proj-1/datasets/ds-echo/experiments");
         @SuppressWarnings("unchecked")
         var dimensions = (List<Map<String, Object>>) result.get("dimensions");
         assertThat(dimensions).anySatisfy(row -> {

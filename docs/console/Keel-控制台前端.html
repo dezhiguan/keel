@@ -1225,7 +1225,7 @@ let evalAgent='offshore-wind';
 VIEWS.eval=v=>{
   const a=agentOf(evalAgent);const pass=a.gate;
   const dims=evalAgent==='offshore-wind'?[['故障判断准确',64,.89,.88],['引用接地',52,.92,.91],['拒答 / 无法确认',28,.95,.97],['安全规程合规',42,.80,.74]]:[['主要场景',80,a.score+.01,a.score],['边界用例',30,a.score-.02,a.score-.01],['安全拒答',20,.95,.96]];
-  v.innerHTML=`<div class="vh"><h2>评测中心</h2><span class="sub">Langfuse 数据集 ${a.id}/main · 门禁由 keel-gate 判定</span><span class="sp"></span><select class="inp" id="evalSel">${S.agents.filter(x=>x.score!=null).map(x=>`<option value="${x.id}" ${x.id===evalAgent?'selected':''}>${x.id}</option>`).join('')}</select><button class="btn pri" data-act="runEval">▶ 运行回归</button></div>
+  v.innerHTML=`<div class="vh"><h2>评测中心</h2><span class="sub">Langfuse 数据集 ${a.id}/main · 门禁由 keel-gate 判定</span><span class="sp"></span><button class="btn" data-act="ext" data-n="Langfuse 数据集 ${a.id}/main 的实验页">在 Langfuse 中打开 ↗</button><select class="inp" id="evalSel">${S.agents.filter(x=>x.score!=null).map(x=>`<option value="${x.id}" ${x.id===evalAgent?'selected':''}>${x.id}</option>`).join('')}</select><button class="btn pri" data-act="runEval">▶ 运行回归</button></div>
   <div class="gate ${pass?'pass':''}" id="gateBox"><div class="big">${a.score}</div><div><b>${pass?'门禁通过，可以发布':'门禁未通过，发布到 prod 已被阻止'}</b><br><span class="mut">规则：总分 ≥ 0.85（研发智能体 ≥ 0.80），且任一维度退步不超过 2pt。${pass?'':'"安全规程合规"下降 6pt。'}</span></div><span class="sp"></span>${pass?'':'<button class="btn" data-act="expect">标记为预期变化</button>'}</div>
   <div class="prog" id="evalProg" style="display:none"><i></i></div>
   <div class="card"><h3>分维度对比<small>prod 当前版本 vs 候选版本</small></h3><table class="t"><thead><tr><th>维度（用例标签）</th><th>用例数</th><th>prod</th><th>候选</th><th>变化</th><th>判定</th></tr></thead><tbody>

@@ -1895,6 +1895,8 @@ export interface components {
                 minScore?: number;
                 cases?: number;
             } | null;
+            /** @description 深链 {langfuse}/project/{id}/datasets/{datasetId}/experiments。数据集 id 缺失时落到该项目的数据集列表 */
+            langfuseUrl?: string | null;
         };
         ToolSummary: {
             /** @example work_order_create */

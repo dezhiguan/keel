@@ -163,6 +163,7 @@ watch(agent, () => {
       <h2>评测中心</h2>
       <span class="sub">Langfuse 数据集 {{ result?.dataset ?? (agent || '—') }} · 门禁由 keel-gate 判定</span>
       <span class="sp" />
+      <a v-if="result?.langfuseUrl" class="btn" :href="result.langfuseUrl" target="_blank" rel="noopener">在 Langfuse 中打开 ↗</a>
       <select v-model="agent" class="inp">
         <option v-for="a in agentOptions" :key="a" :value="a">{{ a }}</option>
       </select>
