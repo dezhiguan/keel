@@ -26,7 +26,7 @@ spec:
           # 复用 echo-agent 镜像里的 Python SDK。这台机器拉不到公网基础镜像。
           # 业务代码用 ConfigMap chat-demo-app 盖到 /app。专用镜像见 deploy/docker/chat-demo.Dockerfile。
           image: PLACEHOLDER_ECHO_IMAGE
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           env:

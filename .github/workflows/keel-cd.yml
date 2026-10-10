@@ -380,9 +380,11 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply -f /tmp/chat-demo.yaml
           if ! kubectl -n keel-system rollout status deployment/chat-demo --timeout=180s; then
-            reason="$(kubectl -n keel-system get pods -l app=chat-demo --no-headers -o jsonpath='{range .items[*]}{.metadata.name} {.status.phase} {.status.containerStatuses[0].state.waiting.reason} {.status.containerStatuses[0].state.waiting.message} {.status.containerStatuses[0].state.terminated.reason}{" | "}{end}')"
-            log="$(kubectl -n keel-system logs -l app=chat-demo --tail=20 --all-containers 2>&1 | tr '\n' ' ' | cut -c1-500)"
-            echo "::error title=chat-demo not ready::${reason} LOG ${log}"
+            set +e
+            status="$(kubectl -n keel-system get pods -l app=chat-demo -o wide 2>&1 | tr '\n' '; ')"
+            events="$(kubectl -n keel-system get events --sort-by=.lastTimestamp 2>&1 | tail -n 8 | tr '\n' '; ')"
+            log="$(kubectl -n keel-system logs -l app=chat-demo --tail=15 --all-containers 2>&1 | tr '\n' ' ' | cut -c1-400)"
+            echo "::error title=chat-demo not ready::${status} EVENTS ${events} LOG ${log}"
             exit 1
           fi
           rm -f /tmp/chat-demo.yaml
