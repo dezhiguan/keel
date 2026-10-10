@@ -37,7 +37,8 @@ public record AgentManifest(
         @JsonProperty("prompts") AgentManifestSpecPrompts prompts,
         @JsonProperty("models") AgentManifestSpecModels models,
         @JsonProperty("eval") AgentManifestSpecEval eval,
-        @JsonProperty("quality") AgentManifestSpecQuality quality
+        @JsonProperty("quality") AgentManifestSpecQuality quality,
+        @JsonProperty("interaction") AgentManifestSpecInteraction interaction
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -117,6 +118,15 @@ public record AgentManifest(
         @JsonProperty("onlineEvalSampling") Double onlineEvalSampling,
         @JsonProperty("feedback") Boolean feedback,
         @JsonProperty("annotationQueue") String annotationQueue
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record AgentManifestSpecInteraction(
+        @JsonProperty("mode") AgentManifestSpecInteractionModeValue mode,
+        @JsonProperty("schedule") String schedule,
+        @JsonProperty("timezone") String timezone,
+        @JsonProperty("trigger") String trigger
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -306,6 +316,17 @@ public record AgentManifest(
         @JsonValue public String value() { return value; }
         @JsonCreator public static AgentManifestSpecPromptsSourceValue fromValue(String value) {
             for (AgentManifestSpecPromptsSourceValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum AgentManifestSpecInteractionModeValue {
+        CHAT("chat"), TASK("task"), SERVICE("service"), SCHEDULE("schedule");
+        private final String value;
+        AgentManifestSpecInteractionModeValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static AgentManifestSpecInteractionModeValue fromValue(String value) {
+            for (AgentManifestSpecInteractionModeValue item : values()) if (item.value.equals(value)) return item;
             throw new IllegalArgumentException("Unknown enum value: " + value);
         }
     }

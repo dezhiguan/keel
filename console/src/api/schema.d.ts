@@ -216,7 +216,12 @@ export interface paths {
         get: operations["getAgent"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * 删除已下线的智能体
+         * @description 只允许 status=RETIRED。从注册中心列表、搜索、谱系中移除；审计和 Langfuse 里的链路、评测保留。
+         *     名称不释放，之后同名注册返回 AGENT_NAME_TAKEN。
+         */
+        delete: operations["deleteAgent"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1500,6 +1505,17 @@ export interface components {
         AgentDetail: components["schemas"]["AgentSummary"] & {
             manifestYaml?: string;
             manifestHash?: string;
+            /** @description manifest spec.interaction。缺省或没有 mode 时按 chat */
+            interaction?: {
+                /** @enum {string} */
+                mode?: "chat" | "task" | "service" | "schedule";
+                /** @example 0 2 * * * */
+                schedule?: string | null;
+                /** @example Asia/Shanghai */
+                timezone?: string | null;
+                /** @example GitHub PR webhook */
+                trigger?: string | null;
+            };
             knowledgeBases?: string[];
             tools?: string[];
             models?: string[];
@@ -2714,6 +2730,31 @@ export interface operations {
                 };
             };
             404: components["responses"]["Error"];
+        };
+    };
+    deleteAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            404: components["responses"]["Error"];
+            /** @description 还没下线（AGENT_NOT_RETIRED） */
+            409: components["responses"]["Error"];
         };
     };
     chatWithAgent: {

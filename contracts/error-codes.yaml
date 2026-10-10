@@ -41,6 +41,11 @@ codes:
     retryable: false
     http: 409
 
+  AGENT_NOT_RETIRED:
+    message: 智能体还没下线，不能删除
+    retryable: false
+    http: 409
+
   # ── keel-gateway ────────────────────────────────────────────────
   GW_QUOTA_EXCEEDED:
     message: 配额已用完

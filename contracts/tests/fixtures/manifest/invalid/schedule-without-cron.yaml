@@ -1,0 +1,10 @@
+# 反例：mode: schedule 没写 cron。控制台预览页和对账都要知道它什么时候该跑。
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  name: night-patrol
+spec:
+  runtime:
+    endpoint: http://night-patrol.agents.svc:8000
+  interaction:
+    mode: schedule

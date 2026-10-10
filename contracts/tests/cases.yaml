@@ -4,6 +4,11 @@
   expect: accept
 - file: manifest/valid/with-unknown-field.yaml
   expect: accept
+- file: manifest/valid/schedule.yaml
+  expect: accept
+- file: manifest/invalid/schedule-without-cron.yaml
+  expect: reject
+  reason: /spec/interaction/schedule
 - file: manifest/invalid/missing-name.yaml
   expect: reject
   reason: /metadata/name

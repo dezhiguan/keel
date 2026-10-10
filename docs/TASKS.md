@@ -129,6 +129,7 @@
 | P2-14 | ops-copilot 新建（验证 `ctx.delegate` 多智能体） | P1-17 P2-5 | **Cursor** | 并行委派串在同一 trace，预算向下传递 |
 | P2-15 | 提示词读取：manifest `prompts.items`、`ctx.prompt` / `ctx.prompt()`、缓存与本地兜底、generation 记提示词版本、`keel prompts pull/push`（见 `specs/p2/P2-15-prompt-sdk.md`） | P0-7 P0-12 P1-1 | **Cursor** | 链路上的 generation 能看到提示词名和版本；Langfuse 不可用时用兜底副本且标出 |
 | P2-16 | 提示词管理：keel-server `prompt/` 模块、四个环境各一个标签（dev/test/staging/production）、代码里改了 `prompts/` 自动建待生效版本、回滚、PromptDriftJob、控制台"提示词"页跟随环境切换（见 `specs/p2/P2-16-prompt-console.md`） | P2-15 P2-1 P2-11 P1-15 P1-20 | **Cursor** | 没过门禁的提示词版本发不到 prod；绕过 Keel 挪 staging / production 标签会告警 |
+| P2-18 | 智能体预览（按 `spec.interaction.mode` 分对话 / 任务 / 后台 / 定时四种页面）与已下线智能体删除（见 `specs/p2/P2-18-agent-preview-delete.md`） | DF-9b P1-4 | **Cursor** | 抽屉进预览页再返回；未下线不出现删除。后端 `DELETE` 另开任务 |
 
 ---
 

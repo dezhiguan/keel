@@ -8,6 +8,7 @@ public enum ErrorCode {
     AGENT_MANIFEST_INVALID("manifest 未通过校验", false, 400),
     AGENT_SELF_CHECK_FAILED("注册自检未通过", false, 409),
     AGENT_NAME_TAKEN("名称已被占用", false, 409),
+    AGENT_NOT_RETIRED("智能体还没下线，不能删除", false, 409),
     GW_QUOTA_EXCEEDED("配额已用完", true, 429),
     GW_CONCURRENCY_LIMIT("并发连接数达到上限", true, 429),
     GW_AGENT_OFFLINE("智能体当前不可用", true, 503),

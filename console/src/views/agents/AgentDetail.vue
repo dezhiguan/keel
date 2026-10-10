@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import StatusPill from '@/components/StatusPill.vue'
-import { getAgent, getAgentUsage, mergeUsage, retireAgent, type AgentDetail } from '@/api/agents'
+import { deleteAgent, getAgent, getAgentUsage, mergeUsage, retireAgent, type AgentDetail } from '@/api/agents'
 import { listDevflowJobs, type DevflowJob } from '@/api/devflow'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
@@ -42,6 +42,8 @@ const tab = ref<Tab>('ov')
 const shown = ref(false)
 const retiring = ref(false)
 const retireInput = ref('')
+const deleting = ref(false)
+const deleteInput = ref('')
 
 const name = computed(() => {
   const value = route.query.drawer
@@ -137,10 +139,30 @@ async function confirmRetire() {
   }
 }
 
+const deleteBusy = ref(false)
+
+async function confirmDelete() {
+  const agent = name.value
+  if (!agent || deleteInput.value !== agent || detail.value?.status !== 'RETIRED') return
+  deleteBusy.value = true
+  try {
+    await deleteAgent(agent)
+    ElMessage.success(`${agent} 已从注册中心删除`)
+    deleting.value = false
+    deleteInput.value = ''
+    close()
+  } catch (error) {
+    ElMessage.error(`删除失败：${toKeelError(error).message}`)
+  } finally {
+    deleteBusy.value = false
+  }
+}
+
 function onKey(event: KeyboardEvent) {
   if (event.key !== 'Escape' || !name.value) return
-  if (retiring.value) {
+  if (retiring.value || deleting.value) {
     retiring.value = false
+    deleting.value = false
     return
   }
   close()
@@ -150,6 +172,8 @@ watch(name, async (agent) => {
   tab.value = 'ov'
   retiring.value = false
   retireInput.value = ''
+  deleting.value = false
+  deleteInput.value = ''
   shown.value = false
   if (!agent) {
     detail.value = null
@@ -175,7 +199,7 @@ onUnmounted(() => {
 <template>
   <Teleport to="body">
     <template v-if="name">
-      <div class="mask" :class="{ on: shown }" @click="retiring ? (retiring = false) : close()" />
+      <div class="mask" :class="{ on: shown }" @click="retiring || deleting ? (retiring = deleting = false) : close()" />
       <aside class="drawer" :class="{ on: shown }" role="dialog" aria-label="智能体详情">
         <div class="dh">
           <h3>
@@ -316,8 +340,12 @@ onUnmounted(() => {
           </div>
         </div>
         <div class="df">
-          <span v-if="detail?.status === 'RETIRED'" class="mut retired">已下线，历史追踪、评测、审计可查</span>
+          <template v-if="detail?.status === 'RETIRED'">
+            <span class="mut retired">已下线，历史追踪、评测、审计可查</span>
+            <button v-write class="btn danger" type="button" @click="deleting = true">删除</button>
+          </template>
           <template v-else>
+            <RouterLink v-if="detail && detail.status !== 'DRAFT'" class="btn" :to="`/agents/${encodeURIComponent(name)}/preview`">预览</RouterLink>
             <button v-if="layer !== 'meta'" v-write class="btn" type="button" @click="router.push({ path: '/agents/new', query: { method: 'devflow', kind: 'CHANGE', agent: name } })">发起改造任务</button>
             <span v-else class="mut">元智能体只能由人直接改代码。</span>
             <button class="btn ghost" type="button" @click="viewTraces">查看链路</button>
@@ -338,7 +366,7 @@ onUnmounted(() => {
       <div v-if="retiring" class="modal on" role="dialog" aria-label="下线智能体">
         <div class="mh">下线智能体</div>
         <div class="mb">
-          <p>下线后将<b>吊销薄网关虚拟 Key、删除 Secret</b>，历史追踪、评测和审计保留。正在跑的实例要另行停掉。</p>
+          <p>下线后将<b>吊销薄网关虚拟 Key、删除 Secret</b>，历史追踪、评测和审计保留。正在跑的实例要另行停掉。下线后才能从注册中心删除。</p>
           <div class="field">
             <label>输入智能体 ID <b class="mono">{{ name }}</b> 确认</label>
             <input v-model="retireInput" class="inp" autocomplete="off">
@@ -347,6 +375,22 @@ onUnmounted(() => {
         <div class="mf">
           <button class="btn" type="button" @click="retiring = false">取消</button>
           <button v-write class="btn danger" type="button" :disabled="retireInput !== name || retireBusy" @click="confirmRetire">{{ retireBusy ? '下线中…' : '确认下线' }}</button>
+        </div>
+      </div>
+
+      <div v-if="deleting" class="modal on" role="dialog" aria-label="删除智能体">
+        <div class="mh">删除智能体</div>
+        <div class="mb">
+          <p>删除后它从注册中心的列表、搜索和谱系里消失，<b>不能恢复</b>。</p>
+          <p class="mut">审计记录（只增不删）和 Langfuse 里的链路、评测保留到各自保留期。名称不会释放，之后不能再注册同名智能体。</p>
+          <div class="field">
+            <label>输入智能体 ID <b class="mono">{{ name }}</b> 确认</label>
+            <input v-model="deleteInput" class="inp" autocomplete="off">
+          </div>
+        </div>
+        <div class="mf">
+          <button class="btn" type="button" @click="deleting = false">取消</button>
+          <button v-write class="btn danger" type="button" :disabled="deleteInput !== name || deleteBusy" @click="confirmDelete">{{ deleteBusy ? '删除中…' : '确认删除' }}</button>
         </div>
       </div>
     </template>

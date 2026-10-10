@@ -15,6 +15,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'overview', component: () => import('@/views/overview/OverviewView.vue'), meta: { title: '总览' } },
       { path: 'agents', component: () => import('@/views/agents/AgentList.vue'), meta: { title: '智能体' } },
       { path: 'agents/new', component: () => import('@/views/agents/AgentCreateWizard.vue'), meta: { title: '新建智能体' } },
+      { path: 'agents/:name/preview', component: () => import('@/views/agents/AgentPreview.vue'), meta: { title: '智能体预览' } },
       { path: 'agents/:name', redirect: (to) => ({ path: '/agents', query: { drawer: String(to.params.name) } }) },
       { path: 'jobs', component: () => import('@/views/jobs/JobBoard.vue'), meta: { title: '研发任务' } },
       { path: 'jobs/batches', component: () => import('@/views/jobs/JobBatches.vue'), meta: { title: '研发任务' } },

@@ -172,6 +172,27 @@ select.inp{padding:5px 8px}
 .dtabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:-4px 0 14px}
 .dtabs button{border:none;background:none;color:var(--mute);padding:7px 12px;font-size:12.8px;border-bottom:2px solid transparent}
 .dtabs button.on{color:var(--white);border-bottom-color:var(--acc)}
+/* 智能体预览（P2-18） */
+.banner{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12.8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.banner.warn{border-color:#5a4a26;background:#1c1810}
+.banner.info{border-color:#26406a;background:#0f1626}
+.pv-grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start}
+.pv-chat{display:flex;flex-direction:column;height:calc(100vh - 250px);min-height:420px}
+.pv-thread{flex:1;overflow:auto;display:flex;flex-direction:column;gap:12px;padding:4px 2px 12px}
+.pv-msg{display:flex;flex-direction:column;max-width:78%}
+.pv-msg.user{align-self:flex-end;align-items:flex-end}
+.pv-msg .bubble{white-space:pre-wrap;line-height:1.6;font-size:13px;padding:8px 12px;border-radius:10px;background:var(--panel2);border:1px solid var(--line2)}
+.pv-msg.user .bubble{background:rgba(255,122,69,.12);border-color:rgba(255,122,69,.35);color:var(--white)}
+.pv-tr{font-size:11px;color:var(--soft);margin-top:4px}
+.pv-composer{display:flex;gap:8px;align-items:flex-end;border-top:1px solid var(--line);padding-top:12px}
+.pv-composer textarea{flex:1;resize:none}
+.pv-out{white-space:pre-wrap;background:#0a0f18;border:1px solid var(--line);border-radius:9px;padding:12px 14px;line-height:1.65;color:#c9d4e3;margin:0;font-family:inherit;font-size:13px}
+.pv-side{position:sticky;top:0}
+.pv-calls{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 280px);overflow:auto}
+.pv-calls li{border-bottom:1px solid var(--line);padding-bottom:10px;font-size:12.5px}
+.pv-calls .q{margin:4px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pv-calls a{color:var(--soft);font-size:11.5px}
+@media (max-width:1100px){.pv-grid{grid-template-columns:1fr}.pv-side{position:static}}
 .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-46%) scale(.97);width:min(520px,92vw);background:var(--panel);border:1px solid var(--line2);border-radius:14px;z-index:60;opacity:0;pointer-events:none;transition:.2s;box-shadow:0 24px 60px rgba(0,0,0,.5)}
 .modal.on{opacity:1;pointer-events:auto;transform:translate(-50%,-50%)}
 .modal .mh{padding:16px 20px 6px;color:var(--white);font-size:15.5px;font-weight:600}
@@ -523,21 +544,22 @@ body.preview [data-ro]{opacity:.38;cursor:not-allowed;filter:grayscale(.6)}
 
 <script>
 /* ================= data ================= */
-const COLORS={careermate:'#2ec4b6',askdb:'#5b9cf6','offshore-wind':'#34c38f','cs-bot':'#b48cf2','ops-copilot':'#ff7a45','prd-agent':'#f1b44c','code-review':'#e36fae','test-gen':'#6fd3e3','ci-doctor':'#f46a6a','dev-copilot':'#ffb08f'};
+const COLORS={careermate:'#2ec4b6',askdb:'#5b9cf6','offshore-wind':'#34c38f','cs-bot':'#b48cf2','ops-copilot':'#ff7a45','prd-agent':'#f1b44c','code-review':'#e36fae','test-gen':'#6fd3e3','ci-doctor':'#f46a6a','dev-copilot':'#ffb08f','daily-report':'#6fd3a8'};
 const ST={ONLINE:['正常','p-ok'],DEGRADED:['降级','p-warn'],OFFLINE:['离线','p-bad'],REGISTERED:['已注册','p-soft'],GATE:['门禁未过','p-bad'],DRAFT:['草稿','p-mute'],RETIRED:['已下线','p-mute']};
 const S={
   env:'all',
   agents:[
-    {id:'careermate',name:'小职 · 求职助手',cat:'biz',lang:'Java',runtime:'code',tpl:'java-spring',env:'prod',ver:'v2.4.1',st:'ONLINE',org:'求职产品组',owner:'王工',calls:5210,p95:3.8,cost:31.2,score:.91,budget:60,inst:'2/2',kbs:['jd-kb'],tools:['resume.update','resume.delete','rag.search'],models:['qwen-plus','deepseek-v3'],gate:true},
-    {id:'askdb',name:'问数 · 自然语言问数',cat:'biz',lang:'Python',runtime:'code',tpl:'graph-agent',env:'prod',ver:'v1.9.0',st:'DEGRADED',note:'主模型降级',org:'数据平台组',owner:'刘工',calls:3904,p95:6.1,cost:28.75,score:.88,budget:40,inst:'2/2',kbs:['metric-glossary'],tools:['sql.execute','rag.search'],models:['qwen-plus','deepseek-v3','qwen-flash'],gate:true},
-    {id:'offshore-wind',name:'风机维检',cat:'biz',lang:'Python',runtime:'code',tpl:'graph-agent',env:'staging',ver:'v0.7.2',st:'GATE',org:'电力运维组',owner:'张工',calls:612,p95:9.4,cost:7.9,score:.84,budget:50,inst:'1/1',kbs:['fault-manual','safety-procedures'],tools:['alarm_query','work_order_query','work_order_create','rag.search'],models:['qwen-plus','deepseek-v3','qwen-flash'],gate:false},
-    {id:'cs-bot',name:'智能客服',cat:'biz',lang:'Dify',runtime:'dify',tpl:'dify',env:'prod',ver:'r3',st:'ONLINE',org:'客服中心',owner:'陈主管',calls:2754,p95:2.1,cost:18.55,score:.90,budget:50,inst:'探活 200',kbs:['cs-faq'],tools:['rag.search'],models:['qwen-plus','qwen-flash'],gate:true},
-    {id:'ops-copilot',name:'运维总控',cat:'biz',lang:'Python · 多智能体',runtime:'code',tpl:'supervisor',env:'staging',ver:'v0.2.0',st:'ONLINE',org:'电力运维组',owner:'张工',calls:148,p95:12.6,cost:3.2,score:.87,budget:30,inst:'1/1',kbs:[],tools:['askdb.query','work_order_create'],models:['qwen-plus'],delegates:['askdb','offshore-wind'],gate:true},
-    {id:'prd-agent',name:'需求分析',cat:'dev',lang:'Java',runtime:'code',tpl:'java-spring',env:'staging',ver:'v0.3.0',st:'ONLINE',org:'研发效能组',owner:'amy',calls:86,p95:8.2,cost:1.9,score:.83,budget:20,inst:'1/1',kbs:['dev-standards'],tools:['jira.issue.create'],models:['qwen-plus'],gate:true},
-    {id:'code-review',name:'代码评审',cat:'dev',lang:'Python',runtime:'code',tpl:'tool-agent',env:'prod',ver:'v1.0.2',st:'ONLINE',org:'研发效能组',owner:'amy',calls:412,p95:14.8,cost:6.4,score:.86,budget:30,inst:'2/2',kbs:['dev-standards'],tools:['git.pr.diff','git.pr.comment','rag.search'],models:['qwen-plus','deepseek-v3'],gate:true},
-    {id:'test-gen',name:'测试生成',cat:'dev',lang:'Java',runtime:'code',tpl:'java-spring',env:'staging',ver:'v0.2.1',st:'OFFLINE',note:'0/1 就绪 · CrashLoop',org:'研发效能组',owner:'amy',calls:57,p95:42,cost:2.3,score:.81,budget:20,inst:'0/1',kbs:['dev-standards'],tools:['maven.test.run','git.pr.diff'],models:['qwen-plus'],gate:true},
-    {id:'ci-doctor',name:'CI 诊断',cat:'dev',lang:'Python',runtime:'code',tpl:'tool-agent',env:'staging',ver:'—',st:'DRAFT',note:'名称已预占，未注册',org:'研发效能组',owner:'amy',calls:0,p95:0,cost:0,score:null,budget:20,inst:'—',kbs:['dev-standards'],tools:['ci.log.fetch','git.pr.create'],models:['qwen-plus'],gate:false},
-    {id:'dev-copilot',name:'研发总控',cat:'dev',lang:'Java · 多智能体',runtime:'code',tpl:'supervisor',env:'staging',ver:'v0.1.0',st:'REGISTERED',org:'研发效能组',owner:'amy',calls:12,p95:186,cost:.9,score:.80,budget:40,inst:'1/1',kbs:['dev-standards'],tools:['git.pr.create','askdb.query'],models:['qwen-plus','deepseek-v3'],delegates:['prd-agent','test-gen','code-review','ci-doctor'],gate:true}
+    {id:'careermate',name:'小职 · 求职助手',cat:'biz',lang:'Java',runtime:'code',tpl:'java-spring',env:'prod',ver:'v2.4.1',st:'ONLINE',org:'求职产品组',owner:'王工',calls:5210,p95:3.8,cost:31.2,score:.91,budget:60,inst:'2/2',kbs:['jd-kb'],tools:['resume.update','resume.delete','rag.search'],models:['qwen-plus','deepseek-v3'],gate:true,mode:'chat'},
+    {id:'askdb',name:'问数 · 自然语言问数',cat:'biz',lang:'Python',runtime:'code',tpl:'graph-agent',env:'prod',ver:'v1.9.0',st:'DEGRADED',note:'主模型降级',org:'数据平台组',owner:'刘工',calls:3904,p95:6.1,cost:28.75,score:.88,budget:40,inst:'2/2',kbs:['metric-glossary'],tools:['sql.execute','rag.search'],models:['qwen-plus','deepseek-v3','qwen-flash'],gate:true,mode:'chat'},
+    {id:'offshore-wind',name:'风机维检',cat:'biz',lang:'Python',runtime:'code',tpl:'graph-agent',env:'staging',ver:'v0.7.2',st:'GATE',org:'电力运维组',owner:'张工',calls:612,p95:9.4,cost:7.9,score:.84,budget:50,inst:'1/1',kbs:['fault-manual','safety-procedures'],tools:['alarm_query','work_order_query','work_order_create','rag.search'],models:['qwen-plus','deepseek-v3','qwen-flash'],gate:false,mode:'task'},
+    {id:'cs-bot',name:'智能客服',cat:'biz',lang:'Dify',runtime:'dify',tpl:'dify',env:'prod',ver:'r3',st:'ONLINE',org:'客服中心',owner:'陈主管',calls:2754,p95:2.1,cost:18.55,score:.90,budget:50,inst:'探活 200',kbs:['cs-faq'],tools:['rag.search'],models:['qwen-plus','qwen-flash'],gate:true,mode:'chat'},
+    {id:'ops-copilot',name:'运维总控',cat:'biz',lang:'Python · 多智能体',runtime:'code',tpl:'supervisor',env:'staging',ver:'v0.2.0',st:'ONLINE',org:'电力运维组',owner:'张工',calls:148,p95:12.6,cost:3.2,score:.87,budget:30,inst:'1/1',kbs:[],tools:['askdb.query','work_order_create'],models:['qwen-plus'],delegates:['askdb','offshore-wind'],gate:true,mode:'task'},
+    {id:'prd-agent',name:'需求分析',cat:'dev',lang:'Java',runtime:'code',tpl:'java-spring',env:'staging',ver:'v0.3.0',st:'ONLINE',org:'研发效能组',owner:'amy',calls:86,p95:8.2,cost:1.9,score:.83,budget:20,inst:'1/1',kbs:['dev-standards'],tools:['jira.issue.create'],models:['qwen-plus'],gate:true,mode:'task'},
+    {id:'code-review',name:'代码评审',cat:'dev',lang:'Python',runtime:'code',tpl:'tool-agent',env:'prod',ver:'v1.0.2',st:'ONLINE',org:'研发效能组',owner:'amy',calls:412,p95:14.8,cost:6.4,score:.86,budget:30,inst:'2/2',kbs:['dev-standards'],tools:['git.pr.diff','git.pr.comment','rag.search'],models:['qwen-plus','deepseek-v3'],gate:true,mode:'service',trigger:'GitHub PR webhook（opened / synchronize）'},
+    {id:'test-gen',name:'测试生成',cat:'dev',lang:'Java',runtime:'code',tpl:'java-spring',env:'staging',ver:'v0.2.1',st:'OFFLINE',note:'0/1 就绪 · CrashLoop',org:'研发效能组',owner:'amy',calls:57,p95:42,cost:2.3,score:.81,budget:20,inst:'0/1',kbs:['dev-standards'],tools:['maven.test.run','git.pr.diff'],models:['qwen-plus'],gate:true,mode:'service',trigger:'研发总控 dev-copilot 委派'},
+    {id:'ci-doctor',name:'CI 诊断',cat:'dev',lang:'Python',runtime:'code',tpl:'tool-agent',env:'staging',ver:'—',st:'DRAFT',note:'名称已预占，未注册',org:'研发效能组',owner:'amy',calls:0,p95:0,cost:0,score:null,budget:20,inst:'—',kbs:['dev-standards'],tools:['ci.log.fetch','git.pr.create'],models:['qwen-plus'],gate:false,mode:'service',trigger:'CI 构建失败事件'},
+    {id:'dev-copilot',name:'研发总控',cat:'dev',lang:'Java · 多智能体',runtime:'code',tpl:'supervisor',env:'staging',ver:'v0.1.0',st:'REGISTERED',org:'研发效能组',owner:'amy',calls:12,p95:186,cost:.9,score:.80,budget:40,inst:'1/1',kbs:['dev-standards'],tools:['git.pr.create','askdb.query'],models:['qwen-plus','deepseek-v3'],delegates:['prd-agent','test-gen','code-review','ci-doctor'],gate:true,mode:'task'},
+    {id:'daily-report',name:'运维日报',cat:'biz',lang:'Python',runtime:'code',tpl:'tool-agent',env:'prod',ver:'v1.2.0',st:'ONLINE',org:'电力运维组',owner:'张工',calls:1,p95:52,cost:.42,score:.89,budget:10,inst:'1/1',kbs:['fault-manual'],tools:['alarm_query','work_order_query'],models:['qwen-flash'],gate:true,mode:'schedule',cron:'30 8 * * 1-5'}
   ],
   tools:[
     {id:'rag.search',desc:'rag-forge 知识检索',scope:'共享',owner:'rag-forge',access:'读',risk:'低',ver:'v3',st:'ONLINE',calls:9870,policy:'无需审批'},
@@ -646,12 +668,12 @@ function closeModal(){$('#modal').classList.remove('on');if(!$('#drawer').classL
 $('#mask').onclick=()=>{closeModal();closeDrawer()};
 
 /* ================= router ================= */
-const TITLES={overview:'总览',agents:'智能体',create:'新建智能体',services:'共享服务',trace:'链路追踪',eval:'评测中心',prompts:'提示词',tools:'工具',approvals:'审批中心',audit:'审计中心',models:'模型网关'};
+const TITLES={overview:'总览',agents:'智能体',create:'新建智能体',preview:'智能体预览',services:'共享服务',trace:'链路追踪',eval:'评测中心',prompts:'提示词',tools:'工具',approvals:'审批中心',audit:'审计中心',models:'模型网关'};
 function render(){
   const r=(location.hash.replace(/^#\//,'')||'overview').split('/')[0];
   const route=TITLES[r]?r:'overview';
   if(route==='create'&&isPreview()){go('agents');return}
-  document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.r===route||(route==='create'&&a.dataset.r==='agents')));
+  document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.r===route||((route==='create'||route==='preview')&&a.dataset.r==='agents')));
   $('#crumb').innerHTML='Keel 控制台 / <b>'+TITLES[route]+'</b>';
   const v=$('#view');v.classList.remove('view');void v.offsetWidth;v.classList.add('view');
   VIEWS[route](v);
@@ -747,7 +769,12 @@ ${a.delegates?`  <span class="k">delegates</span>: [${a.delegates.join(', ')}]\n
 ${L('tools',`  <span class="k">tools</span>:${a.tools.length?'\n'+tl:' []'}`)}
   <span class="k">eval</span>:
     <span class="k">dataset</span>: ${a.id||'&lt;name&gt;'}/main
-    <span class="k">gate</span>: { <span class="k">minScore</span>: 0.85, <span class="k">maxRegression</span>: 0.02, <span class="k">byTag</span>: true }`;
+    <span class="k">gate</span>: { <span class="k">minScore</span>: 0.85, <span class="k">maxRegression</span>: 0.02, <span class="k">byTag</span>: true }${a.mode&&a.mode!=='chat'?`
+  <span class="k">interaction</span>:                   <span class="c"># 预览页按它呈现，缺省 chat</span>
+    <span class="k">mode</span>: ${a.mode}${a.cron?`
+    <span class="k">schedule</span>: "${a.cron}"
+    <span class="k">timezone</span>: Asia/Shanghai`:''}${a.trigger?`
+    <span class="k">trigger</span>: ${a.trigger}`:''}`:''}`;
 }
 function selfChecks(a){
   const items=[['agent.yaml 校验通过','keel/v1'],['薄网关 虚拟 Key 已发放',a.models.length+' 个模型 · ¥'+a.budget+'/天'],['Langfuse Key 已写入 Secret','keel-'+a.id],['/v1/health 返回 200',a.st==='OFFLINE'?'失败':'38ms'],['调用协议自检','SSE 5/5'],['追踪上报正常','Langfuse'],['高风险工具已绑定审批',a.tools.filter(t=>(toolOf(t)||{}).risk==='高').join('、')||'无高风险工具'],['评测门禁',a.score==null?'未运行':(a.gate?a.score+' ≥ 0.85':a.score+' < 0.85')]];
@@ -780,9 +807,68 @@ function agentBody(a){
   return `<div class="dtabs">${tabs.map(([k,n])=>`<button data-act="dTab" data-k="${k}" data-id="${a.id}" class="${dTab===k?'on':''}">${n}</button>`).join('')}</div>${body}`;
 }
 function agentFoot(a){
-  if(a.st==='RETIRED')return `<span class="mut" style="margin-right:auto;font-size:12px">已下线，历史追踪、评测、审计可查</span>`;
+  if(a.st==='RETIRED')return `<span class="mut" style="margin-right:auto;font-size:12px">已下线，历史追踪、评测、审计可查</span><button class="btn danger" data-act="agentDelete" data-id="${a.id}">删除</button>`;
   const canRel=a.env==='staging'&&a.gate&&!['DRAFT','OFFLINE'].includes(a.st);
-  return `<button class="btn ghost" data-act="toTrace" data-id="${a.id}">查看链路</button><button class="btn danger" data-act="retire" data-id="${a.id}">下线</button>${a.env==='staging'?`<button class="btn pri" data-act="release" data-id="${a.id}" ${canRel?'':'disabled title="门禁未通过或未就绪"'}>发布到 prod</button>`:''}`;
+  return `${a.st==='DRAFT'?'':`<a class="btn" href="#/preview/${a.id}" data-act="preview" data-id="${a.id}">预览</a>`}<button class="btn ghost" data-act="toTrace" data-id="${a.id}">查看链路</button><button class="btn danger" data-act="retire" data-id="${a.id}">下线</button>${a.env==='staging'?`<button class="btn pri" data-act="release" data-id="${a.id}" ${canRel?'':'disabled title="门禁未通过或未就绪"'}>发布到 prod</button>`:''}`;
+}
+
+/* agent preview（P2-18）：按 manifest spec.interaction.mode 呈现，缺省 chat。所有形态底下都是 /v1/invoke */
+const PV_MODES={chat:['对话式','用户多轮问答'],task:['任务式','提交一件事，看执行步骤和产出'],service:['后台式','没有用户入口，由事件、其他系统或上级智能体调用'],schedule:['定时任务','按计划自动运行']};
+const PV_RUNNER={task:['任务说明','描述要它完成的事，例如：WT-07 变桨系统报 F203，给出检修建议','运行'],service:['发送测试输入','模拟一次上游触发的输入，例如一段 PR 变更说明','发送'],schedule:['立即运行一次','本次运行的输入。手动运行不改变定时计划','立即运行']};
+const PV_REPLY={
+  careermate:'看了你的简历：Java 后端 3 年，做过订单和支付。建议优先投「后端开发（交易方向）」，项目经历里把并发量和故障处理写具体。要我帮你改项目经历这一段吗？',
+  askdb:'上月华东区退货率 3.8%，环比下降 0.4 个百分点，主要来自服饰类（-1.1pt）。\n口径：退货订单数 / 签收订单数，数据来自 dw_prod.returns。',
+  'cs-bot':'您好，退款会在审核通过后 1–3 个工作日原路退回。如果超过 3 个工作日还没到账，可以把订单号发给我，我帮您查一下进度。'
+};
+const PV_RESULT={
+  'offshore-wind':['WT-07 变桨系统 F203 检修建议：\n1. 先查 2 号桨叶变桨电机温度，近 24h 有 3 次超过 85℃ 告警（出处：故障手册 4.3.2）\n2. 检查变桨柜散热风扇和滤网\n3. 登机前按《风机登机作业安全规程》第 7 条执行停机挂牌\n建议 24h 内安排登机检查，优先级 P1。',[['检索故障手册','检索',640,'ok',0],['alarm_query · WT-07','工具',210,'ok',0],['work_order_query','工具',380,'fallback',0],['检索安全规程','检索',520,'ok',0],['生成检修建议','模型',2140,'ok',0]]],
+  'code-review':['发现 4 处问题，已在 PR 上评论：\n· OrderService.java:88 分页 offset 未校验上界（高）\n· 两处异常被吞掉没有日志（中）\n· 一处魔法数字（低）',[['git.pr.diff','工具',420,'ok',0],['检索研发规范','检索',380,'ok',0],['逐文件评审','模型',5200,'ok',0],['git.pr.comment','工具',310,'ok',0]]],
+  'daily-report':['运维日报 · 已推送到「电力运维组」群\n昨日告警 37 条（-12%），P1 2 条已闭环；未关闭工单 5 张，其中 WT-07 超 24h 未处理。',[['alarm_query · 近 24h','工具',830,'ok',0],['work_order_query · 未关闭','工具',460,'ok',0],['汇总生成日报','模型',3100,'ok',0]]]
+};
+const PV_RECENT={
+  'code-review':[['11:58:40','order-service#142 · 修复分页越界',14.8,'ok'],['10:12:05','user-center#87 · 登录态续期',9.6,'ok'],['昨天 17:40','order-service#139 · 依赖升级',22.1,'fallback'],['昨天 15:02','gateway#55 · 限流配置',8.7,'ok']],
+  'test-gen':[['12:10:33','dev-copilot 委派 · REQ-218 补用例',41.2,'failed'],['昨天 16:20','dev-copilot 委派 · REQ-215 补用例',38.5,'ok']],
+  'ci-doctor':[],
+  'daily-report':[['今天 08:30','定时触发',52.0,'ok'],['昨天 08:30','定时触发',49.3,'ok'],['10-08 08:30','定时触发',61.7,'fallback'],['10-07 08:30','定时触发',50.2,'ok']]
+};
+const CRON_WEEK=['周日','周一','周二','周三','周四','周五','周六','周日'];
+function cronText(c){const [mi,h,d,mo,w]=(c||'').split(' ');if(!/^\d+$/.test(mi||'')||!/^\d+$/.test(h||'')||mo!=='*')return '';const at=h.padStart(2,'0')+':'+mi.padStart(2,'0');if(d==='*'&&w==='*')return '每天 '+at;if(d==='*'&&w==='1-5')return '工作日 '+at;if(d==='*'&&/^\d$/.test(w))return '每'+CRON_WEEK[+w]+' '+at;if(/^\d+$/.test(d)&&w==='*')return '每月 '+d+' 日 '+at;return ''}
+const esc=t=>String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+let PV={id:'',msgs:[],calls:[],run:null,busy:false};
+const pvStatus=s=>s==='ok'?'<span class="pill p-ok">ok</span>':s==='fallback'?'<span class="pill p-warn">降级</span>':'<span class="pill p-bad">失败</span>';
+VIEWS.preview=v=>{
+  const id=location.hash.replace(/^#\//,'').split('/')[1];const a=agentOf(id);
+  if(!a){v.innerHTML='<div class="card"><p class="empty">没有这个智能体</p></div>';return}
+  if(PV.id!==id)PV={id,msgs:[],calls:[],run:null,busy:false};
+  const mode=a.mode||'chat';const [mName,mHint]=PV_MODES[mode];
+  const head=`<div class="vh"><button class="btn sm" data-act="pvBack" data-id="${a.id}">← 返回详情</button>${av(a)}<h2>${a.name}</h2>${pill(a.st)}<span class="pill nd p-acc" title="${mHint}">${mName}</span><span class="sub mono">${a.id} · ${a.env} · ${a.ver}</span><span class="sp"></span><button class="btn ghost" data-act="toTrace" data-id="${a.id}">全部链路 ↗</button></div>`;
+  const block=a.st==='DRAFT'?'还没注册，不能预览。先 keel register 或在向导里完成注册。':a.st==='RETIRED'?'已下线，虚拟 Key 已吊销，不能再调用。历史运行仍可在链路追踪里查看。':'';
+  if(block){v.innerHTML=head+`<div class="card"><p class="empty">${block}</p></div>`;return}
+  const warn=a.st==='OFFLINE'?'当前离线（没有就绪实例），调用大概率失败。':a.st==='DEGRADED'?'当前降级运行，回复可能来自降级模型。':'';
+  let main='';
+  if(mode==='chat'){
+    main=`<div class="card pv-chat"><h3>对话 <small>每轮独立，暂不带上文</small><span class="sp"></span><button class="btn sm ghost" data-act="pvClear" ${PV.msgs.length?'':'disabled'}>清空</button></h3>
+    <div class="pv-thread" id="pvThread">${PV.msgs.length?'':'<p class="empty">发一句话试试它。Enter 发送，Shift+Enter 换行。</p>'}${PV.msgs.map(m=>`<div class="pv-msg ${m.role}"><div class="bubble">${esc(m.text)}</div>${m.tr?`<a class="pv-tr mono" href="javascript:;" data-act="toTrace" data-tr="${m.tr}">链路 ${m.tr}</a>`:''}</div>`).join('')}${PV.busy?'<div class="pv-msg agent"><div class="bubble mut">思考中…</div></div>':''}</div>
+    <div class="pv-composer"><textarea class="inp" id="pvIn" rows="2" placeholder="输入问题"></textarea><button class="btn pri" data-act="pvSend" ${PV.busy?'disabled':''}>发送</button></div></div>`;
+  }else{
+    if(mode==='service')main+=`<div class="card"><h3>触发方式</h3><div class="kv"><span>触发方</span>${a.trigger?`<b>${a.trigger}</b>`:'<span class="mut">agent.yaml 没有声明 interaction.trigger</span>'}<span>用户入口</span><b>无，平时由上游调用；这里可以发一次测试输入</b></div></div>`;
+    if(mode==='schedule')main+=`<div class="card"><h3>运行计划</h3><div class="kv"><span>cron</span><b class="mono">${a.cron}</b><span>含义</span><b>${cronText(a.cron)||'—'}</b><span>时区</span><b>Asia/Shanghai</b><span>下次运行</span><span class="mut">待后端提供 nextRunAt</span></div></div>`;
+    const [rt,ph,btn]=PV_RUNNER[mode];
+    main+=`<div class="card"><h3>${rt}</h3><textarea class="inp" id="pvRunIn" rows="4" style="width:100%;box-sizing:border-box;resize:vertical" placeholder="${ph}"></textarea><div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn pri" data-act="pvRun" ${PV.busy?'disabled':''}>${PV.busy?'运行中…':btn}</button></div></div>`;
+    if(PV.run){const r=PV.run;main+=`<div class="card"><h3>执行结果 <span class="pill p-ok">完成</span><small>${(r.ms/1000).toFixed(2)}s</small><span class="sp"></span><button class="btn sm ghost" data-act="toTrace" data-tr="${r.tr}">查看链路 ↗</button></h3>
+      <pre class="pv-out">${esc(r.text)}</pre><h4 style="margin:16px 0 8px;color:var(--white);font-size:13px">执行步骤 <small class="mut" style="font-weight:400">从这次调用的链路读回</small></h4>
+      <table class="t"><thead><tr><th>步骤</th><th>类型</th><th>耗时</th><th>状态</th></tr></thead><tbody>${r.steps.map(([n,t,ms,s,d])=>`<tr><td style="padding-left:${8+d*16}px">${n}</td><td>${t}</td><td class="mono">${ms>=1000?(ms/1000).toFixed(2)+'s':ms+'ms'}</td><td>${pvStatus(s)}</td></tr>`).join('')}</tbody></table></div>`}
+    if(mode!=='task'){const rows=PV_RECENT[a.id]||[];main+=`<div class="card"><h3>最近运行 <small>近 7 天 · ${a.env}</small></h3><table class="t"><thead><tr><th>时间</th><th>输入</th><th>耗时</th><th>状态</th></tr></thead><tbody>${rows.length?rows.map(([t,q,s,st])=>`<tr class="click" data-act="toTrace" data-id="${a.id}"><td class="mono">${t}</td><td>${q}</td><td class="mono">${s}s</td><td>${pvStatus(st)}</td></tr>`).join(''):'<tr><td colspan="4" class="empty">近 7 天没有运行记录</td></tr>'}</tbody></table></div>`}
+  }
+  const side=`<aside class="card pv-side"><h3>本页调用 <small>${PV.calls.length} 次</small></h3>${PV.calls.length?`<ul class="pv-calls">${PV.calls.map(c=>`<li><div><span class="mono mut">${c.t}</span> <span class="pill p-ok">ok</span> <span class="mono mut">${(c.ms/1000).toFixed(2)}s</span></div><div class="q">${esc(c.q)}</div><a class="mono" href="javascript:;" data-act="toTrace" data-tr="${c.tr}">${c.tr}</a></li>`).join('')}</ul>`:'<p class="mut" style="font-size:12.5px">还没有调用。离开页面后这里清空，记录仍在链路追踪里。</p>'}</aside>`;
+  v.innerHTML=head+`<div class="banner info">预览是真实调用：消耗该智能体的日预算，写链路和审计；高风险工具照常走审批。</div>${warn?`<div class="banner warn">${warn}</div>`:''}<div class="pv-grid"><div>${main}</div>${side}</div>`;
+  const inp=$('#pvIn');if(inp){inp.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();ACT.pvSend()}};inp.focus()}
+  const th=$('#pvThread');if(th)th.scrollTop=th.scrollHeight;
+};
+function pvInvoke(a,q,done){
+  PV.busy=true;VIEWS.preview($('#view'));
+  const ms=900+Math.round(Math.random()*1800),tr='tr_'+Math.random().toString(16).slice(2,10);
+  setTimeout(()=>{PV.busy=false;PV.calls.unshift({t:nowT(),q,ms,tr});addAudit({a:a.id,u:who(),act:'invoke',res:'控制台预览',risk:'低',dec:'allowed',tr});done(ms,tr);if(location.hash.startsWith('#/preview/'+a.id))VIEWS.preview($('#view'))},ms);
 }
 
 /* create wizard */
@@ -1412,7 +1498,14 @@ const ACT={
   ext:d=>toast(`原型中不跳转：实际会带上下文深链到 <b>${d.n}</b>`,'info'),
   release:d=>{const a=agentOf(d.id);openModal('发布到 prod',`<p>将 <b class="mono">${a.id} ${a.ver}</b> 发布到 prod。依次执行：</p><ul class="checks" id="relChecks">${['keel gate：跑实验并逐维度对比','提示词打 production 标签','更新路由与 agent_version','写审计 release'].map(n=>`<li><span class="ic"></span>${n}</li>`).join('')}</ul>`,`<button class="btn" data-act="closeModal">取消</button><button class="btn pri" id="relGo" data-act="releaseGo" data-id="${a.id}">开始发布</button>`)},
   releaseGo:d=>{const a=agentOf(d.id);$('#relGo').disabled=true;runChecks('#relChecks',()=>{a.env='prod';a.st='ONLINE';addAudit({a:a.id,u:who(),act:'release',res:a.ver+' → prod',risk:'中',dec:'allowed'});closeModal();openAgent(a.id);toast(`<b>${a.id}</b> 已发布到 prod`);render()})},
-  retire:d=>{const a=agentOf(d.id);openModal('下线智能体',`<p>下线后将<b>吊销 薄网关 虚拟 Key、删除 Secret、停止部署</b>，历史追踪、评测和审计保留。</p>${a.delegates?'':`<p class="mut" style="margin-top:6px">${S.agents.filter(x=>x.delegates&&x.delegates.includes(a.id)).map(x=>x.id).join('、')?'⚠ 被 '+S.agents.filter(x=>x.delegates&&x.delegates.includes(a.id)).map(x=>'<b>'+x.id+'</b>').join('、')+' 编排，下线后它们的委派会失败':''}</p>`}<div class="field"><label>输入智能体 ID <b class="mono">${a.id}</b> 确认</label><input class="inp" id="retIn" style="width:100%" autocomplete="off"></div>`,`<button class="btn" data-act="closeModal">取消</button><button class="btn danger" id="retGo" data-act="retireGo" data-id="${a.id}" disabled>确认下线</button>`);$('#retIn').oninput=e=>$('#retGo').disabled=e.target.value!==a.id;setTimeout(()=>$('#retIn').focus(),100)},
+  retire:d=>{const a=agentOf(d.id);openModal('下线智能体',`<p>下线后将<b>吊销 薄网关 虚拟 Key、删除 Secret、停止部署</b>，历史追踪、评测和审计保留。下线后才能从注册中心删除。</p>${a.delegates?'':`<p class="mut" style="margin-top:6px">${S.agents.filter(x=>x.delegates&&x.delegates.includes(a.id)).map(x=>x.id).join('、')?'⚠ 被 '+S.agents.filter(x=>x.delegates&&x.delegates.includes(a.id)).map(x=>'<b>'+x.id+'</b>').join('、')+' 编排，下线后它们的委派会失败':''}</p>`}<div class="field"><label>输入智能体 ID <b class="mono">${a.id}</b> 确认</label><input class="inp" id="retIn" style="width:100%" autocomplete="off"></div>`,`<button class="btn" data-act="closeModal">取消</button><button class="btn danger" id="retGo" data-act="retireGo" data-id="${a.id}" disabled>确认下线</button>`);$('#retIn').oninput=e=>$('#retGo').disabled=e.target.value!==a.id;setTimeout(()=>$('#retIn').focus(),100)},
+  preview:d=>{closeDrawer();go('preview/'+d.id)},
+  pvBack:d=>{go('agents');setTimeout(()=>openAgent(d.id),50)},
+  pvClear:()=>{PV.msgs=[];VIEWS.preview($('#view'))},
+  pvSend:()=>{const a=agentOf(PV.id),q=($('#pvIn')||{}).value?.trim();if(!a||!q||PV.busy)return;PV.msgs.push({role:'user',text:q});pvInvoke(a,q,(ms,tr)=>PV.msgs.push({role:'agent',text:PV_REPLY[a.id]||'收到，这是原型里的示例回复。正式环境里这里是智能体的真实输出。',tr}))},
+  pvRun:()=>{const a=agentOf(PV.id),q=($('#pvRunIn')||{}).value?.trim();if(!a||!q||PV.busy)return;PV.run=null;pvInvoke(a,q,(ms,tr)=>{const [text,steps]=PV_RESULT[a.id]||['已完成。正式环境里这里是智能体的最终输出。',[['理解任务','模型',820,'ok',0],...a.tools.slice(0,2).map(t=>[t,'工具',300+Math.round(Math.random()*500),'ok',0]),['生成结果','模型',1900,'ok',0]]];PV.run={text,steps,ms,tr}})},
+  agentDelete:d=>{const a=agentOf(d.id);openModal('删除智能体',`<p>删除后 <b>${a.id}</b> 从注册中心的列表、搜索和谱系里消失，<b>不能恢复</b>。</p><p class="mut" style="margin-top:6px">审计记录（只增不删）和 Langfuse 里的链路、评测保留到各自保留期。名称不会释放，之后不能再注册同名智能体。</p><div class="field"><label>输入智能体 ID <b class="mono">${a.id}</b> 确认</label><input class="inp" id="delIn" style="width:100%" autocomplete="off"></div>`,`<button class="btn" data-act="closeModal">取消</button><button class="btn danger" id="delGo" data-act="agentDeleteGo" data-id="${a.id}" disabled>确认删除</button>`);$('#delIn').oninput=e=>$('#delGo').disabled=e.target.value!==a.id;setTimeout(()=>$('#delIn').focus(),100)},
+  agentDeleteGo:d=>{const a=agentOf(d.id);if(!a||a.st!=='RETIRED'){toast('还没下线，不能删除（<b>AGENT_NOT_RETIRED</b>）','warn');return}S.agents=S.agents.filter(x=>x.id!==a.id);addAudit({a:a.id,u:who(),act:'agent.delete',res:a.id,risk:'高',dec:'allowed'});closeModal();closeDrawer();toast(`<b>${a.id}</b> 已从注册中心删除，审计与链路保留`,'warn');render()},
   retireGo:d=>{const a=agentOf(d.id);a.st='RETIRED';a.calls=0;addAudit({a:a.id,u:who(),act:'agent.retire',res:a.id+' '+a.ver,risk:'高',dec:'allowed'});closeModal();openAgent(a.id);toast(`<b>${a.id}</b> 已下线，虚拟 Key 已吊销`,'warn');render()},
   /* wizard */
   wSet:d=>{W[d.k]=d.v;if(d.k==='lang')W.tpl=d.v==='java'?'java-spring':'tool-agent';if(d.k==='mode'&&d.v==='dify'){W.lang='python'}drawWForm();drawWPrev(d.k==='mode'?null:d.k)},
@@ -1490,7 +1583,7 @@ document.addEventListener('click',e=>{const t=e.target.closest('[data-act]');if(
 const CONSOLE_USERS={guandezhi:{name:'官德志',role:'平台管理员',org:'平台组',phone:'13800000000'}};
 const PREVIEW_ENABLED=true;
 /* 写操作：预览下前端置灰并拦截；后端按 HTTP 方法拦截所有非 GET，不依赖这份清单 */
-const WRITE_ACTS=['goCreate','wRegister','release','releaseGo','retire','retireGo','prEdit','prSave','prPromote','prRollback','prRollbackGo','runEval','expect','expectGo','decide','toolDeprecate','deprecateGo','toolRetire','toolRetireGo','toolVersion','versionGo','regTool','regToolGo','verify','exportAudit','exportGo','budget','budgetGo'];
+const WRITE_ACTS=['goCreate','wRegister','release','releaseGo','retire','retireGo','agentDelete','agentDeleteGo','pvSend','pvRun','prEdit','prSave','prPromote','prRollback','prRollbackGo','runEval','expect','expectGo','decide','toolDeprecate','deprecateGo','toolRetire','toolRetireGo','toolVersion','versionGo','regTool','regToolGo','verify','exportAudit','exportGo','budget','budgetGo'];
 const isPreview=()=>!!S.auth&&S.auth.mode==='PREVIEW';
 const who=()=>S.auth&&S.auth.mode==='USER'?S.auth.name:'预览访客';
 const redacted='<span class="redact">预览模式不展示原文</span>';

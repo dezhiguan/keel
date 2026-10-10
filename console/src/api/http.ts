@@ -130,6 +130,15 @@ export async function post<T>(url: string, body?: unknown, config?: AxiosRequest
   }
 }
 
+export async function del<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  try {
+    const response = await instance.delete(url, config)
+    return unwrap<T>(response.data)
+  } catch (error) {
+    throw toKeelError(error)
+  }
+}
+
 export async function postVoid(url: string, body?: unknown): Promise<void> {
   try {
     const response = await instance.post(url, body)

@@ -1,0 +1,13 @@
+# 正例：定时任务。interaction 只影响控制台预览页的呈现，调用协议不变。
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  name: night-patrol
+spec:
+  runtime:
+    endpoint: http://night-patrol.agents.svc:8000
+    liveness: heartbeat
+  interaction:
+    mode: schedule
+    schedule: "0 2 * * *"
+    timezone: Asia/Shanghai

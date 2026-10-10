@@ -361,6 +361,24 @@ paths:
                       data: { $ref: "#/components/schemas/AgentDetail" }
         "404":
           $ref: "#/components/responses/Error"
+    delete:
+      tags: [agents]
+      operationId: deleteAgent
+      summary: 删除已下线的智能体
+      description: |
+        只允许 status=RETIRED。从注册中心列表、搜索、谱系中移除；审计和 Langfuse 里的链路、评测保留。
+        名称不释放，之后同名注册返回 AGENT_NAME_TAKEN。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          description: 还没下线（AGENT_NOT_RETIRED）
+          $ref: "#/components/responses/Error"
 
   /agents/{name}/chat:
     parameters:
@@ -2296,6 +2314,14 @@ components:
           properties:
             manifestYaml: { type: string }
             manifestHash: { type: string }
+            interaction:
+              type: object
+              description: manifest spec.interaction。缺省或没有 mode 时按 chat
+              properties:
+                mode: { type: string, enum: [chat, task, service, schedule] }
+                schedule: { type: string, nullable: true, example: "0 2 * * *" }
+                timezone: { type: string, nullable: true, example: Asia/Shanghai }
+                trigger: { type: string, nullable: true, example: GitHub PR webhook }
             knowledgeBases:
               type: array
               items: { type: string }

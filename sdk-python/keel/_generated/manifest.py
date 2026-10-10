@@ -86,6 +86,13 @@ class AgentManifestSpecPromptsSourceValue(str, Enum):
     LOCAL = 'local'
 
 
+class AgentManifestSpecInteractionModeValue(str, Enum):
+    CHAT = 'chat'
+    TASK = 'task'
+    SERVICE = 'service'
+    SCHEDULE = 'schedule'
+
+
 class AgentManifestSpecPromptsItemsItemTypeValue(str, Enum):
     TEXT = 'text'
     CHAT = 'chat'
@@ -116,6 +123,7 @@ class AgentManifestSpec(KeelModel):
     models: Optional[AgentManifestSpecModels] = None
     eval: Optional[AgentManifestSpecEval] = None
     quality: Optional[AgentManifestSpecQuality] = None
+    interaction: Optional[AgentManifestSpecInteraction] = None
 
 
 class AgentManifestSpecRuntime(KeelModel):
@@ -177,6 +185,13 @@ class AgentManifestSpecQuality(KeelModel):
     annotationQueue: Optional[str] = None
 
 
+class AgentManifestSpecInteraction(KeelModel):
+    mode: Optional[AgentManifestSpecInteractionModeValue] = None
+    schedule: Optional[str] = None
+    timezone: Optional[str] = None
+    trigger: Optional[str] = None
+
+
 class AgentManifestSpecPromptsItemsItem(KeelModel):
     name: str
     type: AgentManifestSpecPromptsItemsItemTypeValue
@@ -220,5 +235,5 @@ class AgentManifestSpecModelsByPurposeEmbedding(KeelModel):
     default_: Optional[str] = Field(default=None, alias='default')
 
 
-for _model in (AgentManifest, AgentManifestMetadata, AgentManifestSpec, AgentManifestSpecRuntime, AgentManifestSpecAuth, AgentManifestSpecKnowledgeItem, AgentManifestSpecToolsItem, AgentManifestSpecGuardrails, AgentManifestSpecAudit, AgentManifestSpecPrompts, AgentManifestSpecModels, AgentManifestSpecEval, AgentManifestSpecQuality, AgentManifestSpecPromptsItemsItem, AgentManifestSpecModelsBudget, AgentManifestSpecModelsByPurpose, AgentManifestSpecEvalGate, AgentManifestSpecModelsByPurposeRewrite, AgentManifestSpecModelsByPurposeJudge, AgentManifestSpecModelsByPurposeAnswer, AgentManifestSpecModelsByPurposeEmbedding):
+for _model in (AgentManifest, AgentManifestMetadata, AgentManifestSpec, AgentManifestSpecRuntime, AgentManifestSpecAuth, AgentManifestSpecKnowledgeItem, AgentManifestSpecToolsItem, AgentManifestSpecGuardrails, AgentManifestSpecAudit, AgentManifestSpecPrompts, AgentManifestSpecModels, AgentManifestSpecEval, AgentManifestSpecQuality, AgentManifestSpecInteraction, AgentManifestSpecPromptsItemsItem, AgentManifestSpecModelsBudget, AgentManifestSpecModelsByPurpose, AgentManifestSpecEvalGate, AgentManifestSpecModelsByPurposeRewrite, AgentManifestSpecModelsByPurposeJudge, AgentManifestSpecModelsByPurposeAnswer, AgentManifestSpecModelsByPurposeEmbedding):
     _model.model_rebuild()
