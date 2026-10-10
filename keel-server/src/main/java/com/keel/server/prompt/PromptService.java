@@ -13,14 +13,18 @@ import org.springframework.stereotype.Service;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -29,9 +33,12 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 public class PromptService {
     private static final Set<String> ENV_LABELS = Set.of("dev", "test", "staging", "production");
-    private static final Duration LIST_TTL = Duration.ofSeconds(30);
+    private static final List<String> LABEL_ORDER = List.of("dev", "test", "staging", "production");
+    private static final Duration SNAPSHOT_TTL = Duration.ofSeconds(60);
+    private static final int SNAPSHOT_LOCK = 716202016;
     private static final java.util.concurrent.ExecutorService VERSION_READS = Executors.newVirtualThreadPerTaskExecutor();
     private static final Semaphore VERSION_READ_LIMIT = new Semaphore(4);
+    private static final Semaphore LABEL_READ_LIMIT = new Semaphore(8);
 
     private final PromptCatalog catalog;
     private final LangfuseClient langfuse;
@@ -40,10 +47,8 @@ public class PromptService {
     private final ObjectMapper json = new ObjectMapper();
     private final String langfuseHost;
     private final String projectId;
-    private final Map<String, CachedList> listCache = new ConcurrentHashMap<>();
     private final AtomicLong listRevision = new AtomicLong();
-
-    private record CachedList(Map<String, Object> value, Instant at) {}
+    private volatile Snapshot memory;
 
     public PromptService(PromptCatalog catalog, LangfuseClient langfuse, JdbcTemplate jdbc, AuditStore audit,
                          @Value("${LANGFUSE_HOST:}") String langfuseHost,
@@ -61,45 +66,38 @@ public class PromptService {
         if (!selected.equals("all") && !Set.of("dev", "test", "staging", "prod").contains(selected)) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "env 只能是 all、dev、test、staging、prod");
         }
-        var actor = PromptCatalog.Actor.current();
-        var key = actor.userId() + ":" + actor.org() + ":" + actor.role() + ":" + selected + ":" + (agent == null ? "" : agent);
-        var cached = listCache.get(key);
-        if (cached != null && cached.at().plus(LIST_TTL).isAfter(Instant.now())) {
-            return cached.value();
-        }
-        var revision = listRevision.get();
-        var result = loadList(selected, agent);
-        synchronized (listCache) {
-            if (listRevision.get() == revision) {
-                listCache.put(key, new CachedList(result, Instant.now()));
-            }
-        }
-        return result;
+        return loadList(selected, agent == null ? "" : agent);
     }
 
     private Map<String, Object> loadList(String selected, String agent) {
         requireLangfuse();
+        var labels = labelSnapshot();
+        var facts = loadFacts();
         var items = new ArrayList<Map<String, Object>>();
         var seen = new ArrayList<String>();
-        for (var item : catalog.declared(agent)) {
+        for (var item : catalog.declared(null)) {
+            if (!agent.isBlank() && !agent.equals(item.agent())) {
+                continue;
+            }
             seen.add(item.fullName());
-            items.add(summary(item, true, load(item.fullName()), selected));
+            items.add(summary(item, true, labels.get(item.fullName()), facts, selected));
         }
-        for (var row : langfuse.listPrompts(null, null).path("data")) {
-            var full = row.path("name").asText("");
+        for (var entry : labels.entrySet()) {
+            var full = entry.getKey();
             if (seen.contains(full) || !full.contains("/")) {
                 continue;
             }
             var owner = full.substring(0, full.indexOf('/'));
             var name = full.substring(full.indexOf('/') + 1);
-            if (agent != null && !agent.isBlank() && !agent.equals(owner)) {
+            if (!agent.isBlank() && !agent.equals(owner)) {
                 continue;
             }
             if (!catalog.knownAgent(owner)) {
                 continue;
             }
-            var type = "chat".equals(row.path("type").asText("")) ? "chat" : "text";
-            items.add(summary(new Item(owner, name, type, catalog.ownerOrg(owner), ""), false, load(full), selected));
+            var view = entry.getValue();
+            var type = view == null || view.type == null ? "text" : view.type;
+            items.add(summary(new Item(owner, name, type, catalog.ownerOrg(owner), ""), false, view, facts, selected));
         }
         var body = new LinkedHashMap<String, Object>();
         body.put("langfuseUrl", promptsUrl());
@@ -108,9 +106,10 @@ public class PromptService {
     }
 
     public void invalidateListCache() {
-        synchronized (listCache) {
-            listRevision.incrementAndGet();
-            listCache.clear();
+        listRevision.incrementAndGet();
+        memory = null;
+        if (jdbc != null) {
+            jdbc.update("DELETE FROM prompt_label_snapshot WHERE id = 1");
         }
     }
 
@@ -240,6 +239,11 @@ public class PromptService {
                     ? langfuse.createPrompt(item.fullName(), type, prompt, json.createObjectNode(), message, List.of("dev", "test", "staging"))
                     : langfuse.createPrompt(item.fullName(), type, prompt, json.createObjectNode(), message, List.of());
             var version = stored.path("version").asInt();
+            jdbc.update("""
+                    INSERT INTO prompt_code_version (agent_name, prompt_name, version, git_sha)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT (agent_name, prompt_name, version) DO NOTHING
+                    """, agent, name, version, gitSha);
             if (existing.isEmpty()) {
                 jdbc.update("""
                         INSERT INTO prompt_promotion (agent_name, prompt_name, version, sha256, promoted_by, gate_status)
@@ -290,25 +294,34 @@ public class PromptService {
         return Map.of("updated", open.size(), "gate", status.toLowerCase());
     }
 
-    private Map<String, Object> summary(Item item, boolean declared, List<Remote> versions, String selectedEnv) {
-        var labs = labs(versions);
-        var gate = gate(item.agent(), item.name());
-        var drift = driftEnvs(item, labs);
-        var code = codeVersion(versions, labs);
-        var latest = versions.isEmpty() ? null : versions.getLast();
-        var staging = versions.stream().filter(version -> version.labels().contains("staging")).reduce((a, b) -> b).orElse(latest);
+    private Map<String, Object> summary(Item item, boolean declared, ListedPrompt view, Facts facts, String selectedEnv) {
+        var unread = view != null && view.unread;
+        var labs = unread || view == null ? Map.<String, Integer>of() : view.labs;
+        var key = item.agent() + "\0" + item.name();
+        var gate = facts.gates.getOrDefault(key, new Gate("none", null));
+        var drift = unread ? List.<String>of() : driftRows(labs, facts.releases.get(key), facts.promotions.get(key))
+                .stream().map(row -> String.valueOf(row.get("env"))).toList();
+        CodePointer code = null;
+        if (!unread) {
+            for (var candidate : facts.codes.getOrDefault(key, List.of())) {
+                if (!labs.containsValue(candidate.version())) {
+                    code = candidate;
+                    break;
+                }
+            }
+        }
         var body = new LinkedHashMap<String, Object>();
         body.put("agent", item.agent());
         body.put("name", item.name());
         body.put("type", item.type());
         body.put("declared", declared);
-        body.put("summary", staging == null ? null : staging.commitMessage());
-        body.put("updatedAt", latest == null ? null : latest.createdAt());
-        body.put("updatedBy", latest == null ? null : latest.createdBy());
+        body.put("summary", unread || view == null ? null : view.summary);
+        body.put("updatedAt", unread || view == null ? null : view.updatedAt);
+        body.put("updatedBy", unread || view == null ? null : view.updatedBy);
         body.put("gate", gate.status());
         body.put("gateNote", gate.note());
         body.put("drift", drift);
-        body.put("codeVersion", code == null ? null : Map.of("version", code.version(), "gitSha", gitSha(code)));
+        body.put("codeVersion", code == null ? null : Map.of("version", code.version(), "gitSha", code.gitSha()));
         var envs = new LinkedHashMap<String, Object>();
         for (var env : List.of("dev", "test", "staging", "prod")) {
             if (!selectedEnv.equals("all") && !selectedEnv.equals(env)) {
@@ -326,7 +339,7 @@ public class PromptService {
             envs.put(env, cell);
         }
         body.put("envs", envs);
-        body.put("states", states(declared, gate.status(), drift, code != null, labs));
+        body.put("states", states(declared, gate.status(), drift, code != null, labs, unread));
         return body;
     }
 
@@ -355,7 +368,7 @@ public class PromptService {
                     "createdBy", code.createdBy() == null ? "" : code.createdBy()));
         }
         body.put("labs", labs);
-        body.put("states", states(declared, gate.status(), drift.stream().map(row -> String.valueOf(row.get("env"))).toList(), code != null, labs));
+        body.put("states", states(declared, gate.status(), drift.stream().map(row -> String.valueOf(row.get("env"))).toList(), code != null, labs, false));
         body.put("releases", releases(item.agent(), item.name()));
         var rows = new ArrayList<Map<String, Object>>();
         for (var version : versions) {
@@ -373,10 +386,15 @@ public class PromptService {
         return body;
     }
 
-    private List<Map<String, String>> states(boolean declared, String gate, List<String> drift, boolean code, Map<String, Integer> labs) {
+    private List<Map<String, String>> states(boolean declared, String gate, List<String> drift, boolean code,
+                                             Map<String, Integer> labs, boolean unread) {
         var states = new ArrayList<Map<String, String>>();
         if (!declared) {
             states.add(state("undeclared", "已不在 manifest 中", "p-mute"));
+        }
+        if (unread) {
+            states.add(state("unread", "暂时读不到", "p-warn"));
+            return states;
         }
         if (!drift.isEmpty()) {
             states.add(state("drift", "漂移", "p-bad"));
@@ -418,14 +436,14 @@ public class PromptService {
         return row;
     }
 
-    private List<String> driftEnvs(Item item, Map<String, Integer> labs) {
-        return driftDetails(item, labs).stream().map(row -> String.valueOf(row.get("env"))).toList();
+    private List<Map<String, Object>> driftDetails(Item item, Map<String, Integer> labs) {
+        return driftRows(labs, releaseVersion(item.agent(), item.name()), promotionVersion(item.agent(), item.name()));
     }
 
-    private List<Map<String, Object>> driftDetails(Item item, Map<String, Integer> labs) {
+    private List<Map<String, Object>> driftRows(Map<String, Integer> labs, Integer release, Integer promotion) {
         var rows = new ArrayList<Map<String, Object>>();
-        addDrift(rows, "prod", "production", labs.get("prod"), releaseVersion(item.agent(), item.name()));
-        addDrift(rows, "staging", "staging", labs.get("staging"), promotionVersion(item.agent(), item.name()));
+        addDrift(rows, "prod", "production", labs.get("prod"), release);
+        addDrift(rows, "staging", "staging", labs.get("staging"), promotion);
         return rows;
     }
 
@@ -440,26 +458,6 @@ public class PromptService {
         }
         text.append("。Keel 不会自动改回，已告警并写审计。");
         rows.add(Map.of("env", env, "text", text.toString()));
-    }
-
-    private Gate gate(String agent, String name) {
-        var rows = jdbc.query("""
-                SELECT gate_status, gate_run_id FROM prompt_promotion
-                WHERE agent_name = ? AND prompt_name = ?
-                ORDER BY promoted_at DESC, id DESC LIMIT 1
-                """, (rs, n) -> new String[] {rs.getString(1), rs.getString(2)}, agent, name);
-        if (rows.isEmpty()) {
-            return new Gate("none", null);
-        }
-        var status = rows.getFirst()[0].toLowerCase();
-        var run = rows.getFirst()[1];
-        var note = switch (status) {
-            case "pending" -> "请手动运行 keel gate";
-            case "failed" -> run == null ? "回归未过" : "回归未过（" + run + "）";
-            case "invalid" -> "实验里的提示词版本和 staging 当前版本不一致，这次回归作废";
-            default -> null;
-        };
-        return new Gate(status, note);
     }
 
     private Integer promotionVersion(String agent, String name) {
@@ -697,8 +695,392 @@ public class PromptService {
         return value instanceof Number number ? number.intValue() : 0;
     }
 
+    private Map<String, ListedPrompt> labelSnapshot() {
+        var current = currentSnapshot(false);
+        if (current != null) {
+            return current.prompts;
+        }
+        try {
+            return refreshSnapshot();
+        } catch (RuntimeException error) {
+            var stale = currentSnapshot(true);
+            if (stale != null) {
+                return stale.prompts;
+            }
+            throw error;
+        }
+    }
+
+    private Snapshot currentSnapshot(boolean allowStale) {
+        if (jdbc == null) {
+            var local = memory;
+            if (local == null) {
+                return null;
+            }
+            if (allowStale || local.at.plus(SNAPSHOT_TTL).isAfter(Instant.now())) {
+                return local;
+            }
+            return null;
+        }
+        var row = readSnapshotRow();
+        if (row == null) {
+            return null;
+        }
+        if (!allowStale && row.at.plus(SNAPSHOT_TTL).isBefore(Instant.now())) {
+            return null;
+        }
+        var local = memory;
+        if (local != null && local.at.equals(row.at)) {
+            return local;
+        }
+        var parsed = new Snapshot(parseSnapshot(row.payload), row.at);
+        memory = parsed;
+        return parsed;
+    }
+
+    private Map<String, ListedPrompt> refreshSnapshot() {
+        if (jdbc == null) {
+            var loaded = fetchLabels();
+            memory = new Snapshot(loaded, Instant.now());
+            return loaded;
+        }
+        var loaded = jdbc.execute((Connection conn) -> {
+            lock(conn);
+            try {
+                var again = readSnapshot(conn, false);
+                if (again != null) {
+                    memory = again;
+                    return again.prompts;
+                }
+                var revision = listRevision.get();
+                Map<String, ListedPrompt> fresh;
+                try {
+                    fresh = fetchLabels();
+                } catch (RuntimeException error) {
+                    var stale = readSnapshot(conn, true);
+                    if (stale != null) {
+                        memory = stale;
+                        return stale.prompts;
+                    }
+                    throw error;
+                }
+                if (listRevision.get() == revision) {
+                    writeSnapshot(conn, fresh);
+                    var stored = readSnapshot(conn, true);
+                    memory = stored == null ? new Snapshot(fresh, Instant.now()) : stored;
+                }
+                return fresh;
+            } finally {
+                unlock(conn);
+            }
+        });
+        if (loaded == null) {
+            throw new IllegalStateException("提示词快照没有写下来");
+        }
+        return loaded;
+    }
+
+    private Snapshot readSnapshot(Connection conn, boolean allowStale) throws java.sql.SQLException {
+        var row = readSnapshot(conn);
+        if (row == null) {
+            return null;
+        }
+        if (!allowStale && row.at.plus(SNAPSHOT_TTL).isBefore(Instant.now())) {
+            return null;
+        }
+        return new Snapshot(parseSnapshot(row.payload), row.at);
+    }
+
+    private SnapshotRow readSnapshotRow() {
+        var rows = jdbc.query("""
+                SELECT payload::text, cached_at FROM prompt_label_snapshot WHERE id = 1
+                """, (rs, n) -> new SnapshotRow(rs.getString(1), rs.getTimestamp(2).toInstant()));
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    private static SnapshotRow readSnapshot(Connection conn) throws java.sql.SQLException {
+        try (var statement = conn.prepareStatement("SELECT payload::text, cached_at FROM prompt_label_snapshot WHERE id = 1");
+             var rs = statement.executeQuery()) {
+            if (!rs.next()) {
+                return null;
+            }
+            var at = rs.getTimestamp(2);
+            return new SnapshotRow(rs.getString(1), at == null ? Instant.EPOCH : at.toInstant());
+        }
+    }
+
+    private void writeSnapshot(Connection conn, Map<String, ListedPrompt> prompts) throws java.sql.SQLException {
+        var payload = json.createObjectNode();
+        var rows = payload.putObject("prompts");
+        prompts.forEach((name, view) -> {
+            var node = rows.putObject(name);
+            node.put("type", view.type);
+            node.put("unread", view.unread);
+            if (view.latestVersion != null) {
+                node.put("latestVersion", view.latestVersion);
+            }
+            if (view.updatedAt != null) {
+                node.put("updatedAt", view.updatedAt);
+            }
+            if (view.updatedBy != null) {
+                node.put("updatedBy", view.updatedBy);
+            }
+            if (view.summary != null) {
+                node.put("summary", view.summary);
+            }
+            var labs = node.putObject("labs");
+            view.labs.forEach((key, version) -> labs.put(key, version));
+        });
+        try (PreparedStatement statement = conn.prepareStatement("""
+                INSERT INTO prompt_label_snapshot (id, payload, cached_at)
+                VALUES (1, CAST(? AS jsonb), ?)
+                ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload, cached_at = EXCLUDED.cached_at
+                """)) {
+            var at = Instant.now();
+            statement.setString(1, payload.toString());
+            statement.setTimestamp(2, Timestamp.from(at));
+            statement.executeUpdate();
+        }
+    }
+
+    private Map<String, ListedPrompt> parseSnapshot(String payload) {
+        var prompts = new LinkedHashMap<String, ListedPrompt>();
+        if (payload == null || payload.isBlank()) {
+            return prompts;
+        }
+        try {
+            var rows = json.readTree(payload).path("prompts");
+            rows.fields().forEachRemaining(entry -> {
+                var node = entry.getValue();
+                var view = new ListedPrompt();
+                view.type = node.path("type").asText("text");
+                view.unread = node.path("unread").asBoolean(false);
+                if (node.path("latestVersion").canConvertToInt()) {
+                    view.latestVersion = node.path("latestVersion").asInt();
+                }
+                view.updatedAt = text(node, "updatedAt");
+                view.updatedBy = text(node, "updatedBy");
+                view.summary = text(node, "summary");
+                node.path("labs").fields().forEachRemaining(lab -> {
+                    if (lab.getValue().canConvertToInt()) {
+                        view.labs.put(lab.getKey(), lab.getValue().asInt());
+                    }
+                });
+                prompts.put(entry.getKey(), view);
+            });
+        } catch (Exception ignored) {
+            return new LinkedHashMap<>();
+        }
+        return prompts;
+    }
+
+    private Map<String, ListedPrompt> fetchLabels() {
+        var page = langfuse.listPrompts(null, null);
+        var rows = new ArrayList<JsonNode>();
+        page.path("data").forEach(rows::add);
+        var reads = rows.stream().map(row -> CompletableFuture.supplyAsync(() -> readLabels(row), VERSION_READS)).toList();
+        var prompts = new LinkedHashMap<String, ListedPrompt>();
+        for (var i = 0; i < rows.size(); i++) {
+            var name = rows.get(i).path("name").asText("");
+            if (!name.isBlank()) {
+                prompts.put(name, reads.get(i).join());
+            }
+        }
+        return prompts;
+    }
+
+    private ListedPrompt readLabels(JsonNode row) {
+        var view = new ListedPrompt();
+        view.type = "chat".equals(row.path("type").asText("")) ? "chat" : "text";
+        var numbers = new ArrayList<Integer>();
+        row.path("versions").forEach(number -> {
+            if (number.canConvertToInt()) {
+                numbers.add(number.asInt());
+            }
+        });
+        view.latestVersion = numbers.stream().max(Integer::compareTo).orElse(null);
+        var wanted = new LinkedHashSet<String>();
+        row.path("labels").forEach(label -> {
+            var text = label.asText("");
+            if (ENV_LABELS.contains(text)) {
+                wanted.add(text);
+            }
+        });
+        if (wanted.isEmpty() && view.latestVersion == null) {
+            return view;
+        }
+        var name = row.path("name").asText("");
+        LABEL_READ_LIMIT.acquireUninterruptibly();
+        try {
+            for (var label : LABEL_ORDER) {
+                if (!wanted.contains(label)) {
+                    continue;
+                }
+                var env = "production".equals(label) ? "prod" : label;
+                if (view.labs.containsKey(env)) {
+                    continue;
+                }
+                var body = langfuse.getPrompt(name, null, label);
+                if (body != null) {
+                    absorb(view, body);
+                }
+            }
+            if (view.latestVersion != null && !view.seen.contains(view.latestVersion)) {
+                var body = langfuse.getPrompt(name, view.latestVersion, null);
+                if (body != null) {
+                    absorb(view, body);
+                }
+            }
+            if (!view.sawStaging) {
+                view.summary = view.latestSummary;
+            }
+        } catch (RuntimeException error) {
+            view.unread = true;
+        } finally {
+            LABEL_READ_LIMIT.release();
+        }
+        return view;
+    }
+
+    private void absorb(ListedPrompt view, JsonNode body) {
+        var version = body.path("version").asInt();
+        view.seen.add(version);
+        var labels = new ArrayList<String>();
+        body.path("labels").forEach(label -> {
+            var text = label.asText("");
+            if (!text.isBlank()) {
+                labels.add(text);
+            }
+        });
+        for (var label : labels) {
+            if (ENV_LABELS.contains(label)) {
+                view.labs.put("production".equals(label) ? "prod" : label, version);
+            }
+        }
+        var message = text(body, "commitMessage");
+        if (labels.contains("staging")) {
+            view.summary = message;
+            view.sawStaging = true;
+        }
+        if (view.latestVersion != null && version == view.latestVersion) {
+            view.updatedAt = text(body, "createdAt");
+            view.updatedBy = firstText(body, "createdBy");
+            view.latestSummary = message;
+        }
+    }
+
+    private Facts loadFacts() {
+        if (jdbc == null) {
+            return Facts.empty();
+        }
+        var gates = new LinkedHashMap<String, Gate>();
+        var promotions = new LinkedHashMap<String, Integer>();
+        jdbc.query("""
+                SELECT DISTINCT ON (agent_name, prompt_name)
+                       agent_name, prompt_name, version, gate_status, gate_run_id
+                FROM prompt_promotion
+                ORDER BY agent_name, prompt_name, promoted_at DESC, id DESC
+                """, rs -> {
+            var key = rs.getString(1) + "\0" + rs.getString(2);
+            gates.put(key, gateOf(rs.getString(4), rs.getString(5)));
+            promotions.put(key, rs.getInt(3));
+        });
+        var releases = new LinkedHashMap<String, Integer>();
+        jdbc.query("""
+                SELECT agent_name, prompt_versions_json::text
+                FROM release_record
+                WHERE env = 'prod' AND prompt_versions_json IS NOT NULL
+                ORDER BY created_at DESC, id DESC
+                """, rs -> {
+            var agent = rs.getString(1);
+            try {
+                json.readTree(rs.getString(2)).fields().forEachRemaining(entry -> {
+                    var key = agent + "\0" + entry.getKey();
+                    if (!releases.containsKey(key) && entry.getValue().path("version").canConvertToInt()) {
+                        releases.put(key, entry.getValue().path("version").asInt());
+                    }
+                });
+            } catch (Exception ignored) {
+                // A broken release row does not hide the prompts that can still be read.
+            }
+        });
+        var codes = new LinkedHashMap<String, List<CodePointer>>();
+        jdbc.query("""
+                SELECT agent_name, prompt_name, version, git_sha
+                FROM prompt_code_version
+                ORDER BY version DESC
+                """, rs -> {
+            var key = rs.getString(1) + "\0" + rs.getString(2);
+            codes.computeIfAbsent(key, name -> new ArrayList<>()).add(new CodePointer(rs.getInt(3), rs.getString(4)));
+        });
+        return new Facts(gates, promotions, releases, codes);
+    }
+
+    private static void lock(Connection conn) throws java.sql.SQLException {
+        try (var statement = conn.prepareStatement("SELECT pg_advisory_lock(?)")) {
+            statement.setLong(1, SNAPSHOT_LOCK);
+            statement.execute();
+        }
+    }
+
+    private static void unlock(Connection conn) throws java.sql.SQLException {
+        try (var statement = conn.prepareStatement("SELECT pg_advisory_unlock(?)")) {
+            statement.setLong(1, SNAPSHOT_LOCK);
+            statement.execute();
+        }
+    }
+
+    private Gate gate(String agent, String name) {
+        var rows = jdbc.query("""
+                SELECT gate_status, gate_run_id FROM prompt_promotion
+                WHERE agent_name = ? AND prompt_name = ?
+                ORDER BY promoted_at DESC, id DESC LIMIT 1
+                """, (rs, n) -> new String[] {rs.getString(1), rs.getString(2)}, agent, name);
+        if (rows.isEmpty()) {
+            return new Gate("none", null);
+        }
+        return gateOf(rows.getFirst()[0], rows.getFirst()[1]);
+    }
+
+    private static Gate gateOf(String status, String run) {
+        var normalized = status == null ? "none" : status.toLowerCase();
+        var note = switch (normalized) {
+            case "pending" -> "请手动运行 keel gate";
+            case "failed" -> run == null ? "回归未过" : "回归未过（" + run + "）";
+            case "invalid" -> "实验里的提示词版本和 staging 当前版本不一致，这次回归作废";
+            default -> null;
+        };
+        return new Gate(normalized, note);
+    }
+
     private record Remote(int version, String type, JsonNode prompt, JsonNode config, List<String> labels,
                           String commitMessage, String createdAt, String createdBy, String sha) {}
 
     private record Gate(String status, String note) {}
+
+    private record CodePointer(int version, String gitSha) {}
+
+    private record Snapshot(Map<String, ListedPrompt> prompts, Instant at) {}
+
+    private record SnapshotRow(String payload, Instant at) {}
+
+    private record Facts(Map<String, Gate> gates, Map<String, Integer> promotions, Map<String, Integer> releases,
+                         Map<String, List<CodePointer>> codes) {
+        private static Facts empty() {
+            return new Facts(Map.of(), Map.of(), Map.of(), Map.of());
+        }
+    }
+
+    private static final class ListedPrompt {
+        private String type = "text";
+        private Integer latestVersion;
+        private String updatedAt;
+        private String updatedBy;
+        private String summary;
+        private String latestSummary;
+        private boolean sawStaging;
+        private boolean unread;
+        private final Map<String, Integer> labs = new LinkedHashMap<>();
+        private final Set<Integer> seen = new HashSet<>();
+    }
 }

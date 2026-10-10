@@ -22,7 +22,7 @@ class SchemaMigrationTest {
     @Test
     @Transactional
     void migratesAllPlatformTablesAndRunConstraints() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("13");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("14");
 
         List<String> tables = jdbc.queryForList("""
             SELECT tablename FROM pg_tables
@@ -34,6 +34,7 @@ class SchemaMigrationTest {
             "reconcile_finding", "tool", "tool_version", "agent_tool_grant",
             "approval_policy", "approval_request", "agent_run", "release_record",
             "route_snapshot", "console_audit_event", "invoke_trace", "prompt_promotion",
+            "prompt_code_version", "prompt_label_snapshot",
             "service_assertion_jti", "devflow_job", "devflow_batch", "devflow_stage_run",
             "devflow_artifact", "devflow_holdout", "devflow_holdout_result", "devflow_setting", "devflow_sandbox_run");
 

@@ -34,9 +34,9 @@ class PromptServiceCacheTest {
                     null, null, base, "project");
             service.list("all", null);
             service.list("all", null);
-            assertThat(reads).hasValue(1);
             service.list("dev", null);
-            assertThat(reads).hasValue(2);
+            service.list("all", "chat-demo");
+            assertThat(reads).hasValue(1);
         } finally {
             server.stop(0);
         }

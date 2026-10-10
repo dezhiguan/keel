@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import Pager from '@/components/Pager.vue'
@@ -32,7 +32,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const data = await listPrompts(envStore.env, agent.value || undefined)
+    const data = await listPrompts('all')
     rows.value = data.items ?? []
     langfuseUrl.value = data.langfuseUrl ?? ''
   } catch (caught) {
@@ -44,15 +44,14 @@ async function load() {
   }
 }
 
+onMounted(load)
 watch(() => envStore.env, () => {
   page.value = 1
-  load()
-}, { immediate: true })
+})
 
 function pickAgent(event: Event) {
   agent.value = (event.target as HTMLSelectElement).value
   page.value = 1
-  load()
 }
 
 function pickStatus(value: string) {

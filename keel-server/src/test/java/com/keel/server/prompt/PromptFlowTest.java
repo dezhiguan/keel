@@ -1,5 +1,6 @@
 package com.keel.server.prompt;
 
+import com.keel.server.integration.langfuse.LangfuseClient;
 import com.keel.server.release.PromptDriftJob;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,6 +46,7 @@ class PromptFlowTest {
     private static final Map<String, List<Ver>> STORE = new ConcurrentHashMap<>();
     private static final List<String> CALLS = new CopyOnWriteArrayList<>();
     private static final AtomicInteger PRODUCTION_PATCHES = new AtomicInteger();
+    private static final Set<String> FAIL_GET = ConcurrentHashMap.newKeySet();
     private static volatile boolean failSecondProductionPatch;
     private static final int PORT;
 
@@ -69,13 +72,19 @@ class PromptFlowTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired PromptDriftJob drift;
+    @Autowired PromptService prompts;
+    @Autowired PromptCatalog catalog;
 
     @BeforeEach
     void reset() {
         STORE.clear();
         CALLS.clear();
+        FAIL_GET.clear();
         PRODUCTION_PATCHES.set(0);
         failSecondProductionPatch = false;
+        jdbc.update("DELETE FROM prompt_code_version WHERE agent_name = 'prompt-agent'");
+        jdbc.update("DELETE FROM prompt_label_snapshot");
+        prompts.invalidateListCache();
         jdbc.update("DELETE FROM prompt_promotion WHERE agent_name = 'prompt-agent'");
         jdbc.update("DELETE FROM release_record WHERE agent_name = 'prompt-agent'");
         jdbc.update("DELETE FROM console_audit_event WHERE agent = 'prompt-agent'");
@@ -195,6 +204,52 @@ class PromptFlowTest {
         assertThat(CALLS.stream().filter(call -> call.startsWith("POST ")).count()).isEqualTo(posts);
     }
 
+    @Test void listReadsLabelsOnceAndShowsCodeVersionFromTheTable() throws Exception {
+        var first = PromptTexts.sha256(JSON.getNodeFactory().textNode("from-git"), "text");
+        mvc.perform(post("/api/v1/agents/prompt-agent/prompts/sync").contentType("application/json").content("""
+                {"gitSha":"abc123","files":[{"name":"answer","type":"text","sha256":"%s","prompt":"from-git"}]}
+                """.formatted(first))).andExpect(status().isOk());
+        var second = PromptTexts.sha256(JSON.getNodeFactory().textNode("from-git-v2"), "text");
+        mvc.perform(post("/api/v1/agents/prompt-agent/prompts/sync").contentType("application/json").content("""
+                {"gitSha":"abc999","files":[{"name":"answer","type":"text","sha256":"%s","prompt":"from-git-v2"}]}
+                """.formatted(second))).andExpect(status().isOk());
+        assertThat(count("SELECT count(*) FROM prompt_code_version WHERE agent_name = 'prompt-agent' AND version = 2")).isEqualTo(1);
+        CALLS.clear();
+        mvc.perform(get("/api/v1/prompts").param("agent", "prompt-agent"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].envs.dev.version").value(1))
+                .andExpect(jsonPath("$.data.items[0].envs.test.version").value(1))
+                .andExpect(jsonPath("$.data.items[0].envs.staging.version").value(1))
+                .andExpect(jsonPath("$.data.items[0].codeVersion.version").value(2))
+                .andExpect(jsonPath("$.data.items[0].codeVersion.gitSha").value("abc999"));
+        assertThat(CALLS).anyMatch(call -> call.contains("label=dev"));
+        assertThat(CALLS).anyMatch(call -> call.contains("version=2"));
+        assertThat(CALLS).noneMatch(call -> call.contains("version=1"));
+        assertThat(projectLists()).isEqualTo(1);
+        mvc.perform(get("/api/v1/prompts").param("env", "dev").param("agent", "prompt-agent"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].envs.dev.version").value(1))
+                .andExpect(jsonPath("$.data.items[0].envs.test").doesNotExist());
+        new PromptService(catalog, new LangfuseClient("http://127.0.0.1:" + PORT, "pk", "sk"), jdbc, null,
+                "http://127.0.0.1:" + PORT, "keel").list("all", "prompt-agent");
+        assertThat(projectLists()).isEqualTo(1);
+    }
+
+    @Test void listKeepsTheOtherPromptsWhenOneReadFails() throws Exception {
+        jdbc.update("UPDATE agent_version SET manifest_json = ?::jsonb WHERE agent_name = 'prompt-agent'",
+                "{\"spec\":{\"prompts\":{\"items\":[{\"name\":\"answer\",\"type\":\"text\"},{\"name\":\"route\",\"type\":\"text\"}]}}}");
+        save("answer", "one");
+        save("route", "two");
+        FAIL_GET.add("prompt-agent/route");
+        mvc.perform(get("/api/v1/prompts").param("agent", "prompt-agent"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].name").value("answer"))
+                .andExpect(jsonPath("$.data.items[0].states[0].id").value("unreleased"))
+                .andExpect(jsonPath("$.data.items[1].name").value("route"))
+                .andExpect(jsonPath("$.data.items[1].states[0].id").value("unread"))
+                .andExpect(jsonPath("$.data.items[1].states[0].label").value("暂时读不到"));
+    }
+
     @Test void driftAlertsForProductionButNotForTest() throws Exception {
         save("answer", "v1");
         save("answer", "v2");
@@ -244,6 +299,10 @@ class PromptFlowTest {
         return rows.isEmpty() || rows.getFirst() == null ? "" : rows.getFirst();
     }
 
+    private static long projectLists() {
+        return CALLS.stream().filter(call -> call.startsWith("GET /api/public/v2/prompts?") && !call.contains("name=")).count();
+    }
+
     private static Integer label(String name, String label) {
         return STORE.getOrDefault(name, List.of()).stream()
                 .filter(version -> version.labels.contains(label))
@@ -290,6 +349,10 @@ class PromptFlowTest {
                 send(exchange, 200, "{}");
                 return;
             }
+        }
+        if ("GET".equals(method) && FAIL_GET.contains(rest)) {
+            send(exchange, 500, "{}");
+            return;
         }
         if ("GET".equals(method)) {
             var found = find(rest, query);
