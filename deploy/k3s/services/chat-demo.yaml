@@ -23,7 +23,7 @@ spec:
           hostnames: ["jp.cloud.langfuse.com"]
       containers:
         - name: chat-demo
-          # 这台机器拉不到公网基础镜像，先复用已经在节点上的 echo-agent 运行时（同一份 Python SDK）。
+          # 复用 echo-agent 镜像里的 Python SDK。这台机器拉不到公网基础镜像。
           # 业务代码用 ConfigMap chat-demo-app 盖到 /app。专用镜像见 deploy/docker/chat-demo.Dockerfile。
           image: PLACEHOLDER_ECHO_IMAGE
           imagePullPolicy: Always
