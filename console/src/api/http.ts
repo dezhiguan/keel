@@ -47,10 +47,10 @@ instance.interceptors.request.use((config) => {
 instance.interceptors.response.use(undefined, async (error: AxiosError) => {
   const config = error.config as (InternalAxiosRequestConfig & { keelRetried?: boolean }) | undefined
   const keel = toKeelError(error)
-  if (keel.code === 'AUTH_TOKEN_EXPIRED' && config && !config.keelRetried && !String(config.url ?? '').includes('/auth/refresh')) {
+  if ((keel.code === 'AUTH_TOKEN_EXPIRED' || keel.code === 'AUTH_UNAUTHENTICATED') && config && !config.keelRetried && !String(config.url ?? '').includes('/auth/refresh')) {
     config.keelRetried = true
     try {
-      await refreshSession()
+      await refreshConsoleSession()
       return instance.request(config)
     } catch (refreshError) {
       await sendToLogin()
@@ -60,7 +60,7 @@ instance.interceptors.response.use(undefined, async (error: AxiosError) => {
   return Promise.reject(error)
 })
 
-async function refreshSession() {
+export function refreshConsoleSession() {
   if (!refreshing) {
     refreshing = instance.post('/auth/refresh').then(() => undefined).finally(() => {
       refreshing = null

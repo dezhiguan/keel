@@ -48,8 +48,9 @@ class ConsoleLoginTest {
         String body = result.getResponse().getContentAsString();
         assertThat(body).doesNotContain("secret-pass").doesNotContain("access_token");
         String setCookie = String.join("\n", result.getResponse().getHeaders("Set-Cookie"));
-        assertThat(setCookie).contains("keel_console_at").contains("HttpOnly").contains("SameSite=Strict");
-        assertThat(setCookie).doesNotContain("__Host-").doesNotContain("Secure");
+        assertThat(setCookie).contains("keel_console_at").contains("keel_console_rt").contains("HttpOnly").contains("SameSite=Strict");
+        assertThat(setCookie).contains("Max-Age=604800");
+        assertThat(setCookie).doesNotContain("Max-Age=900").doesNotContain("__Host-").doesNotContain("Secure");
 
         String access = result.getResponse().getCookie("keel_console_at").getValue();
         mvc.perform(get("/api/v1/me").cookie(new Cookie("keel_console_at", access)))

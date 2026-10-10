@@ -170,9 +170,12 @@ public class ConsoleAuthService {
     }
 
     private void write(HttpServletResponse response, String access, String refresh, long accessTtl, long refreshTtl) {
+        // 访问令牌 15 分钟过期。两个 Cookie 都跟刷新令牌走（remember=false 时 7 天），
+        // 浏览器才会继续带上过期的访问令牌，前端才能换成新的。
+        long sessionTtl = Math.max(accessTtl, refreshTtl);
         var names = ConsoleCookies.names(environment.matchesProfiles("local"));
-        ConsoleCookies.write(response, names.access(), access, names.secure(), accessTtl);
-        ConsoleCookies.write(response, names.refresh(), refresh, names.secure(), refreshTtl);
+        ConsoleCookies.write(response, names.access(), access, names.secure(), sessionTtl);
+        ConsoleCookies.write(response, names.refresh(), refresh, names.secure(), sessionTtl);
     }
 
     private void guard(String account, String captcha, String challengeId) {

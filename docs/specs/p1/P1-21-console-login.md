@@ -63,7 +63,7 @@ auth-gateway 的改动不在本仓库，见下文「auth-gateway 侧改动」，
 | 浏览器保存 | keel-server 写两个 Cookie：`__Host-keel_console_at`（访问 token）、`__Host-keel_console_rt`（刷新 token）。`HttpOnly`、`Secure`、`SameSite=Strict`、`Path=/`、不设 Domain。前端 JS 读不到 token，不放 localStorage |
 | 本地 http | local profile 下 Cookie 名去掉 `__Host-` 前缀、不带 `Secure`，其余相同 |
 | 会话 | auth-gateway 记 `target_audience=keel-console`。控制台登出只吊销这个会话，careermate 登出不影响控制台，反之亦然 |
-| 有效期 | 沿用 auth-gateway：访问 token 900 秒；`remember` 固定传 `false`，刷新 token 用默认 TTL |
+| 有效期 | 访问 token 仍是 900 秒；`remember` 固定 `false`，刷新 token 用默认 7 天。两个 Cookie 的 Max-Age 都跟刷新 token，访问 token 过期后浏览器仍会带上它 |
 
 ### keel-server 新增接口（全部在 `/api/v1` 下）
 
@@ -154,8 +154,8 @@ auth-gateway 的错误码只在 `integration/authgw` 里翻译成上面这些，
 
 ### 前端会话处理
 
-- 路由守卫：没有 `/me` 结果时先调一次。401 → 跳 `/login?redirect=原路径`。登录成功后回到 `redirect`，只接受站内相对路径，防开放跳转。
-- `http.ts` 收到 401 `AUTH_TOKEN_EXPIRED` 时串行调一次 `/auth/refresh` 再重放原请求；并发的多个 401 共用同一次刷新。刷新失败跳登录页。
+- 路由守卫：没有 `/me` 结果时先调一次。访问 token 过期或未登录时先调 `/auth/refresh`；刷新 Cookie 还在就留在原页面。刷新失败，或预览身份但不是从预览入口进来，才跳 `/login?redirect=原路径`。登录成功后回到 `redirect`，只接受站内相对路径，防开放跳转。
+- `http.ts` 收到 401 `AUTH_TOKEN_EXPIRED` 或 `AUTH_UNAUTHENTICATED` 时串行调一次 `/auth/refresh` 再重放原请求；并发的多个 401 共用同一次刷新。刷新失败跳登录页。
 - 非 GET 请求带请求头 `X-Keel-Console: 1`；keel-server 对已登录用户的非 GET 请求校验这个头，缺了就 403。配合 `SameSite=Strict` 防跨站请求伪造。keel-server 不开 CORS。
 - 删掉 `http.ts` 里 `TODO(P0-5): attach the auth-gateway access token (aud=keel-api)`：控制台不再带 Bearer，靠 Cookie。
 

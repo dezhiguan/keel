@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
-import { toKeelError } from '@/api/http'
+import { refreshConsoleSession, toKeelError } from '@/api/http'
 import ConsoleLayout from '@/layouts/ConsoleLayout.vue'
 import { previewEntered, safeRedirect } from '@/router/redirect'
 import { useUserStore } from '@/stores/user'
@@ -40,6 +40,16 @@ const routes: RouteRecordRaw[] = [
 
 export const router = createRouter({ history: createWebHistory(), routes })
 
+async function restoreSession(user: ReturnType<typeof useUserStore>) {
+  try {
+    await refreshConsoleSession()
+    await user.load()
+    return user.user?.mode === 'USER'
+  } catch {
+    return false
+  }
+}
+
 router.beforeEach(async (to) => {
   const user = useUserStore()
   if (!user.loaded) {
@@ -47,7 +57,9 @@ router.beforeEach(async (to) => {
       await user.load()
     } catch (error) {
       const code = toKeelError(error).code
-      if (to.path !== '/login' && (code === 'AUTH_UNAUTHENTICATED' || code === 'AUTH_TOKEN_EXPIRED' || code === 'AUTH_TOKEN_AUDIENCE')) {
+      const expired = code === 'AUTH_UNAUTHENTICATED' || code === 'AUTH_TOKEN_EXPIRED'
+      const restored = expired && await restoreSession(user)
+      if (!restored && to.path !== '/login' && (expired || code === 'AUTH_TOKEN_AUDIENCE')) {
         return { path: '/login', query: { redirect: to.fullPath } }
       }
     }
@@ -58,6 +70,7 @@ router.beforeEach(async (to) => {
   }
   if (!user.user) return { path: '/login', query: { redirect: to.fullPath } }
   if (user.user.mode === 'PREVIEW' && !previewEntered()) {
+    if (await restoreSession(user)) return true
     return { path: '/login', query: { redirect: to.fullPath } }
   }
   if (user.readOnly && to.path === '/agents/new') return '/agents'

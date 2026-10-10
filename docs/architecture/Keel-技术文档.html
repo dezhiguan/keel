@@ -364,7 +364,7 @@ footer{margin-top:60px;padding-top:16px;border-top:1px solid var(--line);font-si
 │   └── SharedServiceMonitor   <span class="c"># Prometheus → rag-forge 等共享服务指标</span>
 ├── auth/                      <span class="c"># 控制台登录（P1-21）：代调 auth-gateway，token 只认 aud=keel-console</span>
 │   ├── ConsoleAuthController  <span class="c"># /auth/options、captcha、sms/send、login/password、login/sms、refresh、logout</span>
-│   ├── ConsoleSessionCookies  <span class="c"># __Host-keel_console_at / _rt：HttpOnly、Secure、SameSite=Strict，token 不进响应体</span>
+│   ├── ConsoleSessionCookies  <span class="c"># __Host-keel_console_at / _rt：HttpOnly、Secure、SameSite=Strict，token 不进响应体。访问 token 900 秒，两个 Cookie 的 Max-Age 跟刷新 token（默认 7 天）</span>
 │   ├── ConsoleUsers           <span class="c"># 写死的控制台用户表，本期只有「官德志」一行（ADMIN）</span>
 │   └── PreviewReadOnlyFilter  <span class="c"># 预览身份只放行 GET / HEAD，其余 403 AUTH_PREVIEW_READONLY</span>
 └── integration/               <span class="c"># 外部系统客户端，只放调用封装，不放业务</span>
