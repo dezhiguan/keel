@@ -37,7 +37,7 @@ public class CareerMateRegistrar implements ApplicationRunner {
             jdbc.update("""
                     INSERT INTO agent (name, display_name, kind, runtime, language, owner_org, owner_user, status, liveness)
                     VALUES (?, '职业助手', 'AGENT', 'code', 'Java', '人力数字化组', 'lin', ?, 'k8s')
-                    ON CONFLICT (name) DO UPDATE SET status = EXCLUDED.status, display_name = EXCLUDED.display_name,
+                    ON CONFLICT (name) DO UPDATE SET display_name = EXCLUDED.display_name,
                         runtime = EXCLUDED.runtime, language = EXCLUDED.language, updated_at = now()
                     """, NAME, AgentStatus.ONLINE.name());
             jdbc.update("""

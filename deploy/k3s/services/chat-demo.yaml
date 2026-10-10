@@ -14,7 +14,10 @@ spec:
     matchLabels: { app: chat-demo }
   template:
     metadata:
-      labels: { app: chat-demo }
+      labels:
+        app: chat-demo
+        keel.io/agent: chat-demo
+        keel.io/env: dev
     spec:
       imagePullSecrets:
         - name: acr-cred

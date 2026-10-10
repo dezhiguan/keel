@@ -3,6 +3,7 @@ package com.keel.server.discovery;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.informers.ResourceEventHandler;
+import io.fabric8.kubernetes.client.informers.SharedIndexInformer;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.ArrayList;
@@ -24,8 +25,9 @@ public class K8sAgentWatcher {
 
     public void start(KubernetesClient client) {
         try {
-            inform(client, "keel.io/agent");
-            inform(client, "keel.io/service");
+            // The first add event can arrive before status is filled in. Read the store again after sync.
+            syncAfterList(inform(client, "keel.io/agent"));
+            syncAfterList(inform(client, "keel.io/service"));
         } catch (RuntimeException ignored) {
             // A missing cluster must not stop keel-server. The next process start tries again.
         }
@@ -84,12 +86,32 @@ public class K8sAgentWatcher {
         return count != null && count > 0;
     }
 
-    private void inform(KubernetesClient client, String label) {
-        client.pods().inAnyNamespace().withLabel(label).inform(new ResourceEventHandler<Pod>() {
+    private SharedIndexInformer<Pod> inform(KubernetesClient client, String label) {
+        return client.pods().inAnyNamespace().withLabel(label).inform(new ResourceEventHandler<Pod>() {
             @Override public void onAdd(Pod pod) { observe(pod, false); }
             @Override public void onUpdate(Pod oldPod, Pod pod) { observe(pod, false); }
             @Override public void onDelete(Pod pod, boolean deletedFinalStateUnknown) { observe(pod, true); }
-        });
+        }, 30_000L);
+    }
+
+    private void syncAfterList(SharedIndexInformer<Pod> informer) {
+        var thread = new Thread(() -> {
+            try {
+                var deadline = System.nanoTime() + 30_000_000_000L;
+                while (!informer.hasSynced() && System.nanoTime() < deadline) {
+                    Thread.sleep(200);
+                }
+                for (var pod : informer.getIndexer().list()) {
+                    observe(pod, false);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (RuntimeException ignored) {
+                // The watch itself keeps running. A failed resync just leaves the last event.
+            }
+        }, "keel-pod-sync");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     private static boolean ready(Pod pod) {

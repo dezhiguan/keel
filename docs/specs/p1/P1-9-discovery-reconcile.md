@@ -51,6 +51,7 @@ docs/specs/p1/P1-9-discovery-reconcile.md
 - **VERSION_MISMATCH 的版本来源本任务先读 `agent_instance.version`。** 真正去打 `/v1/manifest` 是 P1-10 的 `ManifestVersionChecker`。它还没写之前，实例版本为空则跳过这项，不要报错。
 - Informer 只更新 `agent_instance`（`source=k8s`）。不在 watcher 里做五种判定，判定集中在 `ReconcileJob`，否则两处规则会分叉。
 - 告警文案可以写成 `Alert`，但推送企业微信不在本任务。
+- 同一轮对账在写完 finding 后更新 `agent.status`。有版本或实例的智能体：每个实例都在服务 → `ONLINE`；有的在服务、有的不在 → `DEGRADED`；没有在服务的实例 → `OFFLINE`。`DRAFT`、`RETIRED` 不动。Kubernetes 的就绪以 Informer 里仍能看到且 Ready 为准，稳定 Pod 不靠 45 秒心跳。`heartbeat` / `probe` 超过 45 秒算不在服务。状态改成 `OFFLINE` 或 `DEGRADED` 之后，下一轮 finding 仍按登记为 `ONLINE` 来判，避免告警被状态自己消掉。不改 `RETIRED`，也不回收资源。
 
 ## 验收标准
 
@@ -68,4 +69,4 @@ mvn -o -pl :keel-server test
 
 - 不实现心跳接口、Dify 探活、manifest 拉取（P1-10）
 - 不在总览页展示这些 finding（P1-14 读表）
-- 不自动下线，只记录
+- 不把智能体改成 `RETIRED`，不回收资源。运行状态由对账写 `ONLINE` / `DEGRADED` / `OFFLINE`
