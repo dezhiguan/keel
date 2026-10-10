@@ -12,12 +12,30 @@ import java.time.Duration;
 import java.util.Map;
 
 public class AuthGatewayClient {
+    public static final String CLIENT_ID_HEADER = "X-Client-Id";
+    public static final String ASSERTION_TYPE_HEADER = "X-Client-Assertion-Type";
+    public static final String ASSERTION_HEADER = "X-Client-Assertion";
+    public static final String ASSERTION_TYPE = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
+
     private final String baseUrl;
+    private final String clientId;
+    private final String privatePem;
+    private final String kid;
+    private final String assertionAudience;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private final ObjectMapper json = new ObjectMapper();
 
     public AuthGatewayClient(String baseUrl) {
+        this(baseUrl, "", "", "", "");
+    }
+
+    /** Signs /internal/clients as the console OAuth client. auth-gateway requires these three headers. */
+    public AuthGatewayClient(String baseUrl, String clientId, String privatePem, String kid, String assertionAudience) {
         this.baseUrl = baseUrl == null ? "" : baseUrl;
+        this.clientId = clientId == null ? "" : clientId;
+        this.privatePem = privatePem == null ? "" : privatePem;
+        this.kid = kid == null ? "" : kid;
+        this.assertionAudience = assertionAudience == null ? "" : assertionAudience;
     }
 
     public void register(Map<String, Object> body) {
@@ -60,6 +78,11 @@ public class AuthGatewayClient {
         }
         try {
             var builder = HttpRequest.newBuilder(URI.create(baseUrl + path)).timeout(Duration.ofSeconds(3));
+            if (path.startsWith("/internal/clients")) {
+                builder.header(CLIENT_ID_HEADER, clientId);
+                builder.header(ASSERTION_TYPE_HEADER, ASSERTION_TYPE);
+                builder.header(ASSERTION_HEADER, ClientAssertion.sign(privatePem, kid, clientId, assertionAudience));
+            }
             if (body == null) {
                 builder.method(method, HttpRequest.BodyPublishers.noBody());
             } else if (path.endsWith("/oauth/token-exchange")) {

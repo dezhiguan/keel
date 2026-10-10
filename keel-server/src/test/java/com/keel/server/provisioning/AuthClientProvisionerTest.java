@@ -21,14 +21,21 @@ class AuthClientProvisionerTest {
     @Test void registersIdempotentlyAndSignsWithTheHostedKey() throws Exception {
         var posts = new AtomicInteger();
         var bodies = new ArrayList<String>();
+        var clientIds = new ArrayList<String>();
+        var assertionTypes = new ArrayList<String>();
+        var assertions = new ArrayList<String>();
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         var keys = new AgentKeys();
+        var signer = keys.generate("keel-console-backend");
         var cluster = new KubernetesMockServer();
         cluster.start();
         server.createContext("/internal/clients", exchange -> {
             if ("POST".equals(exchange.getRequestMethod())) {
                 posts.incrementAndGet();
                 bodies.add(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                clientIds.add(exchange.getRequestHeaders().getFirst(AuthGatewayClient.CLIENT_ID_HEADER));
+                assertionTypes.add(exchange.getRequestHeaders().getFirst(AuthGatewayClient.ASSERTION_TYPE_HEADER));
+                assertions.add(exchange.getRequestHeaders().getFirst(AuthGatewayClient.ASSERTION_HEADER));
             }
             exchange.sendResponseHeaders(200, -1);
             exchange.close();
@@ -53,7 +60,9 @@ class AuthClientProvisionerTest {
         try {
             var secrets = new SecretWriter(cluster.createClient(), "pk-lf", "sk-lf", "http://langfuse", "http://litellm");
             var base = "http://127.0.0.1:" + server.getAddress().getPort();
-            var provisioner = new AuthClientProvisioner(keys, secrets, new AuthGatewayClient(base), base);
+            var gateway = new AuthGatewayClient(base, "keel-console-backend", signer.privatePem(), signer.kid(),
+                    "https://auth.example/oauth/token");
+            var provisioner = new AuthClientProvisioner(keys, secrets, gateway, base);
             var manifest = new ObjectMapper().readTree("""
                     {"spec":{"auth":{"audience":"code-review"},"delegates":["askdb","offshore-wind"]}}
                     """);
@@ -61,6 +70,9 @@ class AuthClientProvisionerTest {
             provisioner.provision("code-review", "dev", manifest);
             assertThat(posts.get()).isEqualTo(2);
             assertThat(bodies.get(1)).contains("keel-api", "code-review", "askdb", "offshore-wind");
+            assertThat(clientIds).containsOnly("keel-console-backend");
+            assertThat(assertionTypes).containsOnly(AuthGatewayClient.ASSERTION_TYPE);
+            assertThat(assertions).allSatisfy(assertion -> assertThat(assertion.split("\\.")).hasSize(3));
 
             var jwks = new AgentJwksController(keys).jwks("code-review").toString();
             assertThat(jwks).contains(keys.find("code-review").kid());
