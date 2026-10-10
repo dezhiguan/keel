@@ -73,7 +73,7 @@ export function layerOf(agent: RegistryAgent): Layer {
 }
 
 /** 总览「类型」列：元智能体单独一档；分不出来留空，不猜成业务。 */
-export function agentType(agent: { name?: string | null; category?: string | null; layer?: string | null }): Layer | null {
+export function agentType(agent: { name?: string | null; category?: string | null; layer?: string | null; language?: string | null }): Layer | null {
   const layer = agent.layer ? LAYER_FROM_API[agent.layer] : undefined
   if (layer === 'meta' || agent.name === 'meta-agent') return 'meta'
   if (layer === 'dev' || layer === 'biz') return layer
