@@ -172,7 +172,7 @@ select.inp{padding:5px 8px}
 .dtabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:-4px 0 14px}
 .dtabs button{border:none;background:none;color:var(--mute);padding:7px 12px;font-size:12.8px;border-bottom:2px solid transparent}
 .dtabs button.on{color:var(--white);border-bottom-color:var(--acc)}
-/* 智能体预览（P2-18） */
+/* 智能体调试（P2-18） */
 .banner{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12.8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .banner.warn{border-color:#5a4a26;background:#1c1810}
 .banner.info{border-color:#26406a;background:#0f1626}
@@ -668,12 +668,12 @@ function closeModal(){$('#modal').classList.remove('on');if(!$('#drawer').classL
 $('#mask').onclick=()=>{closeModal();closeDrawer()};
 
 /* ================= router ================= */
-const TITLES={overview:'总览',agents:'智能体',create:'新建智能体',preview:'智能体预览',services:'共享服务',trace:'链路追踪',eval:'评测中心',prompts:'提示词',tools:'工具',approvals:'审批中心',audit:'审计中心',models:'模型网关'};
+const TITLES={overview:'总览',agents:'智能体',create:'新建智能体',debug:'智能体调试',services:'共享服务',trace:'链路追踪',eval:'评测中心',prompts:'提示词',tools:'工具',approvals:'审批中心',audit:'审计中心',models:'模型网关'};
 function render(){
   const r=(location.hash.replace(/^#\//,'')||'overview').split('/')[0];
   const route=TITLES[r]?r:'overview';
   if(route==='create'&&isPreview()){go('agents');return}
-  document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.r===route||((route==='create'||route==='preview')&&a.dataset.r==='agents')));
+  document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.r===route||((route==='create'||route==='debug')&&a.dataset.r==='agents')));
   $('#crumb').innerHTML='Keel 控制台 / <b>'+TITLES[route]+'</b>';
   const v=$('#view');v.classList.remove('view');void v.offsetWidth;v.classList.add('view');
   VIEWS[route](v);
@@ -770,7 +770,7 @@ ${L('tools',`  <span class="k">tools</span>:${a.tools.length?'\n'+tl:' []'}`)}
   <span class="k">eval</span>:
     <span class="k">dataset</span>: ${a.id||'&lt;name&gt;'}/main
     <span class="k">gate</span>: { <span class="k">minScore</span>: 0.85, <span class="k">maxRegression</span>: 0.02, <span class="k">byTag</span>: true }${a.mode&&a.mode!=='chat'?`
-  <span class="k">interaction</span>:                   <span class="c"># 预览页按它呈现，缺省 chat</span>
+  <span class="k">interaction</span>:                   <span class="c"># 调试页按它呈现，缺省 chat</span>
     <span class="k">mode</span>: ${a.mode}${a.cron?`
     <span class="k">schedule</span>: "${a.cron}"
     <span class="k">timezone</span>: Asia/Shanghai`:''}${a.trigger?`
@@ -809,10 +809,10 @@ function agentBody(a){
 function agentFoot(a){
   if(a.st==='RETIRED')return `<span class="mut" style="margin-right:auto;font-size:12px">已下线，历史追踪、评测、审计可查</span><button class="btn danger" data-act="agentDelete" data-id="${a.id}">删除</button>`;
   const canRel=a.env==='staging'&&a.gate&&!['DRAFT','OFFLINE'].includes(a.st);
-  return `${a.st==='DRAFT'?'':`<a class="btn" href="#/preview/${a.id}" data-act="preview" data-id="${a.id}">预览</a>`}<button class="btn ghost" data-act="toTrace" data-id="${a.id}">查看链路</button><button class="btn danger" data-act="retire" data-id="${a.id}">下线</button>${a.env==='staging'?`<button class="btn pri" data-act="release" data-id="${a.id}" ${canRel?'':'disabled title="门禁未通过或未就绪"'}>发布到 prod</button>`:''}`;
+  return `${a.st==='DRAFT'?'':`<a class="btn" href="#/debug/${a.id}" data-act="debug" data-id="${a.id}">调试</a>`}<button class="btn ghost" data-act="toTrace" data-id="${a.id}">查看链路</button><button class="btn danger" data-act="retire" data-id="${a.id}">下线</button>${a.env==='staging'?`<button class="btn pri" data-act="release" data-id="${a.id}" ${canRel?'':'disabled title="门禁未通过或未就绪"'}>发布到 prod</button>`:''}`;
 }
 
-/* agent preview（P2-18）：按 manifest spec.interaction.mode 呈现，缺省 chat。所有形态底下都是 /v1/invoke */
+/* agent debug（P2-18）：按 manifest spec.interaction.mode 呈现，缺省 chat。所有形态底下都是 /v1/invoke */
 const PV_MODES={chat:['对话式','用户多轮问答'],task:['任务式','提交一件事，看执行步骤和产出'],service:['后台式','没有用户入口，由事件、其他系统或上级智能体调用'],schedule:['定时任务','按计划自动运行']};
 const PV_RUNNER={task:['任务说明','描述要它完成的事，例如：WT-07 变桨系统报 F203，给出检修建议','运行'],service:['发送测试输入','模拟一次上游触发的输入，例如一段 PR 变更说明','发送'],schedule:['立即运行一次','本次运行的输入。手动运行不改变定时计划','立即运行']};
 const PV_REPLY={
@@ -836,13 +836,13 @@ function cronText(c){const [mi,h,d,mo,w]=(c||'').split(' ');if(!/^\d+$/.test(mi|
 const esc=t=>String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 let PV={id:'',msgs:[],calls:[],run:null,busy:false};
 const pvStatus=s=>s==='ok'?'<span class="pill p-ok">ok</span>':s==='fallback'?'<span class="pill p-warn">降级</span>':'<span class="pill p-bad">失败</span>';
-VIEWS.preview=v=>{
+VIEWS.debug=v=>{
   const id=location.hash.replace(/^#\//,'').split('/')[1];const a=agentOf(id);
   if(!a){v.innerHTML='<div class="card"><p class="empty">没有这个智能体</p></div>';return}
   if(PV.id!==id)PV={id,msgs:[],calls:[],run:null,busy:false};
   const mode=a.mode||'chat';const [mName,mHint]=PV_MODES[mode];
   const head=`<div class="vh"><button class="btn sm" data-act="pvBack" data-id="${a.id}">← 返回详情</button>${av(a)}<h2>${a.name}</h2>${pill(a.st)}<span class="pill nd p-acc" title="${mHint}">${mName}</span><span class="sub mono">${a.id} · ${a.env} · ${a.ver}</span><span class="sp"></span><button class="btn ghost" data-act="toTrace" data-id="${a.id}">全部链路 ↗</button></div>`;
-  const block=a.st==='DRAFT'?'还没注册，不能预览。先 keel register 或在向导里完成注册。':a.st==='RETIRED'?'已下线，虚拟 Key 已吊销，不能再调用。历史运行仍可在链路追踪里查看。':'';
+  const block=a.st==='DRAFT'?'还没注册，不能调试。先 keel register 或在向导里完成注册。':a.st==='RETIRED'?'已下线，虚拟 Key 已吊销，不能再调用。历史运行仍可在链路追踪里查看。':'';
   if(block){v.innerHTML=head+`<div class="card"><p class="empty">${block}</p></div>`;return}
   const warn=a.st==='OFFLINE'?'当前离线（没有就绪实例），调用大概率失败。':a.st==='DEGRADED'?'当前降级运行，回复可能来自降级模型。':'';
   let main='';
@@ -861,14 +861,14 @@ VIEWS.preview=v=>{
     if(mode!=='task'){const rows=PV_RECENT[a.id]||[];main+=`<div class="card"><h3>最近运行 <small>近 7 天 · ${a.env}</small></h3><table class="t"><thead><tr><th>时间</th><th>输入</th><th>耗时</th><th>状态</th></tr></thead><tbody>${rows.length?rows.map(([t,q,s,st])=>`<tr class="click" data-act="toTrace" data-id="${a.id}"><td class="mono">${t}</td><td>${q}</td><td class="mono">${s}s</td><td>${pvStatus(st)}</td></tr>`).join(''):'<tr><td colspan="4" class="empty">近 7 天没有运行记录</td></tr>'}</tbody></table></div>`}
   }
   const side=`<aside class="card pv-side"><h3>本页调用 <small>${PV.calls.length} 次</small></h3>${PV.calls.length?`<ul class="pv-calls">${PV.calls.map(c=>`<li><div><span class="mono mut">${c.t}</span> <span class="pill p-ok">ok</span> <span class="mono mut">${(c.ms/1000).toFixed(2)}s</span></div><div class="q">${esc(c.q)}</div><a class="mono" href="javascript:;" data-act="toTrace" data-tr="${c.tr}">${c.tr}</a></li>`).join('')}</ul>`:'<p class="mut" style="font-size:12.5px">还没有调用。离开页面后这里清空，记录仍在链路追踪里。</p>'}</aside>`;
-  v.innerHTML=head+`<div class="banner info">预览是真实调用：消耗该智能体的日预算，写链路和审计；高风险工具照常走审批。</div>${warn?`<div class="banner warn">${warn}</div>`:''}<div class="pv-grid"><div>${main}</div>${side}</div>`;
+  v.innerHTML=head+`<div class="banner info">调试是真实调用：消耗该智能体的日预算，写链路和审计；高风险工具照常走审批。</div>${warn?`<div class="banner warn">${warn}</div>`:''}<div class="pv-grid"><div>${main}</div>${side}</div>`;
   const inp=$('#pvIn');if(inp){inp.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();ACT.pvSend()}};inp.focus()}
   const th=$('#pvThread');if(th)th.scrollTop=th.scrollHeight;
 };
 function pvInvoke(a,q,done){
-  PV.busy=true;VIEWS.preview($('#view'));
+  PV.busy=true;VIEWS.debug($('#view'));
   const ms=900+Math.round(Math.random()*1800),tr='tr_'+Math.random().toString(16).slice(2,10);
-  setTimeout(()=>{PV.busy=false;PV.calls.unshift({t:nowT(),q,ms,tr});addAudit({a:a.id,u:who(),act:'invoke',res:'控制台预览',risk:'低',dec:'allowed',tr});done(ms,tr);if(location.hash.startsWith('#/preview/'+a.id))VIEWS.preview($('#view'))},ms);
+  setTimeout(()=>{PV.busy=false;PV.calls.unshift({t:nowT(),q,ms,tr});addAudit({a:a.id,u:who(),act:'invoke',res:'控制台调试',risk:'低',dec:'allowed',tr});done(ms,tr);if(location.hash.startsWith('#/debug/'+a.id))VIEWS.debug($('#view'))},ms);
 }
 
 /* create wizard */
@@ -1499,9 +1499,9 @@ const ACT={
   release:d=>{const a=agentOf(d.id);openModal('发布到 prod',`<p>将 <b class="mono">${a.id} ${a.ver}</b> 发布到 prod。依次执行：</p><ul class="checks" id="relChecks">${['keel gate：跑实验并逐维度对比','提示词打 production 标签','更新路由与 agent_version','写审计 release'].map(n=>`<li><span class="ic"></span>${n}</li>`).join('')}</ul>`,`<button class="btn" data-act="closeModal">取消</button><button class="btn pri" id="relGo" data-act="releaseGo" data-id="${a.id}">开始发布</button>`)},
   releaseGo:d=>{const a=agentOf(d.id);$('#relGo').disabled=true;runChecks('#relChecks',()=>{a.env='prod';a.st='ONLINE';addAudit({a:a.id,u:who(),act:'release',res:a.ver+' → prod',risk:'中',dec:'allowed'});closeModal();openAgent(a.id);toast(`<b>${a.id}</b> 已发布到 prod`);render()})},
   retire:d=>{const a=agentOf(d.id);openModal('下线智能体',`<p>下线后将<b>吊销 薄网关 虚拟 Key、删除 Secret、停止部署</b>，历史追踪、评测和审计保留。下线后才能从注册中心删除。</p>${a.delegates?'':`<p class="mut" style="margin-top:6px">${S.agents.filter(x=>x.delegates&&x.delegates.includes(a.id)).map(x=>x.id).join('、')?'⚠ 被 '+S.agents.filter(x=>x.delegates&&x.delegates.includes(a.id)).map(x=>'<b>'+x.id+'</b>').join('、')+' 编排，下线后它们的委派会失败':''}</p>`}<div class="field"><label>输入智能体 ID <b class="mono">${a.id}</b> 确认</label><input class="inp" id="retIn" style="width:100%" autocomplete="off"></div>`,`<button class="btn" data-act="closeModal">取消</button><button class="btn danger" id="retGo" data-act="retireGo" data-id="${a.id}" disabled>确认下线</button>`);$('#retIn').oninput=e=>$('#retGo').disabled=e.target.value!==a.id;setTimeout(()=>$('#retIn').focus(),100)},
-  preview:d=>{closeDrawer();go('preview/'+d.id)},
+  debug:d=>{closeDrawer();go('debug/'+d.id)},
   pvBack:d=>{go('agents');setTimeout(()=>openAgent(d.id),50)},
-  pvClear:()=>{PV.msgs=[];VIEWS.preview($('#view'))},
+  pvClear:()=>{PV.msgs=[];VIEWS.debug($('#view'))},
   pvSend:()=>{const a=agentOf(PV.id),q=($('#pvIn')||{}).value?.trim();if(!a||!q||PV.busy)return;PV.msgs.push({role:'user',text:q});pvInvoke(a,q,(ms,tr)=>PV.msgs.push({role:'agent',text:PV_REPLY[a.id]||'收到，这是原型里的示例回复。正式环境里这里是智能体的真实输出。',tr}))},
   pvRun:()=>{const a=agentOf(PV.id),q=($('#pvRunIn')||{}).value?.trim();if(!a||!q||PV.busy)return;PV.run=null;pvInvoke(a,q,(ms,tr)=>{const [text,steps]=PV_RESULT[a.id]||['已完成。正式环境里这里是智能体的最终输出。',[['理解任务','模型',820,'ok',0],...a.tools.slice(0,2).map(t=>[t,'工具',300+Math.round(Math.random()*500),'ok',0]),['生成结果','模型',1900,'ok',0]]];PV.run={text,steps,ms,tr}})},
   agentDelete:d=>{const a=agentOf(d.id);openModal('删除智能体',`<p>删除后 <b>${a.id}</b> 从注册中心的列表、搜索和谱系里消失，<b>不能恢复</b>。</p><p class="mut" style="margin-top:6px">审计记录（只增不删）和 Langfuse 里的链路、评测保留到各自保留期。名称不会释放，之后不能再注册同名智能体。</p><div class="field"><label>输入智能体 ID <b class="mono">${a.id}</b> 确认</label><input class="inp" id="delIn" style="width:100%" autocomplete="off"></div>`,`<button class="btn" data-act="closeModal">取消</button><button class="btn danger" id="delGo" data-act="agentDeleteGo" data-id="${a.id}" disabled>确认删除</button>`);$('#delIn').oninput=e=>$('#delGo').disabled=e.target.value!==a.id;setTimeout(()=>$('#delIn').focus(),100)},

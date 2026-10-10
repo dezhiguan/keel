@@ -1,19 +1,19 @@
-# P2-18 智能体预览与删除
+# P2-18 智能体调试与删除
 
 ## 目标
 
-控制台可以直接试用一个已注册的智能体，按它的交互形态（对话、任务、后台、定时）给出不同的预览页。已下线的智能体可以从注册中心删除。
+控制台可以直接调试一个已注册的智能体，按它的交互形态（对话、任务、后台、定时）给出不同的调试页。已下线的智能体可以从注册中心删除。
 
 ## 依赖
 
 - 前置任务：P1-4 注册中心、DF-9b 智能体详情抽屉。后端已有 `POST /agents/{name}/chat`、`POST /agents/{name}/retire`、`GET /insight/traces`。
 - 依赖的契约文件：`contracts/manifest.schema.json`、`contracts/console-api.openapi.yaml`、`contracts/error-codes.yaml`。
-- 外部组件：无。预览只调 keel-server，不直连智能体、Langfuse、薄网关。
+- 外部组件：无。调试只调 keel-server，不直连智能体、Langfuse、薄网关。
 
 ## 改哪些文件
 
 ```
-docs/specs/p2/P2-18-agent-preview-delete.md
+docs/specs/p2/P2-18-agent-debug-delete.md
 contracts/manifest.schema.json
 contracts/console-api.openapi.yaml
 contracts/error-codes.yaml
@@ -27,26 +27,26 @@ console/src/api/agents.ts
 console/src/api/schema.d.ts                           # npm run gen:api 产物
 console/src/router/index.ts
 console/src/views/agents/AgentDetail.vue
-console/src/views/agents/AgentPreview.vue
-console/src/views/agents/preview.ts
-console/src/views/agents/preview.test.ts
+console/src/views/agents/AgentDebug.vue
+console/src/views/agents/debug.ts
+console/src/views/agents/debug.test.ts
 docs/console/Keel-控制台前端.html
 docs/architecture/Keel-技术文档.html
 ```
 
 ## 设计结论
 
-### 预览放在哪
+### 调试放在哪
 
-- 抽屉里**不加**预览页签。抽屉是「查资料」的地方，最宽 620px，放不下对话和执行过程；页签切换还会丢掉正在进行的会话。
-- 抽屉底部加「预览」按钮，进入控制台内的独立页面 `/agents/:name/preview`。同一个浏览器标签页内跳转，保留左侧导航、环境切换和登录态；它是普通链接，需要并排对照时可以 ⌘/Ctrl 点击在新标签页打开。
-- 预览页左上角「← 返回详情」回到 `/agents?drawer={name}`。
+- 抽屉里**不加**调试页签。抽屉是「查资料」的地方，最宽 620px，放不下对话和执行过程；页签切换还会丢掉正在进行的会话。
+- 抽屉底部加「调试」按钮，进入控制台内的独立页面 `/agents/:name/debug`。同一个浏览器标签页内跳转，保留左侧导航、环境切换和登录态；它是普通链接，需要并排对照时可以 ⌘/Ctrl 点击在新标签页打开。
+- 调试页左上角「← 返回详情」回到 `/agents?drawer={name}`。
 
 ### 交互形态从哪来
 
 manifest 新增可选字段 `spec.interaction`（只对 `kind: Agent`）：
 
-| `mode` | 含义 | 例子 | 预览页主区 |
+| `mode` | 含义 | 例子 | 调试页主区 |
 |---|---|---|---|
 | `chat`（缺省） | 用户多轮问答 | careermate、cs-bot、askdb | 对话窗口 |
 | `task` | 提交一件事，看执行步骤和产出 | offshore-wind 检修建议、prd-agent | 任务输入 + 执行步骤 + 结果 |
@@ -58,13 +58,13 @@ manifest 新增可选字段 `spec.interaction`（只对 `kind: Agent`）：
 - 缺省 `chat`，与现在唯一的调用入口 `/chat` 一致。新增字段可选，不破坏 keel/v1。
 - 所有形态底下都是同一个 `/v1/invoke` 协议，差别只在控制台怎么呈现。
 
-### 预览页公共部分
+### 调试页公共部分
 
 - 顶部：头像、名称、状态、形态、环境 · 版本、「全部链路」。
-- 提示条：预览是真实调用，消耗该智能体预算，写链路和审计；高风险工具照常走审批。
+- 提示条：调试是真实调用，消耗该智能体预算，写链路和审计；高风险工具照常走审批。
 - 右侧「本页调用」：本页发出的每次调用，带耗时和链路链接 `/traces/:id`。
-- 不能预览：`DRAFT`（还没注册）、`RETIRED`（Key 已吊销）只显示说明。`OFFLINE` 显示警告但允许尝试。
-- 发送类按钮都加 `v-write`，预览身份（只读）不能调用。
+- 不能调试：`DRAFT`（还没注册）、`RETIRED`（Key 已吊销）只显示说明。`OFFLINE` 显示警告但允许尝试。
+- 发送类按钮都加 `v-write`，预览身份（只读登录）不能调用。
 
 ### 各形态
 
@@ -85,12 +85,12 @@ manifest 新增可选字段 `spec.interaction`（只对 `kind: Agent`）：
 ```bash
 python3 scripts/codegen.py && git diff --exit-code keel-common sdk-python/keel/_generated   # 产物已提交
 cd sdk-python && pytest tests/contract
-cd console && npm run gen:api && npx vitest run src/views/agents/preview.test.ts && npm run typecheck
+cd console && npm run gen:api && npx vitest run src/views/agents/debug.test.ts && npm run typecheck
 ```
 
-- [ ] 抽屉「预览」进入 `/agents/:name/preview`，返回能回到原抽屉
+- [ ] 抽屉「调试」进入 `/agents/:name/debug`，返回能回到原抽屉
 - [ ] 四种形态各自的主区能渲染；缺 `interaction` 时按对话
-- [ ] DRAFT、RETIRED 不能预览；只读身份看得到页面但发不出调用
+- [ ] DRAFT、RETIRED 不能调试；只读身份看得到页面但发不出调用
 - [ ] 已下线才出现「删除」；输入 ID 后才能确认；成功后列表里没有它
 
 ## 明确不做

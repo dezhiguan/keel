@@ -1,22 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { describeCron, previewBlocked, previewMode, previewWarning, stepRows } from './preview'
+import { debugBlocked, debugMode, debugWarning, describeCron, stepRows } from './debug'
 
-describe('agent preview', () => {
+describe('agent debug', () => {
   it('falls back to chat when the manifest does not declare a mode', () => {
-    expect(previewMode(null)).toBe('chat')
-    expect(previewMode({})).toBe('chat')
-    expect(previewMode({ interaction: {} })).toBe('chat')
-    expect(previewMode({ interaction: { mode: 'schedule', schedule: '0 2 * * *' } })).toBe('schedule')
-    expect(previewMode({ interaction: { mode: 'unknown' as never } })).toBe('chat')
+    expect(debugMode(null)).toBe('chat')
+    expect(debugMode({})).toBe('chat')
+    expect(debugMode({ interaction: {} })).toBe('chat')
+    expect(debugMode({ interaction: { mode: 'schedule', schedule: '0 2 * * *' } })).toBe('schedule')
+    expect(debugMode({ interaction: { mode: 'unknown' as never } })).toBe('chat')
   })
 
   it('blocks drafts and retired agents but only warns when offline', () => {
-    expect(previewBlocked('DRAFT')).toContain('还没注册')
-    expect(previewBlocked('RETIRED')).toContain('已下线')
-    expect(previewBlocked('ONLINE')).toBeNull()
-    expect(previewBlocked('OFFLINE')).toBeNull()
-    expect(previewWarning('OFFLINE')).toContain('离线')
-    expect(previewWarning('ONLINE')).toBeNull()
+    expect(debugBlocked('DRAFT')).toContain('还没注册')
+    expect(debugBlocked('RETIRED')).toContain('已下线')
+    expect(debugBlocked('ONLINE')).toBeNull()
+    expect(debugBlocked('OFFLINE')).toBeNull()
+    expect(debugWarning('OFFLINE')).toContain('离线')
+    expect(debugWarning('ONLINE')).toBeNull()
   })
 
   it('reads common cron shapes and leaves the rest raw', () => {

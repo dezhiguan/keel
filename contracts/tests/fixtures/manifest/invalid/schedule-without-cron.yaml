@@ -1,4 +1,4 @@
-# 反例：mode: schedule 没写 cron。控制台预览页和对账都要知道它什么时候该跑。
+# 反例：mode: schedule 没写 cron。控制台调试页和对账都要知道它什么时候该跑。
 apiVersion: keel/v1
 kind: Agent
 metadata:

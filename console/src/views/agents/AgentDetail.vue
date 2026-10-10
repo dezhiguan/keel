@@ -345,7 +345,7 @@ onUnmounted(() => {
             <button v-write class="btn danger" type="button" @click="deleting = true">删除</button>
           </template>
           <template v-else>
-            <RouterLink v-if="detail && detail.status !== 'DRAFT'" class="btn" :to="`/agents/${encodeURIComponent(name)}/preview`">预览</RouterLink>
+            <RouterLink v-if="detail && detail.status !== 'DRAFT'" class="btn" :to="`/agents/${encodeURIComponent(name)}/debug`">调试</RouterLink>
             <button v-if="layer !== 'meta'" v-write class="btn" type="button" @click="router.push({ path: '/agents/new', query: { method: 'devflow', kind: 'CHANGE', agent: name } })">发起改造任务</button>
             <span v-else class="mut">元智能体只能由人直接改代码。</span>
             <button class="btn ghost" type="button" @click="viewTraces">查看链路</button>

@@ -1,28 +1,28 @@
 import type { AgentDetail } from '@/api/agents'
 import type { TraceNode } from '@/api/traces'
 
-export type PreviewMode = 'chat' | 'task' | 'service' | 'schedule'
+export type DebugMode = 'chat' | 'task' | 'service' | 'schedule'
 
-export const MODE_LABEL: Record<PreviewMode, { name: string; hint: string }> = {
+export const MODE_LABEL: Record<DebugMode, { name: string; hint: string }> = {
   chat: { name: '对话式', hint: '用户多轮问答' },
   task: { name: '任务式', hint: '提交一件事，看执行步骤和产出' },
   service: { name: '后台式', hint: '没有用户入口，由事件、其他系统或上级智能体调用' },
   schedule: { name: '定时任务', hint: '按计划自动运行' },
 }
 
-export function previewMode(agent?: Pick<AgentDetail, 'interaction'> | null): PreviewMode {
+export function debugMode(agent?: Pick<AgentDetail, 'interaction'> | null): DebugMode {
   const mode = agent?.interaction?.mode
   return mode && mode in MODE_LABEL ? mode : 'chat'
 }
 
-/** 不能预览时返回原因；可以预览返回 null。 */
-export function previewBlocked(status?: string | null) {
-  if (status === 'DRAFT') return '还没注册，不能预览。先 keel register 或在向导里完成注册。'
+/** 不能调试时返回原因；可以调试返回 null。 */
+export function debugBlocked(status?: string | null) {
+  if (status === 'DRAFT') return '还没注册，不能调试。先 keel register 或在向导里完成注册。'
   if (status === 'RETIRED') return '已下线，虚拟 Key 已吊销，不能再调用。历史运行仍可在链路追踪里查看。'
   return null
 }
 
-export function previewWarning(status?: string | null) {
+export function debugWarning(status?: string | null) {
   if (status === 'OFFLINE') return '当前离线（没有就绪实例），调用大概率失败。'
   if (status === 'DEGRADED') return '当前降级运行，回复可能来自降级模型。'
   return null

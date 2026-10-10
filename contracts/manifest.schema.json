@@ -193,7 +193,7 @@
         "interaction": {
           "type": "object",
           "default": {},
-          "description": "交互形态，控制台预览页据此呈现。调用协议都是 /v1/invoke，这里只影响展示",
+          "description": "交互形态，控制台调试页据此呈现。调用协议都是 /v1/invoke，这里只影响展示",
           "properties": {
             "mode": {
               "enum": ["chat", "task", "service", "schedule"],

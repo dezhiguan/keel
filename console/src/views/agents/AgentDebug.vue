@@ -8,7 +8,7 @@ import { toKeelError } from '@/api/http'
 import { getTrace, listTraces, type TraceSummary } from '@/api/traces'
 import { agentStatus, fmtMs, hms, nodeStatus } from '@/utils/format'
 import { avatarColor, avatarLetter } from './agentDrawer'
-import { MODE_LABEL, describeCron, previewBlocked, previewMode, previewWarning, stepRows, type StepRow } from './preview'
+import { MODE_LABEL, debugBlocked, debugMode, debugWarning, describeCron, stepRows, type StepRow } from './debug'
 
 interface Call {
   id: number
@@ -53,9 +53,9 @@ const recent = ref<TraceSummary[]>([])
 const recentLoading = ref(false)
 
 const name = computed(() => String(route.params.name ?? ''))
-const mode = computed(() => previewMode(detail.value))
-const blocked = computed(() => (detail.value ? previewBlocked(detail.value.status) : null))
-const warning = computed(() => (detail.value ? previewWarning(detail.value.status) : null))
+const mode = computed(() => debugMode(detail.value))
+const blocked = computed(() => (detail.value ? debugBlocked(detail.value.status) : null))
+const warning = computed(() => (detail.value ? debugWarning(detail.value.status) : null))
 const runner = computed(() => (mode.value === 'chat' ? null : RUNNER[mode.value]))
 const cronText = computed(() => describeCron(detail.value?.interaction?.schedule))
 const envVersion = computed(() => [detail.value?.env, detail.value?.version].filter(Boolean).join(' · ') || '—')
@@ -185,7 +185,7 @@ watch(name, async (agent) => {
     <div v-if="detail && blocked" class="card"><p class="empty">{{ blocked }}</p></div>
 
     <template v-else-if="detail">
-      <div class="banner info">预览是真实调用：消耗该智能体的日预算，写链路和审计；高风险工具照常走审批。</div>
+      <div class="banner info">调试是真实调用：消耗该智能体的日预算，写链路和审计；高风险工具照常走审批。</div>
       <div v-if="warning" class="banner warn">{{ warning }}</div>
 
       <div class="pv-grid">

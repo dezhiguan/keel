@@ -512,7 +512,7 @@ footer{margin-top:60px;padding-top:16px;border-top:1px solid var(--line);font-si
     ├── layouts/ConsoleLayout.vue
     ├── views/
     │   ├── overview/          <span class="c"># OverviewView</span>
-    │   ├── agents/            <span class="c"># AgentList、AgentDetail、AgentPreview、AgentCreateWizard</span>
+    │   ├── agents/            <span class="c"># AgentList、AgentDetail、AgentDebug、AgentCreateWizard</span>
     │   ├── services/          <span class="c"># SharedServices</span>
     │   ├── trace/             <span class="c"># TraceList、TraceDetail（Graph / Lanes / Tree 三个子组件）</span>
     │   ├── quality/  eval/  audit/
@@ -621,7 +621,7 @@ X-Keel-Eval-Run: &lt;run_id&gt;                 <span class="c"># 评测流量�
       <tr><td><code>POST /api/v1/agents/{name}/prompts/{prompt}/rollback</code></td><td>控制台</td><td>prod 的 production 标签挪回某个发布记录里出现过的版本；不重跑门禁，写发布记录和审计</td></tr>
       <tr><td><code>POST /api/v1/agents/{name}/retire</code></td><td>keel retire</td><td>下线：吊销 Key、删 Secret、状态置 RETIRED</td></tr>
       <tr><td><code>DELETE /api/v1/agents/{name}</code></td><td>控制台</td><td>删除：只允许 RETIRED，否则 409 <code>AGENT_NOT_RETIRED</code>。从列表、搜索、谱系移除；审计和 Langfuse 数据保留；名称不释放。高风险同步审计 <code>agent.delete</code>（P2-18，后端待实现）</td></tr>
-      <tr><td><code>POST /api/v1/agents/{name}/chat</code></td><td>控制台预览页</td><td>发一轮输入，返回最终输出和 traceId。四种预览形态共用；目前每轮独立、不带上文</td></tr>
+      <tr><td><code>POST /api/v1/agents/{name}/chat</code></td><td>控制台调试页</td><td>发一轮输入，返回最终输出和 traceId。四种调试形态共用；目前每轮独立、不带上文</td></tr>
       <tr><td><code>GET /api/v1/agents</code> · <code>/{name}</code></td><td>控制台</td><td>列表、详情（含实例、资源、版本、对账问题）</td></tr>
       <tr><td><code>POST /api/v1/instances/heartbeat</code></td><td>SDK</td><td>非 K8s 实例心跳</td></tr>
       <tr><td><code>GET /api/v1/routes?since={ver}</code></td><td>keel-gateway</td><td>长轮询：有变更立即返回，否则 30s 超时</td></tr>
@@ -953,7 +953,7 @@ keel eval run --dataset code-review/findings <span class="c"># 和 CI 同一套�
       <tr><td>登录</td><td><code>/login</code></td><td>只登录不注册：账号密码 / 短信验证码两个页签，失败 5 次后出图形验证码；没有注册和找回密码入口。预览开关打开时多一个「以预览模式进入（只读）」。登录成功回到 <code>redirect</code>（只接受站内路径）</td><td><code>auth/*</code> · <code>me</code></td></tr>
       <tr><td>总览</td><td><code>/overview</code></td><td>KPI、10 个智能体健康表、告警、成本，点智能体进详情</td><td><code>insight/overview</code></td></tr>
       <tr><td>智能体</td><td><code>/agents</code> · <code>/agents/:name</code></td><td>按业务 / 研发、状态、关键字筛选；详情抽屉：manifest、自检、实例、资源、版本；已下线的可删除</td><td><code>agents</code></td></tr>
-      <tr><td>智能体预览</td><td><code>/agents/:name/preview</code></td><td>从抽屉「预览」进入。按 manifest <code>spec.interaction.mode</code> 呈现：对话（缺省）、任务（输入 → 步骤 → 结果）、后台（触发方式 + 最近运行 + 测试输入）、定时（cron + 最近运行 + 立即运行一次）。DRAFT、RETIRED 不能预览</td><td><code>POST agents/{name}/chat</code> · <code>insight/traces</code></td></tr>
+      <tr><td>智能体调试</td><td><code>/agents/:name/debug</code></td><td>从抽屉「调试」进入。按 manifest <code>spec.interaction.mode</code> 呈现：对话（缺省）、任务（输入 → 步骤 → 结果）、后台（触发方式 + 最近运行 + 测试输入）、定时（cron + 最近运行 + 立即运行一次）。DRAFT、RETIRED 不能调试</td><td><code>POST agents/{name}/chat</code> · <code>insight/traces</code></td></tr>
       <tr><td>新建智能体</td><td><code>/agents/new</code></td><td>四步向导：方式 → 基本信息 → 模板与资源 → 预览 agent.yaml 并模拟注册</td><td><code>POST agents</code></td></tr>
       <tr><td>共享服务</td><td><code>/services</code></td><td>服务健康、rag-forge 分段耗时、知识库</td><td><code>insight/services</code></td></tr>
       <tr><td>链路追踪</td><td><code>/traces</code> · <code>/traces/:id</code></td><td>列表：按智能体、状态、时间窗筛选，服务端分页，一行一个 trace。详情：只请求一次，泳道时间线和调用树对所有 trace 都有；trace 里有两个以上智能体时才多出协作图和按智能体拆分的耗时、成本。点节点看详情，跳 Langfuse</td><td><code>insight/traces</code> · <code>insight/traces/{id}</code></td></tr>
