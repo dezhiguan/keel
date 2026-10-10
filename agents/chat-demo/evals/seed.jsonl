@@ -1,0 +1,2 @@
+{"input": {"text": "你是谁？请用一句话回答。"}, "expected": {"contains": "对话测试"}, "tags": ["identity"]}
+{"input": {"text": "请只回答数字：3+4等于几？"}, "expected": {"contains": "7"}, "tags": ["arithmetic"]}

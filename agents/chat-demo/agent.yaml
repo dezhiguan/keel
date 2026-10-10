@@ -1,0 +1,29 @@
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  name: chat-demo
+  displayName: 对话测试
+  owner: 研发效能组 / amy
+  category: biz
+spec:
+  interaction:
+    mode: chat
+  runtime:
+    type: code
+    language: python
+    endpoint: http://chat-demo.keel-system.svc.cluster.local:8000
+    liveness: k8s
+  auth:
+    audience: chat-demo
+  models:
+    default: qwen-plus
+    budget:
+      dailyCny: 20
+  eval:
+    dataset: chat-demo/smoke
+  prompts:
+    source: langfuse
+    label: production
+    items:
+      - name: answer
+        type: chat
