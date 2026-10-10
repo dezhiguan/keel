@@ -356,7 +356,9 @@ public class SharedServiceMonitor {
 
     /** Retrieval P95 is a 24h aggregate; Langfuse never blocks the shared services page. */
     private List<LangfuseClient.Retrieval> retrievals(Instant now) {
+        List<LangfuseClient.Retrieval> visible;
         synchronized (this) {
+            visible = retrievalCache;
             if (retrievalCache != null && retrievalCachedAt != null && retrievalCachedAt.plus(RETRIEVAL_TTL).isAfter(now)) {
                 return retrievalCache;
             }
@@ -371,9 +373,10 @@ public class SharedServiceMonitor {
                 }
             });
         }
-        synchronized (this) {
-            return retrievalCache;
-        }
+        // The refresh started above must not leak into this call. Virtual threads can
+        // finish the Langfuse read before the caller continues, and the page would then
+        // show figures that were supposed to arrive on the next read.
+        return visible;
     }
 
     private void storeRetrievals(List<LangfuseClient.Retrieval> rows) {
