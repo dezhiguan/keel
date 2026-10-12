@@ -23,6 +23,7 @@ keel-server/src/main/java/com/keel/server/registry/service/AgentRegistryService.
 keel-server/src/test/java/com/keel/server/registry/service/RegisterManifestTest.java
 keel-server/src/test/java/com/keel/server/registry/service/WizardToolsTest.java
 keel-server/src/test/java/com/keel/server/insight/CostServiceTest.java
+deploy/docker/service.Dockerfile
 console/src/api/agents.ts
 console/src/views/agents/wizard.ts
 console/src/views/agents/wizard.test.ts
@@ -37,6 +38,7 @@ console/src/views/agents/AgentCreateWizard.vue
 - 智能体行写入之后，用当前控制台用户给每个勾选的工具写 `agent_tool_grant`，版本范围用该工具当前版本。
 - 预览 YAML 与注册用同一份解析结果，预览不写授权。
 - 未勾选工具时，manifest 不写 `tools`，和现在的回声注册一致。
+- 服务镜像从构建阶段的 `/out/app.jar` 取包。keel-server 的包里必须有 `WizardCatalog.class`，否则构建失败。
 
 ## 验收标准
 
