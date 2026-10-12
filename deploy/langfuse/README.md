@@ -33,6 +33,8 @@ Keel Pod 的 `jp.cloud.langfuse.com` 通过 hostAliases 指向数据机
 源码在 `cloud-relay.py`，安装路径 `/usr/local/sbin/keel-langfuse-relay.py`，
 由 `keel-langfuse-relay.service` 管理。不要另起手动监听进程，否则 systemd
 会因为端口冲突反复重启。每个上游 IP 的连接超时为 2 秒，失败后尝试下一个地址。
+中继读取 TLS ClientHello 的 SNI，仅允许 Langfuse Japan 和 api.github.com，
+后者供 git-ci 使用同一私网 443 端口。端到端证书校验和加密保持有效。
 
 验收：从 Keel Pod 访问 `https://jp.cloud.langfuse.com/api/public/health` 返回 200，
 同时确认 `systemctl is-active keel-langfuse-relay.service` 为 active，重启计数不再增长。

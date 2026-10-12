@@ -9,8 +9,27 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from keel.context import Context
+from keel.agent import Agent
 from keel.manifest import AgentManifest
 from keel.protocol.errors import ErrorCode, KeelError
+
+
+def test_shared_only_agent_starts_without_local_audit_but_local_callbacks_require_it(monkeypatch):
+    manifest = AgentManifest.model_validate({"apiVersion": "keel/v1", "metadata": {"name": "qa-agent"},
+        "spec": {"runtime": {"endpoint": "http://agent"}, "tools": [{"name": "git.pr.diff", "risk": "low", "access": "read"}]}})
+    for name in ("KEEL_AUDIT_URL", "KEEL_AUDIT_TOKEN", "KEEL_AUDIT_SPOOL_PATH"):
+        monkeypatch.delenv(name, raising=False)
+    for name in ("KEEL_SERVER_URL", "KEEL_SERVICE_AUDIENCE", "KEEL_CLIENT_PRIVATE_KEY", "KEEL_ENV"):
+        monkeypatch.setenv(name, "configured")
+    agent = Agent(manifest)
+    agent.validate_config()
+    monkeypatch.delenv("KEEL_CLIENT_PRIVATE_KEY")
+    with pytest.raises(RuntimeError, match="KEEL_CLIENT_PRIVATE_KEY"):
+        agent.validate_config()
+    monkeypatch.setenv("KEEL_CLIENT_PRIVATE_KEY", "configured")
+    agent.tool(lambda: None, name="git.pr.diff")
+    with pytest.raises(RuntimeError, match="KEEL_AUDIT_URL"):
+        agent.validate_config()
 
 
 @pytest.mark.parametrize("denied", [False, True])

@@ -63,9 +63,12 @@ class Agent:
             required.extend(("KEEL_LLM_BASE_URL", "KEEL_LLM_KEY"))
         if self.manifest.spec.knowledge:
             required.extend(("KEEL_RAGFORGE_URL", "KEEL_RAGFORGE_TOKEN"))
-        if self.manifest.spec.tools or self.manifest.spec.audit:
+        if self._tools or self.manifest.spec.audit:
             required.extend(("KEEL_AUDIT_URL", "KEEL_AUDIT_TOKEN",
                              "KEEL_AUDIT_SPOOL_PATH", "KEEL_ENV"))
+        if any(tool.name not in self._tools for tool in (self.manifest.spec.tools or [])):
+            required.extend(("KEEL_SERVER_URL", "KEEL_SERVICE_AUDIENCE",
+                             "KEEL_CLIENT_PRIVATE_KEY", "KEEL_ENV"))
         missing = [key for key in required if not os.environ.get(key)]
         if missing:
             raise RuntimeError(f"Missing required environment variable(s): {', '.join(missing)}")
