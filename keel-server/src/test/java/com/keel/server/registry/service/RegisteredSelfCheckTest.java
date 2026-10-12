@@ -38,9 +38,12 @@ class RegisteredSelfCheckTest {
                 return new Answer("probe", "trace-selfcheck");
             }
         };
+        var reads = new AtomicInteger();
         var langfuse = new LangfuseClient("", "", "") {
             @Override public JsonNode observationsByTrace(String trace) {
                 assertThat(trace).isEqualTo("trace-selfcheck");
+                if (reads.incrementAndGet() == 1) throw new IllegalStateException("temporary read failure");
+                if (reads.get() == 2) return json.createObjectNode().set("data", json.createArrayNode());
                 var body = json.createObjectNode(); body.putArray("data").addObject().put("id", "root"); return body;
             }
         };

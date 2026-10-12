@@ -57,16 +57,16 @@ public class SelfCheckService {
         }
         boolean visible = false;
         if (traceId != null) {
-            for (int attempt = 0; attempt < 3 && !visible; attempt++) {
+            for (int attempt = 0; attempt < 12 && !visible; attempt++) {
                 try {
-                    // The SDK batches OTLP spans for up to five seconds.
-                    if (attempt > 0) Thread.sleep(3000);
+                    // SDK batching plus Langfuse indexing can exceed six seconds.
+                    if (attempt > 0) Thread.sleep(5000);
                     visible = !langfuse.observationsByTrace(traceId).path("data").isEmpty();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
                 } catch (RuntimeException e) {
-                    break;
+                    // A transient cloud read error must not skip the remaining visibility window.
                 }
             }
         }
