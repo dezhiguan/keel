@@ -11,7 +11,9 @@ COPY keel-audit keel-audit
 COPY keel-spring-boot-starter keel-spring-boot-starter
 COPY keel-llm keel-llm
 ARG MODULE=keel-llm
-RUN mvn -pl :${MODULE} -am package -DskipTests
+# 提交号写进这一层。只靠 COPY 的缓存时，GHA 会把旧 jar 打进新标签。
+ARG SOURCE_REV=unknown
+RUN echo "source ${SOURCE_REV}" && mvn -pl :${MODULE} -am package -DskipTests
 
 FROM eclipse-temurin:21-jre-jammy
 ARG JAR=keel-llm/target/keel-llm-0.1.0-SNAPSHOT.jar

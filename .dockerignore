@@ -8,3 +8,4 @@ console/dist
 docs
 **/*.md
 !deploy/README.md
+!agents/**/prompts/*.md

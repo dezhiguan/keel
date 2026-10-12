@@ -33,5 +33,6 @@ runs:
           MODULE=${{ inputs.service }}
           JAR=${{ inputs.service }}/target/${{ inputs.service }}-0.1.0-SNAPSHOT.jar
           RAM_PERCENTAGE=${{ inputs.ram }}
+          SOURCE_REV=${{ github.sha }}
         cache-from: type=gha,scope=${{ inputs.service }}
         cache-to: type=gha,scope=${{ inputs.service }},mode=max
