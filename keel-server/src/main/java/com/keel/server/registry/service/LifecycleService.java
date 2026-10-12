@@ -5,9 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.keel.common.error.ErrorCode;
 import com.keel.server.common.KeelException;
 import com.keel.server.integration.audit.AuditStore;
+import com.keel.server.auth.ConsolePrincipal;
 import com.keel.server.provisioning.ProvisioningService;
 import com.keel.server.provisioning.ResourceLedger;
 import com.keel.server.registry.mapper.AgentMapper;
+import com.keel.server.tool.service.ToolRegistryService;
 import com.keel.server.registry.model.entity.Agent;
 import com.keel.server.registry.model.enums.AgentStatus;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,10 +29,13 @@ public class LifecycleService {
     private final ManifestValidator validator;
     private final ObjectMapper json;
     private final AuditStore audits;
+    private final WizardCatalog wizardCatalog;
+    private final ToolRegistryService toolRegistry;
     private final int port;
 
     public LifecycleService(AgentMapper agents, ProvisioningService provisioning, ResourceLedger ledger,
                             JdbcTemplate jdbc, ManifestValidator validator, ObjectMapper json, AuditStore audits,
+                            WizardCatalog wizardCatalog, ToolRegistryService toolRegistry,
                             @Value("${server.port:8080}") int port) {
         this.agents = agents;
         this.provisioning = provisioning;
@@ -39,11 +44,14 @@ public class LifecycleService {
         this.validator = validator;
         this.json = json;
         this.audits = audits;
+        this.wizardCatalog = wizardCatalog;
+        this.toolRegistry = toolRegistry;
         this.port = port;
     }
 
     public SelfCheckService.Report register(JsonNode body) {
-        var manifest = manifest(body);
+        var selected = wizardCatalog.resolve(body);
+        var manifest = manifest(body, selected);
         validator.validate(manifest, java.util.Set.of());
         var name = manifest.path("metadata").path("name").asText();
         var env = body.path("env").asText("dev");
@@ -57,6 +65,12 @@ public class LifecycleService {
         }
         if (existing == null) {
             insertAgent(manifest);
+        }
+        if (!selected.isEmpty()) {
+            var grantedBy = ConsolePrincipal.requireUsername();
+            for (var tool : selected) {
+                toolRegistry.grant(tool.name(), name, tool.version(), grantedBy);
+            }
         }
         var text = manifest.toString();
         jdbc.update("""
@@ -120,8 +134,8 @@ public class LifecycleService {
         agents.insert(agent);
     }
 
-    private JsonNode manifest(JsonNode body) {
-        return RegisterManifest.toNode(json, body, port);
+    private JsonNode manifest(JsonNode body, java.util.List<WizardTools.Spec> tools) {
+        return RegisterManifest.toNode(json, body, port, tools);
     }
 
     private static String sha256(String text) {

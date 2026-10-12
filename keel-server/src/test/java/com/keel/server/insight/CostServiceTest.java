@@ -85,7 +85,7 @@ class CostServiceTest {
             assertThat(model.priceConfigured()).isFalse();
             assertThat(model.calls()).isZero();
         });
-        var registry = new AgentRegistryService(null, null, null, null, new ObjectMapper()) {
+        var registry = new AgentRegistryService(null, null, null, null, new ObjectMapper(), null) {
             @Override public List<com.keel.server.registry.model.dto.AgentSummary> listAll() { return List.of(); }
         };
         var overview = new OverviewService(registry, costs, new QualityService(langfuse), env -> 0).overview("all", "24h");

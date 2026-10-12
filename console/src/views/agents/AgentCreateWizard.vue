@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { checkAgentName, previewManifest, registerAgent, type SelfCheckReport } from '@/api/agents'
+import { checkAgentName, getCatalog, previewManifest, registerAgent, type CatalogPolicy, type CatalogTool, type SelfCheckReport } from '@/api/agents'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import DevflowWizard from './DevflowWizard.vue'
+import { RISK } from '@/utils/format'
 import { nameError, registerBody, type DevflowKind, type WizardForm } from './wizard'
+
+const ACCESS = { READ: '读', WRITE: '写', EXEC: '执行' } as const
 
 const STEPS = ['创建方式', '基本信息', '模板与资源', '预览并注册']
 const TEMPLATES: [string, string, string][] = [
@@ -38,10 +41,36 @@ const form = reactive<WizardForm>({
   model: 'qwen-plus',
   dailyBudgetCny: 30,
   env: envStore.env === 'all' ? 'dev' : envStore.env,
+  tools: [],
+  approvalPolicyId: '',
 })
+const catalogTools = ref<CatalogTool[]>([])
+const policies = ref<CatalogPolicy[]>([])
+const catalogError = ref('')
 
 const idError = computed(() => (form.name ? nameError(form.name, taken.value) : ''))
-const canNext = computed(() => step.value !== 2 || !idError.value)
+const selectedHigh = computed(() => form.tools.some((name) => catalogTools.value.find((tool) => tool.name === name)?.risk === 'HIGH'))
+const canNext = computed(() => {
+  if (step.value === 2) return !idError.value
+  if (step.value === 3 && selectedHigh.value && !form.approvalPolicyId) return false
+  return true
+})
+
+onMounted(async () => {
+  try {
+    const catalog = await getCatalog()
+    catalogTools.value = (catalog.tools ?? []).filter((tool) => tool.name)
+    policies.value = (catalog.approvalPolicies ?? []).filter((policy) => policy.id && policy.name)
+  } catch (error) {
+    catalogError.value = toKeelError(error).message
+  }
+})
+
+function toggleTool(name: string) {
+  const index = form.tools.indexOf(name)
+  if (index >= 0) form.tools.splice(index, 1)
+  else form.tools.push(name)
+}
 
 async function onName() {
   taken.value = false
@@ -165,6 +194,32 @@ async function submit() {
               <label>日预算（人民币）</label>
               <input v-model.number="form.dailyBudgetCny" class="inp" type="number" min="1" />
             </div>
+          </div>
+          <div class="field">
+            <label>共享工具（需工具所有者授权）</label>
+            <p v-if="catalogError" class="hint err">{{ catalogError }}</p>
+            <p v-else-if="!catalogTools.length" class="hint">注册表里还没有可勾选的共享工具。</p>
+            <div v-else class="chipsel">
+              <button
+                v-for="tool in catalogTools"
+                :key="tool.name"
+                type="button"
+                :class="{ on: form.tools.includes(tool.name!) }"
+                :title="tool.description || tool.name"
+                @click="toggleTool(tool.name!)"
+              >
+                {{ tool.name }} · {{ ACCESS[tool.access || 'READ'] }} · {{ RISK[tool.risk || 'LOW'].label }}
+              </button>
+            </div>
+            <div class="hint">勾选后写入 agent.yaml，并授权给这个智能体。高风险工具每次调用都会挂起，送到审批中心。</div>
+          </div>
+          <div v-if="selectedHigh" class="field">
+            <label>高风险工具的审批策略（必填）</label>
+            <select v-model="form.approvalPolicyId" class="inp">
+              <option value="">请选择</option>
+              <option v-for="policy in policies" :key="policy.id" :value="policy.id">{{ policy.name }}</option>
+            </select>
+            <div v-if="!policies.length" class="hint err">还没有工具调用的审批策略，不能勾选高风险工具。</div>
           </div>
         </template>
         <template v-else>

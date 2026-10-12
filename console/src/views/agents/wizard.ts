@@ -10,6 +10,8 @@ export interface WizardForm {
   model: string
   dailyBudgetCny: number
   env: 'dev' | 'test' | 'staging' | 'prod'
+  tools: string[]
+  approvalPolicyId: string
 }
 
 export function nameError(name: string, taken = false): string {
@@ -125,5 +127,7 @@ export function registerBody(form: WizardForm) {
       fallback: [] as string[],
       dailyBudgetCny: form.dailyBudgetCny,
     },
+    tools: [...form.tools],
+    ...(form.approvalPolicyId ? { approvalPolicyId: form.approvalPolicyId } : {}),
   }
 }

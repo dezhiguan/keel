@@ -33,14 +33,17 @@ public class AgentRegistryService {
     private final AgentInstanceMapper instanceMapper;
     private final ResourceLedger ledger;
     private final ObjectMapper json;
+    private final WizardCatalog wizardCatalog;
 
     public AgentRegistryService(AgentMapper agentMapper, AgentVersionMapper versionMapper,
-                                AgentInstanceMapper instanceMapper, ResourceLedger ledger, ObjectMapper json) {
+                                AgentInstanceMapper instanceMapper, ResourceLedger ledger, ObjectMapper json,
+                                WizardCatalog wizardCatalog) {
         this.agentMapper = agentMapper;
         this.versionMapper = versionMapper;
         this.instanceMapper = instanceMapper;
         this.ledger = ledger;
         this.json = json;
+        this.wizardCatalog = wizardCatalog;
     }
 
     /**
@@ -144,7 +147,8 @@ public class AgentRegistryService {
     }
 
     public ManifestPreview.Result preview(JsonNode form) {
-        return ManifestPreview.render(form);
+        var tools = wizardCatalog == null ? java.util.List.<WizardTools.Spec>of() : wizardCatalog.resolve(form);
+        return RegisterManifest.render(form, 8080, tools);
     }
 
     public List<AgentSummary> listAll() {

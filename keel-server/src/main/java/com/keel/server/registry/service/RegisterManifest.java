@@ -11,6 +11,10 @@ public final class RegisterManifest {
     private RegisterManifest() {}
 
     public static ManifestPreview.Result render(JsonNode form, int port) {
+        return render(form, port, List.of());
+    }
+
+    public static ManifestPreview.Result render(JsonNode form, int port, List<WizardTools.Spec> tools) {
         var warnings = new ArrayList<String>();
         var name = text(form, "name");
         var rejection = AgentNames.rejection(name);
@@ -52,11 +56,11 @@ public final class RegisterManifest {
                     default: %s
                     budget:
                       dailyCny: %s
-                  eval:
-                    dataset: %s/smoke
                 """.formatted(runtime, language, endpoint,
                 "dify".equals(runtime) ? "probe" : "k8s", name.isBlank() ? "agent" : name, model,
-                budget.stripTrailingZeros().toPlainString(), name.isBlank() ? "agent" : name);
+                budget.stripTrailingZeros().toPlainString());
+        yaml = yaml + toolsYaml(tools);
+        yaml = yaml + "  eval:\n    dataset: " + (name.isBlank() ? "agent" : name) + "/smoke\n";
         if (!"dify".equals(runtime)) {
             yaml = yaml + "  prompts:\n    source: langfuse\n    label: production\n    items:\n      - name: answer\n        type: text\n";
         }
@@ -64,6 +68,11 @@ public final class RegisterManifest {
     }
 
     public static ObjectNode toNode(com.fasterxml.jackson.databind.ObjectMapper json, JsonNode body, int port) {
+        return toNode(json, body, port, List.of());
+    }
+
+    public static ObjectNode toNode(com.fasterxml.jackson.databind.ObjectMapper json, JsonNode body, int port,
+                                     List<WizardTools.Spec> tools) {
         if (body.has("apiVersion")) {
             return (ObjectNode) body;
         }
@@ -99,6 +108,18 @@ public final class RegisterManifest {
             });
         }
         models.putObject("budget").put("dailyCny", budget(body).doubleValue());
+        if (tools != null && !tools.isEmpty()) {
+            var declared = spec.putArray("tools");
+            for (var tool : tools) {
+                var item = declared.addObject();
+                item.put("name", tool.name());
+                item.put("access", tool.access());
+                item.put("risk", tool.risk());
+                if (tool.high()) {
+                    item.put("approval", "required");
+                }
+            }
+        }
         spec.putObject("eval").put("dataset", (name.isBlank() ? "agent" : name) + "/smoke");
         if (!"dify".equals(runtimeType)) {
             var prompts = spec.putObject("prompts");
@@ -184,6 +205,22 @@ public final class RegisterManifest {
             return flat.decimalValue();
         }
         return java.math.BigDecimal.valueOf(30);
+    }
+
+    static String toolsYaml(List<WizardTools.Spec> tools) {
+        if (tools == null || tools.isEmpty()) {
+            return "";
+        }
+        var yaml = new StringBuilder("  tools:\n");
+        for (var tool : tools) {
+            yaml.append("    - name: ").append(tool.name()).append('\n');
+            yaml.append("      access: ").append(tool.access()).append('\n');
+            yaml.append("      risk: ").append(tool.risk()).append('\n');
+            if (tool.high()) {
+                yaml.append("      approval: required\n");
+            }
+        }
+        return yaml.toString();
     }
 
     private static String text(JsonNode form, String field) {

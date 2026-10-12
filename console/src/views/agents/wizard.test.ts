@@ -11,6 +11,8 @@ const form: WizardForm = {
   model: 'qwen-plus',
   dailyBudgetCny: 30,
   env: 'dev',
+  tools: ['git.branch.push'],
+  approvalPolicyId: '',
 }
 
 describe('wizard', () => {
@@ -40,6 +42,9 @@ describe('wizard', () => {
       template: 'echo',
       env: 'dev',
       models: { default: 'qwen-plus', dailyBudgetCny: 30 },
+      tools: ['git.branch.push'],
     })
+    expect(registerBody(form)).not.toHaveProperty('approvalPolicyId')
+    expect(registerBody({ ...form, approvalPolicyId: '9' })).toMatchObject({ approvalPolicyId: '9' })
   })
 })

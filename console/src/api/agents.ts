@@ -40,6 +40,23 @@ export interface SelfCheckReport {
   items?: { name?: string; passed?: boolean; detail?: string | null }[]
 }
 
+export interface CatalogTool {
+  name?: string
+  description?: string
+  access?: 'READ' | 'WRITE' | 'EXEC'
+  risk?: 'LOW' | 'MID' | 'HIGH'
+  status?: string
+}
+
+export interface CatalogPolicy {
+  id?: string
+  name?: string
+}
+
+export function getCatalog() {
+  return get<{ tools?: CatalogTool[]; approvalPolicies?: CatalogPolicy[] }>('/catalog')
+}
+
 export function checkAgentName(name: string) {
   return get<{ available?: boolean; reason?: string }>('/agents/name-check', { params: { name } })
 }
