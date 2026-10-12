@@ -7,7 +7,7 @@ import { deleteAgent, getAgent, getAgentUsage, mergeUsage, retireAgent, type Age
 import { listDevflowJobs, type DevflowJob } from '@/api/devflow'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
-import { agentStatus, orDash } from '@/utils/format'
+import { agentStatus, orDash, fmtCny } from '@/utils/format'
 import {
   avatarColor,
   avatarLetter,
@@ -263,7 +263,7 @@ onUnmounted(() => {
               <span>预算</span>
               <div class="chips">
                 <span class="chip">{{ yuan(detail.dailyBudgetCny, 0) ? `${yuan(detail.dailyBudgetCny, 0)} / 天` : '—' }}</span>
-                <span class="chip">今日 {{ yuan(detail.costCny) ?? '—' }}</span>
+                <span class="chip">今日 {{ fmtCny(detail.costCny, 6) }}</span>
               </div>
             </div>
           </template>

@@ -50,7 +50,8 @@ function timeoutStyle(status?: string) {
 }
 
 function yuan(value?: number | null) {
-  return `¥${(value ?? 0).toFixed(2)}`
+  if (value == null) return '—'
+  return `¥${value.toFixed(Math.abs(value) > 0 && Math.abs(value) < 0.01 ? 6 : 2)}`
 }
 
 async function load() {
