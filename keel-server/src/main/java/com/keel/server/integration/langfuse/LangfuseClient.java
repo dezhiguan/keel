@@ -83,6 +83,8 @@ public class LangfuseClient {
                 if (id.isBlank()) {
                     id = sha256(line);
                 }
+                // Langfuse item IDs are unique across the project, not just the dataset.
+                id = sha256(dataset + "\n" + id);
                 if (!existing.add(id)) {
                     continue;
                 }

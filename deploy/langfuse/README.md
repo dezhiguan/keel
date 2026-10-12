@@ -25,3 +25,14 @@ Hobby 限额：每月 5 万单位，保留 30 天，网页用户 2 个，Metrics
 2026-10-04 已实测三个环境项目都能读写：`dev-keel`、`staging-keel`、`prod-keel`。主机是日本节点，OTLP 带 `x-langfuse-ingestion-version: 4` 后，observations 接口能读到 span。试用项目 `My Project` 可以在界面里停用。项目私钥只放部署环境，不进 git。
 
 `docker-compose.yml` 是作废的自建草稿，不要执行。
+
+## Cloud Japan 中继（2026-10-13 线上修复）
+
+Keel Pod 的 `jp.cloud.langfuse.com` 通过 hostAliases 指向数据机
+`172.25.90.183:443`，中继只转发 TLS 字节，不解密、不保存项目 Key。
+源码在 `cloud-relay.py`，安装路径 `/usr/local/sbin/keel-langfuse-relay.py`，
+由 `keel-langfuse-relay.service` 管理。不要另起手动监听进程，否则 systemd
+会因为端口冲突反复重启。每个上游 IP 的连接超时为 2 秒，失败后尝试下一个地址。
+
+验收：从 Keel Pod 访问 `https://jp.cloud.langfuse.com/api/public/health` 返回 200，
+同时确认 `systemctl is-active keel-langfuse-relay.service` 为 active，重启计数不再增长。

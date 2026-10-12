@@ -21,7 +21,14 @@ public class ProvisioningService {
                                LangfuseProvisioner datasets, ResourceLedger ledger, SelfCheckService checks,
                                ConfigAudit audit) {
         this(List.of(auth, litellm, secrets, datasets), ledger,
-                (endpoint, manifest) -> checks.check(endpoint, false, checks.approvalBound(manifest)), audit);
+                new Checker() {
+                    public SelfCheckService.Report check(String endpoint, JsonNode manifest) {
+                        throw new IllegalStateException("注册自检需要智能体与环境");
+                    }
+                    public SelfCheckService.Report check(String agent, String env, String endpoint, JsonNode manifest) {
+                        return checks.checkRegistered(agent, env, endpoint, manifest);
+                    }
+                }, audit);
     }
 
     public ProvisioningService(List<ProvisionStep> steps, ResourceLedger ledger, Checker checker, ConfigAudit audit) {
@@ -43,7 +50,7 @@ public class ProvisioningService {
             rollback(agent, env, done);
             throw e;
         }
-        var report = checker.check(endpoint, manifest);
+        var report = checker.check(agent, env, endpoint, manifest);
         if (!report.passed()) {
             return report;
         }
@@ -97,5 +104,8 @@ public class ProvisioningService {
 
     public interface Checker {
         SelfCheckService.Report check(String endpoint, JsonNode manifest);
+        default SelfCheckService.Report check(String agent, String env, String endpoint, JsonNode manifest) {
+            return check(endpoint, manifest);
+        }
     }
 }

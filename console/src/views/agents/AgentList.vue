@@ -158,7 +158,7 @@ watch(() => route.query.drawer, (drawer, previous) => {
             <div>{{ card.placeholder ? '本月调用' : '24h 调用' }}<b>{{ fmtN(card.calls) }}</b></div>
             <div>质量<b>{{ scoreText(card.score) }}</b></div>
             <div>日预算<b>{{ yuan(card.budget) }}</b></div>
-            <div>本月花费<b>{{ cardCost(card.cost) }}</b></div>
+            <div>今日花费<b>{{ cardCost(card.cost) }}</b></div>
           </div>
         </div>
         <div class="acard new" @click="router.push('/agents/new')">

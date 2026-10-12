@@ -23,7 +23,7 @@ public final class RegisterManifest {
         }
         var supplied = text(form, "endpoint");
         var endpoint = endpoint(form, port);
-        if (supplied.isBlank() && !"echo".equals(text(form, "template"))) {
+        if (supplied.isBlank() && !"echo".equals(name)) {
             warnings.add("未填写 endpoint，预览使用了占位地址");
         }
         var language = language(form);
@@ -60,6 +60,10 @@ public final class RegisterManifest {
                 "dify".equals(runtime) ? "probe" : "k8s", name.isBlank() ? "agent" : name, model,
                 budget.stripTrailingZeros().toPlainString());
         yaml = yaml + toolsYaml(tools);
+        if (!text(form, "template").isBlank()) {
+            yaml = yaml.replace("    language: " + language + "\n",
+                    "    language: " + language + "\n    template: " + text(form, "template") + "\n");
+        }
         yaml = yaml + "  eval:\n    dataset: " + (name.isBlank() ? "agent" : name) + "/smoke\n";
         if (!"dify".equals(runtime)) {
             yaml = yaml + "  prompts:\n    source: langfuse\n    label: production\n    items:\n      - name: answer\n        type: text\n";
@@ -93,6 +97,9 @@ public final class RegisterManifest {
         var runtimeType = runtime(body);
         runtime.put("type", runtimeType);
         runtime.put("language", language(body));
+        if (!text(body, "template").isBlank()) {
+            runtime.put("template", text(body, "template"));
+        }
         runtime.put("endpoint", endpoint(body, port));
         runtime.put("liveness", "dify".equals(runtimeType) ? "probe" : "k8s");
         spec.putObject("auth").put("audience", name);
@@ -135,10 +142,13 @@ public final class RegisterManifest {
 
     public static String endpoint(JsonNode form, int port) {
         var name = text(form, "name");
-        if ("echo".equals(text(form, "template"))) {
+        var endpoint = text(form, "endpoint");
+        if (!endpoint.isBlank()) {
+            return endpoint;
+        }
+        if ("echo".equals(name) && "echo".equals(text(form, "template"))) {
             return "http://echo-agent.keel-system.svc.cluster.local:8000";
         }
-        var endpoint = text(form, "endpoint");
         if (endpoint.isBlank()) {
             endpoint = "http://" + (name.isBlank() ? "agent" : name) + ".agents.svc:8000";
         }

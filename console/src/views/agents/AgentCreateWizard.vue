@@ -31,6 +31,7 @@ const form = reactive<WizardForm>({
   ownerUser: 'amy',
   category: 'dev',
   language: 'python',
+  endpoint: '',
   template: 'echo',
   model: 'qwen-plus',
   dailyBudgetCny: 30,
@@ -206,6 +207,11 @@ async function submit() {
               <label>日预算（人民币）</label>
               <input v-model.number="form.dailyBudgetCny" class="inp" type="number" min="1" />
             </div>
+          </div>
+          <div class="field">
+            <label>运行服务地址</label>
+            <input v-model="form.endpoint" class="inp" placeholder="http://my-agent.agents.svc:8000" />
+            <div class="hint">代码开发需先部署独立服务，并注入该智能体的 Secret；登记后才能调试和统计费用。留空将使用智能体 ID 对应的集群地址。</div>
           </div>
           <div class="field">
             <label>共享工具（需工具所有者授权）</label>

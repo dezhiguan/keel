@@ -129,6 +129,7 @@ class AgentManifestSpec(KeelModel):
 class AgentManifestSpecRuntime(KeelModel):
     type: Optional[AgentManifestSpecRuntimeTypeValue] = None
     language: Optional[AgentManifestSpecRuntimeLanguageValue] = None
+    template: Optional[str] = None
     endpoint: str
     liveness: Optional[AgentManifestSpecRuntimeLivenessValue] = None
 

@@ -44,6 +44,7 @@ def import_dataset(dataset: str, rows: list[dict[str, Any]], *, lines: list[str]
         added = 0
         for line, row in zip(lines, rows, strict=True):
             item_id = str(row.get("id") or hashlib.sha256(line.encode("utf-8")).hexdigest())
+            item_id = hashlib.sha256(f"{dataset}\n{item_id}".encode("utf-8")).hexdigest()
             if item_id in existing:
                 continue
             body: dict[str, Any] = {"id": item_id, "datasetName": dataset}

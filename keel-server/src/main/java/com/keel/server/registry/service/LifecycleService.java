@@ -91,6 +91,7 @@ public class LifecycleService {
             report = new SelfCheckService.Report(false, java.util.List.of(
                     new SelfCheckService.Item("开通", false, e.getMessage())));
         }
+        jdbc.update("UPDATE agent SET status = 'REGISTERED' WHERE name = ?", name);
         if (report.passed()) {
             jdbc.update("INSERT INTO route_snapshot (changed_agent) VALUES (?)", name);
         }

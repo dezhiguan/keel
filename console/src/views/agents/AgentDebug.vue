@@ -66,7 +66,7 @@ async function invoke(input: string): Promise<Call> {
   const call: Call = { id: ++callSeq, at: new Date().toISOString(), input, ms: 0 }
   busy.value = true
   try {
-    // TODO(P2-18): /chat 每轮独立、服务端写死 env=dev；要多轮上下文和按环境调用需要接口带 sessionId、env。
+    // Each turn is independent; the backend uses the registered version's environment.
     const answer = await chatWithAgent(name.value, input)
     call.text = answer.text ?? ''
     call.traceId = answer.traceId ?? null

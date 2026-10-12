@@ -46,6 +46,7 @@ public record AgentManifest(
     public record AgentManifestSpecRuntime(
         @JsonProperty("type") AgentManifestSpecRuntimeTypeValue type,
         @JsonProperty("language") AgentManifestSpecRuntimeLanguageValue language,
+        @JsonProperty("template") String template,
         @JsonProperty("endpoint") String endpoint,
         @JsonProperty("liveness") AgentManifestSpecRuntimeLivenessValue liveness
     ) {}

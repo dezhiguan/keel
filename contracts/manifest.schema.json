@@ -35,6 +35,7 @@
           "properties": {
             "type": { "enum": ["code", "dify"], "default": "code" },
             "language": { "enum": ["python", "java", "other"], "default": "python" },
+            "template": { "type": "string", "description": "代码开发时选择的脚手架模板，可选" },
             "endpoint": { "type": "string", "format": "uri" },
             "liveness": {
               "enum": ["k8s", "heartbeat", "probe"],

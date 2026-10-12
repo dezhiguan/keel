@@ -2,6 +2,9 @@ package com.keel.server.registry.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.keel.server.integration.agent.AgentEndpointClient;
+import com.keel.server.integration.langfuse.LangfuseClient;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -16,6 +19,58 @@ import java.util.Set;
 public class SelfCheckService {
     private static final Set<String> EVENTS = Set.of("step", "tool", "token", "final", "error", "suspend");
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
+    private final AgentEndpointClient endpoints;
+    private final LangfuseClient langfuse;
+
+    public SelfCheckService() { this(null, null); }
+
+    @Autowired
+    public SelfCheckService(AgentEndpointClient endpoints, LangfuseClient langfuse) {
+        this.endpoints = endpoints;
+        this.langfuse = langfuse;
+    }
+
+    /** Probe the actual service once, then look up its returned trace rather than hard coding failure. */
+    public Report checkRegistered(String agent, String env, String endpoint, JsonNode manifest) {
+        var items = new ArrayList<Item>();
+        var health = health(endpoint);
+        items.add(health);
+        String traceId = null;
+        try {
+            if (!health.passed()) throw new IllegalStateException("健康检查未通过");
+            var response = http.send(HttpRequest.newBuilder(URI.create(endpoint + "/v1/manifest"))
+                    .timeout(Duration.ofSeconds(3)).GET().build(), HttpResponse.BodyHandlers.ofString());
+            var actual = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response.body()).path("manifest");
+            if (!agent.equals(actual.path("metadata").path("name").asText())
+                    || !manifest.path("spec").path("runtime").path("language").asText("python")
+                    .equals(actual.path("spec").path("runtime").path("language").asText("python"))) {
+                throw new IllegalStateException("运行服务的智能体名称或语言与登记配置不一致");
+            }
+            traceId = endpoints.invoke(endpoint, "probe", null, agent, env).traceId();
+            items.add(new Item("协议", true, traceId));
+        } catch (Exception e) {
+            items.add(new Item("协议", false, e.getMessage()));
+        }
+        boolean visible = false;
+        if (traceId != null) {
+            for (int attempt = 0; attempt < 3 && !visible; attempt++) {
+                try {
+                    // The SDK batches OTLP spans for up to five seconds.
+                    if (attempt > 0) Thread.sleep(3000);
+                    visible = !langfuse.observationsByTrace(traceId).path("data").isEmpty();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                } catch (RuntimeException e) {
+                    break;
+                }
+            }
+        }
+        items.add(new Item("追踪", visible, visible ? traceId : "本次探针追踪尚未可见，请在链路追踪中复核"));
+        boolean approval = approvalBound(manifest);
+        items.add(new Item("审批绑定", approval, approval ? null : "高风险工具没有绑定审批策略"));
+        return new Report(items.stream().allMatch(Item::passed), List.copyOf(items));
+    }
 
     public Report check(String endpoint, boolean traceVisible, boolean approvalBound) {
         var items = new ArrayList<Item>();

@@ -100,8 +100,32 @@ class ExternalProvisionerTest {
         var manifest = json.readTree("{\"spec\":{\"eval\":{\"dataset\":\"code-review/findings\"}}}");
         provisioner.provision("code-review", "dev", manifest);
         provisioner.provision("code-review", "dev", manifest);
-        assertThat(items).containsExactlyInAnyOrder("case-1", "case-2");
+        assertThat(items).hasSize(2);
         assertThat(creates.get()).isEqualTo(2);
+    }
+
+    @Test void theSameSeedCanBelongToTwoAgentsWithoutAnItemConflict() throws Exception {
+        var globalIds = ConcurrentHashMap.<String>newKeySet();
+        var base = server((exchange, body) -> {
+            if (exchange.getRequestURI().getPath().equals("/api/public/dataset-items")) {
+                if ("POST".equals(exchange.getRequestMethod())) {
+                    boolean added = globalIds.add(json.readTree(body).path("id").asText());
+                    exchange.sendResponseHeaders(added ? 200 : 409, -1);
+                } else {
+                    var response = "{\"data\":[]}".getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    exchange.getResponseBody().write(response);
+                }
+                return;
+            }
+            exchange.sendResponseHeaders(200, -1);
+        });
+        var seed = Files.createTempFile("seed", ".jsonl");
+        Files.writeString(seed, "{\"id\":\"case-1\",\"input\":\"ping\"}\n");
+        var client = new LangfuseClient(base, "pk-lf", "sk-lf");
+        client.importSeed("first/smoke", seed);
+        client.importSeed("second/smoke", seed);
+        assertThat(globalIds).hasSize(2);
     }
 
     @Test void anExistingDatasetItemConflictDoesNotFailImport() throws Exception {

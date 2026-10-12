@@ -7,6 +7,7 @@ export interface WizardForm {
   ownerUser: string
   category: 'biz' | 'dev'
   language: 'python' | 'java'
+  endpoint?: string
   template: string
   model: string
   dailyBudgetCny: number
@@ -143,6 +144,7 @@ export function registerBody(form: WizardForm) {
     runtime: 'code' as const,
     language: form.language,
     template: form.template,
+    ...(form.endpoint?.trim() ? { endpoint: form.endpoint.trim() } : {}),
     models: {
       default: form.model,
       fallback: [] as string[],
