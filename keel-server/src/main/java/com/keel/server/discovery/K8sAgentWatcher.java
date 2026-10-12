@@ -51,12 +51,20 @@ public class K8sAgentWatcher {
         if (version != null && version.isBlank()) {
             version = null;
         }
-        var id = pod.getMetadata().getUid() == null ? pod.getMetadata().getName() : pod.getMetadata().getUid();
+        var uid = pod.getMetadata().getUid();
+        var id = pod.getMetadata().getName();
+        if (id == null || id.isBlank()) {
+            id = uid;
+        }
+        if (id == null || id.isBlank()) {
+            return;
+        }
         var key = name + "/" + env + "/" + id;
         if (deleted) {
             live.remove(key);
             if (jdbc != null && registered(name)) {
                 jdbc.update("DELETE FROM agent_instance WHERE agent_name = ? AND env = ? AND instance_id = ?", name, env, id);
+                forgetUid(name, env, id, uid);
             }
             return;
         }
@@ -68,7 +76,16 @@ public class K8sAgentWatcher {
                     ON CONFLICT (agent_name, env, instance_id)
                     DO UPDATE SET source = 'k8s', version = EXCLUDED.version, ready = EXCLUDED.ready, last_seen_at = now()
                     """, name, env, id, version, ready(pod));
+            forgetUid(name, env, id, uid);
         }
+    }
+
+    /** Older watches stored the pod UID. Drop that row once the pod name is recorded. */
+    private void forgetUid(String agent, String env, String id, String uid) {
+        if (jdbc == null || uid == null || uid.isBlank() || uid.equals(id)) {
+            return;
+        }
+        jdbc.update("DELETE FROM agent_instance WHERE agent_name = ? AND env = ? AND instance_id = ?", agent, env, uid);
     }
 
     public List<LivePod> live() {

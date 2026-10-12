@@ -101,8 +101,10 @@ class ProvisioningRollbackTest {
     private static final class MemoryLedger implements ResourceLedger {
         private final Map<String, String> rows = new HashMap<>();
         private final List<String> active = new ArrayList<>();
+        private final List<String> externalIds = new ArrayList<>();
 
         public void activate(String agent, String env, String type, String externalId) {
+            externalIds.add(type + ":" + externalId);
             rows.put(type, "ACTIVE");
             if (!active.contains(type)) {
                 active.add(type);
@@ -127,6 +129,25 @@ class ProvisioningRollbackTest {
             java.util.Collections.reverse(newestFirst);
             return newestFirst;
         }
+
+        public List<StoredResource> list(String agent, String env) {
+            return List.of();
+        }
+    }
+
+    @Test void ledgerStoresTheExternalIdReportedByTheStep() {
+        var ledger = new MemoryLedger();
+        ProvisionStep step = new ProvisionStep() {
+            public String resourceType() { return "litellm_key"; }
+            public String externalId(String agent, String env, com.fasterxml.jackson.databind.JsonNode manifest) {
+                return agent + "-" + env;
+            }
+            public void provision(String agent, String env, com.fasterxml.jackson.databind.JsonNode manifest) { }
+            public void revoke(String agent, String env) { }
+        };
+        new ProvisioningService(List.of(step), ledger, (endpoint, manifest) -> passed(), (agent, env) -> { })
+                .register("chat-demo", "dev", "http://chat-demo", JsonNodeFactory.instance.objectNode());
+        assertThat(ledger.externalIds).containsExactly("litellm_key:chat-demo-dev");
     }
 
     @Test void retireRevokesActiveResourcesInReverseAndSkipsMissingOnes() {

@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.keel.common.error.ErrorCode;
 import com.keel.server.common.KeelException;
 import com.keel.server.common.PageResult;
+import com.keel.server.provisioning.ResourceLedger;
+import com.keel.server.provisioning.ResourceNames;
 import com.keel.server.registry.mapper.AgentInstanceMapper;
 import com.keel.server.registry.mapper.AgentMapper;
 import com.keel.server.registry.mapper.AgentVersionMapper;
@@ -29,13 +31,15 @@ public class AgentRegistryService {
     private final AgentMapper agentMapper;
     private final AgentVersionMapper versionMapper;
     private final AgentInstanceMapper instanceMapper;
+    private final ResourceLedger ledger;
     private final ObjectMapper json;
 
     public AgentRegistryService(AgentMapper agentMapper, AgentVersionMapper versionMapper,
-                                AgentInstanceMapper instanceMapper, ObjectMapper json) {
+                                AgentInstanceMapper instanceMapper, ResourceLedger ledger, ObjectMapper json) {
         this.agentMapper = agentMapper;
         this.versionMapper = versionMapper;
         this.instanceMapper = instanceMapper;
+        this.ledger = ledger;
         this.json = json;
     }
 
@@ -107,11 +111,24 @@ public class AgentRegistryService {
         var agent = require(name);
         var versions = versionMapper.listByAgent(name);
         var latest = versions.isEmpty() ? null : versions.get(0);
+        var manifest = readManifest(latest);
+        var env = latest == null ? null : latest.getEnv();
         var instances = instanceMapper.selectList(new LambdaQueryWrapper<AgentInstance>()
                 .eq(AgentInstance::getAgentName, name));
+        if (env != null) {
+            instances = instances.stream().filter(row -> env.equals(row.getEnv())).toList();
+        }
         var ready = instances.stream().filter(AgentInstance::isReady).count();
         var instanceLabel = instances.isEmpty() ? null : ready + "/" + instances.size();
-        return AgentDetail.of(agent, latest, instanceLabel, instances, readManifest(latest));
+        var resources = List.<AgentDetail.ResourceRow>of();
+        if (ledger != null && env != null) {
+            resources = ledger.list(name, env).stream()
+                    .map(row -> new AgentDetail.ResourceRow(row.type(),
+                            ResourceNames.display(row.type(), name, env, row.externalId(), manifest),
+                            row.status()))
+                    .toList();
+        }
+        return AgentDetail.of(agent, latest, instanceLabel, instances, manifest, resources);
     }
 
     public Map<String, Object> nameCheck(String name) {

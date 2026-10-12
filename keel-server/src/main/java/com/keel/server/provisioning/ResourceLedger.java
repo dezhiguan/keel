@@ -9,4 +9,9 @@ public interface ResourceLedger {
 
     /** Resource types still ACTIVE for this agent and environment, newest provision first. */
     java.util.List<String> activeTypes(String agent, String env);
+
+    /** Every row for this agent and environment, in drawer order. */
+    java.util.List<StoredResource> list(String agent, String env);
+
+    record StoredResource(String type, String externalId, String status) {}
 }

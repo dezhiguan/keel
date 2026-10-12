@@ -16,7 +16,10 @@ import {
   kindLine,
   readyPill,
   resourceLabel,
+  resourceStatus,
   seenAgo,
+  toolChip,
+  withEvalGate,
   sourceLabel,
   versionRows,
 } from './agentDrawer'
@@ -90,7 +93,7 @@ async function load(agent: string) {
     const usage = await getAgentUsage(env)
     if (current !== ticket || !detail.value) return
     const row = (usage.items ?? []).find((item) => item.name === agent)
-    detail.value = mergeUsage(detail.value, row)
+    detail.value = withEvalGate(mergeUsage(detail.value, row))
   } catch (error) {
     if (current !== ticket) return
     ElMessage.error(`加载用量失败：${toKeelError(error).message}`)
@@ -254,7 +257,7 @@ onUnmounted(() => {
               </div>
               <span>工具</span>
               <div class="chips">
-                <span v-for="tool in detail.tools ?? []" :key="tool" class="chip">{{ tool }}</span>
+                <span v-for="tool in detail.tools ?? []" :key="tool" class="chip">{{ toolChip(tool).lead }}<template v-if="toolChip(tool).high"> · <b>高 · 需审批</b></template></span>
                 <span v-if="!detail.tools?.length" class="mut">—</span>
               </div>
               <span>预算</span>
@@ -291,7 +294,7 @@ onUnmounted(() => {
                 <tr v-for="(resource, index) in detail.resources ?? []" :key="`${resource.type}-${index}`">
                   <td>{{ resourceLabel(resource.type) }}</td>
                   <td class="mono">{{ orDash(resource.externalId) }}</td>
-                  <td><span class="pill p-mute">{{ orDash(resource.status) }}</span></td>
+                  <td><span class="pill" :class="resourceStatus(resource.type, resource.status).cls">{{ resourceStatus(resource.type, resource.status).label }}</span></td>
                 </tr>
               </tbody>
             </table>

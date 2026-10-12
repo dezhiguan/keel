@@ -36,7 +36,7 @@ public class ProvisioningService {
         try {
             for (var step : steps) {
                 step.provision(agent, env, manifest);
-                ledger.activate(agent, env, step.resourceType(), agent);
+                ledger.activate(agent, env, step.resourceType(), step.externalId(agent, env, manifest));
                 done.add(step);
             }
         } catch (RuntimeException e) {

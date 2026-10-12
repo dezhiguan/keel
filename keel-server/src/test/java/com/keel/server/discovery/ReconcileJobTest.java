@@ -73,7 +73,9 @@ class ReconcileJobTest {
         watcher.observe(pod("ghost", "dev", "v1", true), false);
         assertThat(watcher.live()).extracting(K8sAgentWatcher.LivePod::name).containsExactlyInAnyOrder("askdb", "ghost");
         assertThat(watcher.live().stream().filter(row -> row.name().equals("ghost")).findFirst().orElseThrow().registered()).isFalse();
-        assertThat(watcher.live().stream().filter(row -> row.name().equals("askdb")).findFirst().orElseThrow().registered()).isTrue();
+        var askdb = watcher.live().stream().filter(row -> row.name().equals("askdb")).findFirst().orElseThrow();
+        assertThat(askdb.registered()).isTrue();
+        assertThat(askdb.instanceId()).isEqualTo("askdb-0");
     }
 
     @Test void langfuseMetricsAreNotCalledAgainWithinADay() throws Exception {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { avatarLetter, canRelease, cardChips, cardCost, highlightYaml, kindLine, readyPill, scoreText, versionRows } from './agentDrawer'
+import { avatarLetter, canRelease, cardChips, cardCost, highlightYaml, kindLine, readyPill, resourceStatus, scoreText, toolChip, versionRows, withEvalGate } from './agentDrawer'
 
 describe('agent drawer', () => {
   it('matches the registry card chips', () => {
@@ -62,6 +62,21 @@ describe('agent drawer', () => {
 
   it('escapes yaml before coloring keys', () => {
     expect(highlightYaml('name: <b>x</b> # note')).toBe('<span class="k">name</span>: &lt;b&gt;x&lt;/b&gt; <span class="c"># note</span>')
+  })
+
+  it('labels provisioned resources the way the drawer shows them', () => {
+    expect(resourceStatus('litellm_key', 'ACTIVE')).toEqual({ cls: 'p-ok', label: '有效' })
+    expect(resourceStatus('secret', 'ACTIVE')).toEqual({ cls: 'p-ok', label: '已写入' })
+    expect(resourceStatus('dataset', 'ACTIVE')).toEqual({ cls: 'p-ok', label: '已导入' })
+    expect(resourceStatus('oauth_client', 'ACTIVE')).toEqual({ cls: 'p-ok', label: '已注册' })
+    expect(resourceStatus('litellm_key', 'REVOKED').label).toBe('已吊销')
+    expect(resourceStatus('secret', 'REVOKED').label).toBe('已删除')
+    expect(toolChip('ticket.create · 写 · 高 · 需审批')).toEqual({ lead: 'ticket.create · 写', high: true })
+    const gated = withEvalGate({
+      score: 0.9,
+      selfCheck: { items: [{ name: '评测门禁', passed: null, detail: '未运行' }] },
+    })
+    expect(gated.selfCheck?.items?.[0]).toMatchObject({ passed: true, detail: '0.90 ≥ 0.85' })
   })
 
   it('labels a crashed pod differently from a failed probe', () => {

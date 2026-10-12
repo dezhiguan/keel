@@ -46,4 +46,23 @@ public class JdbcResourceLedger implements ResourceLedger {
                 ORDER BY id DESC
                 """, (rs, row) -> rs.getString("type"), agent, env);
     }
+
+    @Override
+    public java.util.List<StoredResource> list(String agent, String env) {
+        if (agent == null || agent.isBlank() || env == null || env.isBlank()) {
+            return java.util.List.of();
+        }
+        return jdbc.query("""
+                SELECT type, external_id, status FROM agent_resource
+                WHERE agent_name = ? AND env = ?
+                ORDER BY CASE type
+                    WHEN 'litellm_key' THEN 1
+                    WHEN 'secret' THEN 2
+                    WHEN 'dataset' THEN 3
+                    WHEN 'oauth_client' THEN 4
+                    WHEN 'langfuse' THEN 5
+                    ELSE 6 END, id
+                """, (rs, row) -> new StoredResource(rs.getString("type"), rs.getString("external_id"), rs.getString("status")),
+                agent, env);
+    }
 }

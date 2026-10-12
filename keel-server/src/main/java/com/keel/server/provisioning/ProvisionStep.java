@@ -6,6 +6,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 public interface ProvisionStep {
     String resourceType();
 
+    /** Id written to agent_resource. Defaults to the agent name, which is only right for the OAuth client. */
+    default String externalId(String agent, String env, JsonNode manifest) {
+        return ResourceNames.canonical(resourceType(), agent, env, manifest);
+    }
+
     void provision(String agent, String env, JsonNode manifest);
 
     void revoke(String agent, String env);

@@ -151,6 +151,45 @@ export function resourceLabel(type?: string) {
   return (type && RESOURCE_LABEL[type]) || type || '—'
 }
 
+export function resourceStatus(type?: string, status?: string | null) {
+  const raw = (status ?? '').toUpperCase()
+  if (raw === 'ACTIVE') {
+    if (type === 'secret' || type === 'langfuse') return { cls: 'p-ok', label: '已写入' }
+    if (type === 'dataset') return { cls: 'p-ok', label: '已导入' }
+    if (type === 'oauth_client') return { cls: 'p-ok', label: '已注册' }
+    return { cls: 'p-ok', label: '有效' }
+  }
+  if (raw === 'REVOKED') {
+    const removed = type === 'secret' || type === 'dataset'
+    return { cls: 'p-mute', label: removed ? '已删除' : '已吊销' }
+  }
+  if (raw === 'REVOKE_FAILED') return { cls: 'p-bad', label: '回收失败' }
+  return { cls: 'p-mute', label: status || '—' }
+}
+
+export function toolChip(value: string) {
+  const suffix = ' · 高 · 需审批'
+  if (value.endsWith(suffix)) return { lead: value.slice(0, -suffix.length), high: true }
+  return { lead: value, high: false }
+}
+
+export function withEvalGate<T extends { score?: number | null; selfCheck?: { passed?: boolean | null; items?: { name?: string; passed?: boolean | null; detail?: string | null }[] } }>(agent: T): T {
+  const items = agent.selfCheck?.items
+  if (!items || agent.score == null) return agent
+  const min = 0.85
+  return {
+    ...agent,
+    selfCheck: {
+      ...agent.selfCheck,
+      items: items.map((item) => {
+        if (item.name !== '评测门禁') return item
+        const ok = agent.score != null && agent.score >= min
+        return { ...item, passed: ok, detail: `${scoreText(agent.score)} ${ok ? '≥' : '<'} ${min}` }
+      }),
+    },
+  }
+}
+
 const SOURCE_LABEL: Record<string, string> = {
   k8s: 'K8s watch',
   heartbeat: 'SDK 心跳',
