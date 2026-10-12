@@ -12,6 +12,9 @@ spec:
       labels: {app: git-ci}
     spec:
       automountServiceAccountToken: false
+      hostAliases:
+        - ip: "172.25.90.183"
+          hostnames: ["api.github.com"]
       imagePullSecrets:
         - name: acr-cred
       containers:
