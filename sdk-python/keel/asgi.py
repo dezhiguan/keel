@@ -97,6 +97,8 @@ def create_app(agent) -> Starlette:
             attrs.RUN_ID: run_id, attrs.STATUS: "ok",
         })
         _stamp_call(root, data, request.headers.get("X-Keel-Env") or os.environ.get("KEEL_ENV"))
+        if request.headers.get("X-Keel-Eval-Run"):
+            root.set_attribute("keel.eval_run", request.headers["X-Keel-Eval-Run"])
         if root.get_span_context().is_valid:
             trace_id = f"{root.get_span_context().trace_id:032x}"
         events: asyncio.Queue = asyncio.Queue()

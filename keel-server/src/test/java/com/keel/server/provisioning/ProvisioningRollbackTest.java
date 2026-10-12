@@ -158,7 +158,8 @@ class ProvisioningRollbackTest {
         calls.clear();
         ledger.mark("askdb", "dev", "secret", "REVOKED");
         service.retire("askdb", "dev");
-        assertThat(calls).containsExactly("revoke:dataset", "revoke:litellm_key", "revoke:oauth_client");
+        assertThat(calls).containsExactly("revoke:litellm_key", "revoke:oauth_client");
+        assertThat(ledger.statusOf("dataset")).isEqualTo("REVOKED");
         assertThat(ledger.active).isEmpty();
     }
 
@@ -168,7 +169,7 @@ class ProvisioningRollbackTest {
         var service = service(calls, -1, true, ledger, passed(), (agent, env) -> { });
         service.register("askdb", "dev", "http://askdb", JsonNodeFactory.instance.objectNode());
         assertThatThrownBy(() -> service.retire("askdb", "dev")).isInstanceOf(IllegalStateException.class);
-        assertThat(ledger.statusOf("dataset")).isEqualTo("REVOKE_FAILED");
-        assertThat(ledger.active).containsExactly("oauth_client", "litellm_key", "secret");
+        assertThat(ledger.statusOf("secret")).isEqualTo("REVOKE_FAILED");
+        assertThat(ledger.active).containsExactly("oauth_client", "litellm_key");
     }
 }

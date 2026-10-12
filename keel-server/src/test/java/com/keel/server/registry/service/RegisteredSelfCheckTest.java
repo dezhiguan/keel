@@ -32,7 +32,7 @@ class RegisteredSelfCheckTest {
         });
         var calls = new AtomicInteger();
         var endpoints = new AgentEndpointClient() {
-            @Override public Answer invoke(String endpoint, String text, String token, String agent, String env) {
+            @Override public Answer probe(String endpoint, String agent, String env) {
                 calls.incrementAndGet();
                 assertThat(agent).isEqualTo("qa-agent"); assertThat(env).isEqualTo("test");
                 return new Answer("probe", "trace-selfcheck");
@@ -49,7 +49,7 @@ class RegisteredSelfCheckTest {
             var report = new SelfCheckService(endpoints, langfuse).checkRegistered("qa-agent", "test",
                     "http://127.0.0.1:" + server.getAddress().getPort(), json.readTree("{\"spec\":{\"runtime\":{\"language\":\"python\"}}}"));
             assertThat(report.passed()).isEqualTo(passed);
-            assertThat(calls.get()).isEqualTo(passed ? 1 : 0);
+            assertThat(calls.get()).isEqualTo(passed ? 5 : 0);
         } finally { server.stop(0); }
     }
 }

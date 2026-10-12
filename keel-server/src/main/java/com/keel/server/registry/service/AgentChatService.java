@@ -8,6 +8,8 @@ import com.keel.server.integration.audit.AuditStore;
 import com.keel.server.provisioning.EchoCredentialWriter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.keel.server.insight.SavedTraces;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -20,15 +22,24 @@ public class AgentChatService {
     private final AuditStore audits;
     private final EchoCredentialWriter credentials;
     private final String careerMateToken;
+    private final SavedTraces saved;
 
     public AgentChatService(AgentRegistryService registry, AgentEndpointClient endpoints, AuditStore audits,
                             EchoCredentialWriter credentials,
-                            @Value("${KEEL_CAREERMATE_TOKEN:}") String careerMateToken) {
+                            String careerMateToken) {
+        this(registry, endpoints, audits, credentials, careerMateToken, SavedTraces.EMPTY);
+    }
+
+    @Autowired
+    public AgentChatService(AgentRegistryService registry, AgentEndpointClient endpoints, AuditStore audits,
+                            EchoCredentialWriter credentials,
+                            @Value("${KEEL_CAREERMATE_TOKEN:}") String careerMateToken, SavedTraces saved) {
         this.registry = registry;
         this.endpoints = endpoints;
         this.audits = audits;
         this.credentials = credentials;
         this.careerMateToken = careerMateToken == null ? "" : careerMateToken;
+        this.saved = saved;
     }
 
     public Map<String, Object> chat(String name, String text) {
@@ -54,6 +65,7 @@ public class AgentChatService {
             credentials.ensure(name);
         }
         AgentEndpointClient.Answer answer;
+        long started = System.nanoTime();
         try {
             var userId = callerLabel();
             answer = "careermate".equals(name)
@@ -64,6 +76,9 @@ public class AgentChatService {
                     e.getMessage() == null ? ErrorCode.SERVER_INTERNAL_ERROR.message() : e.getMessage());
         }
         audits.append(name, env, "invoke", "low", "allowed", name, answer.traceId());
+        if (answer.traceId() != null && !answer.traceId().isBlank()) {
+            saved.save(name, env, answer.traceId(), "", (int) ((System.nanoTime() - started) / 1_000_000));
+        }
         var body = new LinkedHashMap<String, Object>();
         body.put("text", answer.text());
         body.put("traceId", answer.traceId());

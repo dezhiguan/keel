@@ -109,7 +109,8 @@ async function submit() {
   busy.value = true
   try {
     report.value = await registerAgent(registerBody(form))
-    ElMessage.success(report.value.passed ? '已注册，自检通过' : '已登记。外部开通未完成，探针已写入链路和审计')
+    if (report.value.passed) ElMessage.success('已注册，自检通过')
+    else ElMessage.warning('已登记，自检未通过，请查看失败项')
   } catch (error) {
     ElMessage.error(`注册失败：${toKeelError(error).message}`)
   } finally {
@@ -122,7 +123,7 @@ async function submit() {
   <div>
     <div class="vh">
       <h2>新建智能体</h2>
-      <span class="sub">{{ method === 'devflow' ? '由智能体生产。填需求表单，研发流水线或元智能体生产，可随时人工接管' : '登记到注册中心。回声模板会立刻写一条探针链路和审计' }}</span>
+      <span class="sub">{{ method === 'devflow' ? '由智能体生产。填需求表单，研发流水线或元智能体生产，可随时人工接管' : '登记到注册中心，开通资源并检查运行服务' }}</span>
       <span class="sp" />
       <button class="btn ghost" type="button" @click="router.push('/agents')">返回列表</button>
     </div>
@@ -248,7 +249,7 @@ async function submit() {
               <span>{{ item.name }}</span><b>{{ item.passed ? '通过' : item.detail || '未通过' }}</b>
             </template>
           </div>
-          <p v-if="report">打开链路追踪和审计中心，能看到这个智能体的探针记录。</p>
+          <p v-if="report">自检通过后可打开调试页。失败时先按报告检查运行服务和资源配置。</p>
           <div class="wfoot">
             <button v-if="!report" class="btn" type="button" :disabled="busy" @click="step = 3">上一步</button>
             <button v-if="!report" v-write class="btn pri" type="button" :disabled="busy" @click="submit">{{ busy ? '注册中…' : '注册' }}</button>

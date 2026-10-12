@@ -30,7 +30,7 @@ public class SelfCheckService {
         this.langfuse = langfuse;
     }
 
-    /** Probe the actual service once, then look up its returned trace rather than hard coding failure. */
+    /** Probe the registered service, then look up its returned trace rather than hard coding failure. */
     public Report checkRegistered(String agent, String env, String endpoint, JsonNode manifest) {
         var items = new ArrayList<Item>();
         var health = health(endpoint);
@@ -46,7 +46,9 @@ public class SelfCheckService {
                     .equals(actual.path("spec").path("runtime").path("language").asText("python"))) {
                 throw new IllegalStateException("运行服务的智能体名称或语言与登记配置不一致");
             }
-            traceId = endpoints.invoke(endpoint, "probe", null, agent, env).traceId();
+            for (int probe = 0; probe < 5; probe++) {
+                traceId = endpoints.probe(endpoint, agent, env).traceId();
+            }
             items.add(new Item("协议", true, traceId));
         } catch (Exception e) {
             items.add(new Item("协议", false, e.getMessage()));

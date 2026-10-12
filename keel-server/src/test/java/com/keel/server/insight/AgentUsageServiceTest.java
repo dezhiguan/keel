@@ -34,7 +34,7 @@ class AgentUsageServiceTest {
             String body = switch (path) {
                 case "/api/public/v2/observations" -> query.contains("cursor=")
                         ? "{\"data\":[{\"traceId\":\"t3\",\"metadata\":{\"keel.agent\":\"echo\",\"keel.llm.key_alias\":\"echo-dev\"}}],\"meta\":{}}"
-                        : "{\"data\":[{\"traceId\":\"t1\",\"metadata\":{\"keel.agent\":\"askdb\"}},{\"traceId\":\"t2\",\"metadata\":{\"keel.agent\":\"askdb\",\"keel.llm.key_alias\":\"askdb-prod\"}}],\"meta\":{\"cursor\":\"next\"}}";
+                        : "{\"data\":[{\"traceId\":\"probe\",\"metadata\":{\"keel.agent\":\"askdb\",\"keel.eval_run\":\"self-check\"}},{\"traceId\":\"t1\",\"metadata\":{\"keel.agent\":\"askdb\"}},{\"traceId\":\"t2\",\"metadata\":{\"keel.agent\":\"askdb\",\"keel.env\":\"prod\"}}],\"meta\":{\"cursor\":\"next\"}}";
                 case "/api/public/v3/scores" -> "{\"data\":[{\"name\":\"correctness\",\"value\":0.88,\"metadata\":{\"keel.agent\":\"askdb\"}}]}";
                 case "/admin/v1/keys" -> "{\"data\":[{\"alias\":\"askdb-prod\",\"models\":[\"qwen-plus\"],\"dailyBudgetCny\":40,\"spentCny\":12.5,\"blocked\":false},{\"alias\":\"echo-dev\",\"models\":[\"qwen-plus\"],\"dailyBudgetCny\":30,\"spentCny\":0.4,\"blocked\":false}]}";
                 default -> "{\"data\":[]}";

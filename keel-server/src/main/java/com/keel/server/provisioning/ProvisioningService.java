@@ -73,7 +73,12 @@ public class ProvisioningService {
         for (var i = steps.size() - 1; i >= 0; i--) {
             var step = steps.get(i);
             if (active.remove(step.resourceType())) {
-                done.add(step);
+                if ("dataset".equals(step.resourceType())) {
+                    // Retiring access must preserve historical evaluation data.
+                    ledger.mark(agent, env, step.resourceType(), "REVOKED");
+                } else {
+                    done.add(step);
+                }
             }
         }
         for (var type : active) {

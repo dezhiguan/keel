@@ -387,17 +387,30 @@ public class LangfuseClient {
             var data = body.path("data");
             var rows = new ArrayList<RootCall>();
             if (data.isArray()) {
-                data.forEach(row -> rows.add(new RootCall(
+                data.forEach(row -> {
+                    if (!text(row.path("metadata"), "keel.eval_run").isBlank()) return;
+                    rows.add(new RootCall(
                         row.path("traceId").asText(""),
                         text(row.path("metadata"), "keel.agent"),
-                        text(row.path("metadata"), "keel.llm.key_alias"),
-                        seconds(row))));
+                        rootAlias(row),
+                        seconds(row)));
+                });
             }
             var more = !body.path("meta").path("cursor").asText("").isBlank();
             return new RootPage(rows, !more);
         } catch (RuntimeException e) {
             return null;
         }
+    }
+
+    private static String rootAlias(JsonNode row) {
+        var metadata = row.path("metadata");
+        var alias = text(metadata, "keel.llm.key_alias");
+        if (!alias.isBlank()) return alias;
+        var agent = text(metadata, "keel.agent");
+        var env = text(metadata, "keel.env");
+        if (env.isBlank()) env = row.path("environment").asText("");
+        return agent.isBlank() || env.isBlank() ? "" : agent + "-" + env;
     }
 
     private static Double seconds(JsonNode row) {

@@ -76,6 +76,9 @@ class AgentEndpointClientTest {
             assertThat(headers.get().getFirst("X-Keel-Agent")).isEqualTo("prompt-lab");
             assertThat(headers.get().getFirst("X-Keel-Env")).isEqualTo("dev");
             assertThat(seen.get()).contains("\"user_id\":\"官德志\"");
+            new AgentEndpointClient().probe("http://127.0.0.1:" + server.getAddress().getPort(), "prompt-lab", "test");
+            assertThat(headers.get().getFirst("X-Keel-Eval-Run")).isEqualTo("self-check");
+            assertThat(headers.get().getFirst("X-Keel-Env")).isEqualTo("test");
         } finally {
             server.stop(0);
         }
