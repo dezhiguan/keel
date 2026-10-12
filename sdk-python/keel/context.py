@@ -40,13 +40,26 @@ class _ToolClient:
     async def call(self, name: str, **kwargs):
         callback = self.functions.get(name)
         declared = next((tool for tool in (self.manifest.spec.tools or []) if tool.name == name), None)
-        if callback is None or declared is None:
+        if declared is None:
             raise KeelError(ErrorCode.TOOL_NOT_GRANTED)
+        if callback is None:
+            from keel.tools.remote import invoke
+            with self.owner._tracer.start_as_current_span(name, attributes={
+                attrs.OBSERVATION_TYPE: "tool", attrs.AGENT: self.owner.agent, attrs.ENV: self.owner.env,
+                attrs.RUN_ID: self.owner.run_id, attrs.STATUS: "ok",
+            }) as span:
+                try:
+                    return await invoke(self.owner, name, kwargs)
+                except Exception:
+                    span.set_attribute(attrs.STATUS, "failed")
+                    raise
         if self.owner.audit is None:
             raise KeelError(ErrorCode.AUDIT_WRITE_FAILED)
         risk = declared.risk.value if declared.risk else "low"
         approval = declared.approval.value if declared.approval else "none"
         if risk == "high" and approval == "required" and not self.owner.resuming:
+            await self.owner.audit.record("tool.call", risk, "pending", payload=kwargs,
+                                          resource=name, trace_id=self.owner.trace_id, run_id=self.owner.run_id)
             return await self.owner.suspend_for_approval(name, kwargs)
         decision = "approved" if self.owner.resuming else "allowed"
         await self.owner.audit.record(
@@ -64,6 +77,7 @@ class Context:
                  env: str | None = None, llm_client=None, knowledge_client=None,
                  audit_reporter=None):
         self.agent = agent
+        self.env = env
         self.run_id = run_id
         self.trace_id = trace_id
         self._events = events
@@ -84,7 +98,7 @@ class Context:
                                               if knowledge else _UnimplementedClient("knowledge"))
         self.audit = audit_reporter or (AuditReporter(
             agent, env, audit_spec.captureFields or () if audit_spec else ())
-            if (tool_specs or audit_spec) and env else None)
+            if ((tool_specs and tool_functions) or audit_spec) and env else None)
         self.tools = (_ToolClient(tool_functions or {}, manifest, self)
                       if manifest else _UnimplementedClient("tools"))
         self._prompts = PromptClient(manifest, env) if manifest else None

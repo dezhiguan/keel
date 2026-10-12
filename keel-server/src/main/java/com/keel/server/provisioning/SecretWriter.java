@@ -21,6 +21,10 @@ public class SecretWriter implements ProvisionStep {
     private final String langfuseSecretKey;
     private final String langfuseHost;
     private final String llmBaseUrl;
+    @Value("${KEEL_SERVER_URL:}")
+    private String serverUrl;
+    @Value("${KEEL_SERVICE_AUDIENCE:}")
+    private String serviceAudience;
     private final ConcurrentHashMap<String, String> privateKeys = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> llmKeys = new ConcurrentHashMap<>();
 
@@ -72,6 +76,9 @@ public class SecretWriter implements ProvisionStep {
         data.put("LANGFUSE_PUBLIC_KEY", encode(langfusePublicKey));
         data.put("LANGFUSE_SECRET_KEY", encode(langfuseSecretKey));
         data.put("LANGFUSE_HOST", encode(langfuseHost));
+        data.put("KEEL_ENV", encode(env));
+        if (serverUrl != null && !serverUrl.isBlank()) data.put("KEEL_SERVER_URL", encode(serverUrl));
+        if (serviceAudience != null && !serviceAudience.isBlank()) data.put("KEEL_SERVICE_AUDIENCE", encode(serviceAudience));
         Secret secret = new SecretBuilder()
                 .withNewMetadata().withName("keel-" + agent).withNamespace(NAMESPACE).endMetadata()
                 .withData(data)

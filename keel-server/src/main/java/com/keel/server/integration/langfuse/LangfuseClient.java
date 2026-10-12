@@ -97,6 +97,9 @@ public class LangfuseClient {
                 if (item.has("expectedOutput")) {
                     body.set("expectedOutput", item.get("expectedOutput"));
                 }
+                var metadata = item.path("metadata").isObject() ? item.path("metadata").deepCopy() : json.createObjectNode();
+                if (item.path("tags").isArray()) ((com.fasterxml.jackson.databind.node.ObjectNode) metadata).set("tags", item.path("tags"));
+                if (!metadata.isEmpty()) body.set("metadata", metadata);
                 post("/api/public/dataset-items", body, true);
             }
         } catch (IllegalStateException e) {

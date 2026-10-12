@@ -31,8 +31,11 @@ public class PromptCatalog {
 
     public record Actor(String userId, String org, String role) {
         public static Actor current() {
-            // TODO(P0-5): read the auth-gateway JWT. Until then every caller is the local admin, same as /me.
-            return new Actor("dev", "本地开发", "ADMIN");
+            var principal = com.keel.server.auth.ConsolePrincipal.current();
+            if (principal == null) {
+                throw new KeelException(ErrorCode.AUTH_UNAUTHENTICATED, ErrorCode.AUTH_UNAUTHENTICATED.message());
+            }
+            return new Actor(principal.username(), principal.org(), principal.platformRole());
         }
 
         public boolean admin() {

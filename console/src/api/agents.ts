@@ -35,6 +35,10 @@ export function getAgent(name: string) {
   return get<AgentDetail>(`/agents/${encodeURIComponent(name)}`)
 }
 
+export function recheckAgent(name: string) {
+  return post<components['schemas']['SelfCheckReport']>(`/agents/${encodeURIComponent(name)}/self-check`, undefined, { timeout: 360_000 })
+}
+
 export interface SelfCheckReport {
   passed?: boolean
   items?: { name?: string; passed?: boolean; detail?: string | null }[]

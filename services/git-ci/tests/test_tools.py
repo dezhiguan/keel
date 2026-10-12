@@ -122,3 +122,12 @@ def test_missing_github_env_is_rejected(monkeypatch):
     monkeypatch.delenv("KEEL_GITHUB_API", raising=False)
     with pytest.raises(ValueError):
         client_from_env()
+
+
+def test_runtime_requires_service_auth_before_accessing_github():
+    github = GitHub("https://api.github.com", "token")
+    client = TestClient(create_app(github, "internal-token"))
+    assert client.get("/v1/health").status_code == 200
+    response = client.post("/v1/tools/git.pr.diff", json={"repo": "example", "number": 1})
+    assert response.status_code == 401
+    assert response.json()["code"] == "AUTH_UNAUTHENTICATED"

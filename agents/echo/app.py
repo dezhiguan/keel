@@ -14,7 +14,8 @@ def load_secret_files() -> None:
     root = Path(os.environ.get("KEEL_SECRET_DIR", "/var/run/secrets/keel"))
     if not root.is_dir():
         return
-    for name in ("KEEL_LLM_KEY", "KEEL_LLM_BASE_URL", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY"):
+    for name in ("KEEL_LLM_KEY", "KEEL_LLM_BASE_URL", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY",
+                 "LANGFUSE_HOST", "KEEL_CLIENT_PRIVATE_KEY", "KEEL_SERVER_URL", "KEEL_SERVICE_AUDIENCE", "KEEL_ENV"):
         path = root / name
         if path.is_file():
             os.environ[name] = path.read_text(encoding="utf-8").strip()
@@ -36,6 +37,11 @@ agent = Agent.from_manifest("agent.yaml")
 @agent.entry
 async def chat(request, ctx):
     text = request.input.get("text") or ""
+    if text.startswith("/git-diff "):
+        import json
+        repo, number = text.removeprefix("/git-diff ").split()
+        result = await ctx.tools.call("git.pr.diff", repo=repo, number=int(number))
+        return ctx.final(json.dumps(result, ensure_ascii=False))
     prompt = await ctx.prompt("answer")
     compiled = prompt.compile(question=text)
     messages = compiled if isinstance(compiled, list) else [{"role": "user", "content": compiled}]

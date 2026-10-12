@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.keel.server.evaluation.EvalJobs;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -16,7 +17,6 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
@@ -26,7 +26,8 @@ public class EvalQueryService {
     private final Function<String, JsonNode> manifest;
     private final String host;
     private final String projectId;
-    private final Map<String, Run> runs = new ConcurrentHashMap<>();
+    @Autowired
+    private EvalJobs jobs;
     private final Map<String, CachedLatest> latestCache = new ConcurrentHashMap<>();
     private volatile CachedDatasets datasetsCache;
     private static final Duration LATEST_TTL = Duration.ofSeconds(45);
@@ -51,6 +52,8 @@ public class EvalQueryService {
     }
 
     public Map<String, Object> latest(String agent) {
+        var executed = jobs == null ? null : jobs.latest(agent);
+        if (executed != null) return executed;
         var now = Instant.now();
         var cached = latestCache.get(agent);
         if (cached != null && cached.at.plus(LATEST_TTL).isAfter(now)) {
@@ -68,7 +71,7 @@ public class EvalQueryService {
         try {
             experiments = loadExperiments(List.of());
         } catch (RuntimeException e) {
-            return Map.of();
+            return jobs == null ? Map.of() : jobs.scores();
         }
         var chosen = new LinkedHashMap<String, JsonNode>();
         var chosenAt = new LinkedHashMap<String, String>();
@@ -91,36 +94,18 @@ public class EvalQueryService {
                 scores.put(agent, number.doubleValue());
             }
         });
+        if (jobs != null) scores.putAll(jobs.scores());
         return scores;
     }
 
     public String start(String agent) {
-        var id = "ev_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
-        var run = new Run();
-        runs.put(id, run);
-        latestCache.remove(agent);
-        try {
-            run.result = latest(agent);
-            run.state = "DONE";
-            run.progress = 1;
-        } catch (KeelException e) {
-            run.state = "FAILED";
-            run.progress = 1;
-        }
-        return id;
+        if (jobs == null) throw new KeelException(ErrorCode.SERVER_INTERNAL_ERROR, "评测执行器不可用");
+        return jobs.start(agent);
     }
 
     public Map<String, Object> run(String runId) {
-        var run = runs.get(runId);
-        if (run == null) {
-            throw new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message());
-        }
-        var body = new LinkedHashMap<String, Object>();
-        body.put("runId", runId);
-        body.put("state", run.state);
-        body.put("progress", run.progress);
-        body.put("result", run.result);
-        return body;
+        if (jobs == null) throw new KeelException(ErrorCode.SERVER_INTERNAL_ERROR, "评测执行器不可用");
+        return jobs.run(runId);
     }
 
     private Map<String, Object> loadLatest(String agent) {
@@ -510,12 +495,6 @@ public class EvalQueryService {
             var slash = name.indexOf('/');
             return slash > 0 ? name.substring(0, slash) : name;
         }
-    }
-
-    private static final class Run {
-        private String state = "RUNNING";
-        private double progress;
-        private Map<String, Object> result;
     }
 
     private record CachedLatest(Map<String, Object> body, Instant at) {}

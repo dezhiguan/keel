@@ -53,6 +53,11 @@ def import_dataset(dataset: str, rows: list[dict[str, Any]], *, lines: list[str]
             expected = row.get("expectedOutput", row.get("expected"))
             if expected is not None:
                 body["expectedOutput"] = expected
+            metadata = dict(row.get("metadata") or {})
+            if row.get("tags"):
+                metadata["tags"] = row["tags"]
+            if metadata:
+                body["metadata"] = metadata
             posted = client.post(f"{host}/api/public/dataset-items", json=body, auth=auth)
             if posted.status_code >= 400:
                 raise ValueError(f"写入用例失败：{posted.status_code} {posted.text}")

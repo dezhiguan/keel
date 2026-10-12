@@ -54,6 +54,8 @@ class ServiceIdentityFilterTest {
         assertThat(CatalogAccess.readable("POST", "/api/v1/tools/alarm_query/grants")).isFalse();
         assertThat(CatalogAccess.readable("GET", "/api/v1/tools/alarm_query/versions")).isFalse();
         assertThat(CatalogAccess.readable("GET", "/api/v1/tools/")).isFalse();
+        assertThat(CatalogAccess.serviceAccessible("POST", "/api/v1/tools/git.pr.diff/invoke")).isTrue();
+        assertThat(CatalogAccess.serviceAccessible("POST", "/api/v1/tools/git.pr.diff/grants")).isFalse();
     }
 
     @Test void aReplayedJtiIsRejectedAndAnUnknownAgentIsRejected() {

@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import StatusPill from '@/components/StatusPill.vue'
-import { deleteAgent, getAgent, getAgentUsage, mergeUsage, retireAgent, type AgentDetail } from '@/api/agents'
+import { deleteAgent, getAgent, getAgentUsage, mergeUsage, retireAgent, recheckAgent, type AgentDetail } from '@/api/agents'
 import { listDevflowJobs, type DevflowJob } from '@/api/devflow'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
@@ -47,6 +47,19 @@ const retiring = ref(false)
 const retireInput = ref('')
 const deleting = ref(false)
 const deleteInput = ref('')
+const checking = ref(false)
+async function recheck() {
+  const agent = detail.value?.name
+  if (!agent || checking.value) return
+  checking.value = true
+  try {
+    const report = await recheckAgent(agent)
+    ElMessage[report.passed ? 'success' : 'warning'](report.passed ? '自检通过' : '自检未通过，请查看各项结果')
+    await load(agent)
+  } catch (error) {
+    ElMessage.error(toKeelError(error).message)
+  } finally { checking.value = false }
+}
 
 const name = computed(() => {
   const value = route.query.drawer
@@ -235,6 +248,8 @@ onUnmounted(() => {
               </template>
             </div>
             <h4>接入自检</h4>
+            <button v-if="detail.status !== 'RETIRED' && detail.status !== 'DRAFT'" class="btn" :disabled="checking" @click="recheck">{{ checking ? '自检中…' : '重新自检' }}</button>
+            <p v-if="detail.selfCheck?.checkedAt" class="mut">最近自检：{{ new Date(detail.selfCheck.checkedAt).toLocaleString() }}</p>
             <ul v-if="detail.selfCheck?.items?.length" class="checks">
               <li v-for="(item, index) in detail.selfCheck.items" :key="index">
                 <span class="ic" :class="item.passed === true ? 'ok' : item.passed === false ? 'no' : ''">{{ item.passed === true ? '✓' : item.passed === false ? '✗' : '·' }}</span>

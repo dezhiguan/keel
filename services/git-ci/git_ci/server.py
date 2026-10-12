@@ -4,6 +4,7 @@ import json
 import os
 import re
 import uuid
+import hmac
 
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -22,7 +23,10 @@ def client_from_env() -> GitHub:
     api = os.environ.get("KEEL_GITHUB_API", "").strip()
     if not token or not api:
         raise ValueError("KEEL_GITHUB_TOKEN 或 KEEL_GITHUB_API 未设置")
-    return GitHub(api, token)
+    org = os.environ.get("KEEL_GITHUB_ORG", "keel-agents").strip()
+    if not _NAME.fullmatch(org):
+        raise ValueError("KEEL_GITHUB_ORG 无效")
+    return GitHub(api, token, org=org)
 
 
 def call_tool(github: GitHub, tool: str, body: dict) -> dict:
@@ -63,8 +67,10 @@ def call_tool(github: GitHub, tool: str, body: dict) -> dict:
     raise ValueError("tool")
 
 
-def create_app(github: GitHub) -> Starlette:
+def create_app(github: GitHub, token: str | None = None) -> Starlette:
     async def invoke(request: Request):
+        if token is not None and not hmac.compare_digest(request.headers.get("authorization", ""), "Bearer " + token):
+            return _error(ErrorCode.AUTH_UNAUTHENTICATED)
         try:
             body = await request.json()
         except json.JSONDecodeError:
@@ -78,7 +84,16 @@ def create_app(github: GitHub) -> Starlette:
         except GitHubError:
             return _error(ErrorCode.GIT_UPSTREAM_FAILED)
 
-    return Starlette(routes=[Route("/v1/tools/{tool}", invoke, methods=["POST"])])
+    async def health(request: Request):
+        return JSONResponse({"status": "ok", "service": "git-ci"})
+    return Starlette(routes=[Route("/v1/tools/{tool}", invoke, methods=["POST"]), Route("/v1/health", health)])
+
+
+def app():
+    token = os.environ.get("KEEL_GIT_CI_TOKEN", "").strip()
+    if not token:
+        raise ValueError("KEEL_GIT_CI_TOKEN 未设置")
+    return create_app(client_from_env(), token)
 
 
 def _name(value, _label: str) -> str:

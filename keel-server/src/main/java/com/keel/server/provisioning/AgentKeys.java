@@ -13,6 +13,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class AgentKeys {
     private final ConcurrentHashMap<String, Material> keys = new ConcurrentHashMap<>();
+    @org.springframework.beans.factory.annotation.Autowired
+    private io.fabric8.kubernetes.client.KubernetesClient cluster;
 
     public Material generate(String agent) {
         try {
@@ -33,7 +35,24 @@ public class AgentKeys {
     }
 
     public Material find(String agent) {
+        if (cluster != null) {
+            try {
+                var secret = cluster.secrets().inNamespace("agents").withName("keel-" + agent).get();
+                if (secret != null && secret.getData() != null && secret.getData().containsKey("KEEL_CLIENT_PRIVATE_KEY")) {
+                    var pem = new String(Base64.getDecoder().decode(secret.getData().get("KEEL_CLIENT_PRIVATE_KEY")), java.nio.charset.StandardCharsets.UTF_8);
+                    return fromPem(pem);
+                }
+            } catch (Exception e) { return null; }
+        }
         return keys.get(agent);
+    }
+
+    static Material fromPem(String pem) throws java.security.GeneralSecurityException {
+        var encoded = pem.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replaceAll("\\s", "");
+        var factory = java.security.KeyFactory.getInstance("RSA");
+        var privateKey = (java.security.interfaces.RSAPrivateCrtKey) factory.generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(Base64.getDecoder().decode(encoded)));
+        var publicKey = (RSAPublicKey) factory.generatePublic(new java.security.spec.RSAPublicKeySpec(privateKey.getModulus(), privateKey.getPublicExponent()));
+        return new Material(Integer.toHexString(publicKey.getModulus().hashCode()), publicKey, pem);
     }
 
     public void remove(String agent) {
@@ -41,7 +60,7 @@ public class AgentKeys {
     }
 
     public Map<String, Object> jwks(String agent) {
-        var material = keys.get(agent);
+        var material = find(agent);
         if (material == null) {
             return Map.of("keys", List.of());
         }

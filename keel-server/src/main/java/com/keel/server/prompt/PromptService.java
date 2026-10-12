@@ -154,6 +154,10 @@ public class PromptService {
         var item = catalog.require(agent, name);
         requireLangfuse();
         var message = body.path("commitMessage").asText("").trim();
+        var editEnv = body.path("env").asText("dev");
+        if (!Set.of("dev", "test", "staging", "prod").contains(editEnv)) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "编辑环境无效");
+        }
         if (message.isBlank()) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "保存必须带提交说明");
         }
@@ -169,7 +173,7 @@ public class PromptService {
             var diff = PromptTexts.diff(previous.prompt(), previous.type(), prompt, item.type());
             diffLines = number(diff.get("added")) + number(diff.get("removed"));
         }
-        writeAudit(agent, "staging", "low", item, payload(version, sha, diffLines, null, text(body, "gitSha"), null));
+        writeAudit(agent, editEnv, "low", item, payload(version, sha, diffLines, null, text(body, "gitSha"), null));
         invalidateListCache();
         return Map.of("version", version, "sha256", sha);
     }

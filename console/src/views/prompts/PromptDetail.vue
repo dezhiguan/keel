@@ -119,6 +119,7 @@ async function save() {
     const saved = await savePromptVersion(agent.value, name.value, {
       prompt,
       commitMessage: commitMessage.value.trim(),
+      env: envStore.env === 'all' ? 'dev' : envStore.env,
       config: detail.value?.config,
     })
     editing.value = false

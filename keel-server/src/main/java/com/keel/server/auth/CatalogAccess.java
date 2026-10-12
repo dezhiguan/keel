@@ -4,6 +4,11 @@ package com.keel.server.auth;
 public final class CatalogAccess {
     private CatalogAccess() {}
 
+    public static boolean serviceAccessible(String method, String uri) {
+        return readable(method, uri) || ("POST".equals(method) && uri != null
+                && uri.matches("/api/v1/tools/[a-z][a-z0-9.-]+/invoke"));
+    }
+
     public static boolean readable(String method, String uri) {
         if (!"GET".equals(method) && !"HEAD".equals(method)) {
             return false;

@@ -100,6 +100,17 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            - name: KEEL_SERVER_URL
+              value: http://keel-server.keel-system.svc.cluster.local:8080
+            - name: KEEL_SERVICE_AUDIENCE
+              value: keel-server
+            - name: KEEL_GIT_CI_URL
+              value: http://git-ci.keel-system.svc.cluster.local:8000
+            - name: KEEL_GIT_CI_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: git-ci-github
+                  key: KEEL_GIT_CI_TOKEN
             - name: LANGFUSE_HOST
               value: https://jp.cloud.langfuse.com
             - name: KEEL_JWKS_BASE
@@ -213,4 +224,60 @@ subjects:
 roleRef:
   kind: Role
   name: keel-read-ragforge-endpoints
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: keel-eval-jobs
+  namespace: agents
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: keel-server-eval-jobs
+  namespace: agents
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: keel-system
+roleRef:
+  kind: Role
+  name: keel-eval-jobs
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: keel-eval-jobs
+  namespace: keel-system
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: keel-server-eval-jobs
+  namespace: keel-system
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: keel-system
+roleRef:
+  kind: Role
+  name: keel-eval-jobs
   apiGroup: rbac.authorization.k8s.io

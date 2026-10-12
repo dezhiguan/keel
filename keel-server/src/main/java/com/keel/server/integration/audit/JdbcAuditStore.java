@@ -29,7 +29,9 @@ public class JdbcAuditStore implements AuditStore {
 
     @Override
     public void append(String agent, String env, String action, String risk, String decision, String resource, String traceId) {
-        append(agent, env, action, risk, decision, resource, traceId, "keel", Map.of());
+        var principal = com.keel.server.auth.ConsolePrincipal.current();
+        append(agent, env, action, risk, decision, resource, traceId,
+                principal == null ? "keel" : principal.username(), Map.of());
     }
 
     @Override

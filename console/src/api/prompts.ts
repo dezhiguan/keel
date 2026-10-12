@@ -55,6 +55,7 @@ export function diffPrompt(agent: string, name: string, from: number, to: number
 export function savePromptVersion(agent: string, name: string, body: {
   prompt: string | { role: string; content: string }[]
   commitMessage: string
+  env?: 'dev' | 'test' | 'staging' | 'prod'
   config?: Record<string, number | string>
 }) {
   return post<{ version?: number }>(`/agents/${encodeURIComponent(agent)}/prompts/${encodeURIComponent(name)}/versions`, body)

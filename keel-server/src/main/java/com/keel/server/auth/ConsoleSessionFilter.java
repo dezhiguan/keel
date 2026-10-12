@@ -48,7 +48,7 @@ public class ConsoleSessionFilter extends OncePerRequestFilter {
                 chain.doFilter(request, response);
                 return;
             }
-            if (CatalogAccess.readable(request.getMethod(), request.getRequestURI()) && serviceIdentity.applies(request)) {
+            if (CatalogAccess.serviceAccessible(request.getMethod(), request.getRequestURI()) && serviceIdentity.applies(request)) {
                 try {
                     serviceIdentity.authenticate(request);
                 } catch (KeelException e) {

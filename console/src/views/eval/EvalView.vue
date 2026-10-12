@@ -68,16 +68,20 @@ async function run() {
       try {
         const r = await getEvalRun(runId!)
         progress.value = r.progress ?? 0
-        if (r.state === 'RUNNING') return
+        if (r.state === 'RUNNING' || r.state === 'QUEUED') return
         clearInterval(timer)
         progress.value = null
         if (r.result) result.value = r.result
-        if (r.state === 'FAILED') ElMessage.warning('还没有可展示的评测记录')
+        if (r.state === 'FAILED') ElMessage.error(`评测执行失败：${r.error || '请检查运行服务和评分器'}`)
         else ElMessage[r.result?.passed ? 'success' : 'warning'](`回归完成：总分 ${r.result?.scoreTotal ?? '—'}`)
+      } catch (error) {
+        clearInterval(timer)
+        progress.value = null
+        ElMessage.error(`读取评测任务失败：${toKeelError(error).message}`)
       } finally {
         polling = false
       }
-    }, 400)
+    }, 2000)
   } catch (error) {
     ElMessage.error(`运行回归失败：${toKeelError(error).message}`)
   }

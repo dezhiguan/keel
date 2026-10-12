@@ -167,9 +167,11 @@ class EvalQueryServiceTest {
         int afterFirst = uris.size();
         assertThat(service.latest("askdb").get("scoreTotal")).isEqualTo(0.90);
         assertThat(uris).hasSize(afterFirst);
-        service.start("askdb");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.start("askdb"))
+                .isInstanceOf(com.keel.server.common.KeelException.class)
+                .hasMessageContaining("评测执行器不可用");
         var experiments = uris.stream().filter(uri -> uri.contains("/api/public/experiments?")).toList();
-        assertThat(experiments).hasSize(2);
+        assertThat(experiments).hasSize(1);
         assertThat(experiments).allSatisfy(uri -> {
             assertThat(uri).doesNotContain("2020-01-01");
             assertThat(uri).doesNotContain("cursor=");

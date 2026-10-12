@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: git-ci
+  namespace: keel-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: git-ci}
+  template:
+    metadata:
+      labels: {app: git-ci}
+    spec:
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        - name: acr-cred
+      containers:
+        - name: git-ci
+          image: PLACEHOLDER_GIT_CI_IMAGE
+          envFrom:
+            - secretRef: {name: git-ci-github}
+          ports:
+            - containerPort: 8000
+          readinessProbe:
+            httpGet: {path: /v1/health, port: 8000}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: git-ci
+  namespace: keel-system
+spec:
+  type: ClusterIP
+  selector: {app: git-ci}
+  ports:
+    - port: 8000
+      targetPort: 8000

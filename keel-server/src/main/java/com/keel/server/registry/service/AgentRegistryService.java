@@ -34,6 +34,8 @@ public class AgentRegistryService {
     private final ResourceLedger ledger;
     private final ObjectMapper json;
     private final WizardCatalog wizardCatalog;
+    @org.springframework.beans.factory.annotation.Autowired
+    private SelfCheckRecords selfCheckRecords;
 
     public AgentRegistryService(AgentMapper agentMapper, AgentVersionMapper versionMapper,
                                 AgentInstanceMapper instanceMapper, ResourceLedger ledger, ObjectMapper json,
@@ -131,7 +133,8 @@ public class AgentRegistryService {
                             row.status()))
                     .toList();
         }
-        return AgentDetail.of(agent, latest, instanceLabel, instances, manifest, resources);
+        var detail = AgentDetail.of(agent, latest, instanceLabel, instances, manifest, resources);
+        return selfCheckRecords == null ? detail : selfCheckRecords.apply(detail);
     }
 
     public Map<String, Object> nameCheck(String name) {

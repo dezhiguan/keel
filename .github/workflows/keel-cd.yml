@@ -334,6 +334,59 @@ jobs:
           ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
         run: bash deploy/ci/rollout-service.sh echo-agent deploy/k3s/services/echo-agent.yaml PLACEHOLDER_ECHO_IMAGE
 
+  build-git-ci:
+    name: 构建 git-ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [changes]
+    if: needs.changes.outputs.echo == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - id: image
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+        run: bash deploy/ci/resolve-image.sh git-ci
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.image.outputs.server }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/git-ci.Dockerfile
+          push: true
+          provenance: false
+          tags: ${{ steps.image.outputs.push_image }}
+
+  deploy-git-ci:
+    name: 部署 git-ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [changes, build-git-ci, deploy-server]
+    if: >-
+      always() &&
+      needs.changes.outputs.echo == 'true' &&
+      needs.build-git-ci.result == 'success' &&
+      (needs.deploy-server.result == 'success' || needs.deploy-server.result == 'skipped') &&
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: 配置 SSH
+        env:
+          SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
+          JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+        run: bash deploy/ci/configure-ssh.sh
+      - name: 发布 git-ci
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        run: bash deploy/ci/rollout-service.sh git-ci deploy/k3s/services/git-ci.yaml PLACEHOLDER_GIT_CI_IMAGE git-ci-github
+
   deploy-chat-demo:
     name: 部署 chat-demo
     runs-on: ubuntu-latest

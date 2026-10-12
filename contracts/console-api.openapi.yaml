@@ -380,6 +380,25 @@ paths:
           description: 还没下线（AGENT_NOT_RETIRED）
           $ref: "#/components/responses/Error"
 
+  /agents/{name}/self-check:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+    post:
+      tags: [agents]
+      operationId: recheckAgent
+      summary: 重新执行注册环境自检并保存真实报告
+      responses:
+        "200":
+          description: 自检已完成，passed 表示是否通过
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/SelfCheckReport" }
+
   /agents/{name}/chat:
     parameters:
       - $ref: "#/components/parameters/AgentName"
@@ -726,7 +745,8 @@ paths:
                         type: object
                         properties:
                           runId: { type: string }
-                          state: { type: string, enum: [RUNNING, DONE, FAILED] }
+                          state: { type: string, enum: [QUEUED, RUNNING, DONE, FAILED] }
+                          error: { type: string, nullable: true }
                           progress: { type: number, format: float, description: 0~1 }
                           result:
                             type: object
@@ -848,7 +868,10 @@ paths:
         required: true
         content:
           application/json:
-            schema: { type: object }
+            schema:
+              type: object
+              properties:
+                env: { type: string, enum: [dev, test, staging, prod], default: dev }
       responses:
         "200":
           description: OK
@@ -911,6 +934,25 @@ paths:
               schema: { $ref: "#/components/schemas/Envelope" }
 
   # ---------------------------------------------------------------- 工具
+  /tools/{name}/invoke:
+    parameters:
+      - { name: name, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [tools]
+      operationId: invokeSharedTool
+      summary: 智能体凭 private_key_jwt 调用已授权的只读共享工具
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: 真实工具结果
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+
   /tools:
     get:
       tags: [tools]
@@ -2369,6 +2411,7 @@ components:
       type: object
       properties:
         passed: { type: boolean }
+        checkedAt: { type: string, format: date-time, nullable: true }
         items:
           type: array
           items:

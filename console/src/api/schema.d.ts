@@ -227,6 +227,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agents/{name}/self-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 重新执行注册环境自检并保存真实报告 */
+        post: operations["recheckAgent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agents/{name}/chat": {
         parameters: {
             query?: never;
@@ -628,6 +647,25 @@ export interface paths {
         put?: never;
         /** keel gate 回写实验结果并核对提示词版本 */
         post: operations["recordGateResult"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tools/{name}/invoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 智能体凭 private_key_jwt 调用已授权的只读共享工具 */
+        post: operations["invokeSharedTool"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1546,6 +1584,8 @@ export interface components {
         };
         SelfCheckReport: {
             passed?: boolean;
+            /** Format: date-time */
+            checkedAt?: string | null;
             items?: {
                 /** @example 高风险工具绑定审批策略 */
                 name?: string;
@@ -2759,6 +2799,30 @@ export interface operations {
             409: components["responses"]["Error"];
         };
     };
+    recheckAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 自检已完成，passed 表示是否通过 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["SelfCheckReport"];
+                    };
+                };
+            };
+        };
+    };
     chatWithAgent: {
         parameters: {
             query?: never;
@@ -3098,7 +3162,8 @@ export interface operations {
                         data?: {
                             runId?: string;
                             /** @enum {string} */
-                            state?: "RUNNING" | "DONE" | "FAILED";
+                            state?: "QUEUED" | "RUNNING" | "DONE" | "FAILED";
+                            error?: string | null;
                             /**
                              * Format: float
                              * @description 0~1
@@ -3253,7 +3318,13 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": Record<string, never>;
+                "application/json": {
+                    /**
+                     * @default dev
+                     * @enum {string}
+                     */
+                    env?: "dev" | "test" | "staging" | "prod";
+                };
             };
         };
         responses: {
@@ -3336,6 +3407,32 @@ export interface operations {
         };
         responses: {
             /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    invokeSharedTool: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description 真实工具结果 */
             200: {
                 headers: {
                     [name: string]: unknown;

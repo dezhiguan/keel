@@ -21,6 +21,8 @@ public class SelfCheckService {
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private final AgentEndpointClient endpoints;
     private final LangfuseClient langfuse;
+    @Autowired
+    private SelfCheckRecords records;
 
     public SelfCheckService() { this(null, null); }
 
@@ -71,7 +73,9 @@ public class SelfCheckService {
         items.add(new Item("追踪", visible, visible ? traceId : "本次探针追踪尚未可见，请在链路追踪中复核"));
         boolean approval = approvalBound(manifest);
         items.add(new Item("审批绑定", approval, approval ? null : "高风险工具没有绑定审批策略"));
-        return new Report(items.stream().allMatch(Item::passed), List.copyOf(items));
+        var report = new Report(items.stream().allMatch(Item::passed), List.copyOf(items));
+        if (records != null) records.save(agent, env, manifest, report);
+        return report;
     }
 
     public Report check(String endpoint, boolean traceVisible, boolean approvalBound) {

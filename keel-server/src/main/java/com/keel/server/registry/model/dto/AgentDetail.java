@@ -218,6 +218,11 @@ public record AgentDetail(
                 selfCheck, instanceList, resources, versions, findings);
     }
 
+    public AgentDetail withSelfCheck(CheckReport report) {
+        return new AgentDetail(summary, manifestYaml, manifestHash, knowledgeBases, tools, models, delegates,
+                report, instanceList, resources, versions, findings);
+    }
+
     public record InstanceRow(String instanceId, String source, String version, boolean ready, String lastSeenAt) {
         static InstanceRow of(AgentInstance row) {
             return new InstanceRow(row.getInstanceId(), row.getSource(), row.getVersion(), row.isReady(),
@@ -229,7 +234,8 @@ public record AgentDetail(
 
     public record CheckItem(String name, Boolean passed, String detail) {}
 
-    public record CheckReport(Boolean passed, List<CheckItem> items) {
+    public record CheckReport(Boolean passed, List<CheckItem> items, String checkedAt) {
+        public CheckReport(Boolean passed, List<CheckItem> items) { this(passed, items, null); }
         static CheckReport unknown() {
             return new CheckReport(null, List.of(
                     new CheckItem("agent.yaml 校验通过", null, null),

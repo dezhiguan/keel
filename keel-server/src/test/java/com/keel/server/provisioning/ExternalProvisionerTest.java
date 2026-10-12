@@ -189,7 +189,7 @@ class ExternalProvisionerTest {
                     new String(Base64.getDecoder().decode(entry.getValue().asText()), StandardCharsets.UTF_8)));
             assertThat(values.keySet()).containsExactlyInAnyOrder(
                     "KEEL_CLIENT_PRIVATE_KEY", "KEEL_LLM_KEY", "KEEL_LLM_BASE_URL",
-                    "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_HOST");
+                    "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_HOST", "KEEL_ENV");
             assertThat(values.get("KEEL_LLM_KEY")).isEqualTo("keel-virtual-key");
             assertThat(String.join("\n", values.values())).doesNotContain("DASHSCOPE", "DEEPSEEK_API_KEY");
         } finally {
