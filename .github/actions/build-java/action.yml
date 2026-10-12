@@ -30,7 +30,7 @@ runs:
         provenance: false
         tags: ${{ steps.image.outputs.push_image }}
         # GHA 层缓存会把旧的 COPY 当成未变化，新标签里仍是旧 jar。这里不复用那份缓存。
-        no-cache: true
+        no-cache: "true"
         build-args: |
           MODULE=${{ inputs.service }}
           JAR=${{ inputs.service }}/target/${{ inputs.service }}-0.1.0-SNAPSHOT.jar

@@ -13,14 +13,17 @@ COPY keel-llm keel-llm
 ARG MODULE=keel-llm
 # 提交号写进这一层。只靠 COPY 的缓存时，GHA 会把旧 jar 打进新标签。
 ARG SOURCE_REV=unknown
+RUN if [ "${MODULE}" = "keel-server" ]; then grep -q "CheckReport selfCheck" keel-server/src/main/java/com/keel/server/registry/model/dto/AgentDetail.java; fi
 RUN echo "source ${SOURCE_REV}" && mvn -pl :${MODULE} -am package -DskipTests
 
 FROM eclipse-temurin:21-jre-jammy
 ARG JAR=keel-llm/target/keel-llm-0.1.0-SNAPSHOT.jar
 ARG RAM_PERCENTAGE=60.0
+ARG SOURCE_REV=unknown
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=${RAM_PERCENTAGE}"
 RUN useradd --system --uid 10001 --create-home keel
 WORKDIR /app
-COPY --from=build --chown=10001:10001 /src/${JAR} /app/app.jar
+COPY --from=build --chown=10001:10001 /src/${JAR} /app/${SOURCE_REV}.jar
+RUN mv "/app/${SOURCE_REV}.jar" /app/app.jar && chown 10001:10001 /app/app.jar
 USER 10001
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
