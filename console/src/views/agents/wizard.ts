@@ -6,12 +6,33 @@ export interface WizardForm {
   ownerOrg: string
   ownerUser: string
   category: 'biz' | 'dev'
+  language: 'python' | 'java'
   template: string
   model: string
   dailyBudgetCny: number
   env: 'dev' | 'test' | 'staging' | 'prod'
   tools: string[]
   approvalPolicyId: string
+}
+
+export const WIZARD_TEMPLATES: [string, string, string][] = [
+  ['echo', '回声', '一问一答，用来打通链路和审计'],
+  ['chat-rag', '知识库问答', '客服、FAQ、文档问答'],
+  ['tool-agent', '工具调用', '代码评审、CI 诊断'],
+  ['graph-agent', '多步推理', '多步图'],
+  ['supervisor', '多智能体', '编排其他已注册智能体'],
+  ['java-spring', 'Java', 'Spring Boot + keel-starter'],
+]
+
+/** Java 只留 java-spring 和 supervisor；Python 不出现 java-spring。 */
+export function templatesFor(language: 'python' | 'java') {
+  return WIZARD_TEMPLATES.filter(([id]) => language === 'java' ? id === 'java-spring' || id === 'supervisor' : id !== 'java-spring')
+}
+
+export function templateForLanguage(language: 'python' | 'java', template: string) {
+  const allowed = templatesFor(language).map(([id]) => id)
+  if (allowed.includes(template)) return template
+  return language === 'java' ? 'java-spring' : 'echo'
 }
 
 export function nameError(name: string, taken = false): string {
@@ -120,7 +141,7 @@ export function registerBody(form: WizardForm) {
     ownerUser: form.ownerUser.trim(),
     env: form.env,
     runtime: 'code' as const,
-    language: 'python',
+    language: form.language,
     template: form.template,
     models: {
       default: form.model,

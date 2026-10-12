@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { checkAgentName, getCatalog, previewManifest, registerAgent, type CatalogPolicy, type CatalogTool, type SelfCheckReport } from '@/api/agents'
@@ -7,18 +7,11 @@ import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import DevflowWizard from './DevflowWizard.vue'
 import { RISK } from '@/utils/format'
-import { nameError, registerBody, type DevflowKind, type WizardForm } from './wizard'
+import { nameError, registerBody, templateForLanguage, templatesFor, type DevflowKind, type WizardForm } from './wizard'
 
 const ACCESS = { READ: '读', WRITE: '写', EXEC: '执行' } as const
 
 const STEPS = ['创建方式', '基本信息', '模板与资源', '预览并注册']
-const TEMPLATES: [string, string, string][] = [
-  ['echo', '回声', '一问一答，用来打通链路和审计'],
-  ['chat-rag', '知识库问答', '客服、FAQ、文档问答'],
-  ['tool-agent', '工具调用', '代码评审、CI 诊断'],
-  ['graph-agent', '多步推理', '多步图'],
-  ['java-spring', 'Java', 'Spring Boot + keel-starter'],
-]
 
 const route = useRoute()
 const router = useRouter()
@@ -37,6 +30,7 @@ const form = reactive<WizardForm>({
   ownerOrg: '研发效能组',
   ownerUser: 'amy',
   category: 'dev',
+  language: 'python',
   template: 'echo',
   model: 'qwen-plus',
   dailyBudgetCny: 30,
@@ -49,6 +43,7 @@ const policies = ref<CatalogPolicy[]>([])
 const catalogError = ref('')
 
 const idError = computed(() => (form.name ? nameError(form.name, taken.value) : ''))
+const visibleTemplates = computed(() => templatesFor(form.language))
 const selectedHigh = computed(() => form.tools.some((name) => catalogTools.value.find((tool) => tool.name === name)?.risk === 'HIGH'))
 const canNext = computed(() => {
   if (step.value === 2) return !idError.value
@@ -65,6 +60,11 @@ onMounted(async () => {
     catalogError.value = toKeelError(error).message
   }
 })
+
+function setLanguage(language: 'python' | 'java') {
+  form.language = language
+  form.template = templateForLanguage(language, form.template)
+}
 
 function toggleTool(name: string) {
   const index = form.tools.indexOf(name)
@@ -92,11 +92,16 @@ async function loadPreview() {
   }
 }
 
+let previewTimer = 0
+watch(() => registerBody(form), () => {
+  window.clearTimeout(previewTimer)
+  previewTimer = window.setTimeout(() => { void loadPreview() }, 250)
+}, { deep: true, immediate: true })
+
 async function next() {
   if (step.value === 2) await onName()
   if (!canNext.value) return
   step.value += 1
-  if (step.value === 4) await loadPreview()
 }
 
 async function submit() {
@@ -174,11 +179,18 @@ async function submit() {
               <input v-model="form.ownerUser" class="inp" />
             </div>
           </div>
+          <div v-if="method === 'code'" class="field">
+            <label>语言</label>
+            <div class="chipsel">
+              <button type="button" :class="{ on: form.language === 'python' }" @click="setLanguage('python')">Python · keel-sdk</button>
+              <button type="button" :class="{ on: form.language === 'java' }" @click="setLanguage('java')">Java · keel-starter</button>
+            </div>
+          </div>
         </template>
         <template v-else-if="step === 3">
           <h3>模板与资源</h3>
           <div class="opts">
-            <div v-for="[id, title, desc] in TEMPLATES" :key="id" class="opt" :class="{ on: form.template === id }" @click="form.template = id">
+            <div v-for="[id, title, desc] in visibleTemplates" :key="id" class="opt" :class="{ on: form.template === id }" @click="form.template = id">
               <b>{{ title }}</b><small><code>{{ id }}</code></small><small>{{ desc }}</small>
             </div>
           </div>
@@ -245,8 +257,8 @@ async function submit() {
         </div>
       </div>
       <div class="card">
-        <h3>agent.yaml <small>回声模板的地址指向本进程里的探针</small></h3>
-        <pre class="code">{{ yaml || '到最后一步会向服务端要预览' }}</pre>
+        <h3>agent.yaml 实时预览<small>右侧随左侧填写变化</small></h3>
+        <pre class="code">{{ yaml || '正在生成预览' }}</pre>
       </div>
     </div>
     </template>

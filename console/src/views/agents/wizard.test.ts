@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { blankDevflow, devflowBody, devflowStepError, lockDevflowMode, nameError, registerBody, type WizardForm } from './wizard'
+import { blankDevflow, devflowBody, devflowStepError, lockDevflowMode, nameError, registerBody, templateForLanguage, templatesFor, type WizardForm } from './wizard'
 
 const form: WizardForm = {
   name: 'echo',
@@ -7,6 +7,7 @@ const form: WizardForm = {
   ownerOrg: '研发效能组',
   ownerUser: 'amy',
   category: 'dev',
+  language: 'python',
   template: 'echo',
   model: 'qwen-plus',
   dailyBudgetCny: 30,
@@ -46,5 +47,14 @@ describe('wizard', () => {
     })
     expect(registerBody(form)).not.toHaveProperty('approvalPolicyId')
     expect(registerBody({ ...form, approvalPolicyId: '9' })).toMatchObject({ approvalPolicyId: '9' })
+    expect(registerBody({ ...form, language: 'java', template: 'java-spring' }).language).toBe('java')
+  })
+
+  it('keeps Java templates to the starter and supervisor', () => {
+    expect(templatesFor('java').map(([id]) => id)).toEqual(['supervisor', 'java-spring'])
+    expect(templatesFor('python').map(([id]) => id)).not.toContain('java-spring')
+    expect(templateForLanguage('java', 'echo')).toBe('java-spring')
+    expect(templateForLanguage('python', 'java-spring')).toBe('echo')
+    expect(templateForLanguage('python', 'tool-agent')).toBe('tool-agent')
   })
 })
