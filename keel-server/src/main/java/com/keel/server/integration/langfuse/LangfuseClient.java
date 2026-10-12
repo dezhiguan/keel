@@ -95,7 +95,7 @@ public class LangfuseClient {
                 if (item.has("expectedOutput")) {
                     body.set("expectedOutput", item.get("expectedOutput"));
                 }
-                post("/api/public/dataset-items", body, false);
+                post("/api/public/dataset-items", body, true);
             }
         } catch (IllegalStateException e) {
             throw e;

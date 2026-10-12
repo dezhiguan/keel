@@ -104,6 +104,27 @@ class ExternalProvisionerTest {
         assertThat(creates.get()).isEqualTo(2);
     }
 
+    @Test void anExistingDatasetItemConflictDoesNotFailImport() throws Exception {
+        var base = server((exchange, body) -> {
+            var path = exchange.getRequestURI().getPath();
+            if (path.equals("/api/public/dataset-items") && "POST".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(409, -1);
+                return;
+            }
+            if (path.startsWith("/api/public/dataset-items")) {
+                var response = "{\"data\":[]}".getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, response.length);
+                exchange.getResponseBody().write(response);
+                return;
+            }
+            exchange.sendResponseHeaders(200, -1);
+        });
+        var seed = Files.createTempFile("seed", ".jsonl");
+        Files.writeString(seed, "{\"id\":\"case-1\",\"input\":\"ping\",\"expectedOutput\":\"ping\"}\n");
+        var provisioner = new LangfuseProvisioner(new LangfuseClient(base, "pk-lf", "sk-lf"), seed.toString());
+        provisioner.provision("echo", "dev", json.readTree("{\"spec\":{\"eval\":{\"dataset\":\"echo/smoke\"}}}"));
+    }
+
     @Test void secretContainsTheSixKeysAndNoVendorCredential() throws Exception {
         var http = new okhttp3.mockwebserver.MockWebServer();
         http.start();
