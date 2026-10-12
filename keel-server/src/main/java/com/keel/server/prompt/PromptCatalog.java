@@ -44,6 +44,15 @@ public class PromptCatalog {
     }
 
     public List<Item> declared(String agentFilter) {
+        return declared(agentFilter, Actor.current());
+    }
+
+    /** Background drift scans have no console request and must inspect every organization. */
+    public List<Item> declaredForDriftScan() {
+        return declared(null, new Actor("keel", "", "ADMIN"));
+    }
+
+    private List<Item> declared(String agentFilter, Actor actor) {
         var rows = jdbc.query("""
                 SELECT a.name, a.runtime, a.owner_org, a.owner_user, v.manifest_json::text AS manifest_json
                 FROM agent a
@@ -61,7 +70,7 @@ public class PromptCatalog {
         }, agentFilter == null ? "" : agentFilter, agentFilter == null ? "" : agentFilter);
         var items = new ArrayList<Item>();
         for (var row : rows) {
-            if (!visible(row[1])) {
+            if (!actor.admin() && !actor.org().equals(row[1])) {
                 continue;
             }
             items.addAll(readItems(row[0], row[1], row[2], row[3]));

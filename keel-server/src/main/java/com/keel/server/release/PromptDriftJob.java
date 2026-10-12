@@ -42,7 +42,7 @@ public class PromptDriftJob {
         var production = namesWithLabel("production");
         var staging = namesWithLabel("staging");
         var written = 0;
-        for (var item : catalog.declared(null)) {
+        for (var item : catalog.declaredForDriftScan()) {
             written += compare(item.agent(), item.name(), item.fullName(), "prod", "production", production, releaseVersion(item.agent(), item.name()));
             written += compare(item.agent(), item.name(), item.fullName(), "staging", "staging", staging, promotionVersion(item.agent(), item.name()));
         }

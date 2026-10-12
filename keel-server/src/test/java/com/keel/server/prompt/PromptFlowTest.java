@@ -131,7 +131,7 @@ class PromptFlowTest {
                 .andExpect(status().isOk());
         assertThat(CALLS.stream().filter(call -> call.startsWith("PATCH ")).count()).isEqualTo(1);
         assertThat(count("SELECT count(*) FROM prompt_promotion WHERE agent_name = 'prompt-agent'")).isZero();
-        assertThat(count("SELECT count(*) FROM console_audit_event WHERE resource = 'prompt:prompt-agent/answer' AND env = 'dev'")).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM console_audit_event WHERE resource = 'prompt:prompt-agent/answer' AND env = 'dev'")).isEqualTo(2);
     }
 
     @Test void stagingPromotionBecomesInvalidWhenTheGateVersionDiffers() throws Exception {
@@ -230,8 +230,16 @@ class PromptFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].envs.dev.version").value(1))
                 .andExpect(jsonPath("$.data.items[0].envs.test").doesNotExist());
-        new PromptService(catalog, new LangfuseClient("http://127.0.0.1:" + PORT, "pk", "sk"), jdbc, null,
-                "http://127.0.0.1:" + PORT, "keel").list("all", "prompt-agent");
+        var request = new org.springframework.mock.web.MockHttpServletRequest();
+        com.keel.server.auth.ConsolePrincipal.set(request, com.keel.server.auth.ConsolePrincipal.dev());
+        org.springframework.web.context.request.RequestContextHolder.setRequestAttributes(
+                new org.springframework.web.context.request.ServletRequestAttributes(request));
+        try {
+            new PromptService(catalog, new LangfuseClient("http://127.0.0.1:" + PORT, "pk", "sk"), jdbc, null,
+                    "http://127.0.0.1:" + PORT, "keel").list("all", "prompt-agent");
+        } finally {
+            org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
+        }
         assertThat(projectLists()).isEqualTo(1);
     }
 
