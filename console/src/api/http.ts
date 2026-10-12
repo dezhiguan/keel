@@ -23,7 +23,7 @@ export function setConsoleReadOnly(value: boolean) {
   readOnly = value
 }
 
-const instance = axios.create({ baseURL: '/api/v1', timeout: 15000, withCredentials: true })
+const instance = axios.create({ baseURL: '/api/v1', timeout: 90000, withCredentials: true })
 
 export function newTraceparent(): string {
   const hex = (bytes: number) =>

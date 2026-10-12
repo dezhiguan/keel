@@ -28,7 +28,8 @@ import java.util.Map;
 public class LangfuseClient {
     private final String baseUrl;
     private final String authorization;
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build();
+    private final HttpClient healthHttp = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
     private final ObjectMapper json = new ObjectMapper();
 
     public LangfuseClient(String baseUrl, String publicKey, String secretKey) {
@@ -54,7 +55,7 @@ public class LangfuseClient {
                     .timeout(Duration.ofSeconds(2))
                     .GET()
                     .build();
-            var response = http.send(request, HttpResponse.BodyHandlers.discarding());
+            var response = healthHttp.send(request, HttpResponse.BodyHandlers.discarding());
             return response.statusCode() < 300;
         } catch (Exception e) {
             return false;
@@ -696,7 +697,7 @@ public class LangfuseClient {
     private JsonNode send(String method, String path, JsonNode body, boolean ignoreConflict, boolean allowNotFound) {
         try {
             var builder = HttpRequest.newBuilder(URI.create(baseUrl + path))
-                    .timeout(Duration.ofSeconds(20))
+                    .timeout(Duration.ofSeconds(60))
                     .header("Authorization", authorization);
             if (body == null) {
                 builder.method(method, HttpRequest.BodyPublishers.noBody());
