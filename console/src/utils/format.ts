@@ -52,7 +52,9 @@ export function fmtMs(ms: number | null | undefined): string {
 }
 
 export function fmtCny(v: number | null | undefined, digits = 4): string {
-  return v === null || v === undefined || v === 0 ? '—' : `¥${v.toFixed(digits)}`
+  if (v === null || v === undefined) return '—'
+  const fixed = v.toFixed(digits)
+  return `¥${v !== 0 && Number(fixed) === 0 ? v.toPrecision(3) : fixed}`
 }
 
 export function ago(iso: string | null | undefined): string {

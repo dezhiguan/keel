@@ -20,6 +20,7 @@
 - `contracts/manifest.schema.json`、Java/Python 生成模型（可选 runtime.template 字段）
 - `contracts/console-api.openapi.yaml` 与生成的前端类型（仅必要的可选字段）
 - `console/src/{api,views/agents,views/eval}/**`
+- `console/src/utils/format.ts`（保留微额真实成本，区分零值与缺失值）
 - `agents/echo/**`、`sdk-python/keel/**` 及对应测试（必要时修复共享运行服务的凭据隔离）
 - `deploy/**`（Langfuse relay 的稳定运行和实际测试智能体部署）
 
