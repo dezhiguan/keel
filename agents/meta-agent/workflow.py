@@ -14,7 +14,7 @@ from keel.protocol.errors import ErrorCode, KeelError
 from tools.manifest_check import check
 
 
-async def execute(work, ctx, draft_model):
+async def execute(work, ctx):
     from app import _target, _dump, RULES
     from opentelemetry import trace
     trace.get_current_span().set_attribute("keel.devflow.job_id", str(work.get("jobId") or ""))
@@ -30,38 +30,67 @@ async def execute(work, ctx, draft_model):
         raise KeelError(ErrorCode.SERVER_INVALID_PARAM)
     catalog = work.get("catalog") or []
     registered = {row["name"]: {**row, "risk": str(row.get("risk") or "LOW").lower()} for row in catalog}
+    selected = requirement.get("tools") or []
+    if (not isinstance(selected, list)
+            or any(not isinstance(name, str) or name not in registered for name in selected)
+            or len(selected) != len(set(selected))):
+        raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "选中的工具不在可用目录中")
+    tools = []
+    for name in selected:
+        row = registered[name]
+        access = str(row.get("access") or "read").lower()
+        risk = row["risk"]
+        if access not in ("read", "write", "exec") or risk not in ("low", "mid", "high"):
+            raise KeelError(ErrorCode.SERVER_INVALID_PARAM, f"工具 {name} 的登记信息无效")
+        tools.append({"name": name, "access": access, "risk": risk,
+                      "approval": "required" if risk == "high" else "none"})
     previous = work.get("draft")
     prompt = await ctx.prompt("revise" if previous else "draft")
     content = prompt.compile(requirement=_dump(requirement), catalog=_dump(list(registered.values())), rules=RULES,
                              previous=_dump(previous or {}), feedback=str(work.get("feedback") or ""))
-    content += "\n只生成 Python tool-agent。spec 的 title/goal/users/io/success 必须为字符串，pending 必须为字符串数组。"
+    content += "\n只生成 Python tool-agent。目标智能体只使用需求里明确选择的工具；Git PR 由平台交付，不是目标智能体的能力。spec 的 title/goal/users/io/success 必须为字符串，pending 必须为字符串数组。"
+    errors = []
     for _ in range(2):
-        drafted = await draft_model(ctx, prompt, [{"role": "user", "content": content}], target, int(work.get("version", 1)))
-        manifest = drafted["manifest"]
-        config = manifest["spec"]
-        config["runtime"].update(type="code", language="python", liveness="k8s")
-        config["models"] = {"default": "qwen-plus", "budget": {"dailyCny": requirement["dailyBudgetCny"]}}
-        manifest["metadata"]["owner"] = requirement["owner"]
-        # Resource selection and risk are authoritative input, never model-granted permissions.
-        expected = set(requirement.get("tools") or [])
-        actual = {t.get("name") for t in config.get("tools") or []}
+        reply = await ctx.llm.chat([{"role": "user", "content": content}], prompt=prompt)
+        sheet, parse_errors = _parse_sheet(reply)
+        if parse_errors:
+            errors = parse_errors
+            content += "\n上一版没有得到结构化需求单，请只返回 JSON：" + "；".join(parse_errors)
+            continue
+        # Runtime, identity and permissions come from confirmed input and the tool registry.
+        manifest = {"apiVersion": "keel/v1", "kind": "Agent",
+                    "metadata": {"name": target, "displayName": requirement["title"], "owner": requirement["owner"]},
+                    "spec": {"runtime": {"type": "code", "language": "python", "liveness": "k8s",
+                                         "endpoint": f"http://{target}.agents.svc.cluster.local:8000"},
+                             "auth": {"audience": target},
+                             "models": {"default": "qwen-plus", "budget": {"dailyCny": requirement["dailyBudgetCny"]}},
+                             "tools": tools, "audit": {"captureFields": ["request_id"]},
+                             "eval": {"dataset": f"{target}/seed"}}}
         errors = check(manifest, target, registered)
-        if actual != expected:
-            errors.append("tools 必须与需求中选择的工具完全一致")
-        if config.get("knowledge"):
-            errors.append("最小闭环不支持知识库配置")
         if not errors:
-            sheet = drafted["spec"]
+            drafted = {"spec": sheet, "manifest": manifest}
             for key in ("title", "goal", "users", "io", "success"):
-                if not isinstance(sheet.get(key), str) or not sheet[key].strip():
-                    sheet[key] = str(requirement.get(key) or "待确认")
-            if not isinstance(sheet.get("pending"), list):
-                sheet["pending"] = []
-            sheet["pending"] = [str(item) for item in sheet["pending"]]
+                sheet[key] = str(requirement.get(key) or "待确认")
+            for key in ("risks", "pending"):
+                sheet[key] = [str(item) for item in sheet.get(key, [])] if isinstance(sheet.get(key), list) else []
             drafted["manifestYaml"] = yaml.safe_dump(manifest, allow_unicode=True, sort_keys=False)
             return ctx.final(_dump(drafted))
         content += "\n修正以下业务校验错误：" + "；".join(errors[:5])
     raise KeelError(ErrorCode.AGENT_MANIFEST_INVALID, "；".join(errors[:5]))
+
+
+def _parse_sheet(reply):
+    text = str(reply or "").strip()
+    start, end = text.find("{"), text.rfind("}")
+    if start < 0 or end <= start:
+        return {}, ["没有返回 JSON 对象"]
+    try:
+        data = json.loads(text[start:end + 1])
+    except json.JSONDecodeError:
+        return {}, ["JSON 解析失败"]
+    if not isinstance(data, dict) or not isinstance(data.get("spec"), dict):
+        return {}, ["必须包含 spec 对象"]
+    return data["spec"], []
 
 
 def deliver(work):

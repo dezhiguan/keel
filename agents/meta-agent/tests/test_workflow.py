@@ -98,9 +98,30 @@ def test_bridge_token_rejects_unauthorized_work(monkeypatch):
         assert client.get("/v1/health").status_code == 200
 
 
-def test_invalid_nested_manifest_shape_is_retried_as_a_validation_error(gateway):
+def test_model_cannot_add_unselected_tools_or_change_identity(gateway):
     bad = json.loads(reply(tools=[]))
-    bad["manifest"]["spec"]["tools"] = ["not-an-object"]
-    gateway.replies += [json.dumps(bad), reply(tools=[])]
-    assert terminal(invoke(json.dumps(work())))[0] == "final"
-    assert len(gateway.requests) == 2
+    bad["spec"]["goal"] = "擅自改成自动合并 PR"
+    bad["manifest"]["metadata"]["name"] = "wrong-agent"
+    bad["manifest"]["spec"]["tools"] = [{"name": "git.pr.merge", "access": "write", "risk": "low"}]
+    bad["manifest"]["spec"]["knowledge"] = [{"kb": "unapproved"}]
+    gateway.replies.append(json.dumps(bad))
+    request = {**work(), "catalog": [{"name": "git.pr.merge", "access": "WRITE", "risk": "HIGH"}]}
+    kind, event = terminal(invoke(json.dumps(request)))
+    assert kind == "final"
+    result = json.loads(event["answer"])
+    assert result["spec"]["goal"] == request["requirement"]["goal"]
+    assert result["manifest"]["metadata"]["name"] == "spec-agent"
+    assert result["manifest"]["spec"]["tools"] == []
+    assert "knowledge" not in result["manifest"]["spec"]
+    assert len(gateway.requests) == 1
+
+
+def test_selected_tool_uses_registered_risk_and_approval(gateway):
+    request = work()
+    request["requirement"]["tools"] = ["git.pr.merge"]
+    request["catalog"] = [{"name": "git.pr.merge", "access": "WRITE", "risk": "HIGH"}]
+    gateway.replies.append(reply(tools=[]))
+    kind, event = terminal(invoke(json.dumps(request)))
+    assert kind == "final"
+    assert json.loads(event["answer"])["manifest"]["spec"]["tools"] == [
+        {"name": "git.pr.merge", "access": "write", "risk": "high", "approval": "required"}]
