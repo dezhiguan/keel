@@ -104,7 +104,16 @@ public class ReleaseService {
 
     private String devflowJobId(String agent) {
         var ids = jdbc.query("SELECT devflow_job_id FROM agent WHERE name = ?", (rs, row) -> rs.getString(1), agent);
-        return ids.isEmpty() ? null : ids.getFirst();
+        if (!ids.isEmpty() && ids.getFirst() != null && !ids.getFirst().isBlank()) {
+            return ids.getFirst();
+        }
+        // Candidate registration does not yet populate agent.devflow_job_id. Resolve by the
+        // immutable target name so a produced employee cannot bypass H4 by registering directly.
+        var produced = jdbc.query("""
+                SELECT job_id FROM devflow_job WHERE target_agent = ? AND layer = 'DEV' AND kind = 'CREATE'
+                  AND status <> 'CANCEL' ORDER BY created_at DESC LIMIT 1
+                """, (rs, row) -> rs.getString(1), agent);
+        return produced.isEmpty() ? null : produced.getFirst();
     }
 
     private boolean approvedMerge(String agent) {
