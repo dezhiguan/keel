@@ -1124,6 +1124,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/devflow/jobs/{jobId}/execution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getDevflowExecution"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/jobs/{jobId}/requirement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["decideDevflowRequirement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/jobs/{jobId}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["retryDevflowExecution"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/devflow/jobs/{jobId}/review": {
         parameters: {
             query?: never;
@@ -2177,6 +2225,11 @@ export interface components {
             tools?: string[];
             knowledge?: string[];
             ownerOrg?: string;
+            users?: string;
+            io?: string;
+            success?: string;
+            /** @description 显式使用元智能体最小闭环；仅管理员 DEV/CREATE/COLLAB */
+            execution?: boolean;
         };
         DevflowJob: {
             /** @example DF-0019 */
@@ -2322,6 +2375,59 @@ export interface components {
                 count: number;
             }[];
         };
+        DevflowRequirementDecision: {
+            /** @enum {string} */
+            action: "CONFIRM" | "REVISE";
+            expectedVersion: number;
+            feedback?: string;
+            users?: string;
+            io?: string;
+            success?: string;
+        };
+        DevflowExecution: {
+            jobId: string;
+            /** @enum {string} */
+            phase: "QUEUED" | "RUNNING" | "WAITING" | "DELIVERING" | "DELIVERED" | "FAILED" | "CANCELLED";
+            version: number;
+            revisions: number;
+            requirement: {
+                [key: string]: unknown;
+            };
+            draft?: {
+                spec: components["schemas"]["DevflowReview"]["specSheet"];
+                manifest?: {
+                    [key: string]: unknown;
+                };
+                manifestYaml: string;
+            };
+            delivery?: {
+                repo: string;
+                number: number;
+                sha: string;
+                /** Format: uri */
+                url: string;
+                branch: string;
+            };
+            traceId?: string;
+            error?: string;
+        };
+        /** @description 服务端经 SDK input.text 传递的工作请求，使用 bridge 身份鉴别 */
+        MetaAgentWork: {
+            workflow: boolean;
+            /** @enum {string} */
+            action: "DRAFT" | "DELIVER";
+            jobId: string;
+            requirement: {
+                [key: string]: unknown;
+            };
+            draft?: {
+                [key: string]: unknown;
+            };
+            feedback?: string;
+            catalog?: {
+                [key: string]: unknown;
+            }[];
+        };
         /** @description 关口处理页数据。按 gate 只填对应的字段，其余省略。隐藏考题只有条数和分数 */
         DevflowReview: {
             /** @example DF-0018 */
@@ -2331,6 +2437,7 @@ export interface components {
              * @enum {string}
              */
             gate: "H1" | "H2" | "H4" | "PR";
+            execution?: components["schemas"]["DevflowExecution"];
             /** @description H1 / H2 恢复用 */
             runId?: string | null;
             /** @description H4 决策用 */
@@ -4244,6 +4351,82 @@ export interface operations {
             };
             400: components["responses"]["Error"];
             404: components["responses"]["Error"];
+        };
+    };
+    getDevflowExecution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 持久化的元智能体执行状态；未接入的旧任务返回 null */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowExecution"];
+                    };
+                };
+            };
+        };
+    };
+    decideDevflowRequirement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DevflowRequirementDecision"];
+            };
+        };
+        responses: {
+            /** @description 持久化的元智能体执行状态；未接入的旧任务返回 null */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowExecution"];
+                    };
+                };
+            };
+        };
+    };
+    retryDevflowExecution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 持久化的元智能体执行状态；未接入的旧任务返回 null */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowExecution"];
+                    };
+                };
+            };
         };
     };
     getDevflowReview: {

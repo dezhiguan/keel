@@ -23,11 +23,13 @@ public class DevflowController {
     private final DevflowService devflow;
     private final SandboxService sandbox;
     private final HoldoutService holdout;
+    private final MetaAgentExecution execution;
 
-    public DevflowController(DevflowService devflow, SandboxService sandbox, HoldoutService holdout) {
+    public DevflowController(DevflowService devflow, SandboxService sandbox, HoldoutService holdout, MetaAgentExecution execution) {
         this.devflow = devflow;
         this.sandbox = sandbox;
         this.holdout = holdout;
+        this.execution = execution;
     }
 
     @GetMapping("/jobs")
@@ -42,6 +44,8 @@ public class DevflowController {
     @PostMapping("/jobs")
     public R<DevflowTypes.Job> createJob(@RequestBody DevflowTypes.Draft body) {
         requireWrite();
+        if (Boolean.TRUE.equals(body.execution())) return R.ok(execution.create(body, actor()));
+        if ("DEV".equals(body.layer())) MetaAgentExecution.requireAdmin();
         return R.ok(devflow.submit(body, actor(), serviceAgent()));
     }
 
@@ -53,25 +57,28 @@ public class DevflowController {
     @PostMapping("/jobs/{jobId}/takeover")
     public R<DevflowTypes.Job> takeover(@PathVariable String jobId) {
         requireWrite();
+        if (execution.get(jobId) != null) throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "骨架任务请在已交付的 PR 中继续开发");
         return R.ok(devflow.takeover(jobId, actor()));
     }
 
     @PostMapping("/jobs/{jobId}/handback")
     public R<DevflowTypes.Job> handback(@PathVariable String jobId) {
         requireWrite();
+        if (execution.get(jobId) != null) throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "骨架任务请在已交付的 PR 中继续开发");
         return R.ok(devflow.handback(jobId, actor()));
     }
 
     @PostMapping("/jobs/{jobId}/assist")
     public R<DevflowTypes.Job> assist(@PathVariable String jobId, @RequestBody DevflowTypes.Assist body) {
         requireWrite();
+        if (execution.get(jobId) != null) throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "骨架任务请在已交付的 PR 中继续开发");
         return R.ok(devflow.assist(jobId, body == null ? null : body.instruction(), actor()));
     }
 
     @PostMapping("/jobs/{jobId}/cancel")
     public R<DevflowTypes.Job> cancel(@PathVariable String jobId) {
         requireWrite();
-        return R.ok(devflow.cancel(jobId, actor()));
+        return R.ok(execution.get(jobId) != null ? execution.cancel(jobId, actor()) : devflow.cancel(jobId, actor()));
     }
 
     @PostMapping("/jobs/{jobId}/stages/{stage}/report")
@@ -84,7 +91,23 @@ public class DevflowController {
 
     @GetMapping("/jobs/{jobId}/review")
     public R<Map<String, Object>> review(@PathVariable String jobId) {
-        return R.ok(devflow.review(jobId));
+        return R.ok(execution.review(jobId));
+    }
+
+    @GetMapping("/jobs/{jobId}/execution")
+    public R<com.fasterxml.jackson.databind.node.ObjectNode> execution(@PathVariable String jobId) {
+        return R.ok(execution.get(jobId));
+    }
+
+    @PostMapping("/jobs/{jobId}/requirement")
+    public R<com.fasterxml.jackson.databind.node.ObjectNode> decideRequirement(@PathVariable String jobId,
+            @RequestBody DevflowTypes.RequirementDecision body) {
+        return R.ok(execution.decide(jobId, body));
+    }
+
+    @PostMapping("/jobs/{jobId}/retry")
+    public R<com.fasterxml.jackson.databind.node.ObjectNode> retry(@PathVariable String jobId) {
+        return R.ok(execution.retry(jobId));
     }
 
     @PostMapping("/jobs/{jobId}/seed-cases")

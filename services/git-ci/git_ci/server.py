@@ -31,6 +31,8 @@ def client_from_env() -> GitHub:
 
 def call_tool(github: GitHub, tool: str, body: dict) -> dict:
     if tool == "git.repo.create":
+        if body.get("jobId"):
+            return github.ensure_repo(_name(body.get("name"), "name"), _job(body["jobId"]))
         return github.create_repo(_name(body.get("name"), "name"))
     if tool == "git.branch.push":
         files = body.get("files")
@@ -45,9 +47,13 @@ def call_tool(github: GitHub, tool: str, body: dict) -> dict:
             if not isinstance(path, str) or not isinstance(content, str) or ".." in path.split("/"):
                 raise ValueError("file")
             cleaned.append({"path": path, "content": content})
+        if body.get("jobId"):
+            return github.push_scaffold(_name(body.get("repo"), "repo"), _job(body["jobId"]), _text(body.get("message")), cleaned)
         return github.push(_name(body.get("repo"), "repo"), _ref(body.get("branch")),
                            _text(body.get("message")), cleaned)
     if tool == "git.pr.open":
+        if body.get("jobId"):
+            return github.ensure_pr(_name(body.get("repo"), "repo"), _job(body["jobId"]), _text(body.get("title")), _text(body.get("body")))
         return github.open_pr(_name(body.get("repo"), "repo"), _ref(body.get("head")), _ref(body.get("base")),
                               _text(body.get("title")), _text(body.get("body")))
     if tool == "git.pr.diff":
@@ -124,3 +130,9 @@ def _error(code: ErrorCode) -> JSONResponse:
     return JSONResponse(
         {"code": code.value, "message": code.message, "trace_id": uuid.uuid4().hex, "retryable": code.retryable},
         status_code=code.http)
+
+
+def _job(value) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"DF-[0-9]{4,12}", value):
+        raise ValueError("jobId")
+    return value

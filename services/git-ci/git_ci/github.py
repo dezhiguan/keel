@@ -56,9 +56,56 @@ class GitHub:
         return response.status_code
 
     def create_repo(self, name: str) -> dict:
-        self.request("POST", f"/orgs/{self.org}/repos", {"name": name, "private": True, "auto_init": True})
+        self._create_repo({"name": name, "private": True, "auto_init": True})
         self.request("PUT", f"/repos/{self.org}/{name}/branches/main/protection", PROTECTION)
         return {"repo": f"{self.org}/{name}", "defaultBranch": "main"}
+
+    def _create_repo(self, payload: dict):
+        owner = self.request("GET", f"/users/{self.org}")
+        if owner.get("type") == "User":
+            actor = self.request("GET", "/user")
+            if actor.get("login", "").lower() != self.org.lower():
+                raise GitHubError(403, "Token owner does not match the configured repository owner")
+            return self.request("POST", "/user/repos", payload)
+        return self.request("POST", f"/orgs/{self.org}/repos", payload)
+
+    def ensure_repo(self, name: str, job_id: str) -> dict:
+        marker = "keel-devflow:" + job_id
+        try:
+            existing = self.request("GET", f"/repos/{self.org}/{name}")
+            if existing.get("description") != marker or not existing.get("private"):
+                raise GitHubError(409, "Repository belongs to a different task")
+        except GitHubError as exc:
+            if exc.status != 404:
+                raise
+            self._create_repo({
+                "name": name, "private": True, "auto_init": True, "description": marker})
+        self.request("PUT", f"/repos/{self.org}/{name}/branches/main/protection", PROTECTION)
+        return {"repo": f"{self.org}/{name}", "defaultBranch": "main"}
+
+    def push_scaffold(self, repo: str, job_id: str, message: str, files: list[dict]) -> dict:
+        self.ensure_repo(repo, job_id)
+        path = f"/repos/{self.org}/{repo}"
+        try:
+            branch = self.request("GET", path + "/git/ref/heads/draft")
+        except GitHubError as exc:
+            if exc.status != 404:
+                raise
+            branch = None
+        if branch:
+            sha = branch["object"]["sha"]
+            commit = self.request("GET", path + f"/git/commits/{sha}")
+            if not commit.get("message", "").startswith(f"Keel scaffold {job_id}:"):
+                raise GitHubError(409, "Human changes on draft; refusing to overwrite")
+            return {"repo": f"{self.org}/{repo}", "branch": "draft", "sha": sha}
+        return self.push(repo, "draft", message, files)
+
+    def ensure_pr(self, repo: str, job_id: str, title: str, body: str) -> dict:
+        self.ensure_repo(repo, job_id)
+        existing = self.request("GET", f"/repos/{self.org}/{repo}/pulls?state=open&head={self.org}:draft&base=main")
+        if existing:
+            return {"repo": f"{self.org}/{repo}", "number": existing[0]["number"], "url": existing[0]["html_url"]}
+        return self.open_pr(repo, "draft", "main", title, body)
 
     def push(self, repo: str, branch: str, message: str, files: list[dict]) -> dict:
         parent = self.request("GET", f"/repos/{self.org}/{repo}/git/ref/heads/main")
@@ -83,7 +130,7 @@ class GitHub:
     def open_pr(self, repo: str, head: str, base: str, title: str, body: str) -> dict:
         opened = self.request("POST", f"/repos/{self.org}/{repo}/pulls",
                               {"head": head, "base": base, "title": title, "body": body})
-        return {"repo": f"{self.org}/{repo}", "number": opened["number"]}
+        return {"repo": f"{self.org}/{repo}", "number": opened["number"], "url": opened.get("html_url")}
 
     def diff(self, repo: str, number: int) -> dict:
         text = self.request("GET", f"/repos/{self.org}/{repo}/pulls/{number}",

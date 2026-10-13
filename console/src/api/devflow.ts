@@ -9,7 +9,7 @@ export type DevflowSettings = components['schemas']['DevflowSettings']
 export type DevflowReview = components['schemas']['DevflowReview']
 export type DevflowSeedResult = { humanCount: number; holdoutCount: number; acceptedAgentCount: number }
 
-// TODO(DF-2): keel-server 尚未提供这些接口，本地由 MSW 按同一份契约返回。
+// Devflow execution is backed by the server ledger.
 
 export function listDevflowJobs() {
   return get<DevflowJobList>('/devflow/jobs')
@@ -28,6 +28,10 @@ export function createDevflowJob(body: {
   tools: string[]
   knowledge: string[]
   ownerOrg: string
+  users?: string
+  io?: string
+  success?: string
+  execution?: boolean
 }) {
   return post<DevflowJob>('/devflow/jobs', body)
 }
@@ -78,4 +82,15 @@ export function getDevflowSettings() {
 
 export function updateDevflowSettings(body: DevflowSettings) {
   return put<DevflowSettings>('/devflow/settings', body)
+}
+
+export type DevflowExecution = components['schemas']['DevflowExecution']
+export function getDevflowExecution(jobId: string) {
+  return get<DevflowExecution | null>(`/devflow/jobs/${encodeURIComponent(jobId)}/execution`)
+}
+export function decideDevflowRequirement(jobId: string, body: components['schemas']['DevflowRequirementDecision']) {
+  return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/requirement`, body)
+}
+export function retryDevflowExecution(jobId: string) {
+  return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/retry`)
 }

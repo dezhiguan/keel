@@ -601,3 +601,73 @@ jobs:
           SMOKE_AUDIT: ${{ needs.deploy-audit.result == 'success' }}
           SMOKE_CONSOLE: ${{ needs.deploy-frontend.result == 'success' }}
         run: bash deploy/ci/smoke.sh
+
+  test-meta-agent:
+    name: 测试元智能体闭环
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [changes]
+    if: needs.changes.outputs.echo == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install -e ./sdk-python pytest
+      - run: PYTHONPATH="$PWD/sdk-python" pytest agents/meta-agent/tests -q
+      - run: PYTHONPATH="$PWD/services/git-ci:$PWD/sdk-python" pytest services/git-ci/tests -q
+      - run: PYTHONPATH="$PWD/sdk-python" pytest sdk-python/tests/cli/test_ledger.py sdk-python/tests/cli/test_repo.py -q
+
+  build-meta-agent:
+    name: 构建 meta-agent
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [changes, test-meta-agent]
+    if: needs.changes.outputs.echo == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - id: image
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+        run: bash deploy/ci/resolve-image.sh meta-agent
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.image.outputs.server }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/meta-agent.Dockerfile
+          push: true
+          provenance: false
+          tags: ${{ steps.image.outputs.push_image }}
+
+
+  deploy-meta-agent:
+    name: 部署 meta-agent
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [changes, build-meta-agent, deploy-server]
+    if: >-
+      always() &&
+      needs.changes.outputs.echo == 'true' &&
+      needs.build-meta-agent.result == 'success' &&
+      (needs.deploy-server.result == 'success' || needs.deploy-server.result == 'skipped') &&
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: 配置 SSH
+        env:
+          SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
+          JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+        run: bash deploy/ci/configure-ssh.sh
+      - name: 发布 meta-agent
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        run: bash deploy/ci/rollout-service.sh meta-agent deploy/k3s/services/meta-agent.yaml PLACEHOLDER_META_AGENT_IMAGE keel-meta-agent keel-meta-bridge git-ci-github

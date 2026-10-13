@@ -1753,6 +1753,62 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
 
+  /devflow/jobs/{jobId}/execution:
+    get:
+      operationId: getDevflowExecution
+      tags: [devflow]
+      parameters:
+        - { name: jobId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: 持久化的元智能体执行状态；未接入的旧任务返回 null
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowExecution" }
+  /devflow/jobs/{jobId}/requirement:
+    post:
+      operationId: decideDevflowRequirement
+      tags: [devflow]
+      parameters:
+        - { name: jobId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DevflowRequirementDecision" }
+      responses:
+        "200":
+          description: 持久化的元智能体执行状态；未接入的旧任务返回 null
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowExecution" }
+  /devflow/jobs/{jobId}/retry:
+    post:
+      operationId: retryDevflowExecution
+      tags: [devflow]
+      parameters:
+        - { name: jobId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: 持久化的元智能体执行状态；未接入的旧任务返回 null
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowExecution" }
   /devflow/jobs/{jobId}/review:
     parameters:
       - $ref: "#/components/parameters/DevflowJobId"
@@ -3040,6 +3096,10 @@ components:
           type: array
           items: { type: string }
         ownerOrg: { type: string }
+        users: { type: string }
+        io: { type: string }
+        success: { type: string }
+        execution: { type: boolean, description: 显式使用元智能体最小闭环；仅管理员 DEV/CREATE/COLLAB }
     DevflowJob:
       type: object
       required: [jobId, title, layer, kind, mode, status, stage, targetAgent, producerAgent, template, spentCny, budgetCny, fixRounds, maxFixRounds, needReview, requester, ownerOrg, goal, tools, knowledge, seed, events]
@@ -3197,6 +3257,55 @@ components:
               tag: { type: string }
               score: { type: number, format: float }
               count: { type: integer, minimum: 0 }
+    DevflowRequirementDecision:
+      type: object
+      required: [action, expectedVersion]
+      properties:
+        action: { type: string, enum: [CONFIRM, REVISE] }
+        expectedVersion: { type: integer, minimum: 1 }
+        feedback: { type: string }
+        users: { type: string }
+        io: { type: string }
+        success: { type: string }
+    DevflowExecution:
+      type: object
+      required: [jobId, phase, version, revisions, requirement]
+      properties:
+        jobId: { type: string }
+        phase: { type: string, enum: [QUEUED, RUNNING, WAITING, DELIVERING, DELIVERED, FAILED, CANCELLED] }
+        version: { type: integer }
+        revisions: { type: integer }
+        requirement: { type: object, additionalProperties: true }
+        draft:
+          type: object
+          required: [spec, manifestYaml]
+          properties:
+            spec: { $ref: "#/components/schemas/DevflowReview/properties/specSheet" }
+            manifest: { type: object, additionalProperties: true }
+            manifestYaml: { type: string }
+        delivery:
+          type: object
+          required: [repo, number, sha, url, branch]
+          properties:
+            repo: { type: string }
+            number: { type: integer }
+            sha: { type: string }
+            url: { type: string, format: uri }
+            branch: { type: string }
+        traceId: { type: string }
+        error: { type: string }
+    MetaAgentWork:
+      type: object
+      description: 服务端经 SDK input.text 传递的工作请求，使用 bridge 身份鉴别
+      required: [workflow, action, jobId, requirement]
+      properties:
+        workflow: { type: boolean }
+        action: { type: string, enum: [DRAFT, DELIVER] }
+        jobId: { type: string }
+        requirement: { type: object, additionalProperties: true }
+        draft: { type: object, additionalProperties: true }
+        feedback: { type: string }
+        catalog: { type: array, items: { type: object, additionalProperties: true } }
     DevflowReview:
       type: object
       description: 关口处理页数据。按 gate 只填对应的字段，其余省略。隐藏考题只有条数和分数
@@ -3207,6 +3316,7 @@ components:
           type: string
           enum: [H1, H2, H4, PR]
           description: PR 为人机协作等人工 approve PR
+        execution: { $ref: "#/components/schemas/DevflowExecution" }
         runId: { type: string, nullable: true, description: H1 / H2 恢复用 }
         approvalId: { type: string, nullable: true, description: H4 决策用 }
         specSheet:

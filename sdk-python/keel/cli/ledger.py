@@ -15,7 +15,7 @@ def open_job(*, title: str, target_agent: str, goal: str) -> dict | None:
     created = _post("/api/v1/devflow/jobs", {
         "title": title.strip() or target_agent,
         "targetAgent": target_agent,
-        "layer": "dev",
+        "layer": "DEV",
         "kind": "CREATE",
         "goal": goal.strip() or title.strip() or target_agent,
         "template": "tool-agent",

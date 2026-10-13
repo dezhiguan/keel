@@ -1,6 +1,7 @@
 """Create a minimal offline agent project."""
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -11,7 +12,7 @@ TEMPLATES = ("chat-rag", "tool-agent", "graph-agent", "supervisor", "java-spring
 
 
 def template_dir(name: str) -> Path:
-    root = Path(__file__).resolve().parents[3] / "templates" / name
+    root = Path(os.environ["KEEL_TEMPLATES_DIR"]) / name if os.environ.get("KEEL_TEMPLATES_DIR") else Path(__file__).resolve().parents[3] / "templates" / name
     if not (root / "agent.yaml").is_file() and not any(root.glob("*.yaml")):
         raise FileNotFoundError(f"Template {name} is not installed")
     return root

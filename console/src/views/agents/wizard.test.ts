@@ -38,6 +38,13 @@ describe('wizard', () => {
     })
   })
 
+  it('preserves structured requirements for the real execution queue', () => {
+    const body = devflowBody({ ...blankDevflow('qa-meta'), title: ' QA ', goal: ' 目标 ',
+      users: ' 使用者 ', io: ' 输入输出 ', success: ' 成功标准 ' }, 'QA')
+    expect(body).toMatchObject({ execution: true, layer: 'DEV', mode: 'COLLAB', goal: '目标',
+      users: '使用者', io: '输入输出', success: '成功标准', seedCount: 0 })
+  })
+
   it('sends the echo template with a cny budget', () => {
     expect(registerBody(form)).toMatchObject({
       name: 'echo',

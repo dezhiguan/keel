@@ -46,7 +46,9 @@ def _files(root: Path) -> list[dict]:
 
 
 def _post(base: str, tool: str, body: dict) -> dict:
-    response = httpx.post(f"{base}/v1/tools/{tool}", json=body, timeout=30)
+    token = os.environ.get("KEEL_GIT_CI_TOKEN", "").strip()
+    headers = {"Authorization": "Bearer " + token} if token else {}
+    response = httpx.post(f"{base}/v1/tools/{tool}", json=body, headers=headers, timeout=60)
     try:
         payload = response.json()
     except ValueError:

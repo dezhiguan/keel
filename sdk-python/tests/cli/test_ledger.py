@@ -75,7 +75,7 @@ def test_opens_a_job_and_reports_the_spec_stage(monkeypatch):
     ]
     create, report = (body for _, body, _ in server.calls)
     assert create["targetAgent"] == "spec-agent"
-    assert create["layer"] == "dev"
+    assert create["layer"] == "DEV"
     assert "mode" not in create
     assert report["artifact"] == {"kind": "SPEC", "ref": "spec.json", "origin": "AGENT"}
     assert "起草需求单正文" not in json.dumps(report, ensure_ascii=False)

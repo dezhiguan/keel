@@ -6,7 +6,46 @@ import pytest
 from starlette.testclient import TestClient
 
 from git_ci.github import GitHub
+from git_ci.github import GitHubError
 from git_ci.server import call_tool, client_from_env, create_app
+
+
+def test_scaffold_retries_reuse_own_commit_and_refuse_human_changes():
+    class Existing(GitHub):
+        def __init__(self, message):
+            super().__init__("http://unused", "test")
+            self.message = message
+            self.calls = []
+        def request(self, method, path, payload=None, **kwargs):
+            self.calls.append((method, path))
+            if path.endswith("/git/ref/heads/draft"):
+                return {"object": {"sha": "original-sha"}}
+            if path.endswith("/git/commits/original-sha"):
+                return {"message": self.message}
+            if "pulls?" in path:
+                return [{"number": 5, "html_url": "https://github.com/keel-agents/qa/pull/5"}]
+            return {"description": "keel-devflow:DF-9001", "private": True}
+
+    own = Existing("Keel scaffold DF-9001: initial")
+    assert own.push_scaffold("qa", "DF-9001", "retry", []) ["sha"] == "original-sha"
+    assert own.ensure_pr("qa", "DF-9001", "retry", "body")["number"] == 5
+    assert not any(method in ("POST", "PATCH") for method, _ in own.calls)
+    with pytest.raises(GitHubError):
+        Existing("Human improvement").push_scaffold("qa", "DF-9001", "retry", [])
+
+
+def test_personal_repository_uses_the_authenticated_user_endpoint():
+    class Personal(GitHub):
+        def __init__(self):
+            super().__init__("http://unused", "test", "owner")
+            self.paths = []
+        def request(self, method, path, payload=None, **kwargs):
+            self.paths.append((method, path))
+            return {"type": "User", "login": "owner"}
+    client = Personal()
+    client.create_repo("qa")
+    assert ("POST", "/user/repos") in client.paths
+    assert ("POST", "/orgs/owner/repos") not in client.paths
 
 
 class Handler(BaseHTTPRequestHandler):

@@ -47,7 +47,7 @@ export function runGroup(run: Pick<SuspendedRun, 'devflowJobId'>): Group {
 }
 
 export function reviewJobs(jobs: DevflowJob[]): DevflowJob[] {
-  return jobs.filter((job) => job.status === 'WAIT' && job.needReview)
+  return jobs.filter((job) => job.status === 'WAIT' && job.needReview && job.stage !== 'H1')
 }
 
 export function devflowItems(approvals: Approval[], runs: SuspendedRun[], jobs: DevflowJob[]): DevflowItem[] {
@@ -59,6 +59,7 @@ export function devflowItems(approvals: Approval[], runs: SuspendedRun[], jobs: 
   return [
     ...runs.filter((run) => run.devflowJobId).map((run) => item(`run:${run.runId}`, run.devflowJobId!, run.devflowGate ?? 'H1', run.createdAt)),
     ...approvals.filter((approval) => approval.devflowJobId).map((approval) => item(`ap:${approval.id}`, approval.devflowJobId!, approval.devflowGate ?? 'H4', approval.createdAt)),
+    ...jobs.filter(job => job.status === 'WAIT' && job.stage === 'H1' && !runs.some(run => run.devflowJobId === job.jobId)).map(job => item(`h1:${job.jobId}`, job.jobId, 'H1')),
     ...reviewJobs(jobs).map((job) => item(`pr:${job.jobId}`, job.jobId, 'PR')),
   ]
 }

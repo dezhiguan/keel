@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: meta-agent-data
+  namespace: keel-system
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meta-agent
+  namespace: keel-system
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: meta-agent}
+  template:
+    metadata:
+      labels: {app: meta-agent, keel.io/agent: meta-agent, keel.io/env: dev}
+    spec:
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        - name: acr-cred
+      hostAliases:
+        - ip: "172.25.90.183"
+          hostnames: ["jp.cloud.langfuse.com"]
+      containers:
+        - name: meta-agent
+          image: PLACEHOLDER_META_AGENT_IMAGE
+          envFrom:
+            - secretRef: {name: keel-meta-agent}
+            - secretRef: {name: keel-meta-bridge}
+          env:
+            - name: KEEL_GIT_CI_TOKEN
+              valueFrom:
+                secretKeyRef: {name: git-ci-github, key: KEEL_GIT_CI_TOKEN}
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - {name: data, mountPath: /app/.keel}
+          readinessProbe:
+            httpGet: {path: /v1/health, port: 8000}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: 1000m, memory: 768Mi}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: meta-agent-data}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meta-agent
+  namespace: keel-system
+spec:
+  type: ClusterIP
+  selector: {app: meta-agent}
+  ports:
+    - {port: 8000, targetPort: 8000}
