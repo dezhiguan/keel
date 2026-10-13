@@ -70,3 +70,11 @@ def test_bridge_token_rejects_unauthorized_work(monkeypatch):
     with TestClient(app) as client:
         assert client.post("/v1/invoke", json={"input": {"text": json.dumps(work())}}).status_code == 401
         assert client.get("/v1/health").status_code == 200
+
+
+def test_invalid_nested_manifest_shape_is_retried_as_a_validation_error(gateway):
+    bad = json.loads(reply(tools=[]))
+    bad["manifest"]["spec"]["tools"] = ["not-an-object"]
+    gateway.replies += [json.dumps(bad), reply(tools=[])]
+    assert terminal(invoke(json.dumps(work())))[0] == "final"
+    assert len(gateway.requests) == 2
