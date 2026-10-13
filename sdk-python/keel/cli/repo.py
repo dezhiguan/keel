@@ -30,9 +30,9 @@ def open_draft(project: str | Path, *, title: str, body: str) -> dict | None:
 def _files(root: Path) -> list[dict]:
     found = []
     for path in sorted(root.rglob("*")):
-        if not path.is_file() or SKIPPED.intersection(path.parts):
-            continue
         relative = path.relative_to(root).as_posix()
+        if not path.is_file() or SKIPPED.intersection(path.relative_to(root).parts):
+            continue
         if ".." in relative.split("/"):
             continue
         try:
