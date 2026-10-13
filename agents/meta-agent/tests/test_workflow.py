@@ -59,6 +59,13 @@ def test_workflow_delivery_preserves_edits_and_does_not_repeat_git_writes(gatewa
     assert json.loads(files["spec.json"])["users"] == "人工确认后的使用者"
     assert files["agent.yaml"] == draft["manifestYaml"]
     assert "app.py" in files
+    assert "create_work_order" not in files["app.py"]
+    assert files["evals/seed.jsonl"] == ""
+    assert "manifest.schema.json" in files
+    import subprocess, sys
+    checked = subprocess.run([sys.executable, "-m", "pytest", "tests", "-q"],
+                             cwd=tmp_path / "DF-9001/spec-agent", capture_output=True, text=True)
+    assert checked.returncode == 0, checked.stdout + checked.stderr
     assert terminal(invoke(json.dumps(request)))[0] == "final"
     assert len(calls) == 3
 

@@ -13,7 +13,7 @@ contracts/console-api.openapi.yaml；keel-server application.yml 调度线程配
 - 先新增兼容的 execution / requirement / retry 契约及结构化需求可选字段，再实现三端。
 - 只开放研发层新建和 Python tool-agent 骨架。业务流水线、改造、种子评测暂禁用并显示原因。服务端管理员检查，不仅依赖页面。
 - 新建事务同时保存原任务和执行队列；执行状态、需求、版本、草稿、真实 PR/commit、失败信息在 PostgreSQL 保存。两个 server 副本用行锁/租约领取任务，过期可恢复，成功结果按领取版本核对。
-- meta-agent 通过 SDK invoke 执行：draft/revise 返回结构化 JSON final；delivery 接受确认的草稿，只复制模板并调用 Git 服务，不执行生成代码。调用者须持共享 bridge token；配置从 Secret 注入。
+- meta-agent 通过 SDK invoke 执行：draft/revise 返回结构化 JSON final；delivery 接受确认的草稿，复制模板后去掉无关工单示例，保留中性协议入口、真实 manifest/需求和可执行契约/语法 CI；调用 Git 服务，不执行生成代码。调用者须持共享 bridge token；配置从 Secret 注入。
 - H1 使用持久化草稿及版本；confirm/revise 使用 expectedVersion 乐观锁，确认保存用户编辑；重复确认不重复交付。独立 SDK 人工挂起流程保留。
 - 真实目录校验选中工具，风险不降级。最小版本不支持知识库生成。模板、预算由确定的需求覆盖模型输出，manifest 通过 schema/业务校验才展示。
 - Git 建库/开 PR 可重试，已有仓库只允许带本任务标记的仓库；分步结果持久化；推送不覆盖人写 draft。令牌只在 Secret。无 Git 配置则交付失败，不伪报完成。

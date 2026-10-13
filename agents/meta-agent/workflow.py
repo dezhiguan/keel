@@ -99,6 +99,7 @@ def _deliver(work):
     # H1 edits are preserved in the delivered spec even after a failed delivery attempt.
     (project / "spec.json").write_text((root / "spec.json").read_text(), encoding="utf-8")
     (project / "agent.yaml").write_text((root / "agent.yaml").read_text(), encoding="utf-8")
+    _scaffold(project, job_id)
     base = os.environ.get("KEEL_GIT_CI_URL", "").strip().rstrip("/")
     if not base or not os.environ.get("KEEL_GIT_CI_TOKEN"):
         raise KeelError(ErrorCode.GIT_UPSTREAM_FAILED, "Git 服务未配置")
@@ -126,3 +127,66 @@ def _save(path: Path, value):
     temporary = path.with_suffix(".tmp")
     temporary.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
     temporary.replace(path)
+
+
+def _scaffold(project: Path, job_id: str):
+    """Strip unrelated work-order examples; CI verifies this actual manifest and Python syntax."""
+    from keel.manifest import _contract_file
+    (project / "tools/checkpoint.py").unlink(missing_ok=True)
+    (project / "evals/seed.jsonl").write_text("", encoding="utf-8")
+    (project / "evals/scorers.py").write_text("# Add scorers after humans provide evaluation cases.\n", encoding="utf-8")
+    (project / "manifest.schema.json").write_text(_contract_file("manifest.schema.json"), encoding="utf-8")
+    (project / "app.py").write_text('''from keel import Agent
+
+agent = Agent.from_manifest("agent.yaml")
+
+@agent.entry
+async def run(request, ctx):
+    ctx.step("scaffold")
+    return ctx.final("项目骨架已就绪，请按 spec.json 实现业务逻辑。")
+
+app = agent.asgi()
+''', encoding="utf-8")
+    (project / "tests/test_smoke.py").write_text('''import ast
+import json
+from pathlib import Path
+import jsonschema
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+
+def test_manifest_matches_the_delivered_contract():
+    manifest = yaml.safe_load((ROOT / "agent.yaml").read_text())
+    jsonschema.Draft202012Validator(json.loads((ROOT / "manifest.schema.json").read_text())).validate(manifest)
+
+def test_entry_is_valid_python_and_has_an_async_entry():
+    tree = ast.parse((ROOT / "app.py").read_text())
+    assert any(isinstance(node, ast.AsyncFunctionDef) and node.name == "run" for node in tree.body)
+''', encoding="utf-8")
+    (project / ".github/workflows/keel.yml").write_text('''name: scaffold checks
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install pytest jsonschema PyYAML
+      - run: pytest -q
+''', encoding="utf-8")
+    (project / "README.md").write_text(f'''# {project.name}
+
+Keel 研发任务：{job_id}。
+
+此 PR 交付已确认的需求单、agent.yaml 和 Python 项目骨架，业务逻辑尚未实现。
+需求的使用者、输入输出和成功标准以 spec.json 为准。
+
+当前 app.py 只返回骨架就绪提示。请按需求实现入口；模型调用使用 ctx.llm，工具调用使用 ctx.tools.call。
+manifest 中选择的共享工具尚需平台授权和调用适配。运行配置由平台 Secret 注入，不在项目中存放密钥。
+
+CI 仅检查 manifest 契约与 Python 语法，不代表业务评测通过。seed.jsonl 为空，待人提供真实用例。
+本地开发先从 Keel 仓库安装 SDK（pip install -e /path/to/keel/sdk-python），再使用 keel dev。
+业务测试和评测通过后，按平台流程构建运行镜像、登记、自检和申请发布。
+''', encoding="utf-8")
