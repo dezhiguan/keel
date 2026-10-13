@@ -147,6 +147,30 @@ def test_ragforge_name_resolution_search_and_citations(monkeypatch):
                                  "filename": "guide.md", "score": 0.9}]
 
 
+def test_ragforge_default_client_uses_api_key_header(monkeypatch):
+    monkeypatch.setenv("KEEL_RAGFORGE_URL", "https://ragforge.test")
+    monkeypatch.setenv("KEEL_RAGFORGE_TOKEN", "scoped-read-key")
+    requests = []
+
+    async def send(client, request, **kwargs):
+        requests.append(request)
+        assert request.headers["X-API-Key"] == "scoped-read-key"
+        assert "authorization" not in request.headers
+        return httpx.Response(200, json={"code": 200, "data": {"results": []}}, request=request)
+
+    monkeypatch.setattr(httpx.AsyncClient, "send", send)
+
+    async def scenario():
+        client = KnowledgeClient("rag-agent")
+        try:
+            return await client.search(17, "policy")
+        finally:
+            await client.aclose()
+
+    assert run(scenario()).results == []
+    assert json.loads(requests[0].content)["kbIds"] == [17]
+
+
 @pytest.mark.parametrize("failure", ["timeout", 429, 500])
 def test_ragforge_failures_use_registered_codes(monkeypatch, failure):
     monkeypatch.setenv("KEEL_RAGFORGE_URL", "https://ragforge.test")

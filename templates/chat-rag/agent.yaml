@@ -9,6 +9,11 @@ spec:
     - kb: demo-kb
   models:
     default: qwen-plus
+  prompts:
+    source: local
+    items:
+      - name: answer
+        type: text
   eval:
     dataset: {{name}}/answers
     evaluators: [citation_present]

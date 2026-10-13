@@ -26,7 +26,7 @@ class KnowledgeClient:
         self.agent = agent
         self.tracer = tracer or trace.get_tracer("keel.knowledge")
         self.client = http_client or httpx.AsyncClient(
-            base_url=base_url, headers={"Authorization": f"Bearer {token}"}, timeout=10)
+            base_url=base_url, headers={"X-API-Key": token}, timeout=10)
 
     async def _kb_id(self, kb: str | int) -> int:
         if isinstance(kb, int) or (isinstance(kb, str) and kb.isdecimal()):
