@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
+  approveDevflowToolGrant,
   assistDevflowJob,
   cancelDevflowJob,
   getDevflowJob,
@@ -103,6 +104,18 @@ async function retry() {
   finally { busy.value = false }
 }
 
+async function approveTool(toolName: string) {
+  busy.value = true
+  try {
+    execution.value = await approveDevflowToolGrant(jobId.value, toolName)
+    ElMessage.success(`${toolName} 已记录 H3 人工授权`)
+  } catch (error) {
+    ElMessage.error(toKeelError(error).message)
+  } finally {
+    busy.value = false
+  }
+}
+
 function confirmAssist() {
   if (!job.value) return
   run(() => assistDevflowJob(job.value!.jobId, instruction.value), '已发给 dev-agent')
@@ -176,6 +189,20 @@ onUnmounted(() => {
           <div class="kpi"><div class="l">目标智能体</div><div class="v sm">{{ job.targetAgent }}</div></div>
           <div class="kpi"><div class="l">需求草稿</div><div class="v sm">第 {{ execution.version }} 版</div></div>
           <div class="kpi"><div class="l">人工修改轮次</div><div class="v sm">{{ execution.revisions }}/3</div></div>
+        </div>
+        <div v-if="execution.pendingToolGrants" class="card">
+          <h3>H3 · 候选员工工具授权</h3>
+          <p>平台管理员逐项确认后，候选员工登记时只能获得这里批准的工具版本。</p>
+          <div v-for="toolName in execution.pendingToolGrants" :key="toolName" class="kv">
+            <span>{{ toolName }}</span>
+            <span>v1 · {{ job.tools.find(tool => tool.name === toolName)?.risk || '待核对' }}</span>
+            <span>状态</span>
+            <button v-write class="btn sm" type="button" :disabled="busy" @click="approveTool(toolName)">批准此工具</button>
+          </div>
+          <div v-if="execution.pendingToolGrants.length === 0">全部岗位工具已获 H3 人工授权。</div>
+          <div v-for="grant in execution.toolGrants || []" :key="grant.toolName" class="mono mut">
+            {{ grant.toolName }} {{ grant.versionRange }} · {{ grant.grantedBy }}
+          </div>
         </div>
         <div v-if="execution.delivery" class="card">
           <h3>岗位代码候选</h3>

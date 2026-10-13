@@ -20,6 +20,10 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class LifecycleService {
@@ -58,6 +62,7 @@ public class LifecycleService {
         var manifest = manifest(body, selected, knowledge);
         validator.validate(manifest, java.util.Set.of());
         var name = manifest.path("metadata").path("name").asText();
+        var approvedGrants = approvedDevflowGrants(name, selected, manifest);
         var env = body.path("env").asText("dev");
         if (!env.equals("dev") && !env.equals("test") && !env.equals("staging") && !env.equals("prod")) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, ErrorCode.SERVER_INVALID_PARAM.message());
@@ -70,7 +75,13 @@ public class LifecycleService {
         if (existing == null) {
             insertAgent(manifest);
         }
-        if (!selected.isEmpty()) {
+        if (approvedGrants != null) {
+            jdbc.update("UPDATE agent SET devflow_job_id=?, layer='DEV' WHERE name=?",
+                    approvedGrants.jobId(), name);
+            for (var grant : approvedGrants.grants().values()) {
+                toolRegistry.grant(grant.name(), name, grant.version(), grant.grantedBy());
+            }
+        } else if (!selected.isEmpty()) {
             var grantedBy = ConsolePrincipal.requireUsername();
             for (var tool : selected) {
                 toolRegistry.grant(tool.name(), name, tool.version(), grantedBy);
@@ -105,6 +116,65 @@ public class LifecycleService {
         }
         return report;
     }
+
+    private ApprovedDevflow approvedDevflowGrants(String name, List<WizardTools.Spec> selected,
+                                                 JsonNode manifest) {
+        var jobs = jdbc.query("""
+                SELECT job_id, tools_json::text FROM devflow_job
+                WHERE target_agent=? AND layer='DEV' AND kind='CREATE' AND status <> 'CANCEL'
+                ORDER BY created_at DESC LIMIT 1
+                """, (rs, n) -> Map.entry(rs.getString(1), rs.getString(2)), name);
+        if (jobs.isEmpty()) {
+            if (Set.of("dev-lead", "spec-agent", "dev-agent", "eval-agent", "code-review",
+                    "ci-doctor", "release-agent").contains(name)) {
+                throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "研发数字员工必须由 meta-agent 的生产任务登记");
+            }
+            return null;
+        }
+        var job = jobs.getFirst();
+        var expected = new java.util.HashSet<String>();
+        try {
+            for (var tool : json.readTree(job.getValue())) expected.add(tool.path("name").asText());
+        } catch (Exception error) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "生产任务工具清单无效");
+        }
+        var grants = jdbc.query("SELECT tool_name, version_range, granted_by FROM devflow_tool_grant WHERE job_id=?",
+                (rs, n) -> new ApprovedGrant(rs.getString(1), rs.getString(2), rs.getString(3)), job.getKey());
+        var approved = grants.stream().collect(Collectors.toMap(ApprovedGrant::name, value -> value));
+        var declared = manifest.path("spec").path("tools");
+        var requested = new java.util.HashSet<String>();
+        for (var tool : declared) {
+            var toolName = tool.path("name").asText("");
+            if (toolName.isBlank() || !requested.add(toolName)) {
+                throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "候选员工工具清单包含重复或空名称");
+            }
+        }
+        if (!requested.equals(expected) || !approved.keySet().equals(expected)
+                || (!selected.isEmpty() && selected.stream().anyMatch(tool ->
+                        !tool.version().equals(approved.get(tool.name()).version())))) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "候选员工工具清单与 H3 人工授权不一致");
+        }
+        if (selected.isEmpty()) {
+            for (var tool : declared) {
+                var grant = approved.get(tool.path("name").asText());
+                var versions = jdbc.query("""
+                        SELECT lower(access), lower(risk), approval_policy_id FROM tool_version
+                        WHERE tool_name=? AND version=?
+                        """, (rs, n) -> new Object[]{rs.getString(1), rs.getString(2), rs.getObject(3)},
+                        grant.name(), grant.version());
+                if (versions.size() != 1 || !versions.getFirst()[0].equals(tool.path("access").asText())
+                        || !versions.getFirst()[1].equals(tool.path("risk").asText())
+                        || ("high".equals(versions.getFirst()[1])
+                            && (versions.getFirst()[2] == null || !"required".equals(tool.path("approval").asText())))) {
+                    throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "候选员工 manifest 工具权限与注册表不一致");
+                }
+            }
+        }
+        return new ApprovedDevflow(job.getKey(), approved);
+    }
+
+    private record ApprovedDevflow(String jobId, Map<String, ApprovedGrant> grants) {}
+    private record ApprovedGrant(String name, String version, String grantedBy) {}
 
     /** Revoke the environment's external resources and mark the agent RETIRED. History rows stay. */
     public void retire(String name, String env) {

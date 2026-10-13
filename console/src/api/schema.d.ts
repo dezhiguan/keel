@@ -1240,6 +1240,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/devflow/jobs/{jobId}/tool-grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * H3 平台管理员逐项批准候选研发员工的工具权限
+         * @description H2 确认后可与 S3 开发并行进行。批准记录绑定任务、工具版本和审批人；
+         *     注册候选员工时只接受与这些批准记录完全一致的工具清单。
+         */
+        post: operations["approveDevflowToolGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/devflow/jobs/{jobId}/stages/{stage}/report": {
         parameters: {
             query?: never;
@@ -2456,6 +2479,12 @@ export interface components {
             sandboxRunId?: string;
             /** @enum {string} */
             sandboxStatus?: "PASS" | "FAILED";
+            toolGrants?: {
+                toolName: string;
+                versionRange: string;
+                grantedBy: string;
+            }[];
+            pendingToolGrants?: string[];
             error?: string;
         };
         /** @description 服务端经 SDK input.text 传递的工作请求，使用 bridge 身份鉴别 */
@@ -4591,6 +4620,39 @@ export interface operations {
                     };
                 };
             };
+        };
+    };
+    approveDevflowToolGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    toolName: string;
+                    /** @example v1 */
+                    versionRange: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 已记录该工具的人工授权 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowExecution"];
+                    };
+                };
+            };
+            409: components["responses"]["Error"];
         };
     };
     reportDevflowStage: {

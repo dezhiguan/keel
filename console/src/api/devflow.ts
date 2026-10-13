@@ -69,6 +69,10 @@ export function uploadDevflowHumanSeeds(jobId: string, cases: DevflowSeedCase[])
   return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/human-seeds`, { cases })
 }
 
+export function approveDevflowToolGrant(jobId: string, toolName: string, versionRange = 'v1') {
+  return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/tool-grants`, { toolName, versionRange })
+}
+
 export function listDevflowBatches() {
   return get<{ items: DevflowBatch[] }>('/devflow/batches')
 }

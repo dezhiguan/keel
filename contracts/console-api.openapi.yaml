@@ -1925,6 +1925,40 @@ paths:
                     properties:
                       data: { $ref: "#/components/schemas/DevflowExecution" }
 
+  /devflow/jobs/{jobId}/tool-grants:
+    parameters:
+      - $ref: "#/components/parameters/DevflowJobId"
+    post:
+      tags: [devflow]
+      operationId: approveDevflowToolGrant
+      summary: H3 平台管理员逐项批准候选研发员工的工具权限
+      description: |
+        H2 确认后可与 S3 开发并行进行。批准记录绑定任务、工具版本和审批人；
+        注册候选员工时只接受与这些批准记录完全一致的工具清单。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [toolName, versionRange]
+              properties:
+                toolName: { type: string }
+                versionRange: { type: string, example: v1 }
+      responses:
+        "200":
+          description: 已记录该工具的人工授权
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowExecution" }
+        "409":
+          $ref: "#/components/responses/Error"
+
   /devflow/jobs/{jobId}/stages/{stage}/report:
     parameters:
       - $ref: "#/components/parameters/DevflowJobId"
@@ -3334,6 +3368,18 @@ components:
         traceId: { type: string }
         sandboxRunId: { type: string }
         sandboxStatus: { type: string, enum: [PASS, FAILED] }
+        toolGrants:
+          type: array
+          items:
+            type: object
+            required: [toolName, versionRange, grantedBy]
+            properties:
+              toolName: { type: string }
+              versionRange: { type: string }
+              grantedBy: { type: string }
+        pendingToolGrants:
+          type: array
+          items: { type: string }
         error: { type: string }
     MetaAgentWork:
       type: object

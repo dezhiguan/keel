@@ -32,13 +32,13 @@ public class MetaAgentExecution {
             "eval-agent", "tool-agent", "code-review", "tool-agent", "ci-doctor", "tool-agent",
             "release-agent", "tool-agent");
     private static final Map<String, Set<String>> DEV_TOOLS = Map.of(
-            "dev-lead", Set.of("devflow.job.read", "devflow.stage.report"),
-            "spec-agent", Set.of("devflow.catalog.search"),
-            "dev-agent", Set.of("sandbox.run", "git.repo.create", "git.pr.open"),
-            "eval-agent", Set.of("sandbox.run"),
+            "dev-lead", Set.of("devflow.job.read", "devflow.stage.report", "devflow.batch.read"),
+            "spec-agent", Set.of("devflow.catalog.search", "devflow.stage.report"),
+            "dev-agent", Set.of("sandbox.run", "git.repo.create", "git.branch.push", "git.pr.open"),
+            "eval-agent", Set.of("devflow.job.read", "sandbox.run", "devflow.stage.report"),
             "code-review", Set.of("git.pr.diff", "git.pr.comment"),
             "ci-doctor", Set.of("ci.log.fetch", "keel.gate.report.read"),
-            "release-agent", Set.of("ci.workflow.dispatch", "git.pr.merge"));
+            "release-agent", Set.of("ci.workflow.dispatch", "keel.gate.report.read", "git.pr.merge"));
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
     private final TransactionTemplate tx;
@@ -124,6 +124,42 @@ public class MetaAgentExecution {
         jobs.job(id);
         var rows = jdbc.query("SELECT state_json::text FROM devflow_execution WHERE job_id=?", (rs, n) -> read(rs.getString(1)), id);
         return rows.isEmpty() ? null : publicState(rows.getFirst());
+    }
+
+    public ObjectNode grantTool(String id, String toolName, String versionRange) {
+        requireAdmin();
+        return tx.execute(status -> {
+            var state = lock(id);
+            if (!state.has("acceptedAgentCount") || "CANCELLED".equals(state.path("phase").asText())) {
+                throw invalid("H2 确认后才能批准候选员工工具权限");
+            }
+            if (blank(toolName) || blank(versionRange) || versionRange.length() > 128) {
+                throw invalid("工具名称和版本不能为空");
+            }
+            var selected = new HashSet<String>();
+            state.path("requirement").path("tools").forEach(item -> selected.add(item.asText()));
+            if (!selected.contains(toolName)) throw invalid("只能批准 H1 确认的岗位工具");
+            var versions = jdbc.query("""
+                    SELECT t.scope, t.status, v.risk, v.approval_policy_id
+                    FROM tool t JOIN tool_version v ON v.tool_name = t.name
+                    WHERE t.name = ? AND v.version = ?
+                    """, (rs, n) -> new Object[]{rs.getString(1), rs.getString(2), rs.getString(3), rs.getObject(4)},
+                    toolName, versionRange);
+            if (versions.size() != 1 || !"SHARED".equals(versions.getFirst()[0])
+                    || !"ONLINE".equals(versions.getFirst()[1])
+                    || ("HIGH".equals(versions.getFirst()[2]) && versions.getFirst()[3] == null)) {
+                throw invalid("工具版本不可授权，或高风险审批策略未绑定");
+            }
+            var previous = jdbc.query("SELECT version_range FROM devflow_tool_grant WHERE job_id=? AND tool_name=?",
+                    (rs, n) -> rs.getString(1), id, toolName);
+            if (!previous.isEmpty()) {
+                if (!previous.getFirst().equals(versionRange)) throw invalid("工具已有不同版本的 H3 授权");
+                return publicState(state);
+            }
+            jdbc.update("INSERT INTO devflow_tool_grant(job_id,tool_name,version_range,granted_by) VALUES (?,?,?,?)",
+                    id, toolName, versionRange, ConsolePrincipal.current().username());
+            return publicState(state);
+        });
     }
 
     public Map<String, Object> review(String id) {
@@ -400,7 +436,21 @@ public class MetaAgentExecution {
     }
 
     private ObjectNode publicState(ObjectNode state) {
-        var result = state.deepCopy(); result.remove(List.of("catalog", "feedback", "confirmedVersion", "humanSeeds", "evalDraft")); return result;
+        var result = state.deepCopy();
+        result.remove(List.of("catalog", "feedback", "confirmedVersion", "humanSeeds", "evalDraft"));
+        if (state.has("acceptedAgentCount")) {
+            var grants = jdbc.query("SELECT tool_name, version_range, granted_by FROM devflow_tool_grant WHERE job_id=? ORDER BY tool_name",
+                    (rs, n) -> Map.of("toolName", rs.getString(1), "versionRange", rs.getString(2),
+                            "grantedBy", rs.getString(3)), state.path("jobId").asText());
+            result.set("toolGrants", json.valueToTree(grants));
+            var approved = grants.stream().map(row -> row.get("toolName")).collect(java.util.stream.Collectors.toSet());
+            var pending = new ArrayList<String>();
+            state.path("requirement").path("tools").forEach(item -> {
+                if (!approved.contains(item.asText())) pending.add(item.asText());
+            });
+            result.set("pendingToolGrants", json.valueToTree(pending));
+        }
+        return result;
     }
 
     private ObjectNode stateInternal(String id) {

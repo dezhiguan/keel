@@ -129,6 +129,14 @@ public class DevflowController {
         return R.ok(execution.uploadHumanSeeds(jobId, body == null ? null : body.cases()));
     }
 
+    @PostMapping("/jobs/{jobId}/tool-grants")
+    public R<com.fasterxml.jackson.databind.node.ObjectNode> grantTool(@PathVariable String jobId,
+            @RequestBody ToolGrant body) {
+        requireWrite();
+        return R.ok(execution.grantTool(jobId, body == null ? null : body.toolName(),
+                body == null ? null : body.versionRange()));
+    }
+
     @GetMapping("/holdout/{jobId}")
     public R<Map<String, Object>> holdout(@PathVariable String jobId) {
         var principal = requireService();
@@ -211,6 +219,8 @@ public class DevflowController {
     public record HoldoutSubmission(String jobId, List<HoldoutRules.TagScore> byTag) {}
 
     public record HumanSeeds(List<DevflowTypes.SeedCase> cases) {}
+
+    public record ToolGrant(String toolName, String versionRange) {}
 
     private static ConsolePrincipal requireService() {
         var principal = ConsolePrincipal.current();
