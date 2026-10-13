@@ -15,7 +15,7 @@ contracts/console-api.openapi.yaml；keel-server application.yml 调度线程配
 - 新建事务同时保存原任务和执行队列；执行状态、需求、版本、草稿、真实 PR/commit、失败信息在 PostgreSQL 保存。两个 server 副本用行锁/租约领取任务，过期可恢复，成功结果按领取版本核对。
 - meta-agent 通过 SDK invoke 执行：draft/revise 返回结构化 JSON final；delivery 接受确认的草稿，复制模板后去掉无关工单示例，保留中性协议入口、真实 manifest/需求和可执行的契约/语法检查模板；调用 Git 服务，不执行生成代码。调用者须持共享 bridge token；配置从 Secret 注入。
 - H1 使用持久化草稿及版本；confirm/revise 使用 expectedVersion 乐观锁，确认保存用户编辑；重复确认不重复交付。独立 SDK 人工挂起流程保留。
-- 真实目录校验选中工具，风险不降级。最小版本不支持知识库生成。模板、预算由确定的需求覆盖模型输出，manifest 通过 schema/业务校验才展示。
+- 真实目录校验选中工具，风险不降级。最小版本不支持知识库生成。模型起草需求单的风险和待确认项；标题、目标、使用者、输入输出、成功标准保留提交值，人工在 H1 修改。manifest 的身份、Python runtime、预算、已选择工具与审批要求由确认的需求和真实工具目录构造，模型不能自行加入 Git 工具或改名；通过 schema/业务校验才展示。
 - Git 建库/开 PR 可重试，已有仓库只允许带本任务标记的仓库；分步结果持久化；推送不覆盖人写 draft。令牌只在 Secret。无 Git 配置则交付失败，不伪报完成。
 - 显示真实需求、manifest、PR URL、commit、trace。H1 待办从研发任务聚合进审批中心；骨架交付后停 HUMAN/BUILD。取消未启动任务或 H1；交付中的取消禁止，避免误承诺撤销已发生的 Git 写入。
 - 应用节点通过预配脚本给 meta-agent-data 绑定专用 Retain local PV；不依赖当前无法拉取镜像的动态 provisioner helper，也不修改其他应用的存储配置。单节点本地卷不提供节点故障容灾。

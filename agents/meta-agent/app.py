@@ -51,7 +51,7 @@ async def run(request, ctx):
     work = _requirement(request.input.get("text") or "")
     if work.get("workflow"):
         from workflow import execute
-        return await execute(work, ctx, _draft)
+        return await execute(work, ctx)
     if getattr(request, "resume", False):
         return await _resume(request, ctx)
     requirement = _requirement(request.input.get("text") or "")
