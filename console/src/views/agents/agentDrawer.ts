@@ -173,6 +173,11 @@ export function toolChip(value: string) {
   return { lead: value, high: false }
 }
 
+/** The drawer is one instance for every agent. Only the agent whose probe is in flight shows 自检中. */
+export function isSelfChecking(checking: readonly string[], agent: string) {
+  return agent !== '' && checking.includes(agent)
+}
+
 export function withEvalGate<T extends { score?: number | null; selfCheck?: { passed?: boolean | null; items?: { name?: string; passed?: boolean | null; detail?: string | null }[] } }>(agent: T): T {
   const items = agent.selfCheck?.items
   if (!items || agent.score == null) return agent

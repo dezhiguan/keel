@@ -19,6 +19,7 @@ import {
   resourceStatus,
   seenAgo,
   toolChip,
+  isSelfChecking,
   withEvalGate,
   sourceLabel,
   versionRows,
@@ -47,24 +48,34 @@ const retiring = ref(false)
 const retireInput = ref('')
 const deleting = ref(false)
 const deleteInput = ref('')
-const checking = ref(false)
+const checkingAgents = ref<string[]>([])
+
+function markChecking(agent: string, on: boolean) {
+  const rest = checkingAgents.value.filter((item) => item !== agent)
+  checkingAgents.value = on ? [...rest, agent] : rest
+}
+
 async function recheck() {
-  const agent = detail.value?.name
-  if (!agent || checking.value) return
-  checking.value = true
+  const agent = name.value || detail.value?.name || ''
+  if (!agent || isSelfChecking(checkingAgents.value, agent)) return
+  markChecking(agent, true)
   try {
     const report = await recheckAgent(agent)
+    if (name.value !== agent) return
     ElMessage[report.passed ? 'success' : 'warning'](report.passed ? '自检通过' : '自检未通过，请查看各项结果')
-    await load(agent)
+    await load(agent, true)
   } catch (error) {
-    ElMessage.error(toKeelError(error).message)
-  } finally { checking.value = false }
+    if (name.value === agent) ElMessage.error(toKeelError(error).message)
+  } finally {
+    markChecking(agent, false)
+  }
 }
 
 const name = computed(() => {
   const value = route.query.drawer
   return typeof value === 'string' ? value : ''
 })
+const checking = computed(() => isSelfChecking(checkingAgents.value, name.value))
 const layer = computed(() => layerOf({ name: detail.value?.name || name.value, layer: detail.value?.layer, category: detail.value?.category }))
 
 const rows = computed(() => (detail.value ? versionRows(detail.value) : []))
@@ -86,11 +97,13 @@ function yuan(value?: number | null, digits = 2) {
 }
 
 let ticket = 0
-async function load(agent: string) {
+async function load(agent: string, quiet = false) {
   const current = ++ticket
   const env = envStore.env
-  loading.value = true
-  detail.value = null
+  if (!quiet) {
+    loading.value = true
+    detail.value = null
+  }
   try {
     const result = await getAgent(agent)
     if (current !== ticket) return

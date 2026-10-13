@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { avatarLetter, canRelease, cardChips, cardCost, highlightYaml, kindLine, readyPill, resourceStatus, scoreText, toolChip, versionRows, withEvalGate } from './agentDrawer'
+import { avatarLetter, canRelease, cardChips, cardCost, highlightYaml, isSelfChecking, kindLine, readyPill, resourceStatus, scoreText, toolChip, versionRows, withEvalGate } from './agentDrawer'
 
 describe('agent drawer', () => {
   it('matches the registry card chips', () => {
@@ -82,6 +82,12 @@ describe('agent drawer', () => {
       selfCheck: { items: [{ name: '评测门禁', passed: true, detail: '0.90 ≥ 0.80' }] },
     })
     expect(kept.selfCheck?.items?.[0]?.detail).toBe('0.90 ≥ 0.80')
+  })
+
+  it('shows 自检中 only on the agent whose probe is running', () => {
+    expect(isSelfChecking(['qa-prompt-1013'], 'qa-prompt-1013')).toBe(true)
+    expect(isSelfChecking(['qa-prompt-1013'], 'chat-demo')).toBe(false)
+    expect(isSelfChecking([], 'chat-demo')).toBe(false)
   })
 
   it('labels a crashed pod differently from a failed probe', () => {
