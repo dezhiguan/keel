@@ -18,6 +18,8 @@ def check(manifest: dict, target_agent: str | None, catalog: dict[str, dict] | N
     """Return human-readable errors; an empty list means the draft can be shown to a person."""
     errors = [f"{'/'.join(str(p) for p in e.absolute_path) or '(根)'}: {e.message}"
               for e in sorted(_validator.iter_errors(manifest), key=lambda e: list(e.absolute_path))]
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("metadata"), dict) or not isinstance(manifest.get("spec"), dict):
+        return errors
     if manifest.get("kind", "Agent") != "Agent":
         errors.append("kind 必须是 Agent")
     name = (manifest.get("metadata") or {}).get("name")
@@ -27,7 +29,12 @@ def check(manifest: dict, target_agent: str | None, catalog: dict[str, dict] | N
         errors.append("不能生成或修改 meta-agent 自己")
     elif target_agent and name != target_agent:
         errors.append(f"metadata.name 应为 {target_agent}，实际是 {name}")
-    for tool in (manifest.get("spec") or {}).get("tools") or []:
+    tools = manifest["spec"].get("tools") or []
+    if not isinstance(tools, list):
+        return errors
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
         tool_name = tool.get("name")
         risk = tool.get("risk", "low")
         if risk == "high" and tool.get("approval") != "required":

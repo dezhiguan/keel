@@ -67,6 +67,12 @@ const jobs = [
 const items = devflowItems(approvals, runs, jobs)
 
 describe('approval groups', () => {
+  it('includes a durable H1 job without inventing a suspended run', () => {
+    const pending = { ...jobs[0]!, jobId: 'DF-META', stage: 'H1' as const, status: 'WAIT' as const, needReview: false }
+    expect(devflowItems([], [], [pending])).toEqual([expect.objectContaining({ jobId: 'DF-META', gate: 'H1' })])
+    expect(devflowItems([], [{ ...runs[0]!, runId: 'real-run', devflowJobId: 'DF-META', devflowGate: 'H1' }], [pending])).toHaveLength(1)
+  })
+
   it('puts the research group right after all', () => {
     expect(GROUPS.map(([key]) => key)).toEqual(['all', 'devflow', 'tool', 'agent', 'data', 'human'])
   })

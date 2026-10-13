@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: keel-server
+  task:
+    scheduling:
+      pool:
+        size: 4
   threads:
     virtual:
       # Blocking IO inside synchronized can pin virtual threads; assess JDBC/MyBatis under P1 load tests.

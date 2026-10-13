@@ -23,10 +23,13 @@ spec:
     - name: catalog.lookup
       access: read
       risk: low
+    - name: scaffold.deliver
+      access: write
+      risk: mid
   guardrails:
     inputInjection: enforce
   audit:
-    captureFields: [target_agent, version]
+    captureFields: [target_agent, version, job_id]
   eval:
     dataset: meta-agent/dev-employee-specs
   prompts:

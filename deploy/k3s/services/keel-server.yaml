@@ -169,6 +169,7 @@ spec:
                   key: RAGFORGE_METRICS_PASSWORD
                   optional: true
           envFrom:
+            - secretRef: {name: keel-meta-bridge, optional: true}
             - secretRef:
                 name: keel-server
                 optional: false

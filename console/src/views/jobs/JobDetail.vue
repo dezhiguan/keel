@@ -6,6 +6,9 @@ import {
   assistDevflowJob,
   cancelDevflowJob,
   getDevflowJob,
+  getDevflowExecution,
+  retryDevflowExecution,
+  type DevflowExecution,
   getDevflowSettings,
   handbackDevflowJob,
   takeoverDevflowJob,
@@ -40,6 +43,7 @@ import {
 
 const route = useRoute()
 const job = ref<DevflowJob | null>(null)
+const execution = ref<DevflowExecution | null>(null)
 const loading = ref(false)
 const missing = ref(false)
 const busy = ref(false)
@@ -58,7 +62,9 @@ const yaml = computed(() => (job.value ? manifestYaml(job.value) : ''))
 async function load(silent = false) {
   if (!silent) loading.value = true
   try {
-    job.value = await getDevflowJob(jobId.value)
+    const [loaded, work] = await Promise.all([getDevflowJob(jobId.value), getDevflowExecution(jobId.value)])
+    job.value = loaded
+    execution.value = work
     missing.value = false
     if (job.value.status === 'QUEUED') {
       concurrency.value = (await getDevflowSettings()).concurrency
@@ -88,6 +94,13 @@ async function run(action: () => Promise<DevflowJob>, done: string) {
   } finally {
     busy.value = false
   }
+}
+
+async function retry() {
+  busy.value = true
+  try { execution.value = await retryDevflowExecution(jobId.value); await load(true) }
+  catch (error) { ElMessage.error(toKeelError(error).message) }
+  finally { busy.value = false }
 }
 
 function confirmAssist() {
@@ -145,14 +158,54 @@ onUnmounted(() => {
         <JobStatus :job="job" />
         <span class="sp" />
         <RouterLink v-if="showApprovalLink(job)" class="btn pri" :to="`/approvals/devflow/${encodeURIComponent(job.jobId)}`">去审批中心处理</RouterLink>
-        <button v-if="canTakeover(job)" v-write class="btn vio" type="button" @click="modal = 'takeover'">人工接管开发</button>
-        <template v-if="canHandback(job)">
+        <button v-if="!execution && canTakeover(job)" v-write class="btn vio" type="button" @click="modal = 'takeover'">人工接管开发</button>
+        <template v-if="!execution && canHandback(job)">
           <button v-if="canAssist(job)" v-write class="btn vio" type="button" @click="modal = 'assist'">请智能体帮忙</button>
           <button v-write class="btn pri" type="button" :disabled="busy" @click="run(() => handbackDevflowJob(job!.jobId), job.mode === 'SCAFFOLD' ? '已提交门禁' : '已交还')">{{ handbackLabel(job.mode) }}</button>
         </template>
-        <button v-if="canCancel(job)" v-write class="btn danger" type="button" @click="modal = 'cancel'">取消</button>
+        <button v-if="canCancel(job) && (!execution || ['WAITING', 'RUNNING'].includes(execution.phase) || (execution.phase === 'QUEUED' && !execution.draft))" v-write class="btn danger" type="button" @click="modal = 'cancel'">取消</button>
       </div>
 
+      <template v-if="execution">
+        <div class="banner" :class="execution.phase === 'FAILED' ? 'warn' : 'info'">
+          <b>{{ execution.phase === 'DELIVERED' ? '骨架 PR 已交付' : execution.phase === 'WAITING' ? '等待需求确认' : execution.phase === 'FAILED' ? '执行失败' : execution.phase === 'CANCELLED' ? '任务已取消' : '元智能体处理中' }}</b>
+          <span>{{ execution.error || '交付需求单、agent.yaml 和 Python 项目骨架，之后由人继续开发、评测和发布。' }}</span>
+          <button v-if="execution.phase === 'FAILED'" v-write class="btn sm" :disabled="busy" @click="retry">重试执行</button>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><div class="l">目标智能体</div><div class="v sm">{{ job.targetAgent }}</div></div>
+          <div class="kpi"><div class="l">需求草稿</div><div class="v sm">第 {{ execution.version }} 版</div></div>
+          <div class="kpi"><div class="l">人工修改轮次</div><div class="v sm">{{ execution.revisions }}/3</div></div>
+        </div>
+        <div v-if="execution.delivery" class="card">
+          <h3>真实交付</h3>
+          <div class="kv">
+            <span>Pull Request</span><a :href="execution.delivery.url" target="_blank" rel="noopener noreferrer">{{ execution.delivery.repo }} #{{ execution.delivery.number }} ↗</a>
+            <span>分支</span><span class="mono">{{ execution.delivery.branch }}</span>
+            <span>Commit</span><span class="mono">{{ execution.delivery.sha }}</span>
+            <span>下一步</span><span>在 PR 中继续开发；当前尚未执行评测、部署或发布。</span>
+          </div>
+        </div>
+        <div v-if="execution.draft?.spec" class="row2">
+          <div class="card">
+            <h3>需求单 · 第 {{ execution.version }} 版</h3>
+            <div class="kv">
+              <span>标题</span><b>{{ execution.draft.spec.title }}</b>
+              <span>目标</span><span>{{ execution.draft.spec.goal }}</span>
+              <span>场景</span><span>{{ execution.draft.spec.users }}</span>
+              <span>输入输出</span><span>{{ execution.draft.spec.io }}</span>
+              <span>成功标准</span><span>{{ execution.draft.spec.success }}</span>
+            </div>
+          </div>
+          <div class="card"><h3>agent.yaml · 元智能体实际产出</h3><pre class="code">{{ execution.draft.manifestYaml }}</pre></div>
+        </div>
+        <div class="card">
+          <h3>执行记录</h3>
+          <ul class="log"><li v-for="(event, index) in [...job.events].reverse()" :key="index"><span class="tm">{{ event.at }}</span><span class="who">{{ event.actor }}</span><span>{{ event.summary }}</span></li></ul>
+          <RouterLink v-if="execution.traceId" :to="`/traces/${execution.traceId}`">查看最近一次执行链路 →</RouterLink>
+        </div>
+      </template>
+      <template v-else>
       <div v-for="(note, index) in notices" :key="index" class="banner" :class="note.tone">
         <b v-if="note.title" :class="note.tone === 'vio' ? 'vioc' : ''">{{ note.title }}</b>
         <span>{{ note.text }}</span>
@@ -271,6 +324,7 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
+      </template>
     </template>
 
     <div v-if="modal" class="mask on" @click="modal = null" />
@@ -304,7 +358,7 @@ onUnmounted(() => {
     </div>
     <div v-if="modal === 'cancel'" class="modal on" role="dialog" aria-label="取消任务">
       <div class="mh">取消 {{ jobId }}</div>
-      <div class="mb">已开通的 staging 资源按逆序回收，仓库和 PR 保留只读。</div>
+      <div class="mb">取消后不再接受草稿结果；已有记录会保留。</div>
       <div class="mf">
         <button class="btn" type="button" @click="modal = null">再想想</button>
         <button class="btn danger" type="button" :disabled="busy" @click="run(() => cancelDevflowJob(jobId), '已取消')">确认取消</button>

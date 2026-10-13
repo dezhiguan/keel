@@ -41,6 +41,15 @@ public class AgentEndpointClient {
     }
 
     private Answer invoke(String endpoint, String text, String bridgeToken, String agent, String env, String userId, String evalRun) {
+        return invokeRequest(endpoint, text, bridgeToken, agent, env, userId, evalRun, Duration.ofSeconds(60));
+    }
+
+    public Answer invokeWork(String endpoint, String text, String bridgeToken, String userId) {
+        return invokeRequest(endpoint, text, bridgeToken, "meta-agent", "dev", userId, null, Duration.ofSeconds(240));
+    }
+
+    private Answer invokeRequest(String endpoint, String text, String bridgeToken, String agent, String env,
+                                 String userId, String evalRun, Duration timeout) {
         var base = trim(endpoint);
         try {
             var payload = json.createObjectNode();
@@ -49,7 +58,7 @@ public class AgentEndpointClient {
                 payload.putObject("context").put("user_id", userId);
             }
             var builder = HttpRequest.newBuilder(URI.create(base + "/v1/invoke"))
-                    .timeout(Duration.ofSeconds(60))
+                    .timeout(timeout)
                     .header("Content-Type", "application/json");
             if (bridgeToken != null && !bridgeToken.isBlank()) {
                 builder.header("X-Keel-Bridge", bridgeToken);

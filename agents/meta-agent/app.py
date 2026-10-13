@@ -40,8 +40,18 @@ def validate_manifest(manifest: dict, target_agent: str | None = None, version: 
     return check(manifest, target_agent, catalog_store.load())
 
 
+@agent.tool(name="scaffold.deliver")
+def deliver_scaffold(work: dict, target_agent: str, version: int, job_id: str):
+    from workflow import deliver
+    return deliver(work)
+
+
 @agent.entry
 async def run(request, ctx):
+    work = _requirement(request.input.get("text") or "")
+    if work.get("workflow"):
+        from workflow import execute
+        return await execute(work, ctx, _draft)
     if getattr(request, "resume", False):
         return await _resume(request, ctx)
     requirement = _requirement(request.input.get("text") or "")
@@ -137,7 +147,9 @@ def _parse(reply: str | None) -> tuple[dict, list[str]]:
     if not isinstance(data.get("spec"), dict) or not isinstance(data.get("manifest"), dict):
         return {}, ["必须同时包含 spec 和 manifest 两个对象"]
     manifest = data["manifest"]
-    name = (manifest.get("metadata") or {}).get("name")
+    if not isinstance(manifest.get("metadata"), dict) or not isinstance(manifest.get("spec"), dict):
+        return {}, ["manifest 的 metadata 和 spec 必须为对象"]
+    name = manifest["metadata"].get("name")
     if isinstance(name, str) and NAME.match(name) and isinstance(manifest.get("spec"), dict):
         runtime = manifest["spec"].setdefault("runtime", {})
         if isinstance(runtime, dict):
@@ -207,3 +219,19 @@ def _yaml(value) -> str:
 
 
 app = agent.asgi()
+
+# Only the server may invoke this internal runtime when a bridge token is configured.
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
+import hmac
+import os
+
+class BridgeAuth(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        token = os.environ.get("KEEL_META_AGENT_TOKEN")
+        if request.url.path != "/v1/health" and token and not hmac.compare_digest(request.headers.get("X-Keel-Bridge", ""), token):
+            return JSONResponse({"code": ErrorCode.AUTH_UNAUTHENTICATED.value,
+                "message": "服务身份无效", "trace_id": "", "retryable": False}, status_code=401)
+        return await call_next(request)
+
+app.add_middleware(BridgeAuth)

@@ -2,7 +2,7 @@
 import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { answerSuspendedRun } from '@/api/approvals'
-import type { DevflowJob, DevflowReview } from '@/api/devflow'
+import { decideDevflowRequirement, type DevflowJob, type DevflowReview } from '@/api/devflow'
 import { toKeelError } from '@/api/http'
 import { MODES } from '@/views/jobs/jobs'
 import { canSendBack } from '../approvalGroups'
@@ -24,8 +24,20 @@ const note = ref('')
 const noteError = ref(false)
 const busy = ref(false)
 
-// TODO(DF-5 / DF-2): edits to the spec sheet and the chosen mode have no field to travel in yet; /runs/{runId}/input only carries text.
+// Legacy suspended runs still use the existing text reply endpoint.
 async function reply(text: string, message: string) {
+  if (props.review.execution) {
+    busy.value = true
+    try {
+      await decideDevflowRequirement(props.job.jobId, {
+        action: text === '确认' ? 'CONFIRM' : 'REVISE', expectedVersion: props.review.execution.version,
+        feedback: text === '确认' ? undefined : text, ...sheet,
+      })
+      emit('done', message)
+    } catch (error) { ElMessage.error(toKeelError(error).message) }
+    finally { busy.value = false }
+    return
+  }
   if (!props.review.runId) {
     ElMessage.error('没有挂起的执行可以恢复')
     return
@@ -55,7 +67,7 @@ function sendBack() {
 <template>
   <div class="row2">
     <div class="card">
-      <h3>需求单 <small>spec-agent 产出，可直接改</small></h3>
+      <h3>需求单 <small>元智能体草稿，可修改后确认</small></h3>
       <div class="kv" style="margin-bottom: 4px">
         <span>标题</span><b>{{ review.specSheet?.title ?? job.title }}</b>
         <span>目标</span><span style="color: var(--text)">{{ review.specSheet?.goal ?? job.goal }}</span>
@@ -63,7 +75,7 @@ function sendBack() {
       <div class="field"><label>目标用户与场景</label><textarea v-model="sheet.users" class="inp" /></div>
       <div class="field"><label>输入 / 输出</label><textarea v-model="sheet.io" class="inp" rows="3" /></div>
       <div class="field"><label>成功标准</label><textarea v-model="sheet.success" class="inp" /></div>
-      <div v-if="review.specSheet?.pending.length" class="field">
+      <div v-if="review.specSheet?.pending?.length" class="field">
         <label>待确认</label>
         <ul class="plain">
           <li v-for="item in review.specSheet.pending" :key="item">{{ item }}</li>
@@ -112,7 +124,7 @@ function sendBack() {
     </div>
   </div>
   <div class="card" style="display: flex; gap: 8px; justify-content: flex-end; align-items: center">
-    <span class="mut" style="margin-right: auto">确认后恢复执行（重新换票）；退回会让 spec-agent 出新版。</span>
+    <span class="mut" style="margin-right: auto">确认后生成骨架 PR；退回会按修改意见重新生成草稿。</span>
     <button v-write class="btn" type="button" :disabled="busy" @click="sendBack">退回修改</button>
     <button v-write class="btn pri" type="button" :disabled="busy" @click="reply('确认', '需求单已确认，研发任务继续')">确认需求单</button>
   </div>

@@ -317,6 +317,15 @@ public class DevflowService {
         return next;
     }
 
+    public synchronized DevflowTypes.Job progress(String jobId, String status, String stage, String summary) {
+        var current = job(jobId);
+        var next = current.withStatus(status, stage, false,
+                "HUMAN".equals(status) ? current.requester() : null,
+                event(current, "meta-agent", summary));
+        commit(() -> { ledger.update(next); audit(next, "meta-agent", "devflow.stage", summary); });
+        return next;
+    }
+
     public Map<String, Object> cost() {
         return DevflowRules.cost(ledger.jobs());
     }

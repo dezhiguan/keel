@@ -70,7 +70,17 @@ public final class DevflowTypes {
 
     public record Draft(String title, String targetAgent, String layer, String kind, String mode, String goal,
                         String template, Double dailyBudgetCny, Integer seedCount, List<String> tools,
-                        List<String> knowledge, String ownerOrg) {}
+                        List<String> knowledge, String ownerOrg, String users, String io, String success, Boolean execution) {
+        public Draft(String title, String targetAgent, String layer, String kind, String mode, String goal,
+                     String template, Double dailyBudgetCny, Integer seedCount, List<String> tools,
+                     List<String> knowledge, String ownerOrg) {
+            this(title, targetAgent, layer, kind, mode, goal, template, dailyBudgetCny, seedCount,
+                    tools, knowledge, ownerOrg, null, null, null, false);
+        }
+    }
+
+    public record RequirementDecision(String action, int expectedVersion, String feedback,
+                                      String users, String io, String success) {}
 
     public record Settings(double budgetCny, int maxFixRounds, int holdoutPercent, int minSeed, double keyCapCny,
                            int dailyLimit, int concurrency, List<String> templates) {

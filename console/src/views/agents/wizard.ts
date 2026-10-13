@@ -85,9 +85,9 @@ export const DEVFLOW_KBS = ['dev-standards', 'release-handbook', 'cs-faq', 'faul
 
 export function blankDevflow(agent = '', kind: DevflowKind = 'CREATE'): DevflowForm {
   return {
-    layer: 'biz',
+    layer: 'dev',
     kind,
-    mode: 'AUTO',
+    mode: 'COLLAB',
     title: '',
     agent,
     goal: '',
@@ -125,7 +125,11 @@ export function devflowBody(form: DevflowForm, ownerOrg: string) {
     layer: locked.layer === 'dev' ? 'DEV' as const : 'BIZ' as const,
     kind: locked.kind,
     mode: locked.mode,
-    goal: [locked.goal.trim(), locked.users.trim(), locked.io.trim(), locked.success.trim()].filter(Boolean).join('\n'),
+    goal: locked.goal.trim(),
+    users: locked.users.trim(),
+    io: locked.io.trim(),
+    success: locked.success.trim(),
+    execution: true,
     template: locked.template,
     dailyBudgetCny: locked.dailyBudgetCny,
     seedCount: locked.seedCount,

@@ -133,7 +133,7 @@ async function submit() {
   <div>
     <div class="vh">
       <h2>新建智能体</h2>
-      <span class="sub">{{ method === 'devflow' ? '由智能体生产。填需求表单，研发流水线或元智能体生产，可随时人工接管' : '登记到注册中心，开通资源并检查运行服务' }}</span>
+      <span class="sub">{{ method === 'devflow' ? '由智能体生产。填写研发需求，元智能体生成草稿和骨架 PR' : '登记到注册中心，开通资源并检查运行服务' }}</span>
       <span class="sp" />
       <button class="btn ghost" type="button" @click="router.push('/agents')">返回列表</button>
     </div>
@@ -143,7 +143,7 @@ async function submit() {
         <div class="radio h">
           <label :class="{ on: method === 'code' }"><input v-model="method" type="radio" value="code"><div>代码开发<small>人工编写，keel new 生成骨架（现有）</small></div></label>
           <label :class="{ on: method === 'dify' }"><input v-model="method" type="radio" value="dify"><div>低代码 Dify<small>在 Dify 配好应用后接入（现有，P3）</small></div></label>
-          <label :class="{ on: method === 'devflow' }"><input v-model="method" type="radio" value="devflow"><div>由智能体生产 <span class="tag-new">新增</span><small>填需求表单，研发流水线或元智能体生产，可随时人工接管</small></div></label>
+          <label :class="{ on: method === 'devflow' }"><input v-model="method" type="radio" value="devflow"><div>由智能体生产 <span class="tag-new">新增</span><small>填写研发需求，元智能体生成草稿和骨架 PR</small></div></label>
         </div>
       </div>
     </div>
