@@ -25,3 +25,7 @@ contracts/console-api.openapi.yaml；keel-server application.yml 调度线程配
 - 表单、真实产物展示、待办聚合测试；Java 调度、版本/权限、异常、持久化领取测试；Python 使用真实 HTTP 假网关验证 draft/revise/delivery 与校验。
 - 构建、契约、门禁通过后部署 server、console、meta-agent 和所需 Git 服务，等待 rollout。
 - 浏览器真实提交 → 出草稿 → 编辑、退回 → 确认 → 真实 PR；验证重复确认和重启后状态；记录 job/trace/PR/commit 及截图。密钥不写入报告。
+
+## 云端验收发现的账号限制
+
+GitHub 对当前账号的私有仓库分支保护返回 403 “Upgrade to GitHub Pro”。最小骨架交付仍保持仓库私有，返回 protection=UNAVAILABLE 并在页面明确标示。此时 Git 工具服务拒绝合并该研发任务仓库；不能当作可自动发布的产物。仅该明确的套餐限制允许交付，普通权限失败仍失败。支持分支保护时仍要求至少一个 approving review。

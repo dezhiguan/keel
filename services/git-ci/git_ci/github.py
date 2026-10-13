@@ -80,8 +80,14 @@ class GitHub:
                 raise
             self._create_repo({
                 "name": name, "private": True, "auto_init": True, "description": marker})
-        self.request("PUT", f"/repos/{self.org}/{name}/branches/main/protection", PROTECTION)
-        return {"repo": f"{self.org}/{name}", "defaultBranch": "main"}
+        protection = "ENFORCED"
+        try:
+            self.request("PUT", f"/repos/{self.org}/{name}/branches/main/protection", PROTECTION)
+        except GitHubError as exc:
+            if exc.status != 403 or "Upgrade to GitHub Pro" not in str(exc):
+                raise
+            protection = "UNAVAILABLE"
+        return {"repo": f"{self.org}/{name}", "defaultBranch": "main", "protection": protection}
 
     def push_scaffold(self, repo: str, job_id: str, message: str, files: list[dict]) -> dict:
         self.ensure_repo(repo, job_id)
@@ -101,11 +107,11 @@ class GitHub:
         return self.push(repo, "draft", message, files)
 
     def ensure_pr(self, repo: str, job_id: str, title: str, body: str) -> dict:
-        self.ensure_repo(repo, job_id)
+        repository = self.ensure_repo(repo, job_id)
         existing = self.request("GET", f"/repos/{self.org}/{repo}/pulls?state=open&head={self.org}:draft&base=main")
         if existing:
-            return {"repo": f"{self.org}/{repo}", "number": existing[0]["number"], "url": existing[0]["html_url"]}
-        return self.open_pr(repo, "draft", "main", title, body)
+            return {"repo": f"{self.org}/{repo}", "number": existing[0]["number"], "url": existing[0]["html_url"], "protection": repository["protection"]}
+        return {**self.open_pr(repo, "draft", "main", title, body), "protection": repository["protection"]}
 
     def push(self, repo: str, branch: str, message: str, files: list[dict]) -> dict:
         parent = self.request("GET", f"/repos/{self.org}/{repo}/git/ref/heads/main")
@@ -142,6 +148,11 @@ class GitHub:
         return {"repo": f"{self.org}/{repo}", "number": number}
 
     def merge(self, repo: str, number: int) -> dict:
+        repository = self.request("GET", f"/repos/{self.org}/{repo}")
+        if str(repository.get("description") or "").startswith("keel-devflow:"):
+            protection = self.request("GET", f"/repos/{self.org}/{repo}/branches/main/protection")
+            if protection.get("required_pull_request_reviews", {}).get("required_approving_review_count", 0) < 1:
+                raise GitHubError(403, "Scaffold repositories require enforced review protection before merge")
         merged = self.request("PUT", f"/repos/{self.org}/{repo}/pulls/{number}/merge", {})
         return {"repo": f"{self.org}/{repo}", "number": number, "sha": merged.get("sha", "")}
 
