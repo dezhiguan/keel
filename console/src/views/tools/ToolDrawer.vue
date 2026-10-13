@@ -315,7 +315,7 @@ onUnmounted(() => {
 
             <h4>依赖方（manifest 声明 + 30 天调用）</h4>
             <table v-if="tool.dependents?.length" class="t">
-              <thead><tr><th>智能体</th><th>环境</th><th>状态</th></tr></thead>
+              <thead><tr><th>智能体</th><th>环境</th><th>30 天调用</th><th>状态</th></tr></thead>
               <tbody>
                 <tr
                   v-for="item in tool.dependents"
@@ -325,6 +325,7 @@ onUnmounted(() => {
                 >
                   <td>{{ item.agent }}</td>
                   <td>{{ item.env }}</td>
+                  <td>{{ item.calls30d ?? '—' }}</td>
                   <td><StatusPill v-bind="agentStatus(item.agentStatus)" /></td>
                 </tr>
               </tbody>

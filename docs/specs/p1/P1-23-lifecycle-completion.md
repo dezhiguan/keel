@@ -2,7 +2,7 @@
 
 ## 目标与范围
 
-修复 P1-22 报告的四项待办，提交、部署远程并实测。范围包括 contracts/console-api.openapi.yaml 与生成类型、keel-server 的 evaluation/insight/registry/prompt/integration/auth/provisioning/tool、数据库迁移与相应测试、SDK 的 eval/context、agents/echo、services/git-ci、console 的 eval/agents/prompts 页面、deploy/ci 与 GitHub CD，以及 docs/qa。
+修复 P1-22 报告的四项待办，提交、部署远程并实测。范围包括 contracts/console-api.openapi.yaml 与生成类型、keel-server 的 evaluation/insight/registry/prompt/integration/auth/provisioning/tool、数据库迁移与相应测试、SDK 的 eval/context、agents/echo、services/git-ci、console 的 eval/agents/prompts/tools 页面、deploy/ci 与 GitHub CD，以及 docs/qa。
 
 ## 设计
 
@@ -14,6 +14,7 @@
 - 定时漂移扫描通过专用目录读取方法检查所有组织，不依赖 HTTP 登录上下文；控制台目录读取仍要求真实登录身份。
 - git-ci 服务增加健康探针、容器及远程部署；保留只读 PR diff 参数校验，来源凭据只放 Secret。SDK 工具调用产生真实 tool span，测试智能体通过 ctx.tools 调用授权的 git.pr.diff，并核对追踪、审计及权限拒绝路径。不会新建 PR、评论或合并。
 - 工具页调用次数改为聚合真实 allowed tool.call 审计：列表按环境统计 24 小时调用，详情显示总量及各依赖智能体/环境的 30 天调用。拒绝和过期记录不计入，不再硬编码 0。
+- 工具详情的依赖表展示各智能体/环境的实际 30 天调用次数。
 - 应用节点无法直连 GitHub API 时共用数据机 172.25.90.183:443 的 TLS 中继，按 SNI 选择允许的 api.github.com 或 Langfuse Japan；保留原主机名验证证书。转发不解密、不保存认证信息。
 - 服务断言从智能体 Secret 读取当前公钥，支持多副本及重启、凭据轮换；git-ci 调用另用内部凭据认证，不能匿名直调。环境、共享服务地址与 audience 由注册 Secret 注入。
 - SDK 启动校验按实际工具实现要求依赖：远程共享工具要求服务地址、断言材料和环境；本地回调或显式 audit 配置仍要求本地审计服务与 spool，避免只调用共享工具的智能体无法启动。
