@@ -1,6 +1,7 @@
 """Stateless model turns for the server-owned workflow; only Git delivery keeps a local checkpoint."""
 
 import fcntl
+import httpx
 import json
 import os
 from pathlib import Path
@@ -120,7 +121,7 @@ def _deliver(work):
         state["result"] = result
         _save(checkpoint, state)
         return result
-    except (ValueError, KeyError) as exc:
+    except (ValueError, KeyError, httpx.HTTPError) as exc:
         raise KeelError(ErrorCode.GIT_UPSTREAM_FAILED, "骨架 PR 交付失败") from exc
 
 

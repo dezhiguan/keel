@@ -110,8 +110,10 @@ class GitHub:
         repository = self.ensure_repo(repo, job_id)
         existing = self.request("GET", f"/repos/{self.org}/{repo}/pulls?state=open&head={self.org}:draft&base=main")
         if existing:
+            if existing[0].get("draft") is not True:
+                raise GitHubError(409, "Existing scaffold PR is not a draft")
             return {"repo": f"{self.org}/{repo}", "number": existing[0]["number"], "url": existing[0]["html_url"], "protection": repository["protection"]}
-        return {**self.open_pr(repo, "draft", "main", title, body), "protection": repository["protection"]}
+        return {**self.open_pr(repo, "draft", "main", title, body, draft=True), "protection": repository["protection"]}
 
     def push(self, repo: str, branch: str, message: str, files: list[dict]) -> dict:
         parent = self.request("GET", f"/repos/{self.org}/{repo}/git/ref/heads/main")
@@ -133,9 +135,9 @@ class GitHub:
             self.request("PATCH", f"/repos/{self.org}/{repo}/git/refs/heads/{branch}", {"sha": created["sha"]})
         return {"repo": f"{self.org}/{repo}", "branch": branch, "sha": created["sha"]}
 
-    def open_pr(self, repo: str, head: str, base: str, title: str, body: str) -> dict:
+    def open_pr(self, repo: str, head: str, base: str, title: str, body: str, *, draft: bool = False) -> dict:
         opened = self.request("POST", f"/repos/{self.org}/{repo}/pulls",
-                              {"head": head, "base": base, "title": title, "body": body})
+                              {"head": head, "base": base, "title": title, "body": body, "draft": draft})
         return {"repo": f"{self.org}/{repo}", "number": opened["number"], "url": opened.get("html_url")}
 
     def diff(self, repo: str, number: int) -> dict:
