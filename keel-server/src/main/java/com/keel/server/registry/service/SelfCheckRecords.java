@@ -15,14 +15,17 @@ public class SelfCheckRecords {
 
     public void save(String agent, String env, com.fasterxml.jackson.databind.JsonNode manifest, SelfCheckService.Report report) {
         try {
-            var hash = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
-                    .digest(manifest.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-            jdbc.update("""
-                    INSERT INTO agent_self_check(agent_name,env,manifest_hash,report) VALUES (?,?,?,?::jsonb)
+            // jsonb changes object key order. Match content and retain the registered version hash.
+            var written = jdbc.update("""
+                    INSERT INTO agent_self_check(agent_name,env,manifest_hash,report)
+                    SELECT agent_name,env,manifest_hash,?::jsonb FROM agent_version
+                    WHERE agent_name=? AND env=? AND manifest_json=?::jsonb
+                    ORDER BY released_at DESC LIMIT 1
                     ON CONFLICT(agent_name,env) DO UPDATE SET manifest_hash=EXCLUDED.manifest_hash,
                     report=EXCLUDED.report, checked_at=now()
-                    """, agent, env, hash, json.writeValueAsString(report));
-        } catch (java.security.NoSuchAlgorithmException | com.fasterxml.jackson.core.JsonProcessingException e) {
+                    """, json.writeValueAsString(report), agent, env, manifest.toString());
+            if (written != 1) throw new IllegalStateException("自检期间登记配置已变更，请重新执行");
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             throw new IllegalStateException("自检报告保存失败", e);
         }
     }
