@@ -47,7 +47,8 @@ public class ReleaseService {
         if (gateRunId.isBlank() || image.isBlank()) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "gateRunId 和 image 不能为空");
         }
-        var rejection = ReleaseGuard.rejection(devflowJobId(agent), approvedMerge(agent));
+        var jobId = devflowJobId(agent);
+        var rejection = ReleaseGuard.rejection(jobId, approvedMerge(agent, jobId));
         if (rejection != null) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, rejection);
         }
@@ -116,12 +117,13 @@ public class ReleaseService {
         return produced.isEmpty() ? null : produced.getFirst();
     }
 
-    private boolean approvedMerge(String agent) {
+    private boolean approvedMerge(String agent, String jobId) {
+        if (jobId == null || jobId.isBlank()) return false;
         var count = jdbc.queryForObject("""
                 SELECT count(*) FROM approval_request
                 WHERE agent_name = ? AND subject_type = 'tool.call' AND subject_ref = 'git.pr.merge'
-                  AND status = 'APPROVED'
-                """, Integer.class, agent);
+                  AND devflow_job_id = ? AND devflow_gate = 'H4' AND status = 'APPROVED'
+                """, Integer.class, agent, jobId);
         return count != null && count > 0;
     }
 
