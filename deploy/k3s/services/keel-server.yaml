@@ -106,6 +106,8 @@ spec:
               value: keel-server
             - name: KEEL_GIT_CI_URL
               value: http://git-ci.keel-system.svc.cluster.local:8000
+            - name: KEEL_SANDBOX_IMAGE
+              value: PLACEHOLDER_SANDBOX_IMAGE
             - name: KEEL_GIT_CI_TOKEN
               valueFrom:
                 secretKeyRef:

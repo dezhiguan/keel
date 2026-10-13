@@ -80,6 +80,25 @@ export const DEVFLOW_TEMPLATES: [string, string][] = [
   ['java-spring', 'Java · Spring Boot'],
 ]
 
+export const DEV_ROLE_TEMPLATES: Record<string, string> = {
+  'dev-lead': 'supervisor',
+  'spec-agent': 'graph-agent',
+  'dev-agent': 'graph-agent',
+  'eval-agent': 'tool-agent',
+  'code-review': 'tool-agent',
+  'ci-doctor': 'tool-agent',
+  'release-agent': 'tool-agent',
+}
+export const DEV_ROLE_TOOLS: Record<string, string[]> = {
+  'dev-lead': ['devflow.job.read', 'devflow.stage.report'],
+  'spec-agent': ['devflow.catalog.search'],
+  'dev-agent': ['sandbox.run', 'git.repo.create', 'git.pr.open'],
+  'eval-agent': ['sandbox.run'],
+  'code-review': ['git.pr.diff', 'git.pr.comment'],
+  'ci-doctor': ['ci.log.fetch', 'keel.gate.report.read'],
+  'release-agent': ['ci.workflow.dispatch', 'git.pr.merge'],
+}
+
 export const DEVFLOW_TOOLS = ['git.log.read', 'git.tag.list', 'jira.issue.search', 'wecom.message.send', 'rag.search', 'work_order_create']
 export const DEVFLOW_KBS = ['dev-standards', 'release-handbook', 'cs-faq', 'fault-manual']
 
@@ -91,11 +110,11 @@ export function blankDevflow(agent = '', kind: DevflowKind = 'CREATE'): DevflowF
     title: '',
     agent,
     goal: '',
-    template: 'tool-agent',
+    template: DEV_ROLE_TEMPLATES[agent] || 'tool-agent',
     users: '',
     io: '',
     success: '',
-    tools: [],
+    tools: [...(DEV_ROLE_TOOLS[agent] || [])],
     knowledge: [],
     dailyBudgetCny: 20,
     seedCount: 0,
@@ -112,6 +131,10 @@ export function devflowStepError(step: number, form: DevflowForm, takenNames: st
     if (!NAME.test(form.agent)) return '智能体 ID 不合规'
     if (form.kind === 'CREATE' && takenNames.includes(form.agent)) return '该 ID 已存在；要改已有智能体请选「改造」'
     if (form.kind === 'CHANGE' && form.agent === 'meta-agent') return '元智能体只能由人直接修改'
+    if (form.layer === 'dev' && !DEV_ROLE_TEMPLATES[form.agent]) return '当前仅创建原型中的七名研发数字员工'
+    if (form.layer === 'dev' && form.template !== DEV_ROLE_TEMPLATES[form.agent]) return '该岗位必须使用原型指定的模板'
+    if (form.layer === 'dev' && (form.tools.length !== DEV_ROLE_TOOLS[form.agent].length ||
+      form.tools.some(tool => !DEV_ROLE_TOOLS[form.agent].includes(tool)))) return '岗位工具必须与原型清单完全一致'
   }
   if (step === 1 && (!form.users.trim() || !form.io.trim() || !form.success.trim())) return '场景、输入输出、成功标准必填'
   return ''

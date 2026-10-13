@@ -157,7 +157,7 @@ onUnmounted(() => {
         <span class="mono mut">{{ job.jobId }}</span>
         <JobStatus :job="job" />
         <span class="sp" />
-        <RouterLink v-if="showApprovalLink(job)" class="btn pri" :to="`/approvals/devflow/${encodeURIComponent(job.jobId)}`">去审批中心处理</RouterLink>
+        <RouterLink v-if="showApprovalLink(job) && (!execution || ['WAITING', 'WAITING_SEEDS', 'WAITING_EVAL'].includes(execution.phase))" class="btn pri" :to="`/approvals/devflow/${encodeURIComponent(job.jobId)}`">去审批中心处理</RouterLink>
         <button v-if="!execution && canTakeover(job)" v-write class="btn vio" type="button" @click="modal = 'takeover'">人工接管开发</button>
         <template v-if="!execution && canHandback(job)">
           <button v-if="canAssist(job)" v-write class="btn vio" type="button" @click="modal = 'assist'">请智能体帮忙</button>
@@ -168,8 +168,8 @@ onUnmounted(() => {
 
       <template v-if="execution">
         <div class="banner" :class="execution.phase === 'FAILED' ? 'warn' : 'info'">
-          <b>{{ execution.phase === 'DELIVERED' ? '骨架 PR 已交付' : execution.phase === 'WAITING' ? '等待需求确认' : execution.phase === 'FAILED' ? '执行失败' : execution.phase === 'CANCELLED' ? '任务已取消' : '元智能体处理中' }}</b>
-          <span>{{ execution.error || '交付需求单、agent.yaml 和 Python 项目骨架，之后由人继续开发、评测和发布。' }}</span>
+          <b>{{ execution.phase === 'WAITING_REVIEW' ? '沙箱通过 · 等待人工 PR review' : execution.phase === 'SANDBOX_PENDING' || execution.phase === 'SANDBOX_RUNNING' ? '候选代码正在隔离沙箱验证' : execution.phase === 'WAITING_SEEDS' ? '等待人工种子用例' : execution.phase === 'WAITING_EVAL' ? '等待 H2 评测确认' : execution.phase === 'WAITING' ? '等待 H1 需求确认' : execution.phase === 'FAILED' ? '执行失败' : execution.phase === 'CANCELLED' ? '任务已取消' : '元智能体处理中' }}</b>
+          <span>{{ execution.error || '元智能体生产任务；沙箱、H2/H3、人工评审、staging 门禁、H4 与发布须逐项完成。' }}</span>
           <button v-if="execution.phase === 'FAILED'" v-write class="btn sm" :disabled="busy" @click="retry">重试执行</button>
         </div>
         <div class="kpis">
@@ -178,14 +178,16 @@ onUnmounted(() => {
           <div class="kpi"><div class="l">人工修改轮次</div><div class="v sm">{{ execution.revisions }}/3</div></div>
         </div>
         <div v-if="execution.delivery" class="card">
-          <h3>真实交付</h3>
-          <div v-if="execution.delivery.protection === 'UNAVAILABLE'" class="banner warn">当前 GitHub 套餐不支持此私有仓库的分支保护。骨架供人工开发，平台拒绝自动合并和发布。</div>
+          <h3>岗位代码候选</h3>
+          <div v-if="execution.delivery.protection === 'UNAVAILABLE'" class="banner warn">当前 GitHub 套餐不支持此私有仓库的分支保护。人工 PR approve 无法强制，发布关口阻塞。</div>
           <div v-if="execution.delivery.checks === 'MANUAL'" class="banner warn">此仓库的自动检查尚未启用。工作流模板在 ci/keel.yml，需有工作流写入权限的维护者安装到 .github/workflows 后运行。</div>
           <div class="kv">
             <span>Pull Request</span><a :href="execution.delivery.url" target="_blank" rel="noopener noreferrer">{{ execution.delivery.repo }} #{{ execution.delivery.number }} ↗</a>
             <span>分支</span><span class="mono">{{ execution.delivery.branch }}</span>
             <span>Commit</span><span class="mono">{{ execution.delivery.sha }}</span>
-            <span>下一步</span><span>在 PR 中继续开发；当前尚未执行评测、部署或发布。</span>
+            <span>验证状态</span><span>{{ execution.delivery.capabilityStatus || 'UNVERIFIED' }} · 门禁 {{ execution.delivery.gateStatus || 'NOT_RUN' }}</span>
+            <template v-if="execution.sandboxRunId"><span>隔离沙箱</span><span class="mono">{{ execution.sandboxRunId }} · {{ execution.sandboxStatus || 'RUNNING' }}</span></template>
+            <span>下一步</span><span>补齐 H2/H3、沙箱、人工 PR review 与门禁证据；未完成前不可发布。</span>
           </div>
         </div>
         <div v-if="execution.draft?.spec" class="row2">

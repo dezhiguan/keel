@@ -1,3 +1,4 @@
+import base64
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -32,6 +33,47 @@ def test_scaffold_retries_reuse_own_commit_and_refuse_human_changes():
     assert not any(method in ("POST", "PATCH") for method, _ in own.calls)
     with pytest.raises(GitHubError):
         Existing("Human improvement").push_scaffold("qa", "DF-9001", "retry", [])
+
+
+def test_agent_fix_commit_uses_compare_and_swap_without_overwriting_human_changes():
+    class Fix(GitHub):
+        def __init__(self, head="a" * 40, message="Keel build DF-9001: first pass"):
+            super().__init__("http://unused", "test")
+            self.head = head
+            self.message = message
+            self.calls = []
+        def request(self, method, path, payload=None, **kwargs):
+            self.calls.append((method, path, payload))
+            if path.endswith("/qa"):
+                return {"description": "keel-devflow:DF-9001", "private": True}
+            if path.endswith("/git/ref/heads/draft"):
+                return {"object": {"sha": self.head}}
+            if "/git/commits/" in path and method == "GET":
+                return {"message": self.message, "tree": {"sha": "old-tree"}}
+            if path.endswith("/git/blobs"):
+                return {"sha": "blob-1"}
+            if path.endswith("/git/trees"):
+                return {"sha": "new-tree"}
+            if path.endswith("/git/commits"):
+                return {"sha": "b" * 40}
+            return {}
+
+    github = Fix()
+    result = github.push_scaffold("qa", "DF-9001", "Keel build DF-9001: fix",
+                                  [{"path": "app.py", "content": "updated"}], expected_sha="a" * 40)
+    assert result["sha"] == "b" * 40
+    commit_payload = next(payload for method, path, payload in github.calls
+                          if method == "POST" and path.endswith("/git/commits"))
+    assert commit_payload["parents"] == ["a" * 40]
+    tree_payload = next(payload for method, path, payload in github.calls
+                        if method == "POST" and path.endswith("/git/trees"))
+    assert tree_payload["base_tree"] == "old-tree"
+    assert ("PATCH", "/repos/keel-agents/qa/git/refs/heads/draft",
+            {"sha": "b" * 40, "force": False}) in github.calls
+    with pytest.raises(GitHubError, match="Draft head changed"):
+        Fix(head="c" * 40).push_scaffold("qa", "DF-9001", "fix", [], expected_sha="a" * 40)
+    with pytest.raises(GitHubError, match="Human changes"):
+        Fix(message="Human edit").push_scaffold("qa", "DF-9001", "fix", [], expected_sha="a" * 40)
 
 
 def test_scaffold_pr_is_created_as_a_draft_and_ready_retries_are_not_misreported():
@@ -212,3 +254,52 @@ def test_runtime_requires_service_auth_before_accessing_github():
     response = client.post("/v1/tools/git.pr.diff", json={"repo": "example", "number": 1})
     assert response.status_code == 401
     assert response.json()["code"] == "AUTH_UNAUTHENTICATED"
+
+
+def test_snapshot_uses_exact_private_task_commit_and_returns_utf8_files():
+    class Snapshot(GitHub):
+        def __init__(self):
+            super().__init__("http://unused", "test", "owner")
+            self.paths = []
+        def request(self, method, path, payload=None, **kwargs):
+            self.paths.append(path)
+            if path.endswith("/qa"):
+                return {"description": "keel-devflow:DF-9001", "private": True}
+            if "/git/commits/" in path:
+                return {"sha": "a" * 40, "tree": {"sha": "tree-1"}}
+            if "/git/trees/" in path:
+                return {"truncated": False, "tree": [
+                    {"type": "blob", "mode": "100644", "path": "app.py", "sha": "blob-1"}]}
+            if "/git/blobs/" in path:
+                return {"encoding": "base64", "content": base64.b64encode(b"print('ok')\n").decode()}
+            raise AssertionError(path)
+
+    github = Snapshot()
+    result = call_tool(github, "git.repo.snapshot", {"repo": "qa", "sha": "a" * 40, "jobId": "DF-9001"})
+    assert result == {"repo": "owner/qa", "sha": "a" * 40,
+                      "files": [{"path": "app.py", "content": "print('ok')\n"}]}
+    assert f"/repos/owner/qa/git/commits/{'a' * 40}" in github.paths
+    with pytest.raises(ValueError):
+        call_tool(github, "git.repo.snapshot", {"repo": "qa", "sha": "draft", "jobId": "DF-9001"})
+
+
+def test_snapshot_rejects_other_jobs_and_unsafe_paths():
+    class Unsafe(GitHub):
+        def __init__(self, path="../secret", owner="keel-devflow:DF-9001"):
+            super().__init__("http://unused", "test")
+            self.path = path
+            self.owner = owner
+        def request(self, method, path, payload=None, **kwargs):
+            if path.endswith("/qa"):
+                return {"description": self.owner, "private": True}
+            if "/git/commits/" in path:
+                return {"sha": "a" * 40, "tree": {"sha": "tree-1"}}
+            if "/git/trees/" in path:
+                return {"truncated": False, "tree": [
+                    {"type": "blob", "mode": "100644", "path": self.path, "sha": "blob-1"}]}
+            raise AssertionError(path)
+
+    with pytest.raises(GitHubError, match="Unsafe repository path"):
+        Unsafe().snapshot("qa", "a" * 40, "DF-9001")
+    with pytest.raises(GitHubError, match="not the private repository"):
+        Unsafe(owner="keel-devflow:DF-9002").snapshot("qa", "a" * 40, "DF-9001")

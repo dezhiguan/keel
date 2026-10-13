@@ -113,9 +113,17 @@ public class DevflowController {
     @PostMapping("/jobs/{jobId}/seed-cases")
     public R<DevflowTypes.SeedResult> seed(@PathVariable String jobId, @RequestBody DevflowTypes.SeedAccept body) {
         requireWrite();
+        if (execution.get(jobId) != null) return R.ok(execution.acceptEval(jobId, body, actor()));
         var ids = body == null ? List.<String>of() : body.acceptedCaseIds();
         var cases = body == null || body.cases() == null ? List.<DevflowTypes.SeedCase>of() : body.cases();
         return R.ok(devflow.acceptSeeds(jobId, ids, cases, actor()));
+    }
+
+    @PostMapping("/jobs/{jobId}/human-seeds")
+    public R<com.fasterxml.jackson.databind.node.ObjectNode> humanSeeds(@PathVariable String jobId,
+            @RequestBody HumanSeeds body) {
+        requireWrite();
+        return R.ok(execution.uploadHumanSeeds(jobId, body == null ? null : body.cases()));
     }
 
     @GetMapping("/holdout/{jobId}")
@@ -198,6 +206,8 @@ public class DevflowController {
     }
 
     public record HoldoutSubmission(String jobId, List<HoldoutRules.TagScore> byTag) {}
+
+    public record HumanSeeds(List<DevflowTypes.SeedCase> cases) {}
 
     private static ConsolePrincipal requireService() {
         var principal = ConsolePrincipal.current();

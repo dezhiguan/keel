@@ -28,23 +28,10 @@ final class SandboxRules {
     }
 
     static String gitRef(String ref) {
-        if (ref == null || ref.isBlank()) {
-            throw invalid("git ref 必填");
+        if (ref == null || !ref.matches("[0-9a-f]{40}")) {
+            throw invalid("沙箱只接受不可变的 40 位 Git commit SHA");
         }
-        var value = ref.trim();
-        if (value.matches("[0-9a-f]{40}")) {
-            return value;
-        }
-        if (!value.startsWith("refs/heads/")) {
-            throw invalid("git ref 只能是分支或提交");
-        }
-        var branch = value.substring("refs/heads/".length());
-        if (branch.isEmpty() || branch.length() > 200 || branch.contains("..") || branch.contains("@")
-                || branch.contains(" ") || branch.startsWith("/") || branch.endsWith("/")
-                || branch.contains("//") || branch.endsWith(".lock") || !branch.matches("[A-Za-z0-9._/-]+")) {
-            throw invalid("git ref 不合规");
-        }
-        return value;
+        return ref;
     }
 
     static Text truncate(String raw) {

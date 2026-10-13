@@ -1,9 +1,14 @@
 """GitHub REST calls for repositories under keel-agents. No host default."""
 
+import base64
+import binascii
 import httpx
+import re
 
 ORG = "keel-agents"
 LOG_LIMIT = 64 * 1024
+SNAPSHOT_LIMIT = 700 * 1024
+SNAPSHOT_FILES = 100
 PROTECTION = {
     "required_status_checks": None,
     "enforce_admins": False,
@@ -89,7 +94,8 @@ class GitHub:
             protection = "UNAVAILABLE"
         return {"repo": f"{self.org}/{name}", "defaultBranch": "main", "protection": protection}
 
-    def push_scaffold(self, repo: str, job_id: str, message: str, files: list[dict]) -> dict:
+    def push_scaffold(self, repo: str, job_id: str, message: str, files: list[dict],
+                      expected_sha: str | None = None) -> dict:
         self.ensure_repo(repo, job_id)
         path = f"/repos/{self.org}/{repo}"
         try:
@@ -101,10 +107,31 @@ class GitHub:
         if branch:
             sha = branch["object"]["sha"]
             commit = self.request("GET", path + f"/git/commits/{sha}")
-            if not commit.get("message", "").startswith(f"Keel scaffold {job_id}:"):
+            own = any(commit.get("message", "").startswith(prefix) for prefix in (
+                f"Keel scaffold {job_id}:", f"Keel build {job_id}:"))
+            if not own:
                 raise GitHubError(409, "Human changes on draft; refusing to overwrite")
+            if expected_sha is not None:
+                if expected_sha != sha:
+                    raise GitHubError(409, "Draft head changed; refusing to overwrite")
+                return self._push_from_parent(repo, "draft", message, files, sha, commit["tree"]["sha"])
             return {"repo": f"{self.org}/{repo}", "branch": "draft", "sha": sha}
+        if expected_sha is not None:
+            raise GitHubError(409, "Draft branch missing for expected SHA")
         return self.push(repo, "draft", message, files)
+
+    def _push_from_parent(self, repo: str, branch: str, message: str, files: list[dict],
+                          parent_sha: str, tree_sha: str) -> dict:
+        path = f"/repos/{self.org}/{repo}"
+        tree = []
+        for item in files:
+            blob = self.request("POST", path + "/git/blobs", {"content": item["content"], "encoding": "utf-8"})
+            tree.append({"path": item["path"], "mode": "100644", "type": "blob", "sha": blob["sha"]})
+        built = self.request("POST", path + "/git/trees", {"base_tree": tree_sha, "tree": tree})
+        created = self.request("POST", path + "/git/commits",
+                               {"message": message, "tree": built["sha"], "parents": [parent_sha]})
+        self.request("PATCH", path + f"/git/refs/heads/{branch}", {"sha": created["sha"], "force": False})
+        return {"repo": f"{self.org}/{repo}", "branch": branch, "sha": created["sha"]}
 
     def ensure_pr(self, repo: str, job_id: str, title: str, body: str) -> dict:
         repository = self.ensure_repo(repo, job_id)
@@ -144,6 +171,50 @@ class GitHub:
         text = self.request("GET", f"/repos/{self.org}/{repo}/pulls/{number}",
                             accept="application/vnd.github.diff")
         return {"repo": f"{self.org}/{repo}", "number": number, "diff": text}
+
+    def snapshot(self, repo: str, sha: str, job_id: str) -> dict:
+        """Fetch the exact private commit for an isolated runner without giving it Git credentials."""
+        if not re.fullmatch(r"[0-9a-f]{40}", sha):
+            raise ValueError("sha")
+        root = f"/repos/{self.org}/{repo}"
+        metadata = self.request("GET", root)
+        if metadata.get("description") != f"keel-devflow:{job_id}" or metadata.get("private") is not True:
+            raise GitHubError(403, "Repository is not the private repository for this task")
+        commit = self.request("GET", root + f"/git/commits/{sha}")
+        if commit.get("sha") != sha:
+            raise GitHubError(409, "Commit SHA mismatch")
+        tree_sha = commit.get("tree", {}).get("sha")
+        if not isinstance(tree_sha, str) or not tree_sha:
+            raise GitHubError(409, "Commit tree missing")
+        tree = self.request("GET", root + f"/git/trees/{tree_sha}?recursive=1")
+        entries = tree.get("tree")
+        if tree.get("truncated") or not isinstance(entries, list) or len(entries) > SNAPSHOT_FILES:
+            raise GitHubError(413, "Repository snapshot exceeds sandbox limits")
+        files = []
+        used = 0
+        for item in entries:
+            path = item.get("path")
+            if item.get("type") != "blob" or item.get("mode") != "100644":
+                raise GitHubError(400, "Sandbox snapshot accepts regular files only")
+            if (not isinstance(path, str) or not path or path.startswith("/") or "\\" in path
+                    or any(part in ("", ".", "..") for part in path.split("/"))):
+                raise GitHubError(400, "Unsafe repository path")
+            blob_sha = item.get("sha")
+            if not isinstance(blob_sha, str) or not blob_sha:
+                raise GitHubError(400, "Snapshot blob SHA missing")
+            blob = self.request("GET", root + f"/git/blobs/{blob_sha}")
+            if blob.get("encoding") != "base64" or not isinstance(blob.get("content"), str):
+                raise GitHubError(400, "Sandbox snapshot requires text blobs")
+            try:
+                raw = base64.b64decode("".join(blob["content"].split()), validate=True)
+                content = raw.decode("utf-8")
+            except (binascii.Error, UnicodeError) as exc:
+                raise GitHubError(400, "Sandbox snapshot requires UTF-8 files") from exc
+            used += len(raw)
+            if used > SNAPSHOT_LIMIT:
+                raise GitHubError(413, "Repository snapshot exceeds sandbox limits")
+            files.append({"path": path, "content": content})
+        return {"repo": f"{self.org}/{repo}", "sha": sha, "files": files}
 
     def comment(self, repo: str, number: int, body: str) -> dict:
         self.request("POST", f"/repos/{self.org}/{repo}/issues/{number}/comments", {"body": body})

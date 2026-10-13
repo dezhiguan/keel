@@ -4,12 +4,14 @@ import com.keel.common.error.ErrorCode;
 import com.keel.server.common.KeelException;
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.ContainerBuilder;
+import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
 import io.fabric8.kubernetes.api.model.Quantity;
 import io.fabric8.kubernetes.api.model.batch.v1.Job;
 import io.fabric8.kubernetes.api.model.batch.v1.JobBuilder;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClientException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /** One Job in keel-devflow-sandbox. The pod has no Secret and no ServiceAccount token. */
@@ -19,11 +21,18 @@ public class Fabric8SandboxCluster implements SandboxCluster {
 
     private final KubernetesClient client;
     private final String image;
+    private final GitSnapshotClient snapshots;
 
-    public Fabric8SandboxCluster(KubernetesClient client,
+    @Autowired
+    public Fabric8SandboxCluster(KubernetesClient client, GitSnapshotClient snapshots,
                                  @Value("${keel.sandbox.image:keel-sandbox:local}") String image) {
         this.client = client;
+        this.snapshots = snapshots;
         this.image = image;
+    }
+
+    Fabric8SandboxCluster(KubernetesClient client, String image) {
+        this(client, null, image);
     }
 
     @Override
@@ -32,6 +41,13 @@ public class Fabric8SandboxCluster implements SandboxCluster {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "未配置沙箱镜像");
         }
         var name = SandboxRules.jobName(run.runId());
+        var source = name + "-source";
+        if (snapshots == null) {
+            throw new KeelException(ErrorCode.GIT_UPSTREAM_FAILED, "Git 快照服务未配置");
+        }
+        var bundle = snapshots.fetch(run.jobId(), run.repo(), run.ref());
+        var config = new ConfigMapBuilder().withNewMetadata().withName(source).withNamespace(NAMESPACE)
+                .endMetadata().addToData("bundle.json", bundle).build();
         var job = new JobBuilder()
                 .withNewMetadata().withName(name).withNamespace(NAMESPACE).addToLabels("app", "keel-sandbox").endMetadata()
                 .withNewSpec()
@@ -46,9 +62,14 @@ public class Fabric8SandboxCluster implements SandboxCluster {
                         .withNewSpec()
                             .withAutomountServiceAccountToken(false)
                             .withEnableServiceLinks(false)
+                            .withImagePullSecrets(new io.fabric8.kubernetes.api.model.LocalObjectReferenceBuilder()
+                                    .withName("acr-cred").build())
+                            .withNewSecurityContext().withFsGroup(65534L).endSecurityContext()
                             .withRestartPolicy("Never")
                             .addNewVolume().withName("tmp").withNewEmptyDir().endEmptyDir().endVolume()
                             .addNewVolume().withName("work").withNewEmptyDir().endEmptyDir().endVolume()
+                            .addNewVolume().withName("source").withNewConfigMap().withName(source)
+                                .endConfigMap().endVolume()
                             .addToContainers(container("fake-llm", "python", "/app/fake_llm.py", "50m", "64Mi", "250m", "512Mi"))
                             .addToContainers(container("fake-langfuse", "python", "/app/fake_langfuse.py", "50m", "64Mi", "250m", "512Mi"))
                             .addToContainers(runner(run))
@@ -57,8 +78,10 @@ public class Fabric8SandboxCluster implements SandboxCluster {
                 .endSpec()
                 .build();
         try {
+            client.configMaps().inNamespace(NAMESPACE).resource(config).create();
             client.batch().v1().jobs().inNamespace(NAMESPACE).resource(job).create();
         } catch (KubernetesClientException e) {
+            client.configMaps().inNamespace(NAMESPACE).withName(source).delete();
             throw failed(e);
         }
     }
@@ -102,6 +125,7 @@ public class Fabric8SandboxCluster implements SandboxCluster {
     public void delete(String runId) {
         try {
             client.batch().v1().jobs().inNamespace(NAMESPACE).withName(SandboxRules.jobName(runId)).delete();
+            client.configMaps().inNamespace(NAMESPACE).withName(SandboxRules.jobName(runId) + "-source").delete();
         } catch (KubernetesClientException e) {
             if (e.getCode() != 404) {
                 throw failed(e);
@@ -116,6 +140,7 @@ public class Fabric8SandboxCluster implements SandboxCluster {
                 .addNewEnv().withName("KEEL_LLM_BASE_URL").withValue("http://127.0.0.1:8088").endEnv()
                 .addNewEnv().withName("LANGFUSE_HOST").withValue("http://127.0.0.1:3000").endEnv()
                 .addNewVolumeMount().withName("work").withMountPath("/work").endVolumeMount()
+                .addNewVolumeMount().withName("source").withMountPath("/source").withReadOnly(true).endVolumeMount()
                 .build();
     }
 

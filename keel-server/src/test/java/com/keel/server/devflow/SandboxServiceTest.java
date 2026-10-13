@@ -14,20 +14,21 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SandboxServiceTest {
     private static final Instant NOW = Instant.parse("2026-10-09T00:00:00Z");
+    private static final String SHA = "a".repeat(40);
 
     @Test
     void onlyTheNamedAgentsCanStartARunInTheKeelAgentsOrg() {
         var harness = harness();
-        assertThatThrownBy(() -> harness.service.start("DF-0001", "refund-explainer", "refs/heads/feature", "code-review", NOW))
+        assertThatThrownBy(() -> harness.service.start("DF-0001", "refund-explainer", SHA, "code-review", NOW))
                 .isInstanceOf(KeelException.class)
                 .extracting(error -> ((KeelException) error).code())
                 .isEqualTo(ErrorCode.DEVFLOW_GRANT_MISSING);
-        assertThatThrownBy(() -> harness.service.start("DF-0099", "refund-explainer", "refs/heads/feature", "meta-agent", NOW))
+        assertThatThrownBy(() -> harness.service.start("DF-0099", "refund-explainer", SHA, "meta-agent", NOW))
                 .isInstanceOf(KeelException.class)
                 .extracting(error -> ((KeelException) error).code())
                 .isEqualTo(ErrorCode.SERVER_NOT_FOUND);
         harness.job("DF-0001");
-        assertThatThrownBy(() -> harness.service.start("DF-0001", "Bad", "refs/heads/feature", "dev-agent", NOW))
+        assertThatThrownBy(() -> harness.service.start("DF-0001", "Bad", SHA, "dev-agent", NOW))
                 .isInstanceOf(KeelException.class)
                 .extracting(error -> ((KeelException) error).code())
                 .isEqualTo(ErrorCode.SERVER_INVALID_PARAM);
@@ -36,7 +37,7 @@ class SandboxServiceTest {
                 .extracting(error -> ((KeelException) error).code())
                 .isEqualTo(ErrorCode.SERVER_INVALID_PARAM);
 
-        var run = harness.service.start("DF-0001", "refund-explainer", "refs/heads/feature", "meta-agent", NOW);
+        var run = harness.service.start("DF-0001", "refund-explainer", SHA, "meta-agent", NOW);
         assertThat(run.status()).isEqualTo("RUNNING");
         assertThat(run.runId()).isEqualTo("SB-0001");
         assertThat(run.truncated()).isFalse();
@@ -50,10 +51,10 @@ class SandboxServiceTest {
         var harness = harness();
         harness.job("DF-0001");
         for (int i = 0; i < 4; i++) {
-            assertThat(harness.service.start("DF-0001", "refund-explainer", "refs/heads/feature", "meta-agent", NOW).status())
+            assertThat(harness.service.start("DF-0001", "refund-explainer", SHA, "meta-agent", NOW).status())
                     .isEqualTo("RUNNING");
         }
-        var queued = harness.service.start("DF-0001", "refund-explainer", "refs/heads/feature", "dev-agent", NOW);
+        var queued = harness.service.start("DF-0001", "refund-explainer", SHA, "dev-agent", NOW);
         assertThat(queued.status()).isEqualTo("QUEUED");
         assertThat(harness.cluster.submitted).hasSize(4);
 
@@ -72,7 +73,7 @@ class SandboxServiceTest {
     void aRunPastTenMinutesIsTimeout() {
         var harness = harness();
         harness.job("DF-0001");
-        var run = harness.service.start("DF-0001", "refund-explainer", "refs/heads/feature", "meta-agent", NOW);
+        var run = harness.service.start("DF-0001", "refund-explainer", SHA, "meta-agent", NOW);
         assertThatThrownBy(() -> harness.service.get(run.runId(), NOW.plus(SandboxService.LIMIT)))
                 .isInstanceOf(KeelException.class)
                 .extracting(error -> ((KeelException) error).code())
@@ -83,6 +84,27 @@ class SandboxServiceTest {
                 .isInstanceOf(KeelException.class)
                 .extracting(error -> ((KeelException) error).code())
                 .isEqualTo(ErrorCode.SERVER_NOT_FOUND);
+    }
+
+    @Test
+    void snapshotFetchFailureCannotLeaveAFakeRunningTest() {
+        var harness = harness();
+        harness.job("DF-0001");
+        harness.cluster.failSubmit = true;
+        assertThatThrownBy(() -> harness.service.start("DF-0001", "refund-explainer", SHA, "meta-agent", NOW))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(harness.store.find("SB-0001").status()).isEqualTo("FAILED");
+        assertThat(harness.store.find("SB-0001").report()).contains("测试未运行");
+    }
+
+    @Test
+    void aMissingPodFailsInsteadOfRemainingRunning() {
+        var harness = harness();
+        harness.job("DF-0001");
+        var run = harness.service.start("DF-0001", "refund-explainer", SHA, "meta-agent", NOW);
+        harness.cluster.observations.put(run.runId(), new SandboxCluster.Observation(SandboxCluster.Phase.MISSING, ""));
+        assertThat(harness.service.get(run.runId(), NOW).status()).isEqualTo("FAILED");
+        assertThat(harness.store.find(run.runId()).report()).contains("测试未完成");
     }
 
     private static Harness harness() {
@@ -104,9 +126,11 @@ class SandboxServiceTest {
         private final List<String> submitted = new java.util.ArrayList<>();
         private final List<String> deleted = new java.util.ArrayList<>();
         private final Map<String, Observation> observations = new HashMap<>();
+        private boolean failSubmit;
 
         @Override
         public void submit(SandboxRecord run) {
+            if (failSubmit) throw new IllegalStateException("snapshot unavailable");
             submitted.add(run.runId());
         }
 

@@ -167,6 +167,16 @@ public class DevflowService {
 
     public synchronized DevflowTypes.SeedResult acceptSeeds(String jobId, List<String> acceptedCaseIds,
                                                             List<DevflowTypes.SeedCase> cases, String actor) {
+        return acceptSeeds(jobId, acceptedCaseIds, cases, actor, job(jobId).seed().human(), false);
+    }
+
+    public synchronized DevflowTypes.SeedResult acceptSeeds(String jobId, List<String> acceptedCaseIds,
+                                                            List<DevflowTypes.SeedCase> cases, String actor, int humanCount) {
+        return acceptSeeds(jobId, acceptedCaseIds, cases, actor, humanCount, true);
+    }
+
+    private DevflowTypes.SeedResult acceptSeeds(String jobId, List<String> acceptedCaseIds,
+                                               List<DevflowTypes.SeedCase> cases, String actor, int humanCount, boolean execution) {
         var current = job(jobId);
         if (!"H2".equals(DevflowRules.reviewGate(current))) {
             throw new KeelException(ErrorCode.RUN_NOT_RESUMABLE, ErrorCode.RUN_NOT_RESUMABLE.message());
@@ -176,8 +186,12 @@ public class DevflowService {
         var pool = cases == null ? List.<DevflowTypes.SeedCase>of() : cases.stream()
                 .filter(item -> item != null && acceptedIds.contains(item.caseId())).toList();
         var hidden = HoldoutRules.split(jobId, pool, ledger.settings().holdoutPercent());
-        var seed = new DevflowTypes.Seed(current.seed().human(), acceptedIds.size(), hidden.size());
-        var next = current.withSeed(seed, event(current, actor, "采纳扩充用例 " + acceptedIds.size() + " 条"));
+        if (execution && (humanCount < 0 || humanCount > acceptedIds.size() || pool.size() != acceptedIds.size())) {
+            throw invalid("评测用例编号与正文不一致");
+        }
+        int agentCount = execution ? acceptedIds.size() - humanCount : acceptedIds.size();
+        var seed = new DevflowTypes.Seed(humanCount, agentCount, hidden.size());
+        var next = current.withSeed(seed, event(current, actor, "确认人工用例 " + humanCount + " 条、扩充用例 " + agentCount + " 条"));
         commit(() -> {
             ledger.update(next);
             ledger.artifact(jobId, new DevflowTypes.Artifact("EVALSET", "accepted:" + acceptedIds.size(), null, "HUMAN"));
@@ -185,7 +199,7 @@ public class DevflowService {
             holdout.clearResult(jobId);
             audit(next, actor, "devflow.stage", "采纳扩充用例");
         });
-        return new DevflowTypes.SeedResult(seed.human(), hidden.size(), acceptedIds.size());
+        return new DevflowTypes.SeedResult(seed.human(), hidden.size(), agentCount);
     }
 
     public synchronized DevflowTypes.BatchList batches() {
