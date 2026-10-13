@@ -5,13 +5,17 @@ import httpx
 import json
 import os
 from pathlib import Path
+import shutil
 
 import yaml
 
-from keel.cli.new import create_from_spec
+from keel.cli.new import create_from_spec, create_project
 from keel.cli.repo import _files, _post
 from keel.protocol.errors import ErrorCode, KeelError
 from tools.manifest_check import check
+from candidate import generate as generate_candidate, parse as parse_candidate
+from evalset import expand as expand_evalset
+from roles import ROLES
 
 
 async def execute(work, ctx):
@@ -20,12 +24,17 @@ async def execute(work, ctx):
     trace.get_current_span().set_attribute("keel.devflow.job_id", str(work.get("jobId") or ""))
     requirement = work.get("requirement") or {}
     target = _target(requirement)
-    if not target or requirement.get("template") != "tool-agent":
-        raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "最小闭环只支持 tool-agent 骨架")
+    template = requirement.get("template")
+    if not target or template not in ("tool-agent", ROLES.get(target, (None,))[0]):
+        raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "研发岗位模板与目标智能体不匹配")
     if work.get("action") == "DELIVER":
+        if target in ROLES and template == ROLES[target][0]:
+            work = {**work, "candidate": await generate_candidate(work, ctx)}
         result = await ctx.tools.call("scaffold.deliver", work=work, target_agent=target,
                                       version=int(work.get("version", 1)), job_id=work["jobId"])
         return ctx.final(_dump(result))
+    if work.get("action") == "EVAL":
+        return ctx.final(_dump(await expand_evalset(work, ctx)))
     if work.get("action") != "DRAFT":
         raise KeelError(ErrorCode.SERVER_INVALID_PARAM)
     catalog = work.get("catalog") or []
@@ -48,7 +57,9 @@ async def execute(work, ctx):
     prompt = await ctx.prompt("revise" if previous else "draft")
     content = prompt.compile(requirement=_dump(requirement), catalog=_dump(list(registered.values())), rules=RULES,
                              previous=_dump(previous or {}), feedback=str(work.get("feedback") or ""))
-    content += "\n只生成 Python tool-agent。目标智能体只使用需求里明确选择的工具；Git PR 由平台交付，不是目标智能体的能力。spec 的 title/goal/users/io/success 必须为字符串，pending 必须为字符串数组。"
+    content += (f"\n只生成 Python {template}。目标智能体只使用需求里明确选择的工具；"
+                "Git PR 由平台交付，不是目标智能体的默认能力。"
+                "spec 的 title/goal/users/io/success 必须为字符串，pending 必须为字符串数组。")
     errors = []
     for _ in range(2):
         reply = await ctx.llm.chat([{"role": "user", "content": content}], prompt=prompt)
@@ -117,6 +128,14 @@ def _deliver(work):
     state = json.loads(checkpoint.read_text()) if checkpoint.exists() else {}
     if state.get("result"):
         return state["result"]
+    functional = (requirement["target_agent"] in ROLES
+                  and requirement.get("template") == ROLES[requirement["target_agent"]][0])
+    if functional and not state.get("candidate"):
+        candidate = work.get("candidate")
+        if not isinstance(candidate, dict) or parse_candidate(json.dumps(candidate))[1]:
+            raise KeelError(ErrorCode.AGENT_MANIFEST_INVALID, "岗位代码候选未通过校验")
+        state["candidate"] = candidate
+        _save(checkpoint, state)
     draft = work["draft"]
     errors = check(draft["manifest"], requirement["target_agent"], None)
     if errors:
@@ -125,11 +144,17 @@ def _deliver(work):
     (root / "agent.yaml").write_text(yaml.safe_dump(draft["manifest"], allow_unicode=True, sort_keys=False), encoding="utf-8")
     project = root / requirement["target_agent"]
     if not project.exists():
-        project = create_from_spec(root / "spec.json", root=root)
+        project = (create_project(requirement["target_agent"], template=requirement["template"], root=root)
+                   if functional else create_from_spec(root / "spec.json", root=root))
     # H1 edits are preserved in the delivered spec even after a failed delivery attempt.
     (project / "spec.json").write_text((root / "spec.json").read_text(), encoding="utf-8")
     (project / "agent.yaml").write_text((root / "agent.yaml").read_text(), encoding="utf-8")
-    _scaffold(project, job_id)
+    _scaffold(project, job_id, state.get("candidate") if functional else None)
+    if functional:
+        visible = work.get("visibleSeeds") or []
+        (project / "evals/seed.jsonl").write_text(
+            "".join(json.dumps({"input": item["input"], "expected": item["expected"], "tags": item.get("tags") or []},
+                               ensure_ascii=False) + "\n" for item in visible), encoding="utf-8")
     base = os.environ.get("KEEL_GIT_CI_URL", "").strip().rstrip("/")
     if not base or not os.environ.get("KEEL_GIT_CI_TOKEN"):
         raise KeelError(ErrorCode.GIT_UPSTREAM_FAILED, "Git 服务未配置")
@@ -140,12 +165,17 @@ def _deliver(work):
             _save(checkpoint, state)
         if not state.get("push"):
             state["push"] = _post(base, "git.branch.push", {"repo": name, "branch": "draft", "jobId": job_id,
-                "message": f"Keel scaffold {job_id}: {requirement['title']}", "files": _files(project)})
+                "message": f"Keel {'build' if functional else 'scaffold'} {job_id}: {requirement['title']}",
+                "files": _files(project)})
             _save(checkpoint, state)
         opened = _post(base, "git.pr.open", {"repo": name, "head": "draft", "base": "main", "jobId": job_id,
-            "title": requirement["title"], "body": f"任务 {job_id}\n\n{requirement['goal']}\n\n骨架交付，待人工开发、评测和发布。"})
+            "title": requirement["title"], "body": f"任务 {job_id}\n\n{requirement['goal']}\n\n"
+                + ("模型生成岗位代码候选，测试、人工评审、门禁和发布尚未完成。" if functional
+                   else "骨架交付，待人工开发、评测和发布。")})
         result = {**opened, "sha": state["push"]["sha"], "branch": "draft",
                   "checks": "MANUAL",
+                  "capabilityStatus": "UNVERIFIED" if functional else "SCAFFOLD",
+                  "gateStatus": "NOT_RUN",
                   "url": opened.get("url") or f"https://github.com/{opened['repo']}/pull/{opened['number']}"}
         state["result"] = result
         _save(checkpoint, state)
@@ -160,14 +190,49 @@ def _save(path: Path, value):
     temporary.replace(path)
 
 
-def _scaffold(project: Path, job_id: str):
+def _scaffold(project: Path, job_id: str, candidate: dict | None = None):
     """Strip unrelated work-order examples; CI verifies this actual manifest and Python syntax."""
     from keel.manifest import _contract_file
     (project / "tools/checkpoint.py").unlink(missing_ok=True)
     (project / "evals/seed.jsonl").write_text("", encoding="utf-8")
     (project / "evals/scorers.py").write_text("# Add scorers after humans provide evaluation cases.\n", encoding="utf-8")
     (project / "manifest.schema.json").write_text(_contract_file("manifest.schema.json"), encoding="utf-8")
-    (project / "app.py").write_text('''from keel import Agent
+    if candidate is not None:
+        for folder_name in ("tools", "tests", "prompts"):
+            folder = project / folder_name
+            if folder.is_dir():
+                shutil.rmtree(folder)
+        (project / "app.py").write_text('''import json
+from keel import Agent
+from keel.protocol.errors import ErrorCode, KeelError
+from role import execute
+
+agent = Agent.from_manifest("agent.yaml")
+
+@agent.entry
+async def run(request, ctx):
+    try:
+        data = json.loads(request.input.get("text") or "")
+    except json.JSONDecodeError as exc:
+        raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "输入必须是 JSON 对象") from exc
+    if not isinstance(data, dict):
+        raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "输入必须是 JSON 对象")
+    ctx.step("role")
+    result = await execute(data, ctx)
+    if not isinstance(result, dict):
+        raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "岗位结果必须是 JSON 对象")
+    return ctx.final(json.dumps(result, ensure_ascii=False))
+
+app = agent.asgi()
+''', encoding="utf-8")
+        for item in candidate["files"]:
+            output = project / item["path"]
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(item["content"], encoding="utf-8")
+        (project / "README.md").write_text(f"# {project.name}\n\nKeel 任务 {job_id}：模型生成的研发岗位代码候选。"
+            "必须经隔离沙箱实测、人工 PR review、评测门禁和发布审批后才能上岗。\n", encoding="utf-8")
+    else:
+        (project / "app.py").write_text('''from keel import Agent
 
 agent = Agent.from_manifest("agent.yaml")
 
@@ -209,6 +274,8 @@ jobs:
       - run: pip install pytest jsonschema PyYAML
       - run: pytest -q
 ''', encoding="utf-8")
+    if candidate is not None:
+        return
     (project / "README.md").write_text(f'''# {project.name}
 
 Keel 研发任务：{job_id}。

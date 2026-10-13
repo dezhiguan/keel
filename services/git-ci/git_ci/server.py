@@ -30,6 +30,11 @@ def client_from_env() -> GitHub:
 
 
 def call_tool(github: GitHub, tool: str, body: dict) -> dict:
+    if tool == "git.repo.snapshot":
+        sha = body.get("sha")
+        if not isinstance(sha, str):
+            raise ValueError("sha")
+        return github.snapshot(_name(body.get("repo"), "repo"), sha, _job(body.get("jobId")))
     if tool == "git.repo.create":
         if body.get("jobId"):
             return github.ensure_repo(_name(body.get("name"), "name"), _job(body["jobId"]))
@@ -48,7 +53,11 @@ def call_tool(github: GitHub, tool: str, body: dict) -> dict:
                 raise ValueError("file")
             cleaned.append({"path": path, "content": content})
         if body.get("jobId"):
-            return github.push_scaffold(_name(body.get("repo"), "repo"), _job(body["jobId"]), _text(body.get("message")), cleaned)
+            expected = body.get("expectedSha")
+            if expected is not None and (not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{40}", expected)):
+                raise ValueError("expectedSha")
+            return github.push_scaffold(_name(body.get("repo"), "repo"), _job(body["jobId"]),
+                                        _text(body.get("message")), cleaned, expected_sha=expected)
         return github.push(_name(body.get("repo"), "repo"), _ref(body.get("branch")),
                            _text(body.get("message")), cleaned)
     if tool == "git.pr.open":

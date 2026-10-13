@@ -8,6 +8,7 @@ export type DevflowBatchPreviewRow = components['schemas']['DevflowBatchPreviewR
 export type DevflowSettings = components['schemas']['DevflowSettings']
 export type DevflowReview = components['schemas']['DevflowReview']
 export type DevflowSeedResult = { humanCount: number; holdoutCount: number; acceptedAgentCount: number }
+export type DevflowSeedCase = components['schemas']['DevflowSeedCase']
 
 // Devflow execution is backed by the server ledger.
 
@@ -62,6 +63,10 @@ export function getDevflowReview(jobId: string) {
 
 export function acceptDevflowSeedCases(jobId: string, acceptedCaseIds: string[]) {
   return post<DevflowSeedResult>(`/devflow/jobs/${encodeURIComponent(jobId)}/seed-cases`, { acceptedCaseIds })
+}
+
+export function uploadDevflowHumanSeeds(jobId: string, cases: DevflowSeedCase[]) {
+  return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/human-seeds`, { cases })
 }
 
 export function listDevflowBatches() {

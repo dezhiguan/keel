@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { blankDevflow, devflowBody, devflowStepError, lockDevflowMode, nameError, registerBody, templateForLanguage, templatesFor, type WizardForm } from './wizard'
+import { DEV_ROLE_TEMPLATES, DEV_ROLE_TOOLS, blankDevflow, devflowBody, devflowStepError, lockDevflowMode, nameError, registerBody, templateForLanguage, templatesFor, type WizardForm } from './wizard'
 
 const form: WizardForm = {
   name: 'echo',
@@ -32,11 +32,24 @@ describe('wizard', () => {
     expect(devflowStepError(0, form)).toBe('智能体 ID 不合规')
     expect(devflowStepError(0, { ...blankDevflow('echo'), title: '回声', goal: '打通', kind: 'CREATE' }, ['echo'])).toContain('改造')
     expect(devflowStepError(0, { ...blankDevflow('meta-agent', 'CHANGE'), title: '改元', goal: '不行' })).toContain('元智能体')
+    expect(devflowStepError(0, { ...blankDevflow('weekly-report'), title: '周报', goal: '汇总' })).toContain('七名研发')
     expect(devflowBody({ ...blankDevflow('weekly-report'), title: '周报', goal: '汇总', layer: 'dev', mode: 'AUTO' }, '研发效能组')).toMatchObject({
       layer: 'DEV',
       mode: 'COLLAB',
       targetAgent: 'weekly-report',
     })
+  })
+
+  it('locks all seven research roles to the prototype templates', () => {
+    expect(Object.keys(DEV_ROLE_TEMPLATES)).toHaveLength(7)
+    for (const [name, template] of Object.entries(DEV_ROLE_TEMPLATES)) {
+      const valid = { ...blankDevflow(name), title: name, goal: '处理研发任务' }
+      expect(valid.template).toBe(template)
+      expect(valid.tools).toEqual(DEV_ROLE_TOOLS[name])
+      expect(devflowStepError(0, valid)).toBe('')
+      expect(devflowStepError(0, { ...valid, template: 'chat-rag' })).toContain('模板')
+      expect(devflowStepError(0, { ...valid, tools: [] })).toContain('工具')
+    }
   })
 
   it('preserves structured requirements for the real execution queue', () => {

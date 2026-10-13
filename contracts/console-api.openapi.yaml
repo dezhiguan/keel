@@ -1845,7 +1845,7 @@ paths:
       operationId: acceptDevflowSeedCases
       summary: 评测确认：采纳扩充用例并切出隐藏考题
       description: |
-        H2 确认前调用，之后再 `POST /runs/{runId}/input` 回复「确认」。
+        元智能体执行任务由本请求完成 H2 确认并进入开发；旧 Run 任务随后仍用 `POST /runs/{runId}/input` 回复「确认」。
         acceptedCaseIds 之外的扩充用例不计分。隐藏考题由服务端随机切出，响应只有条数。
         任务不存在 404 SERVER_NOT_FOUND；任务不在 H2 409 RUN_NOT_RESUMABLE。
       requestBody:
@@ -1893,6 +1893,37 @@ paths:
           $ref: "#/components/responses/Error"
         "409":
           $ref: "#/components/responses/Error"
+
+  /devflow/jobs/{jobId}/human-seeds:
+    parameters:
+      - $ref: "#/components/parameters/DevflowJobId"
+    post:
+      tags: [devflow]
+      operationId: uploadDevflowHumanSeeds
+      summary: S2 上传人工种子用例，交给 meta-agent 扩充
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cases]
+              properties:
+                cases:
+                  type: array
+                  minItems: 1
+                  items: { $ref: "#/components/schemas/DevflowSeedCase" }
+      responses:
+        "200":
+          description: 已排队扩充评测集
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowExecution" }
 
   /devflow/jobs/{jobId}/stages/{stage}/report:
     parameters:
@@ -3221,7 +3252,7 @@ components:
       properties:
         jobId: { type: string }
         repo: { type: string, description: keel-agents 组织下的仓库名, example: refund-explainer }
-        ref: { type: string, description: git ref, example: refs/heads/feature }
+        ref: { type: string, pattern: '^[0-9a-f]{40}$', description: 绑定测试结果的不可变 Git commit SHA, example: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa }
     SandboxRun:
       type: object
       required: [runId, status, truncated]
@@ -3276,7 +3307,7 @@ components:
       required: [jobId, phase, version, revisions, requirement]
       properties:
         jobId: { type: string }
-        phase: { type: string, enum: [QUEUED, RUNNING, WAITING, DELIVERING, DELIVERED, FAILED, CANCELLED] }
+        phase: { type: string, enum: [QUEUED, RUNNING, WAITING, WAITING_SEEDS, WAITING_EVAL, DELIVERING, SANDBOX_PENDING, SANDBOX_RUNNING, WAITING_REVIEW, DELIVERED, FAILED, CANCELLED] }
         version: { type: integer }
         revisions: { type: integer }
         requirement: { type: object, additionalProperties: true }
@@ -3296,9 +3327,13 @@ components:
             sha: { type: string }
             url: { type: string, format: uri }
             branch: { type: string }
-            protection: { type: string, enum: [ENFORCED, UNAVAILABLE], description: 私有仓库分支保护；UNAVAILABLE 时平台拒绝合并，骨架仅供人工开发 }
+            protection: { type: string, enum: [ENFORCED, UNAVAILABLE], description: 私有仓库分支保护；UNAVAILABLE 时平台拒绝合并和发布 }
             checks: { type: string, enum: [MANUAL], description: 工作流模板已交付但需人工安装；当前凭证无法写入 GitHub Actions 工作流目录 }
+            capabilityStatus: { type: string, enum: [UNVERIFIED, SCAFFOLD], description: 候选代码尚未通过岗位行为验证 }
+            gateStatus: { type: string, enum: [NOT_RUN], description: staging 门禁尚未执行 }
         traceId: { type: string }
+        sandboxRunId: { type: string }
+        sandboxStatus: { type: string, enum: [PASS, FAILED] }
         error: { type: string }
     MetaAgentWork:
       type: object
@@ -3306,12 +3341,22 @@ components:
       required: [workflow, action, jobId, requirement]
       properties:
         workflow: { type: boolean }
-        action: { type: string, enum: [DRAFT, DELIVER] }
+        action: { type: string, enum: [DRAFT, EVAL, DELIVER] }
         jobId: { type: string }
         requirement: { type: object, additionalProperties: true }
         draft: { type: object, additionalProperties: true }
         feedback: { type: string }
         catalog: { type: array, items: { type: object, additionalProperties: true } }
+    DevflowSeedCase:
+      type: object
+      required: [caseId, input, expected, tags]
+      properties:
+        caseId: { type: string }
+        input: { type: object, additionalProperties: true }
+        expected: { type: object, additionalProperties: true }
+        tags:
+          type: array
+          items: { type: string }
     DevflowReview:
       type: object
       description: 关口处理页数据。按 gate 只填对应的字段，其余省略。隐藏考题只有条数和分数
@@ -3355,6 +3400,8 @@ components:
               resource: { type: string, example: "kb:dev-standards" }
               risk: { $ref: "#/components/schemas/Risk" }
               owner: { type: string }
+        seedInputRequired: { type: boolean, description: S2 需要人工上传种子用例 }
+        minSeed: { type: integer, description: S2 最少人工种子用例数 }
         humanCount: { type: integer, nullable: true, description: H2。人给用例条数 }
         holdoutRatio: { type: number, format: float, nullable: true, description: H2。0 到 1 }
         cases:

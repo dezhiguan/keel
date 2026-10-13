@@ -33,7 +33,12 @@ public class SandboxService {
         var run = SandboxRecord.create(store.nextRunId(), jobId, cleanRepo, cleanRef, status, actor, now, now.plus(LIMIT));
         store.insert(run);
         if ("RUNNING".equals(status)) {
-            cluster.submit(run);
+            try {
+                cluster.submit(run);
+            } catch (RuntimeException error) {
+                store.update(run.finish("FAILED", "沙箱提交失败，测试未运行", false));
+                throw error;
+            }
         }
         return view(run);
     }
@@ -60,6 +65,11 @@ public class SandboxService {
                 store.update(run.finish("TIMEOUT", text.text(), text.truncated()));
                 pump(now);
                 throw timedOut();
+            }
+            if (observed.phase() == SandboxCluster.Phase.MISSING) {
+                store.update(run.finish("FAILED", "沙箱 Job 丢失，测试未完成", false));
+                pump(now);
+                return view(store.find(runId));
             }
             if (observed.phase() == SandboxCluster.Phase.SUCCEEDED || observed.phase() == SandboxCluster.Phase.FAILED) {
                 var text = SandboxRules.truncate(observed.log());
@@ -101,9 +111,13 @@ public class SandboxService {
             if (running >= SandboxRules.MAX_RUNNING) {
                 return;
             }
-            cluster.submit(queued);
-            store.update(queued.finish("RUNNING", "", false));
-            running++;
+            try {
+                cluster.submit(queued);
+                store.update(queued.finish("RUNNING", "", false));
+                running++;
+            } catch (RuntimeException error) {
+                store.update(queued.finish("FAILED", "沙箱提交失败，测试未运行", false));
+            }
         }
     }
 

@@ -47,7 +47,8 @@ public class ReleaseService {
         if (gateRunId.isBlank() || image.isBlank()) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "gateRunId 和 image 不能为空");
         }
-        var rejection = ReleaseGuard.rejection(devflowJobId(agent), approvedMerge(agent));
+        var jobId = devflowJobId(agent);
+        var rejection = ReleaseGuard.rejection(jobId, approvedMerge(agent, jobId));
         if (rejection != null) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, rejection);
         }
@@ -104,15 +105,25 @@ public class ReleaseService {
 
     private String devflowJobId(String agent) {
         var ids = jdbc.query("SELECT devflow_job_id FROM agent WHERE name = ?", (rs, row) -> rs.getString(1), agent);
-        return ids.isEmpty() ? null : ids.getFirst();
+        if (!ids.isEmpty() && ids.getFirst() != null && !ids.getFirst().isBlank()) {
+            return ids.getFirst();
+        }
+        // Candidate registration does not yet populate agent.devflow_job_id. Resolve by the
+        // immutable target name so a produced employee cannot bypass H4 by registering directly.
+        var produced = jdbc.query("""
+                SELECT job_id FROM devflow_job WHERE target_agent = ? AND layer = 'DEV' AND kind = 'CREATE'
+                  AND status <> 'CANCEL' ORDER BY created_at DESC LIMIT 1
+                """, (rs, row) -> rs.getString(1), agent);
+        return produced.isEmpty() ? null : produced.getFirst();
     }
 
-    private boolean approvedMerge(String agent) {
+    private boolean approvedMerge(String agent, String jobId) {
+        if (jobId == null || jobId.isBlank()) return false;
         var count = jdbc.queryForObject("""
                 SELECT count(*) FROM approval_request
                 WHERE agent_name = ? AND subject_type = 'tool.call' AND subject_ref = 'git.pr.merge'
-                  AND status = 'APPROVED'
-                """, Integer.class, agent);
+                  AND devflow_job_id = ? AND devflow_gate = 'H4' AND status = 'APPROVED'
+                """, Integer.class, agent, jobId);
         return count != null && count > 0;
     }
 

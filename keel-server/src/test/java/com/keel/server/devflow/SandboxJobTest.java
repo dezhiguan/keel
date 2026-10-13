@@ -2,6 +2,8 @@ package com.keel.server.devflow;
 
 import io.fabric8.kubernetes.api.model.batch.v1.Job;
 import io.fabric8.kubernetes.api.model.batch.v1.JobBuilder;
+import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.fabric8.kubernetes.client.server.mock.KubernetesMockServer;
 import io.fabric8.kubernetes.client.utils.Serialization;
 import org.junit.jupiter.api.Test;
@@ -28,14 +30,27 @@ class SandboxJobTest {
                 .endSpec()
                 .build();
         server.expect().post()
+                .withPath("/api/v1/namespaces/keel-devflow-sandbox/configmaps")
+                .andReturn(201, new ConfigMapBuilder().withNewMetadata().withName("sb-0001-source")
+                        .withNamespace(Fabric8SandboxCluster.NAMESPACE).endMetadata().build())
+                .once();
+        server.expect().post()
                 .withPath("/apis/batch/v1/namespaces/keel-devflow-sandbox/jobs")
                 .andReturn(201, ack)
                 .once();
         try (var client = server.createClient()) {
-            var cluster = new Fabric8SandboxCluster(client, "keel-sandbox:local");
-            var run = SandboxRecord.create("SB-0001", "DF-0001", "refund-explainer", "refs/heads/feature",
+            var snapshots = new GitSnapshotClient(new ObjectMapper(), "", "") {
+                @Override public String fetch(String jobId, String repo, String sha) {
+                    assertThat(sha).isEqualTo("a".repeat(40));
+                    return "{\"sha\":\"" + sha + "\",\"files\":[{\"path\":\"app.py\",\"content\":\"pass\"}]}";
+                }
+            };
+            var cluster = new Fabric8SandboxCluster(client, snapshots, "keel-sandbox:local");
+            var run = SandboxRecord.create("SB-0001", "DF-0001", "refund-explainer", "a".repeat(40),
                     "RUNNING", "meta-agent", Instant.parse("2026-10-09T00:00:00Z"), Instant.parse("2026-10-09T00:10:00Z"));
             cluster.submit(run);
+            var configRequest = server.takeRequest(1, TimeUnit.SECONDS);
+            assertThat(configRequest.getPath()).endsWith("/configmaps");
             var request = server.takeRequest(1, TimeUnit.SECONDS);
             var job = Serialization.unmarshal(request.getBody().readUtf8(), Job.class);
             assertJob(job);
@@ -54,7 +69,11 @@ class SandboxJobTest {
         assertThat(pod.getEnableServiceLinks()).isFalse();
         assertThat(pod.getVolumes()).allSatisfy(volume -> {
             assertThat(volume.getSecret()).isNull();
-            assertThat(volume.getEmptyDir()).isNotNull();
+            assertThat(volume.getEmptyDir() != null || volume.getConfigMap() != null).isTrue();
+        });
+        assertThat(pod.getVolumes()).anySatisfy(volume -> {
+            assertThat(volume.getName()).isEqualTo("source");
+            assertThat(volume.getConfigMap().getName()).isEqualTo("sb-0001-source");
         });
         assertThat(pod.getContainers()).extracting(container -> container.getName())
                 .containsExactly("fake-llm", "fake-langfuse", "runner");

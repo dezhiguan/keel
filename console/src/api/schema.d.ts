@@ -1210,11 +1210,30 @@ export interface paths {
         put?: never;
         /**
          * 评测确认：采纳扩充用例并切出隐藏考题
-         * @description H2 确认前调用，之后再 `POST /runs/{runId}/input` 回复「确认」。
+         * @description 元智能体执行任务由本请求完成 H2 确认并进入开发；旧 Run 任务随后仍用 `POST /runs/{runId}/input` 回复「确认」。
          *     acceptedCaseIds 之外的扩充用例不计分。隐藏考题由服务端随机切出，响应只有条数。
          *     任务不存在 404 SERVER_NOT_FOUND；任务不在 H2 409 RUN_NOT_RESUMABLE。
          */
         post: operations["acceptDevflowSeedCases"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/jobs/{jobId}/human-seeds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** S2 上传人工种子用例，交给 meta-agent 扩充 */
+        post: operations["uploadDevflowHumanSeeds"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2345,8 +2364,8 @@ export interface components {
              */
             repo: string;
             /**
-             * @description git ref
-             * @example refs/heads/feature
+             * @description 绑定测试结果的不可变 Git commit SHA
+             * @example aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
              */
             ref: string;
         };
@@ -2392,7 +2411,7 @@ export interface components {
         DevflowExecution: {
             jobId: string;
             /** @enum {string} */
-            phase: "QUEUED" | "RUNNING" | "WAITING" | "DELIVERING" | "DELIVERED" | "FAILED" | "CANCELLED";
+            phase: "QUEUED" | "RUNNING" | "WAITING" | "WAITING_SEEDS" | "WAITING_EVAL" | "DELIVERING" | "SANDBOX_PENDING" | "SANDBOX_RUNNING" | "WAITING_REVIEW" | "DELIVERED" | "FAILED" | "CANCELLED";
             version: number;
             revisions: number;
             requirement: {
@@ -2413,7 +2432,7 @@ export interface components {
                 url: string;
                 branch: string;
                 /**
-                 * @description 私有仓库分支保护；UNAVAILABLE 时平台拒绝合并，骨架仅供人工开发
+                 * @description 私有仓库分支保护；UNAVAILABLE 时平台拒绝合并和发布
                  * @enum {string}
                  */
                 protection?: "ENFORCED" | "UNAVAILABLE";
@@ -2422,15 +2441,28 @@ export interface components {
                  * @enum {string}
                  */
                 checks?: "MANUAL";
+                /**
+                 * @description 候选代码尚未通过岗位行为验证
+                 * @enum {string}
+                 */
+                capabilityStatus?: "UNVERIFIED" | "SCAFFOLD";
+                /**
+                 * @description staging 门禁尚未执行
+                 * @enum {string}
+                 */
+                gateStatus?: "NOT_RUN";
             };
             traceId?: string;
+            sandboxRunId?: string;
+            /** @enum {string} */
+            sandboxStatus?: "PASS" | "FAILED";
             error?: string;
         };
         /** @description 服务端经 SDK input.text 传递的工作请求，使用 bridge 身份鉴别 */
         MetaAgentWork: {
             workflow: boolean;
             /** @enum {string} */
-            action: "DRAFT" | "DELIVER";
+            action: "DRAFT" | "EVAL" | "DELIVER";
             jobId: string;
             requirement: {
                 [key: string]: unknown;
@@ -2442,6 +2474,16 @@ export interface components {
             catalog?: {
                 [key: string]: unknown;
             }[];
+        };
+        DevflowSeedCase: {
+            caseId: string;
+            input: {
+                [key: string]: unknown;
+            };
+            expected: {
+                [key: string]: unknown;
+            };
+            tags: string[];
         };
         /** @description 关口处理页数据。按 gate 只填对应的字段，其余省略。隐藏考题只有条数和分数 */
         DevflowReview: {
@@ -2478,6 +2520,10 @@ export interface components {
                 risk: components["schemas"]["Risk"];
                 owner: string;
             }[];
+            /** @description S2 需要人工上传种子用例 */
+            seedInputRequired?: boolean;
+            /** @description S2 最少人工种子用例数 */
+            minSeed?: number;
             /** @description H2。人给用例条数 */
             humanCount?: number | null;
             /**
@@ -4515,6 +4561,36 @@ export interface operations {
             };
             404: components["responses"]["Error"];
             409: components["responses"]["Error"];
+        };
+    };
+    uploadDevflowHumanSeeds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    cases: components["schemas"]["DevflowSeedCase"][];
+                };
+            };
+        };
+        responses: {
+            /** @description 已排队扩充评测集 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowExecution"];
+                    };
+                };
+            };
         };
     };
     reportDevflowStage: {
