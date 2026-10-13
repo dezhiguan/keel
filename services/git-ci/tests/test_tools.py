@@ -23,7 +23,7 @@ def test_scaffold_retries_reuse_own_commit_and_refuse_human_changes():
             if path.endswith("/git/commits/original-sha"):
                 return {"message": self.message}
             if "pulls?" in path:
-                return [{"number": 5, "html_url": "https://github.com/keel-agents/qa/pull/5"}]
+                return [{"number": 5, "html_url": "https://github.com/keel-agents/qa/pull/5", "draft": True}]
             return {"description": "keel-devflow:DF-9001", "private": True}
 
     own = Existing("Keel scaffold DF-9001: initial")
@@ -32,6 +32,27 @@ def test_scaffold_retries_reuse_own_commit_and_refuse_human_changes():
     assert not any(method in ("POST", "PATCH") for method, _ in own.calls)
     with pytest.raises(GitHubError):
         Existing("Human improvement").push_scaffold("qa", "DF-9001", "retry", [])
+
+
+def test_scaffold_pr_is_created_as_a_draft_and_ready_retries_are_not_misreported():
+    class Capture(GitHub):
+        def __init__(self, ready=False):
+            super().__init__("http://unused", "test")
+            self.ready = ready
+            self.opened = None
+        def request(self, method, path, payload=None, **kwargs):
+            if "pulls?" in path:
+                return [{"number": 1, "html_url": "https://github.com/keel-agents/qa/pull/1", "draft": False}] if self.ready else []
+            if method == "POST" and path.endswith("/pulls"):
+                self.opened = payload
+                return {"number": 1, "html_url": "https://github.com/keel-agents/qa/pull/1"}
+            return {"description": "keel-devflow:DF-9001", "private": True}
+
+    client = Capture()
+    assert client.ensure_pr("qa", "DF-9001", "title", "body")["number"] == 1
+    assert client.opened["draft"] is True
+    with pytest.raises(GitHubError, match="not a draft"):
+        Capture(ready=True).ensure_pr("qa", "DF-9001", "title", "body")
 
 
 def test_personal_repository_uses_the_authenticated_user_endpoint():

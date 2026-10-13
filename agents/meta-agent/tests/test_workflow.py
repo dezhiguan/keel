@@ -1,4 +1,5 @@
 import json
+import httpx
 
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
@@ -51,6 +52,21 @@ def test_workflow_delivery_preserves_edits_and_does_not_repeat_git_writes(gatewa
     monkeypatch.setenv("KEEL_GIT_CI_URL", f"http://127.0.0.1:{port}")
     monkeypatch.setenv("KEEL_GIT_CI_TOKEN", "test-git-token")
     request = {**work(), "action": "DELIVER", "draft": draft}
+    import workflow
+    original_post = workflow._post
+    failed_once = False
+
+    def transient_git_disconnect(base, tool, body):
+        nonlocal failed_once
+        if tool == "git.pr.open" and not failed_once:
+            failed_once = True
+            raise httpx.ConnectError("transient Git connection failure")
+        return original_post(base, tool, body)
+
+    monkeypatch.setattr(workflow, "_post", transient_git_disconnect)
+    kind, event = terminal(invoke(json.dumps(request)))
+    assert kind == "error"
+    assert event["code"] == "GIT_UPSTREAM_FAILED"
     kind, event = terminal(invoke(json.dumps(request)))
     assert kind == "final"
     assert json.loads(event["answer"])["number"] == 1
