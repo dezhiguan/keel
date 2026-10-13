@@ -4,12 +4,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.fabric8.kubernetes.api.model.Secret;
 import io.fabric8.kubernetes.api.model.SecretBuilder;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -21,23 +24,33 @@ public class SecretWriter implements ProvisionStep {
     private final String langfuseSecretKey;
     private final String langfuseHost;
     private final String llmBaseUrl;
+    private final RagForgeAccess ragForge;
     @Value("${KEEL_SERVER_URL:}")
     private String serverUrl;
     @Value("${KEEL_SERVICE_AUDIENCE:}")
     private String serviceAudience;
     private final ConcurrentHashMap<String, String> privateKeys = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> llmKeys = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, RagForgeAccess.Issued> pendingRag = new ConcurrentHashMap<>();
 
+    @Autowired
     public SecretWriter(KubernetesClient client,
                         @Value("${LANGFUSE_PUBLIC_KEY:}") String langfusePublicKey,
                         @Value("${LANGFUSE_SECRET_KEY:}") String langfuseSecretKey,
                         @Value("${LANGFUSE_HOST:}") String langfuseHost,
-                        @Value("${KEEL_LLM_BASE_URL:}") String llmBaseUrl) {
+                        @Value("${KEEL_LLM_BASE_URL:}") String llmBaseUrl,
+                        RagForgeAccess ragForge) {
         this.client = client;
         this.langfusePublicKey = langfusePublicKey == null ? "" : langfusePublicKey;
         this.langfuseSecretKey = langfuseSecretKey == null ? "" : langfuseSecretKey;
         this.langfuseHost = langfuseHost == null ? "" : langfuseHost;
         this.llmBaseUrl = llmBaseUrl == null ? "" : llmBaseUrl;
+        this.ragForge = ragForge;
+    }
+
+    public SecretWriter(KubernetesClient client, String langfusePublicKey, String langfuseSecretKey,
+                        String langfuseHost, String llmBaseUrl) {
+        this(client, langfusePublicKey, langfuseSecretKey, langfuseHost, llmBaseUrl, null);
     }
 
     @Override
@@ -61,6 +74,25 @@ public class SecretWriter implements ProvisionStep {
         llmKeys.remove(agent);
     }
 
+    /** Called before provisioning when the manifest declares knowledge bases. */
+    public void prepareKnowledgeKey(String agent, String env, List<String> names) {
+        if (names == null || names.isEmpty()) {
+            return;
+        }
+        if (ragForge == null) {
+            throw new IllegalStateException("知识库密钥发放没有接上");
+        }
+        pendingRag.put(agent, ragForge.issue(agent, env, names));
+    }
+
+    /** Drops a key that was issued but never written, for example when a later check refuses registration. */
+    public void discardKnowledgeKey(String agent) {
+        var issued = pendingRag.remove(agent);
+        if (issued != null && ragForge != null) {
+            ragForge.revoke(issued.id());
+        }
+    }
+
     @Override
     public void provision(String agent, String env, JsonNode manifest) {
         var privateKey = privateKeys.get(agent);
@@ -79,18 +111,64 @@ public class SecretWriter implements ProvisionStep {
         data.put("KEEL_ENV", encode(env));
         if (serverUrl != null && !serverUrl.isBlank()) data.put("KEEL_SERVER_URL", encode(serverUrl));
         if (serviceAudience != null && !serviceAudience.isBlank()) data.put("KEEL_SERVICE_AUDIENCE", encode(serviceAudience));
+        var knowledge = knowledgeNames(manifest);
+        var rag = pendingRag.get(agent);
+        if (!knowledge.isEmpty()) {
+            if (rag == null) {
+                throw new IllegalStateException("知识库密钥还没有发放");
+            }
+            data.put("KEEL_RAGFORGE_URL", encode(rag.url()));
+            data.put("KEEL_RAGFORGE_TOKEN", encode(rag.token()));
+            data.put("KEEL_RAGFORGE_KEY_ID", encode(Long.toString(rag.id())));
+        }
         Secret secret = new SecretBuilder()
                 .withNewMetadata().withName("keel-" + agent).withNamespace(NAMESPACE).endMetadata()
                 .withData(data)
                 .build();
         client.secrets().inNamespace(NAMESPACE).resource(secret).createOrReplace();
+        pendingRag.remove(agent);
     }
 
     @Override
     public void revoke(String agent, String env) {
         privateKeys.remove(agent);
         llmKeys.remove(agent);
+        var rag = pendingRag.remove(agent);
+        long keyId = rag == null ? storedKeyId(agent) : rag.id();
+        if (keyId > 0 && ragForge != null) {
+            ragForge.revoke(keyId);
+        }
         client.secrets().inNamespace(NAMESPACE).withName("keel-" + agent).delete();
+    }
+
+    private long storedKeyId(String agent) {
+        try {
+            var secret = client.secrets().inNamespace(NAMESPACE).withName("keel-" + agent).get();
+            if (secret == null || secret.getData() == null) {
+                return 0;
+            }
+            var raw = secret.getData().get("KEEL_RAGFORGE_KEY_ID");
+            if (raw == null || raw.isBlank()) {
+                return 0;
+            }
+            return Long.parseLong(new String(Base64.getDecoder().decode(raw), StandardCharsets.UTF_8).trim());
+        } catch (RuntimeException e) {
+            return 0;
+        }
+    }
+
+    private static List<String> knowledgeNames(JsonNode manifest) {
+        var names = new ArrayList<String>();
+        var knowledge = manifest == null ? null : manifest.path("spec").path("knowledge");
+        if (knowledge != null && knowledge.isArray()) {
+            knowledge.forEach(item -> {
+                var name = item.path("kb").asText("").trim();
+                if (!name.isBlank()) {
+                    names.add(name);
+                }
+            });
+        }
+        return names;
     }
 
     private static String encode(String value) {

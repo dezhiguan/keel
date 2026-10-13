@@ -37,4 +37,15 @@ class RegisterManifestTest {
         assertThat(RegisterManifest.missingExternal("KEEL_JWKS_BASE 未配置")).isTrue();
         assertThat(RegisterManifest.missingExternal("名称冲突")).isFalse();
     }
+
+    @Test void selectedKnowledgeIsWrittenAsKbEntries() throws Exception {
+        var form = json.readTree("""
+                {"name":"qa-agent","displayName":"问答","ownerOrg":"研发效能组","ownerUser":"amy","knowledgeBases":["demo","产品知识库"]}
+                """);
+        var manifest = RegisterManifest.toNode(json, form, 8080, java.util.List.of(), java.util.List.of("demo", "产品知识库"));
+        assertThat(manifest.path("spec").path("knowledge").get(0).path("kb").asText()).isEqualTo("demo");
+        assertThat(manifest.path("spec").path("knowledge").get(1).path("kb").asText()).isEqualTo("产品知识库");
+        var yaml = RegisterManifest.render(form, 8080, java.util.List.of(), java.util.List.of("demo", "产品知识库")).yaml();
+        assertThat(yaml).contains("knowledge:", "kb: demo", "kb: \"产品知识库\"");
+    }
 }

@@ -15,6 +15,10 @@ public final class RegisterManifest {
     }
 
     public static ManifestPreview.Result render(JsonNode form, int port, List<WizardTools.Spec> tools) {
+        return render(form, port, tools, List.of());
+    }
+
+    public static ManifestPreview.Result render(JsonNode form, int port, List<WizardTools.Spec> tools, List<String> knowledge) {
         var warnings = new ArrayList<String>();
         var name = text(form, "name");
         var rejection = AgentNames.rejection(name);
@@ -59,7 +63,7 @@ public final class RegisterManifest {
                 """.formatted(runtime, language, endpoint,
                 "dify".equals(runtime) ? "probe" : "k8s", name.isBlank() ? "agent" : name, model,
                 budget.stripTrailingZeros().toPlainString());
-        yaml = yaml + toolsYaml(tools);
+        yaml = yaml + knowledgeYaml(knowledge) + toolsYaml(tools);
         if (!text(form, "template").isBlank()) {
             yaml = yaml.replace("    language: " + language + "\n",
                     "    language: " + language + "\n    template: " + text(form, "template") + "\n");
@@ -77,6 +81,11 @@ public final class RegisterManifest {
 
     public static ObjectNode toNode(com.fasterxml.jackson.databind.ObjectMapper json, JsonNode body, int port,
                                      List<WizardTools.Spec> tools) {
+        return toNode(json, body, port, tools, List.of());
+    }
+
+    public static ObjectNode toNode(com.fasterxml.jackson.databind.ObjectMapper json, JsonNode body, int port,
+                                     List<WizardTools.Spec> tools, List<String> knowledge) {
         if (body.has("apiVersion")) {
             return (ObjectNode) body;
         }
@@ -115,6 +124,12 @@ public final class RegisterManifest {
             });
         }
         models.putObject("budget").put("dailyCny", budget(body).doubleValue());
+        if (knowledge != null && !knowledge.isEmpty()) {
+            var declared = spec.putArray("knowledge");
+            for (var kb : knowledge) {
+                declared.addObject().put("kb", kb);
+            }
+        }
         if (tools != null && !tools.isEmpty()) {
             var declared = spec.putArray("tools");
             for (var tool : tools) {
@@ -215,6 +230,17 @@ public final class RegisterManifest {
             return flat.decimalValue();
         }
         return java.math.BigDecimal.valueOf(30);
+    }
+
+    static String knowledgeYaml(List<String> knowledge) {
+        if (knowledge == null || knowledge.isEmpty()) {
+            return "";
+        }
+        var yaml = new StringBuilder("  knowledge:\n");
+        for (var name : knowledge) {
+            yaml.append("    - kb: ").append(WizardKnowledge.yamlScalar(name)).append('\n');
+        }
+        return yaml.toString();
     }
 
     static String toolsYaml(List<WizardTools.Spec> tools) {

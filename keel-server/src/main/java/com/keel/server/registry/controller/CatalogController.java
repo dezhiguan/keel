@@ -29,7 +29,7 @@ public class CatalogController {
                         template("supervisor", "多智能体", "python"),
                         template("java-spring", "Java 服务", "java")),
                 "tools", wizardCatalog.sharedTools(),
-                "knowledgeBases", List.of(),
+                "knowledgeBases", wizardCatalog.knowledgeBases(),
                 "models", List.of("qwen-plus", "deepseek-v3"),
                 "orgs", List.of(),
                 "approvalPolicies", wizardCatalog.approvalPolicies()));

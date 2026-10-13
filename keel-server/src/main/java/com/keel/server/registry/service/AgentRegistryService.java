@@ -151,7 +151,8 @@ public class AgentRegistryService {
 
     public ManifestPreview.Result preview(JsonNode form) {
         var tools = wizardCatalog == null ? java.util.List.<WizardTools.Spec>of() : wizardCatalog.resolve(form);
-        return RegisterManifest.render(form, 8080, tools);
+        var knowledge = wizardCatalog == null ? java.util.List.<String>of() : wizardCatalog.resolveKnowledge(form);
+        return RegisterManifest.render(form, 8080, tools, knowledge);
     }
 
     public List<AgentSummary> listAll() {

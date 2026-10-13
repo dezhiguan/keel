@@ -13,6 +13,7 @@ export interface WizardForm {
   dailyBudgetCny: number
   env: 'dev' | 'test' | 'staging' | 'prod'
   tools: string[]
+  knowledgeBases: string[]
   approvalPolicyId: string
 }
 
@@ -151,6 +152,7 @@ export function registerBody(form: WizardForm) {
       dailyBudgetCny: form.dailyBudgetCny,
     },
     tools: [...form.tools],
+    knowledgeBases: [...form.knowledgeBases],
     ...(form.approvalPolicyId ? { approvalPolicyId: form.approvalPolicyId } : {}),
   }
 }

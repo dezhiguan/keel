@@ -8,6 +8,7 @@ import com.keel.server.integration.audit.AuditStore;
 import com.keel.server.auth.ConsolePrincipal;
 import com.keel.server.provisioning.ProvisioningService;
 import com.keel.server.provisioning.ResourceLedger;
+import com.keel.server.provisioning.SecretWriter;
 import com.keel.server.registry.mapper.AgentMapper;
 import com.keel.server.tool.service.ToolRegistryService;
 import com.keel.server.registry.model.entity.Agent;
@@ -31,11 +32,12 @@ public class LifecycleService {
     private final AuditStore audits;
     private final WizardCatalog wizardCatalog;
     private final ToolRegistryService toolRegistry;
+    private final SecretWriter secrets;
     private final int port;
 
     public LifecycleService(AgentMapper agents, ProvisioningService provisioning, ResourceLedger ledger,
                             JdbcTemplate jdbc, ManifestValidator validator, ObjectMapper json, AuditStore audits,
-                            WizardCatalog wizardCatalog, ToolRegistryService toolRegistry,
+                            WizardCatalog wizardCatalog, ToolRegistryService toolRegistry, SecretWriter secrets,
                             @Value("${server.port:8080}") int port) {
         this.agents = agents;
         this.provisioning = provisioning;
@@ -46,12 +48,14 @@ public class LifecycleService {
         this.audits = audits;
         this.wizardCatalog = wizardCatalog;
         this.toolRegistry = toolRegistry;
+        this.secrets = secrets;
         this.port = port;
     }
 
     public SelfCheckService.Report register(JsonNode body) {
         var selected = wizardCatalog.resolve(body);
-        var manifest = manifest(body, selected);
+        var knowledge = wizardCatalog.resolveKnowledge(body);
+        var manifest = manifest(body, selected, knowledge);
         validator.validate(manifest, java.util.Set.of());
         var name = manifest.path("metadata").path("name").asText();
         var env = body.path("env").asText("dev");
@@ -80,10 +84,14 @@ public class LifecycleService {
                     manifest_hash = EXCLUDED.manifest_hash, released_at = now()
                 """, name, env, text, sha256(text));
         var endpoint = manifest.path("spec").path("runtime").path("endpoint").asText();
+        if (!knowledge.isEmpty()) {
+            secrets.prepareKnowledgeKey(name, env, knowledge);
+        }
         SelfCheckService.Report report;
         try {
             report = provisioning.register(name, env, endpoint, manifest);
         } catch (RuntimeException e) {
+            secrets.discardKnowledgeKey(name);
             if (!RegisterManifest.missingExternal(e.getMessage())) {
                 throw e;
             }
@@ -135,8 +143,8 @@ public class LifecycleService {
         agents.insert(agent);
     }
 
-    private JsonNode manifest(JsonNode body, java.util.List<WizardTools.Spec> tools) {
-        return RegisterManifest.toNode(json, body, port, tools);
+    private JsonNode manifest(JsonNode body, java.util.List<WizardTools.Spec> tools, java.util.List<String> knowledge) {
+        return RegisterManifest.toNode(json, body, port, tools, knowledge);
     }
 
     private static String sha256(String text) {

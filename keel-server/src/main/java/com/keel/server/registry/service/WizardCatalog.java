@@ -1,10 +1,13 @@
 package com.keel.server.registry.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.keel.server.integration.ragforge.RagForgeInsightClient;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -13,9 +16,11 @@ import java.util.Set;
 @Service
 public class WizardCatalog {
     private final JdbcTemplate jdbc;
+    private final RagForgeInsightClient insight;
 
-    public WizardCatalog(JdbcTemplate jdbc) {
+    public WizardCatalog(JdbcTemplate jdbc, RagForgeInsightClient insight) {
         this.jdbc = jdbc;
+        this.insight = insight;
     }
 
     public List<Map<String, Object>> sharedTools() {
@@ -65,5 +70,36 @@ public class WizardCatalog {
                 SELECT id::text FROM approval_policy WHERE subject_type = 'tool.call'
                 """, (rs, n) -> rs.getString(1));
         return WizardTools.resolve(form, rows, Set.copyOf(policies));
+    }
+
+    public List<Map<String, Object>> knowledgeBases() {
+        if (insight == null || !insight.configured()) {
+            return List.of();
+        }
+        JsonNode body;
+        try {
+            body = insight.insight();
+        } catch (RuntimeException e) {
+            return List.of();
+        }
+        if (body == null) {
+            return List.of();
+        }
+        var seen = new LinkedHashSet<String>();
+        var rows = new ArrayList<Map<String, Object>>();
+        body.path("knowledgeBases").forEach(item -> {
+            var name = item.path("kb").asText("").trim();
+            if (name.isBlank() || !seen.add(name)) {
+                return;
+            }
+            rows.add(Map.of("kb", name, "owner", item.path("owner").asText("")));
+        });
+        return rows;
+    }
+
+    public List<String> resolveKnowledge(JsonNode form) {
+        var names = new LinkedHashSet<String>();
+        knowledgeBases().forEach(row -> names.add(String.valueOf(row.get("kb"))));
+        return WizardKnowledge.resolve(form, names);
     }
 }

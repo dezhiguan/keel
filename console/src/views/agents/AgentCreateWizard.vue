@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { checkAgentName, getCatalog, previewManifest, registerAgent, type CatalogPolicy, type CatalogTool, type SelfCheckReport } from '@/api/agents'
+import { checkAgentName, getCatalog, previewManifest, registerAgent, type CatalogKnowledgeBase, type CatalogPolicy, type CatalogTool, type SelfCheckReport } from '@/api/agents'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import DevflowWizard from './DevflowWizard.vue'
@@ -37,9 +37,11 @@ const form = reactive<WizardForm>({
   dailyBudgetCny: 30,
   env: envStore.env === 'all' ? 'dev' : envStore.env,
   tools: [],
+  knowledgeBases: [],
   approvalPolicyId: '',
 })
 const catalogTools = ref<CatalogTool[]>([])
+const catalogKnowledge = ref<CatalogKnowledgeBase[]>([])
 const policies = ref<CatalogPolicy[]>([])
 const catalogError = ref('')
 
@@ -56,6 +58,7 @@ onMounted(async () => {
   try {
     const catalog = await getCatalog()
     catalogTools.value = (catalog.tools ?? []).filter((tool) => tool.name)
+    catalogKnowledge.value = (catalog.knowledgeBases ?? []).filter((item) => item.kb)
     policies.value = (catalog.approvalPolicies ?? []).filter((policy) => policy.id && policy.name)
   } catch (error) {
     catalogError.value = toKeelError(error).message
@@ -65,6 +68,12 @@ onMounted(async () => {
 function setLanguage(language: 'python' | 'java') {
   form.language = language
   form.template = templateForLanguage(language, form.template)
+}
+
+function toggleKnowledge(name: string) {
+  const index = form.knowledgeBases.indexOf(name)
+  if (index >= 0) form.knowledgeBases.splice(index, 1)
+  else form.knowledgeBases.push(name)
 }
 
 function toggleTool(name: string) {
@@ -213,6 +222,22 @@ async function submit() {
             <label>运行服务地址</label>
             <input v-model="form.endpoint" class="inp" placeholder="http://my-agent.agents.svc:8000" />
             <div class="hint">代码开发需先部署独立服务，并注入该智能体的 Secret；登记后才能调试和统计费用。留空将使用智能体 ID 对应的集群地址。</div>
+          </div>
+          <div class="field">
+            <label>知识库（rag-forge）</label>
+            <p v-if="!catalogKnowledge.length" class="hint">rag-forge 还没有可勾选的知识库。</p>
+            <div v-else class="chipsel">
+              <button
+                v-for="item in catalogKnowledge"
+                :key="item.kb"
+                type="button"
+                :class="{ on: form.knowledgeBases.includes(item.kb!) }"
+                @click="toggleKnowledge(item.kb!)"
+              >
+                {{ item.kb }}<small v-if="item.owner"> {{ item.owner }}</small>
+              </button>
+            </div>
+            <div class="hint">勾选后写入 agent.yaml。注册时用当前账号向 rag-forge 申请一把只读密钥，写进这个智能体自己的 Secret。库必须属于同一组织，并且当前账号是该组织的管理员。</div>
           </div>
           <div class="field">
             <label>共享工具（需工具所有者授权）</label>

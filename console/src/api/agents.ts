@@ -57,8 +57,13 @@ export interface CatalogPolicy {
   name?: string
 }
 
+export interface CatalogKnowledgeBase {
+  kb?: string
+  owner?: string
+}
+
 export function getCatalog() {
-  return get<{ tools?: CatalogTool[]; approvalPolicies?: CatalogPolicy[] }>('/catalog')
+  return get<{ tools?: CatalogTool[]; approvalPolicies?: CatalogPolicy[]; knowledgeBases?: CatalogKnowledgeBase[] }>('/catalog')
 }
 
 export function checkAgentName(name: string) {
