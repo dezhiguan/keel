@@ -29,6 +29,7 @@ public class ToolRegistryService {
         syncFromManifests();
         var scopeEnv = env == null || env.isBlank() || "all".equals(env) ? "all" : env;
         var declared = dependentCounts(scopeEnv);
+        var usage = calls24h(scopeEnv);
         var owners = "all".equals(scopeEnv) ? java.util.Set.<String>of() : ownersInEnv(scopeEnv);
         var rows = jdbc.query("""
                 SELECT t.name, t.scope, t.owner_agent, t.owner_org, t.provider, t.status,
@@ -59,7 +60,7 @@ public class ToolRegistryService {
                 continue;
             }
             row.put("dependentCount", declared.getOrDefault(name, 0));
-            row.put("calls24h", 0);
+            row.put("calls24h", usage.getOrDefault(name, 0L));
             filtered.add(row);
         }
         int from = Math.max(0, (page - 1) * size);
@@ -93,7 +94,7 @@ public class ToolRegistryService {
         var dependents = dependentsOf(name);
         body.put("dependents", dependents);
         body.put("dependentCount", dependents.size());
-        body.put("calls24h", 0);
+        body.put("calls24h", calls24h("all").getOrDefault(name, 0L));
         body.put("versions", versions(name));
         return body;
     }
@@ -316,6 +317,12 @@ public class ToolRegistryService {
 
     private List<Map<String, Object>> dependentsOf(String toolName) {
         var dependents = new ArrayList<Map<String, Object>>();
+        var usage = new LinkedHashMap<String, Long>();
+        jdbc.query("""
+                SELECT agent,env,count(*) AS calls FROM console_audit_event
+                WHERE action='tool.call' AND decision='allowed' AND resource=? AND ts>=now()-interval '30 days'
+                GROUP BY agent,env
+                """, rs -> { usage.put(rs.getString("agent")+"\n"+rs.getString("env"),rs.getLong("calls")); }, toolName);
         for (var row : jdbc.query("""
                 SELECT a.name AS agent, a.status::text AS status, v.env, v.manifest_json::text AS manifest
                 FROM agent a
@@ -331,10 +338,21 @@ public class ToolRegistryService {
             item.put("env", row.env());
             item.put("agentStatus", row.status());
             item.put("declaredInManifest", true);
-            item.put("calls30d", 0);
+            item.put("calls30d", usage.getOrDefault(row.agent()+"\n"+row.env(), 0L));
             dependents.add(item);
         }
         return dependents;
+    }
+
+    private Map<String, Long> calls24h(String env) {
+        var counts = new LinkedHashMap<String, Long>();
+        jdbc.query("""
+                SELECT resource,count(*) AS calls FROM console_audit_event
+                WHERE action='tool.call' AND decision='allowed' AND ts>=now()-interval '24 hours'
+                  AND (?='all' OR env=?)
+                GROUP BY resource
+                """, rs -> { counts.put(rs.getString("resource"),rs.getLong("calls")); }, env,env);
+        return counts;
     }
 
     private List<ManifestRow> declarationRows() {
