@@ -70,7 +70,7 @@ public final class RegisterManifest {
         }
         yaml = yaml + "  eval:\n    dataset: " + (name.isBlank() ? "agent" : name) + "/smoke\n";
         if (!"dify".equals(runtime)) {
-            yaml = yaml + "  prompts:\n    source: langfuse\n    label: production\n    items:\n      - name: answer\n        type: text\n";
+            yaml = yaml + "  prompts:\n    source: langfuse\n    label: production\n    items:\n      - name: answer\n        type: " + promptType(form) + "\n";
         }
         return new ManifestPreview.Result(yaml.stripTrailing() + "\n", List.copyOf(warnings));
     }
@@ -150,7 +150,7 @@ public final class RegisterManifest {
             var items = prompts.putArray("items");
             var answer = items.addObject();
             answer.put("name", "answer");
-            answer.put("type", "text");
+            answer.put("type", promptType(body));
         }
         return manifest;
     }
@@ -257,6 +257,10 @@ public final class RegisterManifest {
             }
         }
         return yaml.toString();
+    }
+
+    private static String promptType(JsonNode form) {
+        return "chat".equals(text(form, "promptType")) ? "chat" : "text";
     }
 
     private static String text(JsonNode form, String field) {

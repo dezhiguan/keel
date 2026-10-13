@@ -288,6 +288,10 @@ a.jc { display: block; color: inherit; text-decoration: none; }
 .pbanner.warn { border-color: #5a4a26; background: #1c1810; }
 .pbanner.ok { border-color: #24483c; background: #0f1a16; }
 .pedit textarea { width: 100%; font-family: var(--mono); font-size: 12px; line-height: 1.6; min-height: 110px; resize: vertical; box-sizing: border-box; }
+.pedit .msghead { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.pedit .msghead select { width: 148px; }
+.pedit .cfg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+.pedit .chip { margin: 0 6px 0 0; }
 .modal.wide { width: min(720px, 94vw); }
 
 .login-page { min-height: 100vh; background: var(--bg); }

@@ -6,8 +6,8 @@ import { diffPrompt, getPrompt, getPromptVersion, promotePrompt, rollbackPrompt,
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import {
-  banners, canEdit, canRollback, formatWhen, highlightParts, PR_ENVS, PR_LABEL, promotableEnvs, shortSha, variablesOf,
-  type EnvName, type PromptDetailModel,
+  banners, canEdit, canRollback, configDraft, configPayload, draftError, editingDrafts, formatWhen, highlightParts, PR_ENVS, PR_LABEL, promotableEnvs, rolesFor, shortSha, unchangedPrompt, variablesOf,
+  type ConfigDraft, type EnvName, type PromptDetailModel,
 } from './promptView'
 
 const route = useRoute()
@@ -25,6 +25,7 @@ const rolling = ref(false)
 const commitMessage = ref('')
 const reason = ref('')
 const drafts = ref<{ role: string; content: string }[]>([])
+const config = ref<ConfigDraft>({ temperature: '', maxTokens: '', topP: '' })
 const messageInvalid = ref(false)
 
 const agent = computed(() => String(route.params.agent ?? ''))
@@ -37,7 +38,10 @@ const targets = computed(() => promotableEnvs(envStore.env, selected.value, deta
 const rollbackOk = computed(() => canRollback(envStore.env, selected.value, detail.value?.labs, detail.value?.releases))
 const notes = computed(() => (detail.value ? banners(detail.value, envStore.env) : []))
 const variables = computed(() => body.value ? (body.value.variables ?? variablesOf(body.value.prompt)) : [])
-const configText = computed(() => Object.entries(detail.value?.config ?? {}).map(([key, value]) => `${key}=${value}`).join(' · ') || '—')
+const shownConfig = computed(() => body.value?.config ?? detail.value?.config ?? {})
+const configText = computed(() => Object.entries(shownConfig.value).map(([key, value]) => `${key}=${value}`).join(' · ') || '—')
+const draftVariables = computed(() => variablesOf(detail.value?.type === 'chat' ? drafts.value : drafts.value[0]?.content ?? ''))
+const promptType = computed(() => detail.value?.type === 'chat' ? 'chat' : 'text')
 function braces(variable: string) {
   return `{{${variable}}}`
 }
@@ -99,11 +103,21 @@ function messagesOf(prompt: PromptBody['prompt'] | undefined) {
 }
 
 function openEdit() {
-  if (!body.value) return
-  drafts.value = messagesOf(body.value.prompt).map((message) => ({ ...message }))
+  if (!detail.value) return
+  drafts.value = editingDrafts(promptType.value, body.value?.prompt).map((message) => ({ ...message }))
+  config.value = configDraft(body.value?.config ?? detail.value.config)
   commitMessage.value = ''
   messageInvalid.value = false
   editing.value = true
+}
+
+function addMessage() {
+  drafts.value.push({ role: 'user', content: '' })
+}
+
+function removeMessage(index: number) {
+  if (drafts.value.length < 2) return
+  drafts.value.splice(index, 1)
 }
 
 async function save() {
@@ -112,15 +126,29 @@ async function save() {
     ElMessage.error('请填写提交说明')
     return
   }
-  const prompt = detail.value?.type === 'chat'
+  const structure = draftError(promptType.value, drafts.value)
+  if (structure) {
+    ElMessage.error(structure)
+    return
+  }
+  const parsed = configPayload(config.value)
+  if ('error' in parsed) {
+    ElMessage.error(parsed.error)
+    return
+  }
+  const prompt = promptType.value === 'chat'
     ? drafts.value.map((draft) => ({ role: draft.role, content: draft.content }))
     : drafts.value[0]?.content ?? ''
+  if (unchangedPrompt(body.value?.prompt, body.value?.config, prompt, parsed.config)) {
+    ElMessage.info('内容和参数都没有变化')
+    return
+  }
   try {
     const saved = await savePromptVersion(agent.value, name.value, {
       prompt,
       commitMessage: commitMessage.value.trim(),
       env: envStore.env === 'all' ? 'dev' : envStore.env,
-      config: detail.value?.config,
+      config: parsed.config,
     })
     editing.value = false
     ElMessage.success(`已保存为 v${saved.version}，哪个环境都还没切过去`)
@@ -187,7 +215,7 @@ watch(() => envStore.env, () => {
           版本
           <small>{{ envStore.env === 'all' ? '四个环境的标签都显示' : `只突出 ${envStore.env} 的标签（${PR_LABEL[envStore.env]}）` }}；左侧点一版看内容</small>
           <span class="sp" />
-          <button v-if="editable" v-write class="btn pri sm" type="button" @click="openEdit">编辑并保存新版本</button>
+          <button v-if="editable" v-write class="btn pri sm" type="button" @click="openEdit">{{ versions.length ? '编辑并保存新版本' : '写出第一版' }}</button>
         </h3>
         <div class="pgrid">
           <div class="vlist">
@@ -222,7 +250,7 @@ watch(() => envStore.env, () => {
                 <pre><template v-for="part in highlightParts(message.content)" :key="part.key"><span :class="{ pvar: part.variable }">{{ part.text }}</span></template></pre>
               </div>
             </template>
-            <div v-else class="empty">没有版本</div>
+            <div v-else class="empty">还没有版本。点右上角写出第一版；保存后哪个环境都还不会生效。</div>
             <div class="kv" style="margin-top: 12px">
               <span>变量</span><b><template v-if="variables.length"><span v-for="variable in variables" :key="variable" class="chip mono">{{ braces(variable) }}</span></template><template v-else>—</template></b>
               <span>config</span><b class="mono">{{ configText }}</b>
@@ -240,14 +268,43 @@ watch(() => envStore.env, () => {
       <div class="mh">编辑 <span class="mono">{{ agent }}/{{ name }}</span> · 基于 v{{ selected }}</div>
       <div class="mb pedit">
         <div v-for="(draft, index) in drafts" :key="index" class="field">
-          <label class="mono">{{ draft.role }}</label>
+          <div class="msghead">
+            <select v-if="promptType === 'chat'" v-model="draft.role" class="inp">
+              <option v-for="role in rolesFor(draft.role)" :key="role" :value="role">{{ role }}</option>
+            </select>
+            <label v-else class="mono">text</label>
+            <span class="sp" />
+            <button v-if="promptType === 'chat'" class="btn sm" type="button" :disabled="drafts.length < 2" @click="removeMessage(index)">删除</button>
+          </div>
           <textarea v-model="draft.content" class="inp" />
+        </div>
+        <button v-if="promptType === 'chat'" class="btn sm" type="button" @click="addMessage">添加一条消息</button>
+        <div class="cfg">
+          <div class="field">
+            <label>temperature</label>
+            <input v-model="config.temperature" class="inp" inputmode="decimal" placeholder="0～2，可留空" />
+          </div>
+          <div class="field">
+            <label>max_tokens</label>
+            <input v-model="config.maxTokens" class="inp" inputmode="numeric" placeholder="正整数，可留空" />
+          </div>
+          <div class="field">
+            <label>top_p</label>
+            <input v-model="config.topP" class="inp" inputmode="decimal" placeholder="0～1，可留空" />
+          </div>
+        </div>
+        <div class="field">
+          <label>变量</label>
+          <div>
+            <template v-if="draftVariables.length"><span v-for="variable in draftVariables" :key="variable" class="chip mono">{{ braces(variable) }}</span></template>
+            <span v-else class="mut">正文里还没有 <code v-pre>{{name}}</code></span>
+          </div>
         </div>
         <div class="field">
           <label>提交说明（必填）</label>
           <input v-model="commitMessage" class="inp" :class="{ err: messageInvalid }" placeholder="改了什么、为什么改" />
         </div>
-        <p class="mut" style="font-size: 12px">保存后在 Langfuse 新建一个版本，哪个环境都不会变。在版本上点“在 dev / test 生效”先试，“在 staging 生效”会记一笔待回归。变量用 <code v-pre>{{name}}</code>。</p>
+        <p class="mut" style="font-size: 12px">类型是 {{ promptType }}，建出版本后不能改。保存后在 Langfuse 新建一个版本，哪个环境都不会变。在版本上点“在 dev / test 生效”先试，“在 staging 生效”会记一笔待回归。</p>
       </div>
       <div class="mf">
         <button class="btn" type="button" @click="editing = false">取消</button>

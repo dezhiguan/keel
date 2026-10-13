@@ -15,6 +15,7 @@ const form: WizardForm = {
   tools: ['git.branch.push'],
   knowledgeBases: ['demo'],
   approvalPolicyId: '',
+  promptType: 'chat',
 }
 
 describe('wizard', () => {
@@ -46,7 +47,9 @@ describe('wizard', () => {
       models: { default: 'qwen-plus', dailyBudgetCny: 30 },
       tools: ['git.branch.push'],
       knowledgeBases: ['demo'],
+      promptType: 'chat',
     })
+    expect(registerBody({ ...form, promptType: 'text' }).promptType).toBe('text')
     expect(registerBody(form)).not.toHaveProperty('approvalPolicyId')
     expect(registerBody({ ...form, approvalPolicyId: '9' })).toMatchObject({ approvalPolicyId: '9' })
     expect(registerBody({ ...form, language: 'java', template: 'java-spring' }).language).toBe('java')

@@ -1662,6 +1662,11 @@ export interface components {
             tools?: string[];
             delegates?: string[];
             approvalPolicyId?: string | null;
+            /**
+             * @description 声明 answer 提示词的类型。不传时按 text。Langfuse 建出版本后不能改。
+             * @enum {string}
+             */
+            promptType?: "text" | "chat";
         };
         Catalog: {
             templates?: {

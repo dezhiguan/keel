@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { banners, canEdit, canRollback, formatWhen, matchesStatus, promotableEnvs, type PromptDetailModel } from './promptView'
+import { banners, canEdit, canRollback, configPayload, draftError, editingDrafts, formatWhen, matchesStatus, promotableEnvs, unchangedPrompt, type PromptDetailModel } from './promptView'
 
 const detail: PromptDetailModel = {
   agent: 'offshore-wind',
@@ -41,5 +41,21 @@ describe('prompt page rules', () => {
     const notes = banners(detail, 'prod').map((banner) => banner.text)
     expect(notes.some((text) => text.includes('prod 只读'))).toBe(true)
     expect(notes.some((text) => text.includes('待发布') || text.includes('v13'))).toBe(true)
+  })
+
+  it('starts a chat draft when there is no version and rejects a bad config', () => {
+    const drafts = editingDrafts('chat', null)
+    expect(drafts.map((draft) => draft.role)).toEqual(['system', 'user'])
+    expect(drafts[1]?.content).toContain('{{question}}')
+    expect(draftError('chat', drafts)).toBe('')
+    expect(draftError('chat', [{ role: 'tool', content: 'x' }])).toContain('角色')
+    expect(draftError('text', [{ role: 'text', content: '  ' }])).toContain('不能为空')
+    expect(editingDrafts('text', '已有正文')[0]?.content).toBe('已有正文')
+    expect('error' in configPayload({ temperature: '3', maxTokens: '', topP: '' })).toBe(true)
+    expect('error' in configPayload({ temperature: '0.2', maxTokens: '0', topP: '' })).toBe(true)
+    expect(configPayload({ temperature: '0.2', maxTokens: '800', topP: '' })).toEqual({ config: { temperature: 0.2, max_tokens: 800 } })
+    const next = [{ role: 'user', content: '{{question}}' }]
+    expect(unchangedPrompt(next, { temperature: 0.2 }, next, { temperature: 0.2 })).toBe(true)
+    expect(unchangedPrompt(null, {}, next, {})).toBe(false)
   })
 })

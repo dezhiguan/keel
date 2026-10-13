@@ -48,4 +48,24 @@ class RegisterManifestTest {
         var yaml = RegisterManifest.render(form, 8080, java.util.List.of(), java.util.List.of("demo", "产品知识库")).yaml();
         assertThat(yaml).contains("knowledge:", "kb: demo", "kb: \"产品知识库\"");
     }
+
+    @Test void promptTypeDefaultsToTextAndHonorsChat() throws Exception {
+        var text = json.readTree("""
+                {"name":"qa-agent"}
+                """);
+        assertThat(RegisterManifest.toNode(json, text, 8080).path("spec").path("prompts").path("items").get(0).path("type").asText())
+                .isEqualTo("text");
+        assertThat(RegisterManifest.render(text, 8080).yaml()).contains("type: text");
+        var chat = json.readTree("""
+                {"name":"qa-agent","promptType":"chat"}
+                """);
+        assertThat(RegisterManifest.toNode(json, chat, 8080).path("spec").path("prompts").path("items").get(0).path("type").asText())
+                .isEqualTo("chat");
+        assertThat(RegisterManifest.render(chat, 8080).yaml()).contains("type: chat");
+        var other = json.readTree("""
+                {"name":"qa-agent","promptType":"image"}
+                """);
+        assertThat(RegisterManifest.toNode(json, other, 8080).path("spec").path("prompts").path("items").get(0).path("type").asText())
+                .isEqualTo("text");
+    }
 }

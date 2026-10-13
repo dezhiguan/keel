@@ -2506,6 +2506,10 @@ components:
           type: array
           items: { type: string }
         approvalPolicyId: { type: string, nullable: true }
+        promptType:
+          type: string
+          enum: [text, chat]
+          description: 声明 answer 提示词的类型。不传时按 text。Langfuse 建出版本后不能改。
 
     Catalog:
       type: object

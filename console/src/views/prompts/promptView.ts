@@ -209,6 +209,97 @@ export function banners(detail: PromptDetailModel, env: EnvFilter): Banner[] {
   return out
 }
 
+export const CHAT_ROLES = ['system', 'user', 'assistant'] as const
+
+export interface PromptDraft {
+  role: string
+  content: string
+}
+
+export interface ConfigDraft {
+  temperature: string
+  maxTokens: string
+  topP: string
+}
+
+export function starterDrafts(type: string): PromptDraft[] {
+  if (type === 'chat') {
+    return [
+      { role: 'system', content: '你是这个智能体。用简短、清楚的中文回答。不要编造没有依据的内容。' },
+      { role: 'user', content: '{{question}}' },
+    ]
+  }
+  return [{ role: 'text', content: '用简短、清楚的中文回答。\n\n用户说：{{question}}' }]
+}
+
+export function editingDrafts(type: string, prompt: unknown): PromptDraft[] {
+  if (typeof prompt === 'string' && prompt.length) return [{ role: 'text', content: prompt }]
+  if (Array.isArray(prompt) && prompt.length) {
+    return prompt.map((message) => ({
+      role: String((message as { role?: string }).role ?? 'user'),
+      content: String((message as { content?: string }).content ?? ''),
+    }))
+  }
+  return starterDrafts(type)
+}
+
+export function rolesFor(role: string) {
+  return (CHAT_ROLES as readonly string[]).includes(role) ? [...CHAT_ROLES] : [role, ...CHAT_ROLES]
+}
+
+export function draftError(type: string, drafts: PromptDraft[]) {
+  if (!drafts.length) return '至少保留一条消息'
+  if (type === 'chat') {
+    for (const draft of drafts) {
+      if (!(CHAT_ROLES as readonly string[]).includes(draft.role)) return '消息角色只能是 system、user、assistant'
+      if (!draft.content.trim()) return '每条消息都要有内容'
+    }
+    return ''
+  }
+  return drafts[0]?.content.trim() ? '' : '提示词不能为空'
+}
+
+export function configDraft(config?: Record<string, string | number> | null): ConfigDraft {
+  return {
+    temperature: config?.temperature == null || config.temperature === '' ? '' : String(config.temperature),
+    maxTokens: config?.max_tokens == null || config.max_tokens === '' ? '' : String(config.max_tokens),
+    topP: config?.top_p == null || config.top_p === '' ? '' : String(config.top_p),
+  }
+}
+
+function readNumber(raw: string, label: string, min: number, max: number): { error: string } | { value?: number } {
+  const text = raw.trim()
+  if (!text) return {}
+  const value = Number(text)
+  if (!Number.isFinite(value) || value < min || value > max) return { error: `${label} 要在 ${min} 到 ${max} 之间` }
+  return { value }
+}
+
+export function configPayload(draft: ConfigDraft): { error: string } | { config: Record<string, number> } {
+  const temperature = readNumber(draft.temperature, 'temperature', 0, 2)
+  if ('error' in temperature) return temperature
+  const topP = readNumber(draft.topP, 'top_p', 0, 1)
+  if ('error' in topP) return topP
+  const tokens = draft.maxTokens.trim()
+  let maxTokens: number | undefined
+  if (tokens) {
+    if (!/^[1-9]\d*$/.test(tokens)) return { error: 'max_tokens 要是正整数' }
+    maxTokens = Number(tokens)
+  }
+  const config: Record<string, number> = {}
+  if (temperature.value != null) config.temperature = temperature.value
+  if (maxTokens != null) config.max_tokens = maxTokens
+  if (topP.value != null) config.top_p = topP.value
+  return { config }
+}
+
+export function unchangedPrompt(currentPrompt: unknown, currentConfig: Record<string, string | number> | null | undefined, nextPrompt: unknown, nextConfig: Record<string, number>) {
+  if (currentPrompt == null) return false
+  const current = configPayload(configDraft(currentConfig))
+  const stored = 'config' in current ? current.config : {}
+  return JSON.stringify(currentPrompt) === JSON.stringify(nextPrompt) && JSON.stringify(stored) === JSON.stringify(nextConfig)
+}
+
 export function variablesOf(prompt: unknown) {
   const text = typeof prompt === 'string'
     ? prompt

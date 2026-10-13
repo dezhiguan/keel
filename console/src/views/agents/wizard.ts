@@ -15,6 +15,7 @@ export interface WizardForm {
   tools: string[]
   knowledgeBases: string[]
   approvalPolicyId: string
+  promptType: 'text' | 'chat'
 }
 
 export const WIZARD_TEMPLATES: [string, string, string][] = [
@@ -154,5 +155,6 @@ export function registerBody(form: WizardForm) {
     tools: [...form.tools],
     knowledgeBases: [...form.knowledgeBases],
     ...(form.approvalPolicyId ? { approvalPolicyId: form.approvalPolicyId } : {}),
+    promptType: form.promptType === 'text' ? 'text' as const : 'chat' as const,
   }
 }

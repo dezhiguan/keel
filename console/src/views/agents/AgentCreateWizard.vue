@@ -39,6 +39,7 @@ const form = reactive<WizardForm>({
   tools: [],
   knowledgeBases: [],
   approvalPolicyId: '',
+  promptType: 'chat',
 })
 const catalogTools = ref<CatalogTool[]>([])
 const catalogKnowledge = ref<CatalogKnowledgeBase[]>([])
@@ -219,6 +220,14 @@ async function submit() {
             </div>
           </div>
           <div class="field">
+            <label>提示词结构</label>
+            <div class="chipsel">
+              <button type="button" :class="{ on: form.promptType === 'chat' }" @click="form.promptType = 'chat'">对话消息</button>
+              <button type="button" :class="{ on: form.promptType === 'text' }" @click="form.promptType = 'text'">纯文本</button>
+            </div>
+            <div class="hint">对话消息按 system / user / assistant 分行，变量写成 <code v-pre>{{question}}</code>。登记后类型不能改。第一版在提示词页保存，保存本身不切换环境。</div>
+          </div>
+          <div class="field">
             <label>运行服务地址</label>
             <input v-model="form.endpoint" class="inp" placeholder="http://my-agent.agents.svc:8000" />
             <div class="hint">代码开发需先部署独立服务，并注入该智能体的 Secret；登记后才能调试和统计费用。留空将使用智能体 ID 对应的集群地址。</div>
@@ -280,7 +289,8 @@ async function submit() {
             <button v-if="!report" v-write class="btn pri" type="button" :disabled="busy" @click="submit">{{ busy ? '注册中…' : '注册' }}</button>
             <button v-if="report" class="btn" type="button" @click="router.push('/traces')">查看链路</button>
             <button v-if="report" class="btn" type="button" @click="router.push('/audit')">查看审计</button>
-            <button v-if="report" class="btn pri" type="button" @click="router.push(`/agents/${form.name}`)">查看智能体</button>
+            <button v-if="report" class="btn" type="button" @click="router.push(`/agents/${form.name}`)">查看智能体</button>
+            <button v-if="report" class="btn pri" type="button" @click="router.push(`/prompts/${form.name}/answer`)">设计提示词</button>
           </div>
         </template>
         <div v-if="step < 4" class="wfoot">
