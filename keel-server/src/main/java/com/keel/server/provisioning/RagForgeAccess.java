@@ -4,34 +4,70 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.keel.common.error.ErrorCode;
-import com.keel.server.auth.ConsoleCookies;
 import com.keel.server.common.KeelException;
-import jakarta.servlet.http.HttpServletRequest;
+import com.keel.server.integration.authgw.ClientAssertion;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Issues a read-only rag-forge API key for the knowledge bases selected at registration.
- * The caller is the console user's access token, not the metrics account.
+ * The caller is the provisioner identity in the keel-server Secret, not the console login
+ * and not the metrics account. That identity is never copied into the agent Secret.
  */
 @Component
 public class RagForgeAccess {
+    private static final String TARGET_AUDIENCE = "ragforge-admin-api";
     private final String baseUrl;
+    private final String provisionToken;
+    private final String account;
+    private final String password;
+    private final String clientId;
+    private final String clientPrivateKey;
+    private final String clientKid;
+    private final String assertionAudience;
+    private final String authGatewayUrl;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private final ObjectMapper json = new ObjectMapper();
+    private String cachedToken = "";
+    private Instant cachedUntil = Instant.EPOCH;
 
-    public RagForgeAccess(@Value("${RAGFORGE_BASE_URL:}") String baseUrl) {
+    public RagForgeAccess(String baseUrl, String provisionToken) {
+        this(baseUrl, provisionToken, "", "", "", "", "", "", "");
+    }
+
+    @Autowired
+    public RagForgeAccess(@Value("${RAGFORGE_BASE_URL:}") String baseUrl,
+                          @Value("${RAGFORGE_PROVISION_TOKEN:}") String provisionToken,
+                          @Value("${RAGFORGE_PROVISION_ACCOUNT:}") String account,
+                          @Value("${RAGFORGE_PROVISION_PASSWORD:}") String password,
+                          @Value("${RAGFORGE_PROVISION_CLIENT_ID:}") String clientId,
+                          @Value("${RAGFORGE_PROVISION_CLIENT_PRIVATE_KEY:}") String clientPrivateKey,
+                          @Value("${RAGFORGE_PROVISION_CLIENT_KID:}") String clientKid,
+                          @Value("${RAGFORGE_PROVISION_ASSERTION_AUDIENCE:}") String assertionAudience,
+                          @Value("${KEEL_AUTH_GATEWAY_URL:}") String authGatewayUrl) {
         this.baseUrl = baseUrl == null ? "" : baseUrl.replaceAll("/$", "");
+        this.provisionToken = provisionToken == null ? "" : provisionToken.trim();
+        this.account = account == null ? "" : account.trim();
+        this.password = password == null ? "" : password;
+        this.clientId = clientId == null ? "" : clientId.trim();
+        this.clientPrivateKey = clientPrivateKey == null ? "" : clientPrivateKey;
+        this.clientKid = clientKid == null ? "" : clientKid.trim();
+        this.assertionAudience = assertionAudience == null ? "" : assertionAudience.trim();
+        this.authGatewayUrl = authGatewayUrl == null ? "" : authGatewayUrl.replaceAll("/$", "");
     }
 
     public record Issued(long id, String token, String url) {}
@@ -113,7 +149,7 @@ public class RagForgeAccess {
             }
         }
         if (!missing.isEmpty()) {
-            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "当前账号不能访问知识库：" + String.join("、", missing));
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "代发身份看不到知识库：" + String.join("、", missing));
         }
         return ids;
     }
@@ -161,13 +197,64 @@ public class RagForgeAccess {
         return message;
     }
 
-    private static String bearer() {
-        var attributes = RequestContextHolder.getRequestAttributes();
-        if (!(attributes instanceof ServletRequestAttributes servlet)) {
-            return "";
+    private String bearer() {
+        if (!provisionToken.isBlank()) {
+            return provisionToken;
         }
-        HttpServletRequest request = servlet.getRequest();
-        var token = ConsoleCookies.read(request, ConsoleCookies.names(false), true);
-        return token == null ? "" : token;
+        if (account.isBlank() || password.isBlank() || clientId.isBlank() || clientPrivateKey.isBlank()
+                || clientKid.isBlank() || assertionAudience.isBlank() || authGatewayUrl.isBlank()) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "知识库代发身份没有配置");
+        }
+        if (!cachedToken.isBlank() && Instant.now().isBefore(cachedUntil)) {
+            return cachedToken;
+        }
+        synchronized (this) {
+            if (!cachedToken.isBlank() && Instant.now().isBefore(cachedUntil)) {
+                return cachedToken;
+            }
+            cachedToken = login();
+            return cachedToken;
+        }
+    }
+
+    private String login() {
+        var assertion = ClientAssertion.sign(clientPrivateKey, clientKid, clientId, assertionAudience);
+        var form = new LinkedHashMap<String, String>();
+        form.put("account", account);
+        form.put("password", password);
+        form.put("target_aud", TARGET_AUDIENCE);
+        form.put("remember", "false");
+        form.put("client_id", clientId);
+        form.put("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer");
+        form.put("client_assertion", assertion);
+        try {
+            var request = HttpRequest.newBuilder(URI.create(authGatewayUrl + "/auth/login/password"))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .POST(HttpRequest.BodyPublishers.ofString(encode(form)))
+                    .build();
+            var response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 300) {
+                throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "代发身份登录 rag-forge 失败（" + response.statusCode() + "）");
+            }
+            var token = json.readTree(response.body()).path("access_token").asText("");
+            if (token.isBlank()) {
+                throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "代发身份登录没有返回访问票");
+            }
+            var expires = json.readTree(response.body()).path("expires_in").asLong(900);
+            cachedUntil = Instant.now().plusSeconds(Math.max(60, expires - 60));
+            return token;
+        } catch (KeelException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "代发身份登录 rag-forge 失败");
+        }
+    }
+
+    private static String encode(Map<String, String> form) {
+        return form.entrySet().stream()
+                .map(entry -> entry.getKey() + "=" + URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8))
+                .reduce((left, right) -> left + "&" + right)
+                .orElse("");
     }
 }

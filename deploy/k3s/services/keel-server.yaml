@@ -170,6 +170,48 @@ spec:
                   name: keel-server
                   key: RAGFORGE_METRICS_PASSWORD
                   optional: true
+            - name: RAGFORGE_PROVISION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: keel-server
+                  key: RAGFORGE_PROVISION_TOKEN
+                  optional: true
+            - name: RAGFORGE_PROVISION_ACCOUNT
+              valueFrom:
+                secretKeyRef:
+                  name: keel-server
+                  key: RAGFORGE_PROVISION_ACCOUNT
+                  optional: true
+            - name: RAGFORGE_PROVISION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keel-server
+                  key: RAGFORGE_PROVISION_PASSWORD
+                  optional: true
+            - name: RAGFORGE_PROVISION_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: keel-server
+                  key: RAGFORGE_PROVISION_CLIENT_ID
+                  optional: true
+            - name: RAGFORGE_PROVISION_CLIENT_KID
+              valueFrom:
+                secretKeyRef:
+                  name: keel-server
+                  key: RAGFORGE_PROVISION_CLIENT_KID
+                  optional: true
+            - name: RAGFORGE_PROVISION_ASSERTION_AUDIENCE
+              valueFrom:
+                secretKeyRef:
+                  name: keel-server
+                  key: RAGFORGE_PROVISION_ASSERTION_AUDIENCE
+                  optional: true
+            - name: RAGFORGE_PROVISION_CLIENT_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: keel-server
+                  key: RAGFORGE_PROVISION_CLIENT_PRIVATE_KEY
+                  optional: true
           envFrom:
             - secretRef: {name: keel-meta-bridge, optional: true}
             - secretRef:

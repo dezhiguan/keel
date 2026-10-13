@@ -1,12 +1,7 @@
 package com.keel.server.provisioning;
 
 import com.sun.net.httpserver.HttpServer;
-import jakarta.servlet.http.Cookie;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -17,11 +12,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RagForgeAccessTest {
-    @AfterEach
-    void clearRequest() {
-        RequestContextHolder.resetRequestAttributes();
-    }
-
     @Test void issuesAReadKeyForTheSelectedBasesAndRevokesIt() throws Exception {
         var created = new AtomicReference<String>();
         var http = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -47,10 +37,7 @@ class RagForgeAccessTest {
         });
         http.start();
         try {
-            var request = new MockHttpServletRequest();
-            request.setCookies(new Cookie("keel_console_at", "console-token"));
-            RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
-            var access = new RagForgeAccess("http://127.0.0.1:" + http.getAddress().getPort());
+            var access = new RagForgeAccess("http://127.0.0.1:" + http.getAddress().getPort(), "provision-token");
             var issued = access.issue("qa-agent", "dev", List.of("demo"));
             assertThat(issued.id()).isEqualTo(41);
             assertThat(issued.token()).isEqualTo("sk-rf-test");
@@ -63,8 +50,8 @@ class RagForgeAccessTest {
         }
     }
 
-    @Test void refusesWhenTheConsoleTokenIsMissing() {
-        assertThatThrownBy(() -> new RagForgeAccess("http://127.0.0.1:1").issue("qa", "dev", List.of("demo")))
-                .hasMessageContaining("凭证");
+    @Test void refusesWhenTheProvisionerIdentityIsMissing() {
+        assertThatThrownBy(() -> new RagForgeAccess("http://127.0.0.1:1", "").issue("qa", "dev", List.of("demo")))
+                .hasMessageContaining("代发身份没有配置");
     }
 }

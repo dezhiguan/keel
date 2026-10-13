@@ -246,7 +246,7 @@ async function submit() {
                 {{ item.kb }}<small v-if="item.owner"> {{ item.owner }}</small>
               </button>
             </div>
-            <div class="hint">勾选后写入 agent.yaml。注册时用当前账号向 rag-forge 申请一把只读密钥，写进这个智能体自己的 Secret。库必须属于同一组织，并且当前账号是该组织的管理员。</div>
+            <div class="hint">勾选后写入 agent.yaml。注册时由底座代发一把只读密钥，范围只有勾选的库，写入这个智能体自己的 Secret。库必须属于同一组织。</div>
           </div>
           <div class="field">
             <label>共享工具（需工具所有者授权）</label>
