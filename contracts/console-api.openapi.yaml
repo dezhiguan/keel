@@ -3297,6 +3297,7 @@ components:
             url: { type: string, format: uri }
             branch: { type: string }
             protection: { type: string, enum: [ENFORCED, UNAVAILABLE], description: 私有仓库分支保护；UNAVAILABLE 时平台拒绝合并，骨架仅供人工开发 }
+            checks: { type: string, enum: [MANUAL], description: 工作流模板已交付但需人工安装；当前凭证无法写入 GitHub Actions 工作流目录 }
         traceId: { type: string }
         error: { type: string }
     MetaAgentWork:

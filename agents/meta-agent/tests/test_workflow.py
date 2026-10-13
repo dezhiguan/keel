@@ -62,6 +62,9 @@ def test_workflow_delivery_preserves_edits_and_does_not_repeat_git_writes(gatewa
     assert "create_work_order" not in files["app.py"]
     assert files["evals/seed.jsonl"] == ""
     assert "manifest.schema.json" in files
+    assert "ci/keel.yml" in files
+    assert ".github/workflows/keel.yml" not in files
+    assert json.loads(event["answer"])["checks"] == "MANUAL"
     import subprocess, sys
     checked = subprocess.run([sys.executable, "-m", "pytest", "tests", "-q"],
                              cwd=tmp_path / "DF-9001/spec-agent", capture_output=True, text=True)

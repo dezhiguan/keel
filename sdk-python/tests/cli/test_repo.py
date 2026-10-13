@@ -4,7 +4,7 @@ from threading import Thread
 
 import pytest
 
-from keel.cli.repo import open_draft
+from keel.cli.repo import _files, open_draft
 
 
 class _Git(ThreadingHTTPServer):
@@ -46,6 +46,16 @@ class _Git(ThreadingHTTPServer):
 def test_unset_url_does_not_call_git(tmp_path, monkeypatch):
     monkeypatch.delenv("KEEL_GIT_CI_URL", raising=False)
     assert open_draft(tmp_path, title="需求分析师", body="起草") is None
+
+
+def test_files_under_a_checkpoint_folder_are_included(tmp_path):
+    project = tmp_path / ".keel" / "meta-agent" / "DF-9001" / "spec-agent"
+    project.mkdir(parents=True)
+    (project / "app.py").write_text("print('ready')\n", encoding="utf-8")
+    (project / ".keel").mkdir()
+    (project / ".keel" / "state.json").write_text("{}", encoding="utf-8")
+
+    assert _files(project) == [{"path": "app.py", "content": "print('ready')\n"}]
 
 
 def test_opens_a_draft_pull_request_and_does_not_merge(tmp_path, monkeypatch):

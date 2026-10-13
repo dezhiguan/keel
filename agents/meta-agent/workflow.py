@@ -115,6 +115,7 @@ def _deliver(work):
         opened = _post(base, "git.pr.open", {"repo": name, "head": "draft", "base": "main", "jobId": job_id,
             "title": requirement["title"], "body": f"任务 {job_id}\n\n{requirement['goal']}\n\n骨架交付，待人工开发、评测和发布。"})
         result = {**opened, "sha": state["push"]["sha"], "branch": "draft",
+                  "checks": "MANUAL",
                   "url": opened.get("url") or f"https://github.com/{opened['repo']}/pull/{opened['number']}"}
         state["result"] = result
         _save(checkpoint, state)
@@ -163,7 +164,9 @@ def test_entry_is_valid_python_and_has_an_async_entry():
     tree = ast.parse((ROOT / "app.py").read_text())
     assert any(isinstance(node, ast.AsyncFunctionDef) and node.name == "run" for node in tree.body)
 ''', encoding="utf-8")
-    (project / ".github/workflows/keel.yml").write_text('''name: scaffold checks
+    (project / ".github/workflows/keel.yml").unlink(missing_ok=True)
+    (project / "ci").mkdir(exist_ok=True)
+    (project / "ci/keel.yml").write_text('''name: scaffold checks
 on: [push, pull_request]
 jobs:
   test:
@@ -186,7 +189,7 @@ Keel 研发任务：{job_id}。
 当前 app.py 只返回骨架就绪提示。请按需求实现入口；模型调用使用 ctx.llm，工具调用使用 ctx.tools.call。
 manifest 中选择的共享工具尚需平台授权和调用适配。运行配置由平台 Secret 注入，不在项目中存放密钥。
 
-CI 仅检查 manifest 契约与 Python 语法，不代表业务评测通过。seed.jsonl 为空，待人提供真实用例。
+`ci/keel.yml` 是可安装的 GitHub Actions 工作流模板。当前 Git 服务凭证无法写入 `.github/workflows`，需有该权限的维护者移入该目录后才会自动运行。可先在本地执行 `pytest -q` 检查 manifest 契约与 Python 语法；这不代表业务评测通过。seed.jsonl 为空，待人提供真实用例。
 本地开发先从 Keel 仓库安装 SDK（pip install -e /path/to/keel/sdk-python），再使用 keel dev。
 业务测试和评测通过后，按平台流程构建运行镜像、登记、自检和申请发布。
 ''', encoding="utf-8")

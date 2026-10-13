@@ -2417,6 +2417,11 @@ export interface components {
                  * @enum {string}
                  */
                 protection?: "ENFORCED" | "UNAVAILABLE";
+                /**
+                 * @description 工作流模板已交付但需人工安装；当前凭证无法写入 GitHub Actions 工作流目录
+                 * @enum {string}
+                 */
+                checks?: "MANUAL";
             };
             traceId?: string;
             error?: string;
