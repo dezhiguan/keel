@@ -4,7 +4,7 @@ from threading import Thread
 
 import pytest
 
-from keel.cli.repo import _files, open_draft
+from keel.cli.repo import _files, _post, open_draft
 
 
 class _Git(ThreadingHTTPServer):
@@ -56,6 +56,25 @@ def test_files_under_a_checkpoint_folder_are_included(tmp_path):
     (project / ".keel" / "state.json").write_text("{}", encoding="utf-8")
 
     assert _files(project) == [{"path": "app.py", "content": "print('ready')\n"}]
+
+
+def test_job_scoped_git_write_retries_lost_connections_without_repeating_legacy_calls(monkeypatch):
+    import httpx
+    calls = []
+
+    def unstable_post(url, **kwargs):
+        calls.append((url, kwargs['json']))
+        if len(calls) in (1, 3):
+            raise httpx.ConnectError('connection reset')
+        return httpx.Response(200, json={'repo': 'dezhiguan/qa', 'number': 1})
+
+    monkeypatch.setattr(httpx, 'post', unstable_post)
+    monkeypatch.setattr('keel.cli.repo.time.sleep', lambda _: None)
+    assert _post('http://git-ci', 'git.pr.open', {'jobId': 'DF-9001'})['number'] == 1
+    assert len(calls) == 2
+    with pytest.raises(httpx.ConnectError):
+        _post('http://git-ci', 'git.pr.open', {'repo': 'qa'})
+    assert len(calls) == 3
 
 
 def test_opens_a_draft_pull_request_and_does_not_merge(tmp_path, monkeypatch):

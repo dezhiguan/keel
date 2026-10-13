@@ -1,6 +1,7 @@
 """Open a draft pull request for a generated project. The token stays in the Git service."""
 
 import os
+import time
 from pathlib import Path
 
 import httpx
@@ -48,7 +49,16 @@ def _files(root: Path) -> list[dict]:
 def _post(base: str, tool: str, body: dict) -> dict:
     token = os.environ.get("KEEL_GIT_CI_TOKEN", "").strip()
     headers = {"Authorization": "Bearer " + token} if token else {}
-    response = httpx.post(f"{base}/v1/tools/{tool}", json=body, headers=headers, timeout=60)
+    # Job-scoped Git operations are idempotent on the server; a lost response can be retried.
+    attempts = 3 if body.get("jobId") else 1
+    for attempt in range(attempts):
+        try:
+            response = httpx.post(f"{base}/v1/tools/{tool}", json=body, headers=headers, timeout=60)
+            break
+        except httpx.TransportError:
+            if attempt + 1 == attempts:
+                raise
+            time.sleep(0.2 * (attempt + 1))
     try:
         payload = response.json()
     except ValueError:
