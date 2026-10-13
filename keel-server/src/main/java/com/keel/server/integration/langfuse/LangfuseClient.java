@@ -31,6 +31,8 @@ public class LangfuseClient {
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build();
     private final HttpClient healthHttp = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
     private final ObjectMapper json = new ObjectMapper();
+    /** Hobby shares 30 general reads a minute. A 429 pauses further observation reads until Retry-After. */
+    private volatile long observationsBlockedUntilMs;
 
     public LangfuseClient(String baseUrl, String publicKey, String secretKey) {
         this.baseUrl = baseUrl == null ? "" : baseUrl.replaceAll("/$", "");
@@ -304,6 +306,8 @@ public class LangfuseClient {
      * Observations for one console trace-list window.
      * Roots keep input, because that field is the user question. Every other observation is fetched
      * without input and output: tokens, status and agent names live in metadata and usage.
+     * v2 accepts {@code limit=1000}. Hobby allows 30 general reads a minute, so a window stays
+     * on one page instead of a page per hundred rows.
      */
     public JsonNode observationsForList(Instant from, Instant to) {
         if (baseUrl.isBlank() || authorization.isBlank()) {
@@ -318,7 +322,7 @@ public class LangfuseClient {
     }
 
     private String windowPath(String fields, String filter, boolean rootsOnly, Instant from, Instant to) {
-        var path = "/api/public/v2/observations?limit=100&fields=" + fields + "&filter=" + filter;
+        var path = "/api/public/v2/observations?limit=1000&fields=" + fields + "&filter=" + filter;
         if (rootsOnly) {
             path += "&isRootObservation=true";
         }
@@ -713,6 +717,14 @@ public class LangfuseClient {
     }
 
     private JsonNode send(String method, String path, JsonNode body, boolean ignoreConflict, boolean allowNotFound) {
+        var observation = path.startsWith("/api/public/v2/observations");
+        if (observation) {
+            var until = observationsBlockedUntilMs;
+            var now = System.currentTimeMillis();
+            if (until > now) {
+                throw new LangfuseRateLimit((int) Math.max(1, (until - now + 999) / 1000));
+            }
+        }
         try {
             var builder = HttpRequest.newBuilder(URI.create(baseUrl + path))
                     .timeout(Duration.ofSeconds(60))
@@ -731,7 +743,13 @@ public class LangfuseClient {
                 return json.createObjectNode();
             }
             if (response.statusCode() == 429) {
-                throw new LangfuseRateLimit(retryAfter(response));
+                var retry = retryAfter(response);
+                if (observation) {
+                    var pause = Math.min(retry, 60);
+                    observationsBlockedUntilMs = System.currentTimeMillis() + pause * 1000L;
+                    throw new LangfuseRateLimit(pause);
+                }
+                throw new LangfuseRateLimit(retry);
             }
             if (response.statusCode() >= 300) {
                 throw new IllegalStateException("Langfuse " + path + " " + response.statusCode());

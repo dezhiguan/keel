@@ -20,6 +20,8 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -36,6 +38,7 @@ public class TraceQueryService {
     private final SavedTraces saved;
     private final ConsoleUsers users;
     private final Map<String, CachedRoots> listCache = new ConcurrentHashMap<>();
+    private final Map<String, CompletableFuture<List<JsonNode>>> listInflight = new ConcurrentHashMap<>();
     private record CachedRoots(List<JsonNode> rows, Instant at) {}
     private final Object priceCache = new Object();
     private Map<String, double[]> cachedPrices = Map.of();
@@ -152,6 +155,7 @@ public class TraceQueryService {
                 return present(page(page, size, matched));
             }
         } catch (LangfuseRateLimit limited) {
+            log.warn("Langfuse trace list rate limited, retry after {}s", limited.retryAfterSeconds());
             throw limited;
         } catch (RuntimeException ex) {
             if (unconfigured(ex)) {
@@ -182,15 +186,57 @@ public class TraceQueryService {
                 : from != null && !from.isBefore(now.minus(Duration.ofHours(25))) ? Duration.ofHours(26)
                 : LIST_WINDOW;
         var key = window.toString();
-        return listCache.compute(key, (unused, cached) -> {
-            if (cached != null && cached.at().plus(LIST_TTL).isAfter(now)) {
-                return cached;
-            }
+        var cached = listCache.get(key);
+        if (cached != null && cached.at().plus(LIST_TTL).isAfter(now)) {
+            return cached.rows();
+        }
+        var created = new CompletableFuture<List<JsonNode>>();
+        var existing = listInflight.putIfAbsent(key, created);
+        if (existing != null) {
+            return joinList(existing);
+        }
+        try {
             var body = langfuse.observationsForList(now.minus(window), now);
             var loaded = new ArrayList<JsonNode>();
             body.path("data").forEach(loaded::add);
-            return new CachedRoots(List.copyOf(loaded), now);
-        }).rows();
+            var rows = List.copyOf(loaded);
+            listCache.put(key, new CachedRoots(rows, Instant.now()));
+            created.complete(rows);
+            return rows;
+        } catch (LangfuseRateLimit limited) {
+            var stale = listCache.get(key);
+            if (stale != null) {
+                log.warn("Langfuse trace list rate limited, serving the previous window");
+                created.complete(stale.rows());
+                return stale.rows();
+            }
+            created.completeExceptionally(limited);
+            throw limited;
+        } catch (RuntimeException ex) {
+            created.completeExceptionally(ex);
+            throw ex;
+        } finally {
+            listInflight.remove(key, created);
+        }
+    }
+
+    /** Drop the freshness timestamp so the next read has to talk to Langfuse again. */
+    void expireListCache() {
+        listCache.replaceAll((key, cached) -> new CachedRoots(cached.rows(), Instant.EPOCH));
+    }
+
+    private static List<JsonNode> joinList(CompletableFuture<List<JsonNode>> pending) {
+        try {
+            return pending.join();
+        } catch (CompletionException ex) {
+            if (ex.getCause() instanceof LangfuseRateLimit limited) {
+                throw limited;
+            }
+            if (ex.getCause() instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw ex;
+        }
     }
 
     private Map<String, Object> page(int page, int size, List<Map<String, Object>> matched) {
@@ -344,6 +390,7 @@ public class TraceQueryService {
         try {
             return remoteDetail(traceId);
         } catch (LangfuseRateLimit limited) {
+            log.warn("Langfuse trace detail rate limited, retry after {}s", limited.retryAfterSeconds());
             throw limited;
         } catch (RuntimeException e) {
             var local = saved.detail(traceId);

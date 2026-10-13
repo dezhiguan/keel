@@ -169,6 +169,7 @@ class TraceQueryServiceTest {
         service.list(1, 10, "", "prod", "ok", java.time.Instant.parse("2026-10-06T00:00:00Z"), java.time.Instant.parse("2026-10-08T00:00:00Z"), false, null);
         service.list(1, 20, "askdb", "prod", "failed", java.time.Instant.parse("2026-10-07T00:00:00Z"), java.time.Instant.parse("2026-10-07T02:00:00Z"), true, null);
         assertThat(queries).hasSize(2);
+        assertThat(queries).allSatisfy(query -> assertThat(query).contains("limit=1000"));
         assertThat(queries).anySatisfy(query -> {
             assertThat(query).contains("isRootObservation=true");
             assertThat(query).contains("fields=core,basic,io,metadata,model,usage");
@@ -213,6 +214,41 @@ class TraceQueryServiceTest {
         assertThatThrownBy(() -> service.detail("tr-cloud"))
                 .isInstanceOf(LangfuseRateLimit.class);
         server.stop(0);
+    }
+
+    @Test void rateLimitKeepsThePreviousTraceList() throws Exception {
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        var body = """
+                {"data":[
+                  {"id":"root","traceId":"tr-ok","name":"askdb","type":"AGENT","startTime":"2026-10-13T01:00:00.000Z","endTime":"2026-10-13T01:00:01.000Z","input":{"text":"华东退货率"},"metadata":{"keel.agent":"askdb","keel.env":"dev","keel.status":"ok","langfuse.observation.type":"agent"}}
+                ]}
+                """.getBytes(StandardCharsets.UTF_8);
+        server.createContext("/", exchange -> {
+            if (calls.incrementAndGet() > 2) {
+                exchange.getResponseHeaders().add("Retry-After", "12");
+                exchange.sendResponseHeaders(429, -1);
+                exchange.close();
+                return;
+            }
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var service = new TraceQueryService(client(server), "https://jp.cloud.langfuse.com", "proj-1", Map.of());
+            @SuppressWarnings("unchecked")
+            var first = (List<Map<String, Object>>) service.list(1, 10, "", "dev").get("items");
+            assertThat(first).extracting(item -> item.get("traceId")).containsExactly("tr-ok");
+            service.expireListCache();
+            @SuppressWarnings("unchecked")
+            var second = (List<Map<String, Object>>) service.list(1, 10, "", "dev").get("items");
+            assertThat(second).extracting(item -> item.get("traceId")).containsExactly("tr-ok");
+            assertThat(calls.get()).isEqualTo(3);
+        } finally {
+            server.stop(0);
+        }
     }
 
     @Test void listFiltersUseRealObservationFields() throws Exception {
