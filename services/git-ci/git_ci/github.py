@@ -220,6 +220,43 @@ class GitHub:
         self.request("POST", f"/repos/{self.org}/{repo}/issues/{number}/comments", {"body": body})
         return {"repo": f"{self.org}/{repo}", "number": number}
 
+    def review_status(self, repo: str, number: int, sha: str, job_id: str) -> dict:
+        """Report human approval only for the immutable candidate commit and protected main."""
+        if not re.fullmatch(r"[0-9a-f]{40}", sha):
+            raise ValueError("sha")
+        root = f"/repos/{self.org}/{repo}"
+        metadata = self.request("GET", root)
+        if metadata.get("description") != f"keel-devflow:{job_id}" or metadata.get("private") is not True:
+            raise GitHubError(403, "Repository is not the private repository for this task")
+        pull = self.request("GET", root + f"/pulls/{number}")
+        if (pull.get("head", {}).get("sha") != sha or pull.get("base", {}).get("ref") != "main"
+                or pull.get("state") != "open"):
+            raise GitHubError(409, "PR head, base or state changed; review evidence is stale")
+        try:
+            protection = self.request("GET", root + "/branches/main/protection")
+            required = protection.get("required_pull_request_reviews", {}).get("required_approving_review_count", 0)
+        except GitHubError as exc:
+            if exc.status != 403:
+                raise
+            required = 0
+        reviews = self.request("GET", root + f"/pulls/{number}/reviews?per_page=100")
+        if not isinstance(reviews, list) or len(reviews) >= 100:
+            raise GitHubError(409, "Review history is incomplete")
+        latest = {}
+        for index, review in enumerate(reviews):
+            user = review.get("user") or {}
+            login = user.get("login")
+            if user.get("type") == "User" and isinstance(login, str) and login:
+                order = review.get("id") if isinstance(review.get("id"), int) else index
+                if login not in latest or order > latest[login][0]:
+                    latest[login] = (order, review)
+        reviewers = sorted(login for login, (_, review) in latest.items()
+                           if review.get("state") == "APPROVED" and review.get("commit_id") == sha)
+        return {"repo": f"{self.org}/{repo}", "number": number, "headSha": sha,
+                "protection": "ENFORCED" if required >= 1 else "UNAVAILABLE",
+                "ready": not pull.get("draft", True), "reviewers": reviewers,
+                "approved": required >= 1 and not pull.get("draft", True) and len(reviewers) >= required}
+
     def merge(self, repo: str, number: int) -> dict:
         repository = self.request("GET", f"/repos/{self.org}/{repo}")
         if str(repository.get("description") or "").startswith("keel-devflow:"):

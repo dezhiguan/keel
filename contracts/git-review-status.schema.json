@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Git review status for a generated employee candidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["repo", "number", "headSha", "protection", "ready", "reviewers", "approved"],
+  "properties": {
+    "repo": {"type": "string"},
+    "number": {"type": "integer", "minimum": 1},
+    "headSha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "protection": {"type": "string", "enum": ["ENFORCED", "UNAVAILABLE"]},
+    "ready": {"type": "boolean"},
+    "reviewers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "approved": {"type": "boolean"}
+  }
+}

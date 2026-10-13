@@ -73,6 +73,10 @@ export function approveDevflowToolGrant(jobId: string, toolName: string, version
   return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/tool-grants`, { toolName, versionRange })
 }
 
+export function refreshDevflowHumanReview(jobId: string) {
+  return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/human-review/refresh`)
+}
+
 export function listDevflowBatches() {
   return get<{ items: DevflowBatch[] }>('/devflow/batches')
 }

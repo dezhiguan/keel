@@ -46,24 +46,25 @@ public class MetaAgentExecution {
     private final WizardCatalog catalog;
     private final AgentEndpointClient agent;
     private final SandboxService sandbox;
+    private final GitSnapshotClient git;
     private final String endpoint;
     private final String token;
 
     @Autowired
     public MetaAgentExecution(JdbcTemplate jdbc, ObjectMapper json, PlatformTransactionManager transactions,
                               DevflowService jobs, WizardCatalog catalog, AgentEndpointClient agent,
-                              SandboxService sandbox,
+                              SandboxService sandbox, GitSnapshotClient git,
                               @Value("${KEEL_META_AGENT_URL:}") String endpoint,
                               @Value("${KEEL_META_AGENT_TOKEN:}") String token) {
         this.jdbc = jdbc; this.json = json; this.tx = new TransactionTemplate(transactions);
-        this.jobs = jobs; this.catalog = catalog; this.agent = agent; this.sandbox = sandbox;
+        this.jobs = jobs; this.catalog = catalog; this.agent = agent; this.sandbox = sandbox; this.git = git;
         this.endpoint = endpoint; this.token = token;
     }
 
     MetaAgentExecution(JdbcTemplate jdbc, ObjectMapper json, PlatformTransactionManager transactions,
                        DevflowService jobs, WizardCatalog catalog, AgentEndpointClient agent,
                        String endpoint, String token) {
-        this(jdbc, json, transactions, jobs, catalog, agent, null, endpoint, token);
+        this(jdbc, json, transactions, jobs, catalog, agent, null, null, endpoint, token);
     }
 
     public static void requireAdmin() {
@@ -159,6 +160,27 @@ public class MetaAgentExecution {
             jdbc.update("INSERT INTO devflow_tool_grant(job_id,tool_name,version_range,granted_by) VALUES (?,?,?,?)",
                     id, toolName, versionRange, ConsolePrincipal.current().username());
             return publicState(state);
+        });
+    }
+
+    public ObjectNode refreshHumanReview(String id) {
+        requireAdmin();
+        var state = stateInternal(id);
+        if (!"WAITING_REVIEW".equals(state.path("phase").asText()) || git == null) {
+            throw invalid("候选代码尚未进入人工 PR 评审阶段");
+        }
+        var delivery = state.path("delivery");
+        var repo = delivery.path("repo").asText().replaceFirst("^[^/]+/", "");
+        var evidence = git.reviewStatus(id, repo, delivery.path("number").asInt(), delivery.path("sha").asText());
+        return tx.execute(status -> {
+            var current = lock(id);
+            if (!"WAITING_REVIEW".equals(current.path("phase").asText())
+                    || !delivery.path("sha").asText().equals(current.path("delivery").path("sha").asText())) {
+                throw invalid("候选提交已变化，请重新核验人工评审");
+            }
+            current.set("humanReview", evidence);
+            save(id, current, "DELIVER");
+            return publicState(current);
         });
     }
 

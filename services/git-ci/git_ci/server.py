@@ -67,6 +67,12 @@ def call_tool(github: GitHub, tool: str, body: dict) -> dict:
                               _text(body.get("title")), _text(body.get("body")))
     if tool == "git.pr.diff":
         return github.diff(_name(body.get("repo"), "repo"), _number(body.get("number")))
+    if tool == "git.pr.review.status":
+        sha = body.get("sha")
+        if not isinstance(sha, str):
+            raise ValueError("sha")
+        return github.review_status(_name(body.get("repo"), "repo"), _number(body.get("number")),
+                                    sha, _job(body.get("jobId")))
     if tool == "git.pr.comment":
         return github.comment(_name(body.get("repo"), "repo"), _number(body.get("number")), _text(body.get("body")))
     if tool == "git.pr.merge":

@@ -1959,6 +1959,27 @@ paths:
         "409":
           $ref: "#/components/responses/Error"
 
+  /devflow/jobs/{jobId}/human-review/refresh:
+    parameters:
+      - $ref: "#/components/parameters/DevflowJobId"
+    post:
+      tags: [devflow]
+      operationId: refreshDevflowHumanReview
+      summary: S4 核验候选 PR 最新提交的人工 review 和分支保护
+      responses:
+        "200":
+          description: 已读取并记录 GitHub 评审证据
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowExecution" }
+        "409":
+          $ref: "#/components/responses/Error"
+
   /devflow/jobs/{jobId}/stages/{stage}/report:
     parameters:
       - $ref: "#/components/parameters/DevflowJobId"
@@ -3380,6 +3401,19 @@ components:
         pendingToolGrants:
           type: array
           items: { type: string }
+        humanReview:
+          type: object
+          required: [repo, number, headSha, protection, ready, reviewers, approved]
+          properties:
+            repo: { type: string }
+            number: { type: integer }
+            headSha: { type: string }
+            protection: { type: string, enum: [ENFORCED, UNAVAILABLE] }
+            ready: { type: boolean }
+            reviewers:
+              type: array
+              items: { type: string }
+            approved: { type: boolean }
         error: { type: string }
     MetaAgentWork:
       type: object

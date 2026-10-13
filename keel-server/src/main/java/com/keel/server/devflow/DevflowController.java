@@ -137,6 +137,12 @@ public class DevflowController {
                 body == null ? null : body.versionRange()));
     }
 
+    @PostMapping("/jobs/{jobId}/human-review/refresh")
+    public R<com.fasterxml.jackson.databind.node.ObjectNode> refreshHumanReview(@PathVariable String jobId) {
+        requireWrite();
+        return R.ok(execution.refreshHumanReview(jobId));
+    }
+
     @GetMapping("/holdout/{jobId}")
     public R<Map<String, Object>> holdout(@PathVariable String jobId) {
         var principal = requireService();

@@ -13,6 +13,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import com.fasterxml.jackson.databind.JsonNode;
 
 /** Fetches a private, immutable task commit outside the untrusted sandbox pod. */
 @Component
@@ -54,6 +55,38 @@ public class GitSnapshotClient {
             throw error;
         } catch (Exception error) {
             throw new KeelException(ErrorCode.GIT_UPSTREAM_FAILED, "Git 快照服务不可达");
+        }
+    }
+
+    public JsonNode reviewStatus(String jobId, String repo, int number, String sha) {
+        if (base.isBlank() || token.isBlank()) {
+            throw new KeelException(ErrorCode.GIT_UPSTREAM_FAILED, "Git 评审服务未配置");
+        }
+        try {
+            var body = json.writeValueAsString(Map.of("jobId", jobId, "repo", repo,
+                    "number", number, "sha", sha));
+            var request = HttpRequest.newBuilder(URI.create(base.replaceAll("/$", "") + "/v1/tools/git.pr.review.status"))
+                    .timeout(Duration.ofSeconds(30))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + token)
+                    .POST(HttpRequest.BodyPublishers.ofString(body)).build();
+            var response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                throw new KeelException(ErrorCode.GIT_UPSTREAM_FAILED, "无法核验候选 PR 的人工评审");
+            }
+            var evidence = json.readTree(response.body());
+            if (!sha.equals(evidence.path("headSha").asText())
+                    || !evidence.path("reviewers").isArray()
+                    || !evidence.path("approved").isBoolean()
+                    || number != evidence.path("number").asInt(-1)
+                    || !evidence.path("repo").asText().endsWith("/" + repo)) {
+                throw new KeelException(ErrorCode.GIT_UPSTREAM_FAILED, "Git 人工评审证据与候选提交不一致");
+            }
+            return evidence;
+        } catch (KeelException error) {
+            throw error;
+        } catch (Exception error) {
+            throw new KeelException(ErrorCode.GIT_UPSTREAM_FAILED, "Git 评审服务不可达");
         }
     }
 }

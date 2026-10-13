@@ -1263,6 +1263,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/devflow/jobs/{jobId}/human-review/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** S4 核验候选 PR 最新提交的人工 review 和分支保护 */
+        post: operations["refreshDevflowHumanReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/devflow/jobs/{jobId}/stages/{stage}/report": {
         parameters: {
             query?: never;
@@ -2485,6 +2504,16 @@ export interface components {
                 grantedBy: string;
             }[];
             pendingToolGrants?: string[];
+            humanReview?: {
+                repo: string;
+                number: number;
+                headSha: string;
+                /** @enum {string} */
+                protection: "ENFORCED" | "UNAVAILABLE";
+                ready: boolean;
+                reviewers: string[];
+                approved: boolean;
+            };
             error?: string;
         };
         /** @description 服务端经 SDK input.text 传递的工作请求，使用 bridge 身份鉴别 */
@@ -4642,6 +4671,31 @@ export interface operations {
         };
         responses: {
             /** @description 已记录该工具的人工授权 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowExecution"];
+                    };
+                };
+            };
+            409: components["responses"]["Error"];
+        };
+    };
+    refreshDevflowHumanReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已读取并记录 GitHub 评审证据 */
             200: {
                 headers: {
                     [name: string]: unknown;

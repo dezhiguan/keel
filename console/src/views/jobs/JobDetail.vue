@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   approveDevflowToolGrant,
+  refreshDevflowHumanReview,
   assistDevflowJob,
   cancelDevflowJob,
   getDevflowJob,
@@ -116,6 +117,17 @@ async function approveTool(toolName: string) {
   }
 }
 
+async function refreshHumanReview() {
+  busy.value = true
+  try {
+    execution.value = await refreshDevflowHumanReview(jobId.value)
+  } catch (error) {
+    ElMessage.error(toKeelError(error).message)
+  } finally {
+    busy.value = false
+  }
+}
+
 function confirmAssist() {
   if (!job.value) return
   run(() => assistDevflowJob(job.value!.jobId, instruction.value), '已发给 dev-agent')
@@ -215,6 +227,17 @@ onUnmounted(() => {
             <span>验证状态</span><span>{{ execution.delivery.capabilityStatus || 'UNVERIFIED' }} · 门禁 {{ execution.delivery.gateStatus || 'NOT_RUN' }}</span>
             <template v-if="execution.sandboxRunId"><span>隔离沙箱</span><span class="mono">{{ execution.sandboxRunId }} · {{ execution.sandboxStatus || 'RUNNING' }}</span></template>
             <span>下一步</span><span>补齐 H2/H3、沙箱、人工 PR review 与门禁证据；未完成前不可发布。</span>
+          </div>
+          <div v-if="execution.phase === 'WAITING_REVIEW'" class="kv">
+            <span>S4 人工评审</span>
+            <button v-write class="btn sm" type="button" :disabled="busy" @click="refreshHumanReview">核验 PR review</button>
+            <span>核验结果</span>
+            <span v-if="execution.humanReview">
+              {{ execution.humanReview.approved ? '通过' : '未通过' }} · 分支保护 {{ execution.humanReview.protection }} ·
+              {{ execution.humanReview.ready ? '已可评审' : '仍是草稿' }} ·
+              {{ execution.humanReview.reviewers.join('、') || '无有效审批人' }}
+            </span>
+            <span v-else>尚未核验</span>
           </div>
         </div>
         <div v-if="execution.draft?.spec" class="row2">

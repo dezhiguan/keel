@@ -132,6 +132,40 @@ def test_plan_limit_keeps_private_scaffolds_but_blocks_merge_and_other_permissio
         Restricted("Resource not accessible by integration").ensure_repo("qa", "DF-9001")
 
 
+def test_human_pr_review_is_bound_to_protected_main_and_exact_candidate_sha():
+    sha = "a" * 40
+
+    class Reviews(GitHub):
+        def __init__(self, *, protected=True, draft=False, head=sha, latest="APPROVED", review_sha=sha):
+            super().__init__("http://unused", "test")
+            self.protected, self.draft, self.head = protected, draft, head
+            self.latest, self.review_sha = latest, review_sha
+
+        def request(self, method, path, payload=None, **kwargs):
+            if path.endswith("/qa"):
+                return {"description": "keel-devflow:DF-9001", "private": True}
+            if path.endswith("/pulls/7"):
+                return {"head": {"sha": self.head}, "base": {"ref": "main"},
+                        "state": "open", "draft": self.draft}
+            if path.endswith("/branches/main/protection"):
+                if not self.protected:
+                    raise GitHubError(403, "Upgrade to GitHub Pro")
+                return {"required_pull_request_reviews": {"required_approving_review_count": 1}}
+            if path.endswith("/pulls/7/reviews?per_page=100"):
+                return [{"user": {"login": "human", "type": "User"},
+                         "state": self.latest, "commit_id": self.review_sha}]
+            raise AssertionError(path)
+
+    assert call_tool(Reviews(), "git.pr.review.status",
+                     {"repo": "qa", "number": 7, "sha": sha, "jobId": "DF-9001"})["approved"] is True
+    assert Reviews(draft=True).review_status("qa", 7, sha, "DF-9001")["approved"] is False
+    assert Reviews(protected=False).review_status("qa", 7, sha, "DF-9001")["approved"] is False
+    assert Reviews(review_sha="b" * 40).review_status("qa", 7, sha, "DF-9001")["approved"] is False
+    assert Reviews(latest="CHANGES_REQUESTED").review_status("qa", 7, sha, "DF-9001")["approved"] is False
+    with pytest.raises(GitHubError, match="stale"):
+        Reviews(head="b" * 40).review_status("qa", 7, sha, "DF-9001")
+
+
 class Handler(BaseHTTPRequestHandler):
     seen = []
 
