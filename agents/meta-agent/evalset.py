@@ -1,6 +1,7 @@
 """Expand human-authored role exams without changing the original cases."""
 
 import json
+import re
 
 from keel.protocol.errors import ErrorCode, KeelError
 
@@ -48,7 +49,7 @@ def parse(reply: str | None, human: list[dict]) -> tuple[dict, list[str]]:
             return {}, ["用例必须为对象"]
         case_id, data, expected = item.get("caseId"), item.get("input"), item.get("expected")
         tags, reason = item.get("tags"), item.get("reason")
-        if (not isinstance(case_id, str) or not case_id.startswith("a-") or len(case_id) > 50
+        if (not isinstance(case_id, str) or not re.fullmatch(r"a-[A-Za-z0-9_-]{1,45}", case_id)
                 or case_id in seen or not isinstance(data, dict) or not isinstance(expected, dict)
                 or not isinstance(tags, list) or not tags or any(not isinstance(tag, str) or not tag for tag in tags)
                 or not isinstance(reason, str) or not reason.strip()):

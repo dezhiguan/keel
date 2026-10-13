@@ -201,7 +201,10 @@ public class MetaAgentExecution {
             for (var item : cases) {
                 if (item == null || item.caseId() == null || !item.caseId().matches("h-[A-Za-z0-9_-]{1,45}")
                         || !ids.add(item.caseId()) || item.input() == null || item.expected() == null
-                        || item.tags() == null || item.tags().isEmpty()) throw invalid("人工用例需要唯一 h- 编号、输入、期望和标签");
+                        || item.tags() == null || item.tags().isEmpty()
+                        || item.tags().stream().anyMatch(tag -> tag == null || tag.isBlank())) {
+                    throw invalid("人工用例需要唯一 h- 编号、输入、期望和标签");
+                }
             }
             state.set("humanSeeds", json.valueToTree(cases));
             state.put("phase", "QUEUED");
