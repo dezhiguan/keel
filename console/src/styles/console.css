@@ -293,6 +293,8 @@ a.jc { display: block; color: inherit; text-decoration: none; }
 .pedit .cfg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
 .pedit .chip { margin: 0 6px 0 0; }
 .modal.wide { width: min(720px, 94vw); }
+.modal.wide.on { display: flex; flex-direction: column; max-height: calc(100vh - 24px); }
+.modal.wide .mb { overflow: auto; min-height: 0; }
 
 .login-page { min-height: 100vh; background: var(--bg); }
 .lwrap { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(360px, 1fr); min-height: 100vh; }

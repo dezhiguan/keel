@@ -33,6 +33,7 @@ keel-server/src/test/java/com/keel/server/registry/service/RegisterManifestTest.
 - chat 可以增删消息、改角色。至少留一条，每条都要有内容。角色只允许 system、user、assistant。
 - config 三项可留空。temperature 为 0～2，top_p 为 0～1，max_tokens 为正整数。保存时和正文一起写入新版本，不挪任何环境标签。
 - 内容和 config 都没变时不新建版本。
+- 编辑框高于视口时，正文在框内滚动，保存按钮留在框底。
 
 ## 验收
 
