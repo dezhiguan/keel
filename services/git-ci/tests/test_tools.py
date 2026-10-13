@@ -48,6 +48,27 @@ def test_personal_repository_uses_the_authenticated_user_endpoint():
     assert ("POST", "/orgs/owner/repos") not in client.paths
 
 
+def test_plan_limit_keeps_private_scaffolds_but_blocks_merge_and_other_permission_failures():
+    class Restricted(GitHub):
+        def __init__(self, message):
+            super().__init__("http://unused", "test")
+            self.message = message
+            self.calls = []
+        def request(self, method, path, payload=None, **kwargs):
+            self.calls.append((method, path))
+            if path.endswith("/protection"):
+                raise GitHubError(403, self.message)
+            return {"description": "keel-devflow:DF-9001", "private": True}
+
+    plan = Restricted("Upgrade to GitHub Pro or make this repository public to enable this feature.")
+    assert plan.ensure_repo("qa", "DF-9001")["protection"] == "UNAVAILABLE"
+    with pytest.raises(GitHubError):
+        plan.merge("qa", 1)
+    assert not any(path.endswith("/merge") for _, path in plan.calls)
+    with pytest.raises(GitHubError):
+        Restricted("Resource not accessible by integration").ensure_repo("qa", "DF-9001")
+
+
 class Handler(BaseHTTPRequestHandler):
     seen = []
 

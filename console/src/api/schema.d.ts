@@ -2412,6 +2412,11 @@ export interface components {
                 /** Format: uri */
                 url: string;
                 branch: string;
+                /**
+                 * @description 私有仓库分支保护；UNAVAILABLE 时平台拒绝合并，骨架仅供人工开发
+                 * @enum {string}
+                 */
+                protection?: "ENFORCED" | "UNAVAILABLE";
             };
             traceId?: string;
             error?: string;

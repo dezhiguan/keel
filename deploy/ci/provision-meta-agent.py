@@ -4,6 +4,7 @@ import base64
 import json
 import secrets
 import subprocess
+from pathlib import Path
 
 
 def kubectl(*args, body=None):
@@ -55,3 +56,20 @@ print(json.dumps({'key':r.json()['key']}))
         "KEEL_TEMPLATES_DIR": "/src/templates",
     })
 print("Meta-agent Secrets ready; existing keys were preserved")
+
+# The application's single-node k3s cannot pull the dynamic provisioner's helper image.
+# Pre-bind only this application's volume; retain its data independently of claim deletion.
+nodes = json.loads(subprocess.check_output(["kubectl", "get", "nodes", "-o", "json"]))["items"]
+if len(nodes) != 1:
+    raise SystemExit("Specify a storage node before provisioning meta-agent on a multi-node cluster")
+directory = Path("/opt/keel/meta-agent-data")
+directory.mkdir(parents=True, exist_ok=True)
+volume = {"apiVersion": "v1", "kind": "PersistentVolume", "metadata": {"name": "keel-meta-agent-data"},
+    "spec": {"capacity": {"storage": "1Gi"}, "volumeMode": "Filesystem", "accessModes": ["ReadWriteOnce"],
+        "persistentVolumeReclaimPolicy": "Retain", "storageClassName": "local-path",
+        "claimRef": {"namespace": "keel-system", "name": "meta-agent-data"},
+        "local": {"path": str(directory)}, "nodeAffinity": {"required": {"nodeSelectorTerms": [
+            {"matchExpressions": [{"key": "kubernetes.io/hostname", "operator": "In",
+                "values": [nodes[0]["metadata"]["labels"]["kubernetes.io/hostname"]]}]}]}}}}
+kubectl("apply", "-f", "-", body=json.dumps(volume).encode())
+print("Meta-agent retained local volume ready")

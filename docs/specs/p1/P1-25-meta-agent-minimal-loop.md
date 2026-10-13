@@ -18,9 +18,14 @@ contracts/console-api.openapi.yaml；keel-server application.yml 调度线程配
 - 真实目录校验选中工具，风险不降级。最小版本不支持知识库生成。模板、预算由确定的需求覆盖模型输出，manifest 通过 schema/业务校验才展示。
 - Git 建库/开 PR 可重试，已有仓库只允许带本任务标记的仓库；分步结果持久化；推送不覆盖人写 draft。令牌只在 Secret。无 Git 配置则交付失败，不伪报完成。
 - 显示真实需求、manifest、PR URL、commit、trace。H1 待办从研发任务聚合进审批中心；骨架交付后停 HUMAN/BUILD。取消未启动任务或 H1；交付中的取消禁止，避免误承诺撤销已发生的 Git 写入。
+- 应用节点通过预配脚本给 meta-agent-data 绑定专用 Retain local PV；不依赖当前无法拉取镜像的动态 provisioner helper，也不修改其他应用的存储配置。单节点本地卷不提供节点故障容灾。
 
 ## 验证和部署
 
 - 表单、真实产物展示、待办聚合测试；Java 调度、版本/权限、异常、持久化领取测试；Python 使用真实 HTTP 假网关验证 draft/revise/delivery 与校验。
 - 构建、契约、门禁通过后部署 server、console、meta-agent 和所需 Git 服务，等待 rollout。
 - 浏览器真实提交 → 出草稿 → 编辑、退回 → 确认 → 真实 PR；验证重复确认和重启后状态；记录 job/trace/PR/commit 及截图。密钥不写入报告。
+
+## 云端验收发现的账号限制
+
+GitHub 对当前账号的私有仓库分支保护返回 403 “Upgrade to GitHub Pro”。最小骨架交付仍保持仓库私有，返回 protection=UNAVAILABLE 并在页面明确标示。此时 Git 工具服务拒绝合并该研发任务仓库；不能当作可自动发布的产物。仅该明确的套餐限制允许交付，普通权限失败仍失败。支持分支保护时仍要求至少一个 approving review。

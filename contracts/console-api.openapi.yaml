@@ -3296,6 +3296,7 @@ components:
             sha: { type: string }
             url: { type: string, format: uri }
             branch: { type: string }
+            protection: { type: string, enum: [ENFORCED, UNAVAILABLE], description: 私有仓库分支保护；UNAVAILABLE 时平台拒绝合并，骨架仅供人工开发 }
         traceId: { type: string }
         error: { type: string }
     MetaAgentWork:
