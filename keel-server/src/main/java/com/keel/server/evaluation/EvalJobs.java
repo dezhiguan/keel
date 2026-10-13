@@ -6,6 +6,7 @@ import com.keel.common.error.ErrorCode;
 import com.keel.server.auth.ConsolePrincipal;
 import com.keel.server.common.KeelException;
 import com.keel.server.prompt.PromptCatalog;
+import com.keel.server.registry.model.dto.AgentDetail;
 import com.keel.server.registry.service.AgentRegistryService;
 import com.keel.server.registry.model.enums.AgentStatus;
 import io.fabric8.kubernetes.api.model.*;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.slf4j.LoggerFactory;
 import java.time.Instant;
 import java.util.*;
+import java.util.Locale;
 
 /** Durable run records, deterministic Kubernetes Jobs, and restart-safe reconciliation. */
 @Service
@@ -70,6 +72,41 @@ public class EvalJobs {
         },id);
         if(rows.isEmpty()) throw new KeelException(ErrorCode.SERVER_NOT_FOUND,ErrorCode.SERVER_NOT_FOUND.message());
         return rows.getFirst();
+    }
+
+    /** Drawer row for the latest finished run. Opening the detail does not start an evaluation. */
+    public AgentDetail withGate(AgentDetail detail) {
+        if (detail == null || detail.selfCheck() == null || detail.summary() == null) {
+            return detail;
+        }
+        var item = gateItem(latest(detail.summary().name()));
+        var items = new ArrayList<>(detail.selfCheck().items());
+        var replaced = false;
+        for (var i = 0; i < items.size(); i++) {
+            if ("评测门禁".equals(items.get(i).name())) {
+                items.set(i, item);
+                replaced = true;
+            }
+        }
+        if (!replaced) {
+            items.add(item);
+        }
+        var report = detail.selfCheck();
+        return detail.withSelfCheck(new AgentDetail.CheckReport(report.passed(), items, report.checkedAt()));
+    }
+
+    static AgentDetail.CheckItem gateItem(Map<String, Object> result) {
+        if (result == null || !(result.get("scoreTotal") instanceof Number number)) {
+            return new AgentDetail.CheckItem("评测门禁", null, "未运行");
+        }
+        var min = 0.85;
+        if (result.get("gate") instanceof Map<?, ?> gate && gate.get("minScore") instanceof Number threshold) {
+            min = threshold.doubleValue();
+        }
+        var passed = result.get("passed") instanceof Boolean flag ? flag : number.doubleValue() >= min;
+        var mark = number.doubleValue() >= min ? "≥" : "<";
+        return new AgentDetail.CheckItem("评测门禁", passed,
+                String.format(Locale.ROOT, "%.2f %s %.2f", number.doubleValue(), mark, min));
     }
 
     public Map<String,Object> latest(String agent) {

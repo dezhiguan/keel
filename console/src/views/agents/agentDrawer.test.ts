@@ -77,6 +77,11 @@ describe('agent drawer', () => {
       selfCheck: { items: [{ name: '评测门禁', passed: null, detail: '未运行' }] },
     })
     expect(gated.selfCheck?.items?.[0]).toMatchObject({ passed: true, detail: '0.90 ≥ 0.85' })
+    const kept = withEvalGate({
+      score: 0.5,
+      selfCheck: { items: [{ name: '评测门禁', passed: true, detail: '0.90 ≥ 0.80' }] },
+    })
+    expect(kept.selfCheck?.items?.[0]?.detail).toBe('0.90 ≥ 0.80')
   })
 
   it('labels a crashed pod differently from a failed probe', () => {

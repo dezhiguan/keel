@@ -3,6 +3,7 @@ package com.keel.server.registry.controller;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.keel.server.common.PageResult;
 import com.keel.server.common.R;
+import com.keel.server.evaluation.EvalJobs;
 import com.keel.server.insight.AgentUsageService;
 import com.keel.server.registry.model.dto.AgentDetail;
 import com.keel.server.registry.model.dto.AgentSummary;
@@ -28,13 +29,15 @@ public class AgentController {
     private final LifecycleService lifecycleService;
     private final AgentChatService chats;
     private final AgentUsageService usage;
+    private final EvalJobs evaluations;
 
     public AgentController(AgentRegistryService agentRegistryService, LifecycleService lifecycleService,
-                           AgentChatService chats, AgentUsageService usage) {
+                           AgentChatService chats, AgentUsageService usage, EvalJobs evaluations) {
         this.agentRegistryService = agentRegistryService;
         this.lifecycleService = lifecycleService;
         this.chats = chats;
         this.usage = usage;
+        this.evaluations = evaluations;
     }
 
     @GetMapping
@@ -69,7 +72,7 @@ public class AgentController {
 
     @GetMapping("/{name}")
     public R<AgentDetail> detail(@PathVariable String name) {
-        return R.ok(agentRegistryService.detail(name));
+        return R.ok(evaluations.withGate(agentRegistryService.detail(name)));
     }
 
     @PostMapping("/{name}/chat")

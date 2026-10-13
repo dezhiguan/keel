@@ -182,7 +182,7 @@ export function withEvalGate<T extends { score?: number | null; selfCheck?: { pa
     selfCheck: {
       ...agent.selfCheck,
       items: items.map((item) => {
-        if (item.name !== '评测门禁') return item
+        if (item.name !== '评测门禁' || (item.detail && item.detail !== '未运行')) return item
         const ok = agent.score != null && agent.score >= min
         return { ...item, passed: ok, detail: `${scoreText(agent.score)} ${ok ? '≥' : '<'} ${min}` }
       }),
