@@ -18,6 +18,7 @@ contracts/console-api.openapi.yaml；keel-server application.yml 调度线程配
 - 真实目录校验选中工具，风险不降级。最小版本不支持知识库生成。模板、预算由确定的需求覆盖模型输出，manifest 通过 schema/业务校验才展示。
 - Git 建库/开 PR 可重试，已有仓库只允许带本任务标记的仓库；分步结果持久化；推送不覆盖人写 draft。令牌只在 Secret。无 Git 配置则交付失败，不伪报完成。
 - 显示真实需求、manifest、PR URL、commit、trace。H1 待办从研发任务聚合进审批中心；骨架交付后停 HUMAN/BUILD。取消未启动任务或 H1；交付中的取消禁止，避免误承诺撤销已发生的 Git 写入。
+- 应用节点通过预配脚本给 meta-agent-data 绑定专用 Retain local PV；不依赖当前无法拉取镜像的动态 provisioner helper，也不修改其他应用的存储配置。单节点本地卷不提供节点故障容灾。
 
 ## 验证和部署
 
