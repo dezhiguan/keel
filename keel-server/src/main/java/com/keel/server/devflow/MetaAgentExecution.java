@@ -364,7 +364,8 @@ public class MetaAgentExecution {
                 state.put("phase", "FAILED").put("error", error);
                 jobs.progress(work.id, "FAIL", work.action.equals("DELIVER") ? "BUILD" : work.action.equals("EVAL") ? "EVAL" : "SPEC", error);
             } else if (work.action.equals("DRAFT")) {
-                if (!output.has("spec") || !output.has("manifestYaml")) throw invalid("草稿产物缺失");
+                if (!output.path("spec").isObject() || !output.path("manifest").isObject()
+                        || blank(output.path("manifestYaml").asText())) throw invalid("草稿需求单或岗位说明书缺失");
                 state.set("draft", output); state.put("phase", "WAITING");
                 jobs.progress(work.id, "WAIT", "H1", "元智能体已生成第 " + state.path("version").asInt() + " 版草稿，等待需求确认");
             } else if (work.action.equals("EVAL")) {

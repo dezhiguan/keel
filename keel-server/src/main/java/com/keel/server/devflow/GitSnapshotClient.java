@@ -11,6 +11,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /** Fetches a private, immutable task commit outside the untrusted sandbox pod. */
@@ -45,7 +46,7 @@ public class GitSnapshotClient {
             }
             var snapshot = json.readTree(response.body());
             if (!sha.equals(snapshot.path("sha").asText()) || !snapshot.path("files").isArray()
-                    || snapshot.path("files").isEmpty() || response.body().length() > 950_000) {
+                    || snapshot.path("files").isEmpty() || response.body().getBytes(StandardCharsets.UTF_8).length > 950_000) {
                 throw new KeelException(ErrorCode.GIT_UPSTREAM_FAILED, "Git 快照无效或过大");
             }
             return response.body();

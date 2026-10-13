@@ -39,7 +39,7 @@ class MetaAgentPersistenceTest {
         ConsolePrincipal.set(request, ConsolePrincipal.dev());
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
         var client = new FakeClient(
-                new AgentEndpointClient.Answer("{\"spec\":{\"title\":\"QA\",\"goal\":\"需求\",\"users\":\"人\",\"io\":\"文档\",\"success\":\"通过\",\"pending\":[]},\"manifestYaml\":\"actual-yaml\"}", "trace-draft"),
+                new AgentEndpointClient.Answer("{\"spec\":{\"title\":\"QA\",\"goal\":\"需求\",\"users\":\"人\",\"io\":\"文档\",\"success\":\"通过\",\"pending\":[]},\"manifest\":{},\"manifestYaml\":\"actual-yaml\"}", "trace-draft"),
                 new AgentEndpointClient.Answer("{\"cases\":[{\"caseId\":\"a-1\",\"input\":{\"text\":\"bad\"},\"expected\":{\"status\":\"BLOCKED\"},\"tags\":[\"boundary\"],\"reason\":\"missing fields\"}]}", "trace-eval"),
                 new AgentEndpointClient.Answer("{\"repo\":\"keel-agents/spec-agent\",\"number\":1,\"url\":\"https://github.com/keel-agents/spec-agent/pull/1\",\"sha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"branch\":\"draft\"}", "trace-deliver"));
         var first = service(client);
