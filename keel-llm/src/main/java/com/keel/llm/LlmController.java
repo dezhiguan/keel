@@ -45,7 +45,7 @@ public class LlmController {
                 strings(body.get("fallback")),
                 body.get("dailyBudgetCny") == null ? null : new BigDecimal(body.get("dailyBudgetCny").toString()),
                 Boolean.TRUE.equals(body.get("allowFallback")) || "true".equals(String.valueOf(body.get("allowFallback"))));
-        return ResponseEntity.status(201).body(Map.of("alias", created.alias(), "key", created.key()));
+        return ResponseEntity.status(201).body(Map.of("alias", created.alias(), "key", created.key(), "version", created.version()));
     }
 
     @PostMapping("/admin/v1/keys/{alias}/block")
@@ -76,6 +76,7 @@ public class LlmController {
             view.put("dailyBudgetCny", key.dailyBudgetCny());
             view.put("spentCny", key.spentCny());
             view.put("blocked", key.blocked());
+            view.put("version", key.version());
             return view;
         }).toList();
         return Map.of("data", rows);
@@ -93,6 +94,7 @@ public class LlmController {
         view.put("dailyBudgetCny", key.dailyBudgetCny());
         view.put("allowFallback", key.allowFallback());
         view.put("blocked", key.blocked());
+        view.put("version", key.version());
         return view;
     }
 

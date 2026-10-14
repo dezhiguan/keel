@@ -19,7 +19,7 @@
 
 | ID | 任务 | 前置 | 验收 |
 |---|---|---|---|
-| R0-1 | 薄网关：同别名重建 Key 后，旧 Key 必须永久失效（`KeyDirectory.byToken` 比对 token；Key 带版本号） | — | 旧 Key 在重建、重启后都返回 401 `LLM_KEY_BLOCKED`；有回归用例 |
+| R0-1 | 薄网关：同别名重建 Key 后，旧 Key 必须永久失效（`KeyDirectory.byToken` 比对 token；Key 带版本号） | — | 旧 Key 在重建、重启后都返回 401 `LLM_KEY_BLOCKED`；有回归用例 · ✅ r1014-r0-1 |
 | R0-2 | 薄网关：额度原子预留 → 按实际 usage 结算 → 退回差额；同一 requestId 只结算一次；Redis 原子操作，跨副本一致 | — | 并发压测（如 50 并发、预算只够 10 次）不超日预算；重复结算请求不重复扣费 |
 | R0-3 | 薄网关：usage 缺失不记 0，进入"待计费"状态并告警 | R0-2 | 模拟上游不返回 usage，账单状态为待计费，费用不为 0 也不丢失 |
 | R0-4 | 模板 Dockerfile 不再从公网 PyPI 安装 `keel-sdk`；在 R2-1 就绪前改为从仓库内构建的 wheel 安装 | — | 断开公网 PyPI 时 5 个模板仍能构建；模板里不再出现裸的 `pip install keel-sdk` |

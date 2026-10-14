@@ -2,6 +2,7 @@ package com.keel.llm;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.lettuce.core.RedisClient;
+import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.api.sync.RedisCommands;
 
 import io.lettuce.core.KeyScanCursor;
@@ -35,9 +36,15 @@ public final class KeyDirectory {
         this.backend = backend;
     }
 
+    public Gateway.VirtualKey rotate(Gateway.VirtualKey key) {
+        return decode(backend.rotate(ALIAS_PREFIX + key.alias(), TOKEN_PREFIX + key.token(),
+                encode(key), key.alias()));
+    }
+
     public void save(Gateway.VirtualKey key) {
-        backend.put(ALIAS_PREFIX + key.alias(), encode(key));
-        backend.put(TOKEN_PREFIX + key.token(), key.alias());
+        if (!backend.updateIfCurrent(ALIAS_PREFIX + key.alias(), encode(key), key.token(), key.version())) {
+            throw new IllegalStateException("虚拟 Key 已轮换，请重试");
+        }
     }
 
     public List<Gateway.VirtualKey> list() {
@@ -60,7 +67,8 @@ public final class KeyDirectory {
         if (alias == null || alias.isBlank()) {
             return null;
         }
-        return byAlias(alias);
+        var current = byAlias(alias);
+        return current != null && current.token().equals(token) ? current : null;
     }
 
     private static String encode(Gateway.VirtualKey key) {
@@ -74,6 +82,7 @@ public final class KeyDirectory {
         node.put("dailyBudgetCny", key.dailyBudgetCny().toPlainString());
         node.put("allowFallback", key.allowFallback());
         node.put("blocked", key.blocked());
+        node.put("version", key.version());
         return node.toString();
     }
 
@@ -90,7 +99,8 @@ public final class KeyDirectory {
                     texts(node.path("fallback")),
                     new BigDecimal(node.path("dailyBudgetCny").asText("0")),
                     node.path("allowFallback").asBoolean(false),
-                    node.path("blocked").asBoolean(false));
+                    node.path("blocked").asBoolean(false),
+                    node.path("version").asInt(1));
         } catch (Exception e) {
             throw new IllegalStateException("虚拟 Key 无法读取", e);
         }
@@ -103,7 +113,9 @@ public final class KeyDirectory {
     }
 
     interface Backend {
-        void put(String key, String value);
+        String rotate(String aliasKey, String tokenKey, String value, String alias);
+
+        boolean updateIfCurrent(String aliasKey, String value, String token, int version);
 
         String get(String key);
 
@@ -118,8 +130,30 @@ public final class KeyDirectory {
         }
 
         @Override
-        public void put(String key, String value) {
-            data.put(key, value);
+        public String rotate(String aliasKey, String tokenKey, String value, String alias) {
+            synchronized (data) {
+                var current = decode(data.get(aliasKey));
+                var next = decode(value);
+                var rotated = new Gateway.VirtualKey(next.alias(), next.token(), next.models(), next.fallback(),
+                        next.dailyBudgetCny(), next.allowFallback(), next.blocked(),
+                        current == null ? 1 : current.version() + 1);
+                var encoded = encode(rotated);
+                data.put(tokenKey, alias);
+                data.put(aliasKey, encoded);
+                return encoded;
+            }
+        }
+
+        @Override
+        public boolean updateIfCurrent(String aliasKey, String value, String token, int version) {
+            synchronized (data) {
+                var current = decode(data.get(aliasKey));
+                if (current == null || !current.token().equals(token) || current.version() != version) {
+                    return false;
+                }
+                data.put(aliasKey, value);
+                return true;
+            }
         }
 
         @Override
@@ -137,6 +171,30 @@ public final class KeyDirectory {
     }
 
     static final class RedisBackend implements Backend {
+        private static final String ROTATE = """
+                local previous = redis.call('GET', KEYS[1])
+                local version = 1
+                if previous then
+                  local old = cjson.decode(previous)
+                  version = tonumber(old.version or 1) + 1
+                end
+                local next = cjson.decode(ARGV[1])
+                next.version = version
+                local encoded = cjson.encode(next)
+                redis.call('SET', KEYS[2], ARGV[2])
+                redis.call('SET', KEYS[1], encoded)
+                return encoded
+                """;
+        private static final String UPDATE = """
+                local raw = redis.call('GET', KEYS[1])
+                if not raw then return 0 end
+                local current = cjson.decode(raw)
+                if current.token ~= ARGV[2] or tonumber(current.version or 1) ~= tonumber(ARGV[3]) then
+                  return 0
+                end
+                redis.call('SET', KEYS[1], ARGV[1])
+                return 1
+                """;
         private final RedisCommands<String, String> redis;
 
         RedisBackend(String redisUri) {
@@ -144,8 +202,15 @@ public final class KeyDirectory {
         }
 
         @Override
-        public void put(String key, String value) {
-            redis.set(key, value);
+        public String rotate(String aliasKey, String tokenKey, String value, String alias) {
+            return redis.eval(ROTATE, ScriptOutputType.VALUE, new String[]{aliasKey, tokenKey}, value, alias);
+        }
+
+        @Override
+        public boolean updateIfCurrent(String aliasKey, String value, String token, int version) {
+            Long updated = redis.eval(UPDATE, ScriptOutputType.INTEGER, new String[]{aliasKey},
+                    value, token, Integer.toString(version));
+            return updated != null && updated == 1;
         }
 
         @Override

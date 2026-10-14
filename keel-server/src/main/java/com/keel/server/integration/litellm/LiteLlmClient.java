@@ -136,8 +136,29 @@ public class LiteLlmClient {
                 texts(row.path("models")),
                 row.path("dailyBudgetCny").asDouble(),
                 row.path("spentCny").asDouble(),
-                row.path("blocked").asBoolean(false))));
+                row.path("blocked").asBoolean(false),
+                row.path("version").asInt(1))));
         return rows;
+    }
+
+    /** Recreates an alias with its current settings. The new plaintext is only returned here. */
+    public RotatedKey rotate(String alias) {
+        var current = get("/admin/v1/keys/" + alias);
+        if (current.path("blocked").asBoolean(false)) {
+            throw new IllegalStateException("已封禁的虚拟 Key 不可轮换");
+        }
+        var body = Map.of(
+                "alias", alias,
+                "models", texts(current.path("models")),
+                "fallback", texts(current.path("fallback")),
+                "dailyBudgetCny", current.path("dailyBudgetCny").decimalValue(),
+                "allowFallback", current.path("allowFallback").asBoolean(false));
+        var created = send("/admin/v1/keys", body);
+        var key = created.path("key").asText("");
+        if (key.isBlank()) {
+            throw new IllegalStateException("薄网关没有返回虚拟 Key");
+        }
+        return new RotatedKey(alias, key, created.path("version").asInt(1));
     }
 
     public List<Model> models() {
@@ -155,7 +176,13 @@ public class LiteLlmClient {
         send("/admin/v1/keys/" + alias + "/budget", Map.of("dailyBudgetCny", dailyBudgetCny));
     }
 
-    public record VirtualKey(String alias, List<String> models, double dailyBudgetCny, double spentCny, boolean blocked) {}
+    public record VirtualKey(String alias, List<String> models, double dailyBudgetCny, double spentCny, boolean blocked, int version) {
+        public VirtualKey(String alias, List<String> models, double dailyBudgetCny, double spentCny, boolean blocked) {
+            this(alias, models, dailyBudgetCny, spentCny, blocked, 1);
+        }
+    }
+
+    public record RotatedKey(String alias, String key, int version) {}
 
     public record Spend(String alias, String model, double costCny, String ts, Long latencyMs, boolean timedOut) {}
 

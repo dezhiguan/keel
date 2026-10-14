@@ -3,6 +3,7 @@ package com.keel.server.provisioning;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.fabric8.kubernetes.api.model.Secret;
 import io.fabric8.kubernetes.api.model.SecretBuilder;
+import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -72,6 +74,67 @@ public class SecretWriter implements ProvisionStep {
 
     public void forgetLlmKey(String agent) {
         llmKeys.remove(agent);
+    }
+
+    /** Find an existing agent Secret and Deployment before invalidating its current virtual Key. */
+    public RotationTarget rotationTarget(String agent, String env) {
+        for (var namespace : List.of(NAMESPACE, "keel-system")) {
+            var secret = client.secrets().inNamespace(namespace).withName("keel-" + agent).get();
+            Deployment deployment = client.apps().deployments().inNamespace(namespace).withName(agent).get();
+            if (secret != null && secret.getData() != null && secret.getData().containsKey("KEEL_LLM_KEY")
+                    && (secret.getData().get("KEEL_ENV") == null || env.equals(decode(secret.getData().get("KEEL_ENV"))))
+                    && deployment != null && deployment.getSpec() != null && deployment.getSpec().getTemplate() != null
+                    && usesSecret(deployment, "keel-" + agent)) {
+                return new RotationTarget(namespace, agent);
+            }
+        }
+        throw new IllegalStateException("智能体 Secret、环境或 Deployment 绑定不匹配，不能安全轮换 Key");
+    }
+
+    /** Replace only the virtual Key, preserving every other Secret entry, then restart envFrom consumers. */
+    public void installRotatedLlmKey(RotationTarget target, String key) {
+        var namespace = target.namespace();
+        var agent = target.agent();
+        var secret = client.secrets().inNamespace(namespace).withName("keel-" + agent).get();
+        if (secret == null || secret.getData() == null || !secret.getData().containsKey("KEEL_LLM_KEY")) {
+            throw new IllegalStateException("智能体 Secret 已消失，轮换需要人工恢复");
+        }
+        var data = new LinkedHashMap<>(secret.getData());
+        data.put("KEEL_LLM_KEY", encode(key));
+        secret.setData(data);
+        client.secrets().inNamespace(namespace).resource(secret).update();
+        var deployment = client.apps().deployments().inNamespace(namespace).withName(agent).get();
+        if (deployment == null || deployment.getSpec() == null || deployment.getSpec().getTemplate() == null) {
+            throw new IllegalStateException("智能体 Deployment 已消失，轮换需要人工恢复");
+        }
+        var template = deployment.getSpec().getTemplate();
+        var metadata = template.getMetadata();
+        if (metadata == null) {
+            metadata = new io.fabric8.kubernetes.api.model.ObjectMeta();
+            template.setMetadata(metadata);
+        }
+        var annotations = metadata.getAnnotations() == null
+                ? new LinkedHashMap<String, String>() : new LinkedHashMap<>(metadata.getAnnotations());
+        annotations.put("keel.io/key-rotated-at", Instant.now().toString());
+        metadata.setAnnotations(annotations);
+        client.apps().deployments().inNamespace(namespace).resource(deployment).update();
+        llmKeys.put(agent, key);
+    }
+
+    public record RotationTarget(String namespace, String agent) {}
+
+    private static boolean usesSecret(Deployment deployment, String name) {
+        var pod = deployment.getSpec().getTemplate().getSpec();
+        if (pod == null) return false;
+        if (pod.getVolumes() != null && pod.getVolumes().stream().anyMatch(volume ->
+                volume.getSecret() != null && name.equals(volume.getSecret().getSecretName()))) return true;
+        if (pod.getContainers() == null) return false;
+        return pod.getContainers().stream().anyMatch(container ->
+                (container.getEnvFrom() != null && container.getEnvFrom().stream().anyMatch(source ->
+                        source.getSecretRef() != null && name.equals(source.getSecretRef().getName())))
+                        || (container.getEnv() != null && container.getEnv().stream().anyMatch(variable ->
+                        variable.getValueFrom() != null && variable.getValueFrom().getSecretKeyRef() != null
+                                && name.equals(variable.getValueFrom().getSecretKeyRef().getName()))));
     }
 
     /** Called before provisioning when the manifest declares knowledge bases. */

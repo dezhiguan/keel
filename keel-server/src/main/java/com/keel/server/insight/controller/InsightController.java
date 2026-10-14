@@ -102,6 +102,7 @@ public class InsightController {
                 .map(key -> {
                     var row = new LinkedHashMap<String, Object>();
                     row.put("alias", key.alias());
+                    row.put("version", key.version());
                     row.put("agent", key.agent());
                     row.put("env", key.env());
                     row.put("models", key.models());

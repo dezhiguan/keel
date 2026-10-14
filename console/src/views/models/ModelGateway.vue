@@ -3,9 +3,10 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
-import { getModelGateway, updateModelBudget, type ModelGateway } from '@/api/models'
+import { getModelGateway, rotateModelKey, updateModelBudget, type ModelGateway } from '@/api/models'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
+import { useUserStore } from '@/stores/user'
 import { fmtN, orDash, type StatusTone } from '@/utils/format'
 
 type PageSize = 10 | 20 | 50 | 100
@@ -18,11 +19,15 @@ const MODEL_STATUS: Record<string, { label: string; tone: StatusTone }> = {
 }
 
 const envStore = useEnvStore()
+const userStore = useUserStore()
 const data = ref<ModelGateway | null>(null)
 const tab = ref<'model' | 'key'>('model')
 const loading = ref(false)
 const saving = ref(false)
 const editing = ref<GatewayKey | null>(null)
+const rotating = ref<GatewayKey | null>(null)
+const rotated = ref<{ key: string; version: number } | null>(null)
+const rotationBusy = ref(false)
 const nextBudget = ref(30)
 const modelPage = ref(1)
 const modelSize = ref<PageSize>(10)
@@ -95,6 +100,32 @@ async function saveBudget() {
   }
 }
 
+function openRotation(key: GatewayKey) {
+  rotating.value = key
+  rotated.value = null
+}
+
+function closeRotation() {
+  if (rotationBusy.value) return
+  rotating.value = null
+  rotated.value = null
+}
+
+async function confirmRotation() {
+  const alias = rotating.value?.alias
+  if (!alias) return
+  rotationBusy.value = true
+  try {
+    const result = await rotateModelKey(alias)
+    rotated.value = { key: result.key, version: result.version }
+    await load()
+  } catch (error) {
+    ElMessage.error(`轮换 Key 失败：${toKeelError(error).message}`)
+  } finally {
+    rotationBusy.value = false
+  }
+}
+
 watch(() => envStore.env, load, { immediate: true })
 </script>
 
@@ -133,11 +164,11 @@ watch(() => envStore.env, load, { immediate: true })
     <div v-else class="card">
       <h3>虚拟 Key 与日预算<small>keel register 自动创建，keel retire 自动吊销</small></h3>
       <table class="t">
-        <thead><tr><th>智能体</th><th>Key 别名</th><th>可用模型</th><th style="width: 34%">今日 / 日预算</th><th>状态</th><th /></tr></thead>
+        <thead><tr><th>智能体</th><th>Key 别名 · 版本</th><th>可用模型</th><th style="width: 34%">今日 / 日预算</th><th>状态</th><th /></tr></thead>
         <tbody>
           <tr v-for="k in keyRows" :key="k.alias">
             <td>{{ k.agent }}</td>
-            <td class="mono">{{ k.alias }}</td>
+            <td class="mono">{{ k.alias }} · v{{ k.version ?? 1 }}</td>
             <td class="mono">{{ k.models?.length }}</td>
             <td>
               <div style="display: flex; justify-content: space-between; font-size: 12px">
@@ -150,7 +181,12 @@ watch(() => envStore.env, load, { immediate: true })
               <StatusPill v-else-if="usage(k.spentCny, k.dailyBudgetCny) > 60" tone="degraded" :label="`${Math.round(usage(k.spentCny, k.dailyBudgetCny))}%`" />
               <StatusPill v-else tone="ok" label="有效" />
             </td>
-            <td><button v-if="k.status !== 'BLOCKED'" class="btn sm" @click="adjustBudget(k)">调整预算</button></td>
+            <td style="white-space: nowrap">
+              <template v-if="k.status !== 'BLOCKED'">
+                <button v-write class="btn sm" @click="adjustBudget(k)">调整预算</button>
+                <button v-if="userStore.user?.platformRole === 'ADMIN'" v-write class="btn sm" style="margin-left: 6px" @click="openRotation(k)">轮换</button>
+              </template>
+            </td>
           </tr>
           <tr v-if="!keyRows.length"><td colspan="6" class="empty">这个环境还没有虚拟 Key</td></tr>
         </tbody>
@@ -159,6 +195,24 @@ watch(() => envStore.env, load, { immediate: true })
     </div>
 
     <Teleport to="body">
+      <div v-if="rotating" class="mask on" @click="closeRotation" />
+      <div v-if="rotating" class="modal on" role="dialog" aria-label="轮换虚拟 Key">
+        <div class="mh">轮换 Key · {{ rotating.alias }}</div>
+        <div class="mb">
+          <template v-if="rotated">
+            <p>已签发 v{{ rotated.version }}。旧版本立即失效，智能体实例将重启。</p>
+            <div class="field">
+              <label>新 Key 明文（关闭后无法再次查看）</label>
+              <input class="inp mono" style="width: 100%" readonly :value="rotated.key">
+            </div>
+          </template>
+          <p v-else>将签发 v{{ (rotating.version ?? 1) + 1 }}，旧 Key 立即失效，并更新智能体 Secret、重启实例。</p>
+        </div>
+        <div class="mf">
+          <button class="btn" type="button" :disabled="rotationBusy" @click="closeRotation">{{ rotated ? '关闭' : '取消' }}</button>
+          <button v-if="!rotated" v-write class="btn pri" type="button" :disabled="rotationBusy" @click="confirmRotation">确认轮换</button>
+        </div>
+      </div>
       <div v-if="editing" class="mask on" @click="editing = null" />
       <div v-if="editing" class="modal on" role="dialog" aria-label="调整日预算">
         <div class="mh">调整日预算 · {{ editing.agent }}</div>

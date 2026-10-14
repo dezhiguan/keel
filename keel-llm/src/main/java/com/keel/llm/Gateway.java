@@ -49,9 +49,9 @@ public final class Gateway {
         }
         models.forEach(catalog::require);
         var token = "sk-keel-" + UUID.randomUUID().toString().replace("-", "");
-        var key = new VirtualKey(alias, token, List.copyOf(models), List.copyOf(fallback), dailyBudgetCny, allowFallback, false);
-        keys.save(key);
-        return new Created(alias, token);
+        var key = new VirtualKey(alias, token, List.copyOf(models), List.copyOf(fallback), dailyBudgetCny, allowFallback, false, 1);
+        var saved = keys.rotate(key);
+        return new Created(alias, token, saved.version());
     }
 
     public synchronized void block(String alias) {
@@ -75,7 +75,7 @@ public final class Gateway {
 
     public List<ListedKey> listed() {
         return keys.list().stream()
-                .map(key -> new ListedKey(key.alias(), key.models(), key.dailyBudgetCny(), budget.spent(key.alias()), key.blocked()))
+                .map(key -> new ListedKey(key.alias(), key.models(), key.dailyBudgetCny(), budget.spent(key.alias()), key.blocked(), key.version()))
                 .toList();
     }
 
@@ -188,20 +188,20 @@ public final class Gateway {
         }
     }
 
-    public record Created(String alias, String key) {}
+    public record Created(String alias, String key, int version) {}
 
     public record VirtualKey(String alias, String token, List<String> models, List<String> fallback,
-                             BigDecimal dailyBudgetCny, boolean allowFallback, boolean blocked) {
+                             BigDecimal dailyBudgetCny, boolean allowFallback, boolean blocked, int version) {
         public VirtualKey asBlocked() {
-            return new VirtualKey(alias, token, models, fallback, dailyBudgetCny, allowFallback, true);
+            return new VirtualKey(alias, token, models, fallback, dailyBudgetCny, allowFallback, true, version);
         }
 
         public VirtualKey withBudget(BigDecimal budget) {
-            return new VirtualKey(alias, token, models, fallback, budget, allowFallback, blocked);
+            return new VirtualKey(alias, token, models, fallback, budget, allowFallback, blocked, version);
         }
     }
 
-    public record ListedKey(String alias, List<String> models, BigDecimal dailyBudgetCny, BigDecimal spentCny, boolean blocked) {}
+    public record ListedKey(String alias, List<String> models, BigDecimal dailyBudgetCny, BigDecimal spentCny, boolean blocked, int version) {}
 
     public record Spend(String alias, String model, int inputTokens, int outputTokens, BigDecimal costCny, String requestId, Instant ts, long latencyMs, boolean timedOut) {}
 

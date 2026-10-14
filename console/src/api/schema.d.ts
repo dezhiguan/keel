@@ -992,6 +992,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/keys/{alias}/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 轮换虚拟 Key 并更新智能体 Secret
+         * @description 新 Key 明文仅在本次响应出现；旧版本立即失效。
+         */
+        post: operations["rotateModelKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/devflow/jobs": {
         parameters: {
             query?: never;
@@ -2284,6 +2304,8 @@ export interface components {
             keys?: {
                 /** @example offshore-wind-prod */
                 alias?: string;
+                /** @description 虚拟 Key 当前版本 */
+                version?: number;
                 agent?: string;
                 env?: components["schemas"]["EnvName"];
                 models?: string[];
@@ -4403,6 +4425,35 @@ export interface operations {
                             alias?: string;
                             /** Format: float */
                             dailyBudgetCny?: number;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    rotateModelKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alias: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已轮换 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            alias?: string;
+                            /** @description 只在本次响应返回的明文虚拟 Key */
+                            key?: string;
+                            version?: number;
                         };
                     };
                 };

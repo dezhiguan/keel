@@ -159,6 +159,40 @@ class GatewayTest {
         assertThat(seen).containsExactly("qwen-plus");
     }
 
+    @Test void rotatedKeyStaysBlockedAcrossReplicasAndRestart() throws Exception {
+        var server = echoServer();
+        try {
+            var shared = new java.util.concurrent.ConcurrentHashMap<String, String>();
+            var first = new Gateway(catalog(server), new BudgetCounter(), new Upstream(),
+                    new KeyDirectory(new KeyDirectory.MapBackend(shared)));
+            var second = new Gateway(catalog(server), new BudgetCounter(), new Upstream(),
+                    new KeyDirectory(new KeyDirectory.MapBackend(shared)));
+            var old = first.create("echo-dev", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false);
+            assertThat(old.version()).isEqualTo(1);
+            var stale = first.requireAlias("echo-dev");
+            var current = second.create("echo-dev", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false);
+            assertThat(current.version()).isEqualTo(2);
+            assertThatThrownBy(() -> new KeyDirectory(new KeyDirectory.MapBackend(shared)).save(stale.asBlocked()))
+                    .isInstanceOf(IllegalStateException.class);
+            assertThat(first.requireAlias("echo-dev").version()).isEqualTo(2);
+            assertThat(first.listed()).anySatisfy(key -> assertThat(key.version()).isEqualTo(2));
+            var restarted = new Gateway(catalog(server), new BudgetCounter(), new Upstream(),
+                    new KeyDirectory(new KeyDirectory.MapBackend(shared)));
+            for (var gateway : List.of(first, second, restarted)) {
+                assertThatThrownBy(() -> gateway.complete("Bearer " + old.key(), "/v1/chat/completions",
+                        "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2)))
+                        .isInstanceOf(Gateway.GatewayException.class)
+                        .extracting(error -> ((Gateway.GatewayException) error).code())
+                        .isEqualTo(ErrorCode.LLM_KEY_BLOCKED);
+            }
+            assertThat(ErrorCode.LLM_KEY_BLOCKED.http()).isEqualTo(401);
+            assertThat(restarted.complete("Bearer " + current.key(), "/v1/chat/completions",
+                    "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2)).status()).isEqualTo(200);
+        } finally {
+            server.stop(0);
+        }
+    }
+
     @Test void twoGatewaysShareOneBudgetCounter() throws Exception {
         var server = server((model, exchange) -> write(exchange, 200, usage("qwen-plus", 1000, 100)));
         var budget = new BudgetCounter();

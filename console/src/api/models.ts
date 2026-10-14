@@ -13,3 +13,7 @@ export function updateModelBudget(alias: string, dailyBudgetCny: number) {
     dailyBudgetCny,
   })
 }
+
+export function rotateModelKey(alias: string) {
+  return post<{ alias: string; key: string; version: number }>(`/keys/${encodeURIComponent(alias)}/rotate`, {})
+}
