@@ -6,6 +6,7 @@ import com.keel.server.common.KeelException;
 import com.keel.server.integration.agent.AgentEndpointClient;
 import com.keel.server.integration.audit.AuditStore;
 import com.keel.server.provisioning.EchoCredentialWriter;
+import com.keel.server.provisioning.SecretWriter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,23 +24,26 @@ public class AgentChatService {
     private final EchoCredentialWriter credentials;
     private final String careerMateToken;
     private final SavedTraces saved;
+    private final SecretWriter secrets;
 
     public AgentChatService(AgentRegistryService registry, AgentEndpointClient endpoints, AuditStore audits,
                             EchoCredentialWriter credentials,
                             String careerMateToken) {
-        this(registry, endpoints, audits, credentials, careerMateToken, SavedTraces.EMPTY);
+        this(registry, endpoints, audits, credentials, careerMateToken, SavedTraces.EMPTY, null);
     }
 
     @Autowired
     public AgentChatService(AgentRegistryService registry, AgentEndpointClient endpoints, AuditStore audits,
                             EchoCredentialWriter credentials,
-                            @Value("${KEEL_CAREERMATE_TOKEN:}") String careerMateToken, SavedTraces saved) {
+                            @Value("${KEEL_CAREERMATE_TOKEN:}") String careerMateToken, SavedTraces saved,
+                            SecretWriter secrets) {
         this.registry = registry;
         this.endpoints = endpoints;
         this.audits = audits;
         this.credentials = credentials;
         this.careerMateToken = careerMateToken == null ? "" : careerMateToken;
         this.saved = saved;
+        this.secrets = secrets;
     }
 
     public Map<String, Object> chat(String name, String text) {
@@ -68,9 +72,11 @@ public class AgentChatService {
         long started = System.nanoTime();
         try {
             var userId = callerLabel();
-            answer = "careermate".equals(name)
-                    ? endpoints.invoke(endpoint, text, careerMateToken, name, env, userId)
-                    : endpoints.invoke(endpoint, text, null, name, env, userId);
+            var rag = secrets == null ? null : secrets.knowledgeCredential(name);
+            var bridge = "careermate".equals(name) ? careerMateToken : null;
+            answer = rag == null || rag.token().isBlank()
+                    ? endpoints.invoke(endpoint, text, bridge, name, env, userId)
+                    : endpoints.invoke(endpoint, text, bridge, name, env, userId, rag.token(), rag.kbIds());
         } catch (RuntimeException e) {
             throw new KeelException(ErrorCode.SERVER_INTERNAL_ERROR,
                     e.getMessage() == null ? ErrorCode.SERVER_INTERNAL_ERROR.message() : e.getMessage());

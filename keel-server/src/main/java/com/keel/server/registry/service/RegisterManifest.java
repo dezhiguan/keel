@@ -26,7 +26,7 @@ public final class RegisterManifest {
             warnings.add(rejection);
         }
         var supplied = text(form, "endpoint");
-        var endpoint = endpoint(form, port);
+        var endpoint = endpoint(form, port, knowledge);
         if (supplied.isBlank() && !"echo".equals(name)) {
             warnings.add("未填写 endpoint，预览使用了占位地址");
         }
@@ -109,7 +109,7 @@ public final class RegisterManifest {
         if (!text(body, "template").isBlank()) {
             runtime.put("template", text(body, "template"));
         }
-        runtime.put("endpoint", endpoint(body, port));
+        runtime.put("endpoint", endpoint(body, port, knowledge));
         runtime.put("liveness", "dify".equals(runtimeType) ? "probe" : "k8s");
         spec.putObject("auth").put("audience", name);
         var models = spec.putObject("models");
@@ -156,10 +156,17 @@ public final class RegisterManifest {
     }
 
     public static String endpoint(JsonNode form, int port) {
+        return endpoint(form, port, List.of());
+    }
+
+    public static String endpoint(JsonNode form, int port, List<String> knowledge) {
         var name = text(form, "name");
         var endpoint = text(form, "endpoint");
         if (!endpoint.isBlank()) {
             return endpoint;
+        }
+        if (knowledge != null && !knowledge.isEmpty()) {
+            return "http://kb-bench.agents.svc.cluster.local:8000";
         }
         if ("echo".equals(name) && "echo".equals(text(form, "template"))) {
             return "http://echo-agent.keel-system.svc.cluster.local:8000";

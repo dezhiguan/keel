@@ -16,9 +16,13 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.sql.DriverManager;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,13 +44,16 @@ public class RagForgeAccess {
     private final String clientKid;
     private final String assertionAudience;
     private final String authGatewayUrl;
+    private final String jdbcUrl;
+    private final String dbUser;
+    private final String dbPassword;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private final ObjectMapper json = new ObjectMapper();
     private String cachedToken = "";
     private Instant cachedUntil = Instant.EPOCH;
 
     public RagForgeAccess(String baseUrl, String provisionToken) {
-        this(baseUrl, provisionToken, "", "", "", "", "", "", "");
+        this(baseUrl, provisionToken, "", "", "", "", "", "", "", "", "", "");
     }
 
     @Autowired
@@ -58,7 +65,10 @@ public class RagForgeAccess {
                           @Value("${RAGFORGE_PROVISION_CLIENT_PRIVATE_KEY:}") String clientPrivateKey,
                           @Value("${RAGFORGE_PROVISION_CLIENT_KID:}") String clientKid,
                           @Value("${RAGFORGE_PROVISION_ASSERTION_AUDIENCE:}") String assertionAudience,
-                          @Value("${KEEL_AUTH_GATEWAY_URL:}") String authGatewayUrl) {
+                          @Value("${KEEL_AUTH_GATEWAY_URL:}") String authGatewayUrl,
+                          @Value("${RAGFORGE_JDBC_URL:}") String jdbcUrl,
+                          @Value("${RAGFORGE_DB_USER:}") String dbUser,
+                          @Value("${RAGFORGE_DB_PASSWORD:}") String dbPassword) {
         this.baseUrl = baseUrl == null ? "" : baseUrl.replaceAll("/$", "");
         this.provisionToken = provisionToken == null ? "" : provisionToken.trim();
         this.account = account == null ? "" : account.trim();
@@ -68,11 +78,17 @@ public class RagForgeAccess {
         this.clientKid = clientKid == null ? "" : clientKid.trim();
         this.assertionAudience = assertionAudience == null ? "" : assertionAudience.trim();
         this.authGatewayUrl = authGatewayUrl == null ? "" : authGatewayUrl.replaceAll("/$", "");
+        this.jdbcUrl = jdbcUrl == null ? "" : jdbcUrl.trim();
+        this.dbUser = dbUser == null ? "" : dbUser.trim();
+        this.dbPassword = dbPassword == null ? "" : dbPassword;
     }
 
-    public record Issued(long id, String token, String url) {}
+    public record Issued(long id, String token, String url, String kbIds) {}
 
     public Issued issue(String agent, String env, List<String> names) {
+        if (databaseConfigured()) {
+            return issueInDatabase(agent, env, names);
+        }
         if (baseUrl.isBlank()) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "rag-forge 地址没有配置，不能发放知识库密钥");
         }
@@ -94,12 +110,19 @@ public class RagForgeAccess {
         if (token.isBlank() || id <= 0) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "rag-forge 没有返回知识库密钥");
         }
-        return new Issued(id, token, baseUrl);
+        return new Issued(id, token, baseUrl, join(ids));
     }
 
-    /** 404 means the key is already gone. */
+    /** 404 means the key is already gone. Database-issued keys are deleted by id. */
     public void revoke(long id) {
-        if (baseUrl.isBlank() || id <= 0) {
+        if (id <= 0) {
+            return;
+        }
+        if (databaseConfigured()) {
+            deleteKey(id);
+            return;
+        }
+        if (baseUrl.isBlank()) {
             return;
         }
         var bearer = bearer();
@@ -122,6 +145,95 @@ public class RagForgeAccess {
         } catch (Exception e) {
             throw new IllegalStateException("rag-forge 吊销密钥失败", e);
         }
+    }
+
+    private boolean databaseConfigured() {
+        return !jdbcUrl.isBlank() && !dbUser.isBlank() && !dbPassword.isBlank();
+    }
+
+    private Issued issueInDatabase(String agent, String env, List<String> names) {
+        if (baseUrl.isBlank()) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "rag-forge 地址没有配置，不能发放知识库密钥");
+        }
+        var ids = new ArrayList<Long>();
+        var orgs = new ArrayList<Long>();
+        var missing = new ArrayList<String>();
+        try (var connection = DriverManager.getConnection(jdbcUrl, dbUser, dbPassword);
+             var query = connection.prepareStatement("SELECT id, org_id FROM knowledge_bases WHERE name = ?")) {
+            for (var name : names) {
+                query.setString(1, name);
+                try (var rows = query.executeQuery()) {
+                    if (rows.next()) {
+                        ids.add(rows.getLong(1));
+                        orgs.add(rows.getLong(2));
+                    } else {
+                        missing.add(name);
+                    }
+                }
+            }
+            if (!missing.isEmpty()) {
+                throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "代发身份看不到知识库：" + String.join("、", missing));
+            }
+            var orgId = orgs.get(0);
+            if (orgs.stream().anyMatch(org -> org != orgId)) {
+                throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "所选知识库不在同一组织，请分开注册");
+            }
+            var token = "sk-rf-" + HexFormat.of().formatHex(randomBytes(24));
+            var hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));
+            var prefix = token.substring(0, 12);
+            var allowed = join(ids);
+            try (var insert = connection.prepareStatement("""
+                    INSERT INTO api_keys (key_name, api_key, enabled, rate_limit, principal_type, principal_id,
+                        scopes, allowed_kb_ids, org_id, scope_mode, access_level, key_hash, key_prefix)
+                    VALUES (?, NULL, true, 100, 'service', ?, '[]'::jsonb, ?::jsonb, ?, 'KB_LIST', 'READ', ?, ?)
+                    RETURNING id
+                    """)) {
+                insert.setString(1, agent + "-" + env);
+                insert.setString(2, agent);
+                insert.setString(3, "[" + allowed + "]");
+                insert.setLong(4, orgId);
+                insert.setString(5, hash);
+                insert.setString(6, prefix);
+                try (var created = insert.executeQuery()) {
+                    if (!created.next()) {
+                        throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "rag-forge 没有返回知识库密钥");
+                    }
+                    return new Issued(created.getLong(1), token, baseUrl, allowed);
+                }
+            }
+        } catch (KeelException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "发放知识库密钥失败");
+        }
+    }
+
+    private void deleteKey(long id) {
+        try (var connection = DriverManager.getConnection(jdbcUrl, dbUser, dbPassword);
+             var delete = connection.prepareStatement(
+                     "DELETE FROM api_keys WHERE id = ? AND principal_type = 'service' AND scope_mode = 'KB_LIST'")) {
+            delete.setLong(1, id);
+            delete.executeUpdate();
+        } catch (Exception e) {
+            throw new IllegalStateException("rag-forge 吊销密钥失败", e);
+        }
+    }
+
+    private static byte[] randomBytes(int size) {
+        var bytes = new byte[size];
+        new SecureRandom().nextBytes(bytes);
+        return bytes;
+    }
+
+    private static String join(List<Long> ids) {
+        var text = new StringBuilder();
+        for (var id : ids) {
+            if (!text.isEmpty()) {
+                text.append(',');
+            }
+            text.append(id);
+        }
+        return text.toString();
     }
 
     private List<Long> ids(String bearer, List<String> names) {

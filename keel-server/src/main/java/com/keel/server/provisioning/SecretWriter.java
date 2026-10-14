@@ -120,6 +120,7 @@ public class SecretWriter implements ProvisionStep {
             data.put("KEEL_RAGFORGE_URL", encode(rag.url()));
             data.put("KEEL_RAGFORGE_TOKEN", encode(rag.token()));
             data.put("KEEL_RAGFORGE_KEY_ID", encode(Long.toString(rag.id())));
+            data.put("KEEL_RAGFORGE_KB_IDS", encode(rag.kbIds()));
         }
         Secret secret = new SecretBuilder()
                 .withNewMetadata().withName("keel-" + agent).withNamespace(NAMESPACE).endMetadata()
@@ -139,6 +140,33 @@ public class SecretWriter implements ProvisionStep {
             ragForge.revoke(keyId);
         }
         client.secrets().inNamespace(NAMESPACE).withName("keel-" + agent).delete();
+    }
+
+    /** Token and knowledge-base ids stored for this agent. Null when this agent has no key. */
+    public RagCredential knowledgeCredential(String agent) {
+        try {
+            var secret = client.secrets().inNamespace(NAMESPACE).withName("keel-" + agent).get();
+            if (secret == null || secret.getData() == null) {
+                return null;
+            }
+            var token = decode(secret.getData().get("KEEL_RAGFORGE_TOKEN"));
+            var ids = decode(secret.getData().get("KEEL_RAGFORGE_KB_IDS"));
+            if (token.isBlank()) {
+                return null;
+            }
+            return new RagCredential(token, ids);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    public record RagCredential(String token, String kbIds) {}
+
+    private static String decode(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        return new String(Base64.getDecoder().decode(raw), StandardCharsets.UTF_8).trim();
     }
 
     private long storedKeyId(String agent) {

@@ -47,6 +47,8 @@ class RegisterManifestTest {
         assertThat(manifest.path("spec").path("knowledge").get(1).path("kb").asText()).isEqualTo("产品知识库");
         var yaml = RegisterManifest.render(form, 8080, java.util.List.of(), java.util.List.of("demo", "产品知识库")).yaml();
         assertThat(yaml).contains("knowledge:", "kb: demo", "kb: \"产品知识库\"");
+        assertThat(manifest.path("spec").path("runtime").path("endpoint").asText())
+                .isEqualTo("http://kb-bench.agents.svc.cluster.local:8000");
     }
 
     @Test void promptTypeDefaultsToTextAndHonorsChat() throws Exception {

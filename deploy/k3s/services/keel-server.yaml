@@ -162,6 +162,16 @@ spec:
                   key: KEEL_CONSOLE_CLIENT_PRIVATE_KEY
             - name: RAGFORGE_BASE_URL
               value: http://ragforge-backend.ragforge.svc.cluster.local:8080
+            - name: RAGFORGE_JDBC_URL
+              value: jdbc:postgresql://172.25.90.183:5432/ragforge
+            - name: RAGFORGE_DB_USER
+              value: ragforge
+            - name: RAGFORGE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keel-server
+                  key: RAGFORGE_DB_PASSWORD
+                  optional: true
             - name: RAGFORGE_METRICS_USER
               value: metrics-reader
             - name: RAGFORGE_METRICS_PASSWORD

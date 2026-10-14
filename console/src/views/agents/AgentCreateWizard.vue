@@ -246,7 +246,7 @@ async function submit() {
                 {{ item.kb }}<small v-if="item.owner"> {{ item.owner }}</small>
               </button>
             </div>
-            <div class="hint">勾选后写入 agent.yaml。注册时由底座代发一把只读密钥，范围只有勾选的库，写入这个智能体自己的 Secret。库必须属于同一组织。</div>
+            <div class="hint">勾选后写入 agent.yaml。注册时为这些库发一把只读密钥，写入这个智能体自己的 Secret。一次只能勾同一组织的库。</div>
           </div>
           <div class="field">
             <label>共享工具（需工具所有者授权）</label>

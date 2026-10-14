@@ -33,7 +33,12 @@ public class AgentEndpointClient {
     }
 
     public Answer invoke(String endpoint, String text, String bridgeToken, String agent, String env, String userId) {
-        return invoke(endpoint, text, bridgeToken, agent, env, userId, null);
+        return invoke(endpoint, text, bridgeToken, agent, env, userId, null, null);
+    }
+
+    public Answer invoke(String endpoint, String text, String bridgeToken, String agent, String env, String userId,
+                         String ragToken, String ragKbIds) {
+        return invokeRequest(endpoint, text, bridgeToken, agent, env, userId, null, Duration.ofSeconds(60), ragToken, ragKbIds);
     }
 
     public Answer probe(String endpoint, String agent, String env) {
@@ -41,15 +46,15 @@ public class AgentEndpointClient {
     }
 
     private Answer invoke(String endpoint, String text, String bridgeToken, String agent, String env, String userId, String evalRun) {
-        return invokeRequest(endpoint, text, bridgeToken, agent, env, userId, evalRun, Duration.ofSeconds(60));
+        return invokeRequest(endpoint, text, bridgeToken, agent, env, userId, evalRun, Duration.ofSeconds(60), null, null);
     }
 
     public Answer invokeWork(String endpoint, String text, String bridgeToken, String userId) {
-        return invokeRequest(endpoint, text, bridgeToken, "meta-agent", "dev", userId, null, Duration.ofSeconds(240));
+        return invokeRequest(endpoint, text, bridgeToken, "meta-agent", "dev", userId, null, Duration.ofSeconds(240), null, null);
     }
 
     private Answer invokeRequest(String endpoint, String text, String bridgeToken, String agent, String env,
-                                 String userId, String evalRun, Duration timeout) {
+                                 String userId, String evalRun, Duration timeout, String ragToken, String ragKbIds) {
         var base = trim(endpoint);
         try {
             var payload = json.createObjectNode();
@@ -71,6 +76,12 @@ public class AgentEndpointClient {
             }
             if (evalRun != null) {
                 builder.header("X-Keel-Eval-Run", evalRun);
+            }
+            if (ragToken != null && !ragToken.isBlank()) {
+                builder.header("X-Keel-Rag-Token", ragToken);
+            }
+            if (ragKbIds != null && !ragKbIds.isBlank()) {
+                builder.header("X-Keel-Rag-Kb-Ids", ragKbIds);
             }
             var request = builder
                     .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(payload)))

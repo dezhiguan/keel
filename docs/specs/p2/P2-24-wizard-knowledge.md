@@ -36,7 +36,8 @@ console/src/views/agents/AgentCreateWizard.vue
 
 - 目录里的知识库来自 rag-forge 的 keel 指标（名字和所属组织）。同名只保留第一行。指标不可用时列表为空，不编造原型里的示例名。
 - 向导只提交名字。不在目录里的名字拒绝预览和注册。未勾选时 manifest 不写 `knowledge`。
-- 勾选非空时，在开通其他资源之前，用代发身份调用 rag-forge：先按名字解析数字 id，再创建 `KB_LIST` + `READ` 密钥。代发身份来自环境变量，由 Secret `keel-server` 注入：`RAGFORGE_PROVISION_TOKEN`，或者 `RAGFORGE_PROVISION_ACCOUNT`、`RAGFORGE_PROVISION_PASSWORD` 加客户端私钥。账号口令走 auth-gateway 登录，`target_aud=ragforge-admin-api`，访问票在进程内缓存到过期前 60 秒。身份没配、库不在该身份可见范围、或 rag-forge 拒绝时，注册失败，不写智能体 Secret，也不回收已经开通的别的资源。
+- 勾选非空时，在开通其他资源之前，按知识库名字查出数字 id，在 rag-forge 的 `api_keys` 里新建一把 `KB_LIST` + `READ` 密钥。数据库账号来自 `RAGFORGE_JDBC_URL`、`RAGFORGE_DB_USER`、`RAGFORGE_DB_PASSWORD`，口令只在 Secret `keel-server`。不同组织的库不能放在同一把密钥里。没有这个库、或数据库不可用时，注册失败，不写智能体 Secret。
+- 没填运行地址时，带知识库的智能体使用共享检索进程 `kb-bench`。调试时把该智能体自己的密钥和库 id 传给这个进程，不共用别的智能体的密钥。
 - 新密钥明文只写入 Secret `keel-{agent}` 的 `KEEL_RAGFORGE_TOKEN`，地址写入 `KEEL_RAGFORGE_URL`。不把代发身份、指标账号口令抄进智能体 Secret。
 - 开通回滚或下线删除 Secret 时，同时吊销这把 rag-forge 密钥。吊销接口返回 404 视为已经删除。
 
