@@ -6,6 +6,7 @@
 
 | 目录 | 对应范围 | 文档 |
 |---|---|---|
+| `design/` | 底座总体设计 · 合并版（含全流程智能体化，先读这份） | [智能体底座设计 · 2026-10-14](design/Keel-智能体底座设计-20261014.html) |
 | `design/` | 底座总体设计 | [智能体底座设计](design/Keel-智能体底座设计.html) |
 | `architecture/` | 全平台实现 | [技术文档](architecture/Keel-技术文档.html) |
 | `specs/` | 任务 spec | [模板](specs/_TEMPLATE.md) · [P0](specs/p0/) · [P1](specs/p1/) |
@@ -16,7 +17,7 @@
 
 | 目录 | 对应仓库包 | 文档 |
 |---|---|---|
-| `console/` | `console/` | [控制台前端原型](console/Keel-控制台前端.html) |
+| `console/` | `console/` | [控制台前端原型 · 合并版 2026-10-14（含全流程智能体化）](console/Keel-控制台前端-20261014.html) · [原第一版](console/Keel-控制台前端.html) |
 | `contracts/` | `contracts/` | 契约原文在设计文档第 05 节；机器可读文件在仓库根 `contracts/` |
 | `keel-gateway/` | `keel-gateway/` | 见技术文档第 04、05、08 节 |
 | `keel-server/` | `keel-server/` | 见技术文档第 04、05、06、07 节 |
