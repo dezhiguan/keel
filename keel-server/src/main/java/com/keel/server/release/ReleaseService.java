@@ -63,7 +63,7 @@ public class ReleaseService {
         } else {
             catalog.authorize(agent);
         }
-        var rejection = jobId == null ? null : devflowEvidenceRejection(jobId, env, gateRunId,
+        var rejection = jobId == null ? null : devflowEvidenceRejection(jobId, env, gateRunId, image,
                 approvedMerge(agent, jobId));
         if (rejection != null) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, rejection);
@@ -88,7 +88,8 @@ public class ReleaseService {
         return result;
     }
 
-    private String devflowEvidenceRejection(String jobId, String env, String gateRunId, boolean mergeApproved) {
+    private String devflowEvidenceRejection(String jobId, String env, String gateRunId,
+                                           String image, boolean mergeApproved) {
         var executions = jdbc.query("SELECT state_json::text FROM devflow_execution WHERE job_id=?",
                 (rs, row) -> rs.getString(1), jobId);
         JsonNode state = null;
@@ -98,7 +99,7 @@ public class ReleaseService {
         }
         var passed = jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM devflow_holdout_result WHERE job_id=? AND passed)",
                 Boolean.class, jobId);
-        return ReleaseGuard.evidenceRejection(state, env, gateRunId, Boolean.TRUE.equals(passed), mergeApproved);
+        return ReleaseGuard.evidenceRejection(state, env, gateRunId, image, Boolean.TRUE.equals(passed), mergeApproved);
     }
 
     public Map<String, Object> rollback(String agent, String prompt, int version, String reason) {

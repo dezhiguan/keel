@@ -130,6 +130,7 @@ def test_gate_stops_before_the_report_when_a_tag_regresses(tmp_path, monkeypatch
 def test_hidden_exam_failure_does_not_publish_a_passing_gate(tmp_path, monkeypatch):
     project = _project(tmp_path, monkeypatch)
     monkeypatch.setenv("KEEL_CANDIDATE_SHA", "a" * 40)
+    monkeypatch.setenv("KEEL_CANDIDATE_IMAGE", "registry.example/agent@sha256:" + "b" * 64)
     published = []
     monkeypatch.setattr("keel.gate.runner.invoke_text", lambda *args, **kwargs: "ping")
     monkeypatch.setattr("keel.gate.runner.record", lambda *args: published.append(args))

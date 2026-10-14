@@ -10,6 +10,7 @@ import com.keel.server.approval.service.ApprovalPolicyEngine;
 import com.keel.server.common.KeelException;
 import com.keel.server.integration.agent.AgentEndpointClient;
 import com.keel.server.registry.service.WizardCatalog;
+import io.fabric8.kubernetes.client.KubernetesClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -51,6 +52,7 @@ public class MetaAgentExecution {
     private final SandboxService sandbox;
     private final GitSnapshotClient git;
     private final ApprovalService approvals;
+    private final KubernetesClient cluster;
     private final String endpoint;
     private final String token;
 
@@ -58,18 +60,20 @@ public class MetaAgentExecution {
     public MetaAgentExecution(JdbcTemplate jdbc, ObjectMapper json, PlatformTransactionManager transactions,
                               DevflowService jobs, WizardCatalog catalog, AgentEndpointClient agent,
                               SandboxService sandbox, GitSnapshotClient git, ApprovalService approvals,
+                              KubernetesClient cluster,
                               @Value("${KEEL_META_AGENT_URL:}") String endpoint,
                               @Value("${KEEL_META_AGENT_TOKEN:}") String token) {
         this.jdbc = jdbc; this.json = json; this.tx = new TransactionTemplate(transactions);
         this.jobs = jobs; this.catalog = catalog; this.agent = agent; this.sandbox = sandbox; this.git = git;
         this.approvals = approvals;
+        this.cluster = cluster;
         this.endpoint = endpoint; this.token = token;
     }
 
     MetaAgentExecution(JdbcTemplate jdbc, ObjectMapper json, PlatformTransactionManager transactions,
                        DevflowService jobs, WizardCatalog catalog, AgentEndpointClient agent,
                        String endpoint, String token) {
-        this(jdbc, json, transactions, jobs, catalog, agent, null, null, null, endpoint, token);
+        this(jdbc, json, transactions, jobs, catalog, agent, null, null, null, null, endpoint, token);
     }
 
     public static void requireAdmin() {
@@ -257,6 +261,7 @@ public class MetaAgentExecution {
         if (result == null || !"staging".equals(result.env())
                 || result.gateRunId() == null || !result.gateRunId().matches("[0-9a-f]{32}")
                 || result.sha() == null || !result.sha().matches("[0-9a-f]{40}")
+                || result.image() == null || !result.image().matches("[^\\s]+@sha256:[0-9a-f]{64}")
                 || result.visibleByTag() == null || result.visibleByTag().isEmpty()
                 || result.visibleByTag().values().stream().anyMatch(score -> score == null
                     || !Double.isFinite(score) || score < HoldoutRules.MIN_SCORE || score > 1)) {
@@ -280,6 +285,9 @@ public class MetaAgentExecution {
             if (!Boolean.TRUE.equals(registered) || !Boolean.TRUE.equals(provisioned)) {
                 throw invalid("员工尚未登记并开通 staging 资源");
             }
+            if (!DeploymentEvidence.ready(cluster, target, "staging", result.sha(), result.image())) {
+                throw invalid("staging 预览 Deployment 未就绪，或镜像与候选提交不一致");
+            }
             var hidden = jdbc.query("SELECT passed, score FROM devflow_holdout_result WHERE job_id=?",
                     (rs, row) -> new Object[]{rs.getBoolean(1), rs.getDouble(2)}, result.jobId());
             if (hidden.size() != 1 || !Boolean.TRUE.equals(hidden.getFirst()[0])) {
@@ -300,7 +308,7 @@ public class MetaAgentExecution {
                     .mapToDouble(item -> item.getValue() * result.visibleByTag().get(item.getKey())).sum() / visibleTotal;
             if (Math.abs(visibleScore - hiddenScore) > 0.10) throw invalid("可见与隐藏用例分差超过 0.10");
             var gate = state.putObject("gate");
-            gate.put("runId", result.gateRunId()).put("sha", result.sha()).put("env", "staging")
+            gate.put("runId", result.gateRunId()).put("sha", result.sha()).put("image", result.image()).put("env", "staging")
                     .put("passed", true).put("visibleScore", visibleScore).put("hiddenScore", hiddenScore);
             gate.set("visibleByTag", json.valueToTree(result.visibleByTag()));
             state.put("phase", "STAGING_GATE_PASSED");
@@ -315,6 +323,7 @@ public class MetaAgentExecution {
         if (result == null || !"prod".equals(result.env())
                 || result.gateRunId() == null || !result.gateRunId().matches("[0-9a-f]{32}")
                 || result.sha() == null || !result.sha().matches("[0-9a-f]{40}")
+                || result.image() == null || !result.image().matches("[^\\s]+@sha256:[0-9a-f]{64}")
                 || result.visibleByTag() == null || result.visibleByTag().isEmpty()
                 || result.visibleByTag().values().stream().anyMatch(score -> score == null
                     || !Double.isFinite(score) || score < HoldoutRules.MIN_SCORE || score > 1)) {
@@ -350,7 +359,7 @@ public class MetaAgentExecution {
             var hiddenScore = (double) hidden.getFirst()[1];
             if (Math.abs(visibleScore - hiddenScore) > 0.10) throw invalid("prod 可见与隐藏用例分差超过 0.10");
             var prodGate = state.putObject("prodGate");
-            prodGate.put("runId", result.gateRunId()).put("sha", result.sha()).put("env", "prod")
+            prodGate.put("runId", result.gateRunId()).put("sha", result.sha()).put("image", result.image()).put("env", "prod")
                     .put("passed", true).put("visibleScore", visibleScore).put("hiddenScore", hiddenScore);
             prodGate.set("visibleByTag", json.valueToTree(result.visibleByTag()));
             save(result.jobId(), state, "RELEASE");

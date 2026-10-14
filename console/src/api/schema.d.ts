@@ -2495,6 +2495,8 @@ export interface components {
             gateRunId?: string;
             /** @description staging 候选 PR 或 prod 合并提交的精确 SHA */
             sha?: string;
+            /** @description 门禁实测的不可变镜像摘要 */
+            image?: string;
             /** @enum {string} */
             env?: "staging" | "prod";
             visibleByTag?: {
@@ -2599,6 +2601,8 @@ export interface components {
             gate?: {
                 runId: string;
                 sha: string;
+                /** @description staging 门禁实测镜像摘要 */
+                image?: string;
                 /** @enum {string} */
                 env: "staging";
                 passed: boolean;
@@ -2609,6 +2613,8 @@ export interface components {
                 runId: string;
                 /** @description H4 合并提交 */
                 sha: string;
+                /** @description prod 门禁实测镜像摘要 */
+                image?: string;
                 /** @enum {string} */
                 env: "prod";
                 passed: boolean;

@@ -11,7 +11,8 @@ from keel.holdout import aggregates
 
 
 def run_holdout(*, job_id: str, scorers, endpoint: str, env: str,
-                gate_run_id: str, candidate_sha: str, visible_by_tag: dict[str, float]) -> None:
+                gate_run_id: str, candidate_sha: str, candidate_image: str,
+                visible_by_tag: dict[str, float]) -> None:
     headers = ci_headers()
     url = server_url()
     with httpx.Client(timeout=60, headers=headers) as client:
@@ -21,6 +22,7 @@ def run_holdout(*, job_id: str, scorers, endpoint: str, env: str,
         posted = client.post(f"{url}/api/v1/devflow/holdout-results",
                              json={"jobId": job_id, "byTag": aggregates(cases, scorers, answers),
                                    "gateRunId": gate_run_id, "sha": candidate_sha,
+                                   "image": candidate_image,
                                    "env": env, "visibleByTag": visible_by_tag})
         _data(posted)
 

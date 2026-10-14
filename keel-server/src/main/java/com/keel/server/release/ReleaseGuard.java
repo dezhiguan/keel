@@ -15,7 +15,7 @@ public final class ReleaseGuard {
     }
 
     /** A caller-supplied gate ID is never evidence for a produced employee. */
-    public static String evidenceRejection(JsonNode state, String env, String gateRunId,
+    public static String evidenceRejection(JsonNode state, String env, String gateRunId, String image,
                                            boolean holdoutPassed, boolean approvedMerge) {
         if (state == null || !state.isObject()) return "缺少元智能体生产任务的可信执行记录";
         var phase = state.path("phase").asText();
@@ -30,6 +30,7 @@ public final class ReleaseGuard {
                 : state.path("delivery").path("sha").asText();
         if (!gate.path("passed").asBoolean(false) || !holdoutPassed
                 || !gateRunId.equals(gate.path("runId").asText())
+                || !image.equals(gate.path("image").asText())
                 || !env.equals(gate.path("env").asText())
                 || !expectedSha.equals(gate.path("sha").asText())) {
             return "门禁或隐藏考题缺少与候选提交绑定的通过证据";

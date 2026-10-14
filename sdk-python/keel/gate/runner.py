@@ -46,10 +46,14 @@ def run_gate(*, env: str, seed_file: str, scorers_file: str, endpoint: str | Non
     if holdout_job:
         from keel.holdout_run import run_holdout
         candidate_sha = os.environ.get("KEEL_CANDIDATE_SHA", "").strip()
+        candidate_image = os.environ.get("KEEL_CANDIDATE_IMAGE", "").strip()
         if not re.fullmatch(r"[0-9a-f]{40}", candidate_sha):
             raise ValueError("隐藏考题门禁需要精确的 KEEL_CANDIDATE_SHA")
+        if not re.fullmatch(r"[^\s]+@sha256:[0-9a-f]{64}", candidate_image):
+            raise ValueError("隐藏考题门禁需要不可变的 KEEL_CANDIDATE_IMAGE 镜像摘要")
         run_holdout(job_id=holdout_job, scorers=scorers, endpoint=target, env=env,
-                    gate_run_id=gate_run_id, candidate_sha=candidate_sha, visible_by_tag=by_tag)
+                    gate_run_id=gate_run_id, candidate_sha=candidate_sha,
+                    candidate_image=candidate_image, visible_by_tag=by_tag)
     record(manifest.metadata.name, gate_run_id, True)
     marker = root / ".keel"
     marker.mkdir(exist_ok=True)

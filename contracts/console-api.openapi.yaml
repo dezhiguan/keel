@@ -3397,6 +3397,7 @@ components:
         jobId: { type: string }
         gateRunId: { type: string, description: 研发员工环境门禁的不可复用运行 ID }
         sha: { type: string, description: staging 候选 PR 或 prod 合并提交的精确 SHA }
+        image: { type: string, description: 门禁实测的不可变镜像摘要 }
         env: { type: string, enum: [staging, prod] }
         visibleByTag:
           type: object
@@ -3502,6 +3503,7 @@ components:
           properties:
             runId: { type: string }
             sha: { type: string }
+            image: { type: string, description: staging 门禁实测镜像摘要 }
             env: { type: string, enum: [staging] }
             passed: { type: boolean }
             visibleScore: { type: number }
@@ -3512,6 +3514,7 @@ components:
           properties:
             runId: { type: string }
             sha: { type: string, description: H4 合并提交 }
+            image: { type: string, description: prod 门禁实测镜像摘要 }
             env: { type: string, enum: [prod] }
             passed: { type: boolean }
             visibleScore: { type: number }

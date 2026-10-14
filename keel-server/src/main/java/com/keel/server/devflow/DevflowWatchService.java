@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.keel.server.insight.AgentUsageService;
-import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,7 +18,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.sql.Timestamp;
-import java.util.Map;
 
 /** Reconciles trusted CI releases and observes each produced employee for seven days. */
 @Service
@@ -92,7 +90,7 @@ public class DevflowWatchService {
             if (releases.isEmpty()) return;
             var release = releases.getFirst();
             if (release.image() == null || !release.image().matches("[^\\s]+@sha256:[0-9a-f]{64}")
-                    || !deploymentReady(agent, state.path("mergeSha").asText(), release.image())) return;
+                    || !DeploymentEvidence.ready(cluster, agent, "prod", state.path("mergeSha").asText(), release.image())) return;
             state.put("phase", "WATCHING");
             state.put("watchStartedAt", release.at().toInstant().toString());
             state.put("watchImage", release.image());
@@ -107,7 +105,8 @@ public class DevflowWatchService {
             var state = lock(jobId);
             if (!"WATCHING".equals(state.path("phase").asText())) return;
             var agent = state.path("requirement").path("target_agent").asText();
-            if (!deploymentReady(agent, state.path("mergeSha").asText(), state.path("watchImage").asText())) return;
+            if (!DeploymentEvidence.ready(cluster, agent, "prod", state.path("mergeSha").asText(),
+                    state.path("watchImage").asText())) return;
             var quality = metrics.scores().get(agent);
             if (!metrics.callsKnown() || !metrics.costKnown() || quality == null
                     || !Double.isFinite(quality) || quality < 0 || quality > 1) return;
@@ -166,37 +165,6 @@ public class DevflowWatchService {
     private void save(String jobId, ObjectNode state) {
         jdbc.update("UPDATE devflow_execution SET state_json=?::jsonb, updated_at=now() WHERE job_id=?",
                 state.toString(), jobId);
-    }
-
-    private boolean deploymentReady(String agent, String sha, String image) {
-        if (agent.isBlank() || !sha.matches("[0-9a-f]{40}") || image.isBlank()) return false;
-        Deployment deployment = cluster.apps().deployments().inNamespace("agents")
-                .withName(agent + "-prod").get();
-        return deploymentReady(deployment, agent, sha, image);
-    }
-
-    static boolean deploymentReady(Deployment deployment, String agent, String sha, String image) {
-        if (deployment == null || deployment.getMetadata() == null || deployment.getSpec() == null
-                || deployment.getStatus() == null || deployment.getSpec().getTemplate() == null
-                || deployment.getSpec().getTemplate().getSpec() == null) return false;
-        var metadata = deployment.getMetadata();
-        var template = deployment.getSpec().getTemplate();
-        if (!labelsMatch(metadata.getLabels(), agent, sha) || template.getMetadata() == null
-                || !labelsMatch(template.getMetadata().getLabels(), agent, sha)) return false;
-        var desired = deployment.getSpec().getReplicas() == null ? 1 : deployment.getSpec().getReplicas();
-        var status = deployment.getStatus();
-        if (desired < 1 || metadata.getGeneration() == null || status.getObservedGeneration() == null
-                || status.getObservedGeneration() < metadata.getGeneration()
-                || status.getReadyReplicas() == null || status.getReadyReplicas() < desired
-                || status.getUpdatedReplicas() == null || status.getUpdatedReplicas() < desired
-                || status.getAvailableReplicas() == null || status.getAvailableReplicas() < desired) return false;
-        return template.getSpec().getContainers() != null
-                && template.getSpec().getContainers().stream().anyMatch(container -> image.equals(container.getImage()));
-    }
-
-    private static boolean labelsMatch(Map<String, String> labels, String agent, String sha) {
-        return labels != null && agent.equals(labels.get("keel.io/agent"))
-                && "prod".equals(labels.get("keel.io/env")) && sha.equals(labels.get("keel.io/commit"));
     }
 
     private record Release(Timestamp at, String image) {}

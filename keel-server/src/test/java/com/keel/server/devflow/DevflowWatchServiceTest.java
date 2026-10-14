@@ -26,11 +26,12 @@ class DevflowWatchServiceTest {
                     .endTemplate().endSpec()
                 .withNewStatus().withObservedGeneration(2L).withReadyReplicas(1)
                     .withUpdatedReplicas(1).withAvailableReplicas(1).endStatus().build();
-        assertThat(DevflowWatchService.deploymentReady(deployment, "spec-agent", sha, image)).isTrue();
-        assertThat(DevflowWatchService.deploymentReady(deployment, "spec-agent", "c".repeat(40), image)).isFalse();
-        assertThat(DevflowWatchService.deploymentReady(deployment, "spec-agent", sha, image + "-changed")).isFalse();
+        assertThat(DeploymentEvidence.ready(deployment, "spec-agent", "prod", sha, image)).isTrue();
+        assertThat(DeploymentEvidence.ready(deployment, "spec-agent", "staging", sha, image)).isFalse();
+        assertThat(DeploymentEvidence.ready(deployment, "spec-agent", "prod", "c".repeat(40), image)).isFalse();
+        assertThat(DeploymentEvidence.ready(deployment, "spec-agent", "prod", sha, image + "-changed")).isFalse();
         deployment.getStatus().setUpdatedReplicas(0);
-        assertThat(DevflowWatchService.deploymentReady(deployment, "spec-agent", sha, image)).isFalse();
+        assertThat(DeploymentEvidence.ready(deployment, "spec-agent", "prod", sha, image)).isFalse();
     }
 
     @Test

@@ -250,7 +250,7 @@ public class DevflowController {
     }
 
     public record HoldoutSubmission(String jobId, List<HoldoutRules.TagScore> byTag, String gateRunId,
-                                    String sha, String env, Map<String, Double> visibleByTag) {}
+                                    String sha, String image, String env, Map<String, Double> visibleByTag) {}
 
     public record HumanSeeds(List<DevflowTypes.SeedCase> cases) {}
 

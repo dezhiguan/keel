@@ -274,6 +274,7 @@ onUnmounted(() => {
           <div v-if="execution.gate" class="kv">
             <span>staging 门禁</span><span>{{ execution.gate.passed ? '通过' : '未通过' }} · {{ execution.gate.runId }}</span>
             <span>候选提交</span><span class="mono">{{ execution.gate.sha }}</span>
+            <span>预览镜像</span><span class="mono">{{ execution.gate.image }}</span>
             <span>可见 / 隐藏分</span><span>{{ execution.gate.visibleScore }} / {{ execution.gate.hiddenScore }}</span>
           </div>
           <div v-if="execution.phase === 'STAGING_GATE_PASSED'" class="kv">
@@ -285,6 +286,7 @@ onUnmounted(() => {
           <div v-if="execution.prodGate" class="kv">
             <span>prod 门禁</span><span>{{ execution.prodGate.passed ? '通过' : '未通过' }} · {{ execution.prodGate.runId }}</span>
             <span>合并提交</span><span class="mono">{{ execution.prodGate.sha }}</span>
+            <span>实测镜像</span><span class="mono">{{ execution.prodGate.image }}</span>
             <span>可见 / 隐藏分</span><span>{{ execution.prodGate.visibleScore }} / {{ execution.prodGate.hiddenScore }}</span>
           </div>
           <div v-if="execution.watchStartedAt" class="kv">
