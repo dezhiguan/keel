@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.keel.server.insight.AgentUsageService;
+import io.fabric8.kubernetes.api.model.apps.Deployment;
+import io.fabric8.kubernetes.client.KubernetesClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -16,6 +18,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.sql.Timestamp;
+import java.util.Map;
 
 /** Reconciles trusted CI releases and observes each produced employee for seven days. */
 @Service
@@ -28,14 +32,16 @@ public class DevflowWatchService {
     private final TransactionTemplate tx;
     private final DevflowService jobs;
     private final AgentUsageService usage;
+    private final KubernetesClient cluster;
 
     public DevflowWatchService(JdbcTemplate jdbc, ObjectMapper json, PlatformTransactionManager transactions,
-                               DevflowService jobs, AgentUsageService usage) {
+                               DevflowService jobs, AgentUsageService usage, KubernetesClient cluster) {
         this.jdbc = jdbc;
         this.json = json;
         this.tx = new TransactionTemplate(transactions);
         this.jobs = jobs;
         this.usage = usage;
+        this.cluster = cluster;
     }
 
     @Scheduled(fixedDelay = 300_000, initialDelay = 60_000)
@@ -78,13 +84,18 @@ public class DevflowWatchService {
                     || !state.path("mergeSha").asText().equals(gate.path("sha").asText())) return;
             var agent = state.path("requirement").path("target_agent").asText();
             var releases = jdbc.query("""
-                    SELECT created_at FROM release_record
+                    SELECT created_at, image FROM release_record
                     WHERE agent_name=? AND env='prod' AND kind='release' AND gate_passed
                       AND ci_run_url=? ORDER BY created_at DESC LIMIT 1
-                    """, (rs, row) -> rs.getTimestamp(1), agent, gate.path("runId").asText());
+                    """, (rs, row) -> new Release(rs.getTimestamp(1), rs.getString(2)),
+                    agent, gate.path("runId").asText());
             if (releases.isEmpty()) return;
+            var release = releases.getFirst();
+            if (release.image() == null || !release.image().matches("[^\\s]+@sha256:[0-9a-f]{64}")
+                    || !deploymentReady(agent, state.path("mergeSha").asText(), release.image())) return;
             state.put("phase", "WATCHING");
-            state.put("watchStartedAt", releases.getFirst().toInstant().toString());
+            state.put("watchStartedAt", release.at().toInstant().toString());
+            state.put("watchImage", release.image());
             state.set("watchObservations", json.createArrayNode());
             save(jobId, state);
             jobs.progress(jobId, "RUN", "WATCH", "可信 CI 已发布 prod，开始七天质量、调用量与成本观察");
@@ -96,6 +107,7 @@ public class DevflowWatchService {
             var state = lock(jobId);
             if (!"WATCHING".equals(state.path("phase").asText())) return;
             var agent = state.path("requirement").path("target_agent").asText();
+            if (!deploymentReady(agent, state.path("mergeSha").asText(), state.path("watchImage").asText())) return;
             var quality = metrics.scores().get(agent);
             if (!metrics.callsKnown() || !metrics.costKnown() || quality == null
                     || !Double.isFinite(quality) || quality < 0 || quality > 1) return;
@@ -155,4 +167,37 @@ public class DevflowWatchService {
         jdbc.update("UPDATE devflow_execution SET state_json=?::jsonb, updated_at=now() WHERE job_id=?",
                 state.toString(), jobId);
     }
+
+    private boolean deploymentReady(String agent, String sha, String image) {
+        if (agent.isBlank() || !sha.matches("[0-9a-f]{40}") || image.isBlank()) return false;
+        Deployment deployment = cluster.apps().deployments().inNamespace("agents")
+                .withName(agent + "-prod").get();
+        return deploymentReady(deployment, agent, sha, image);
+    }
+
+    static boolean deploymentReady(Deployment deployment, String agent, String sha, String image) {
+        if (deployment == null || deployment.getMetadata() == null || deployment.getSpec() == null
+                || deployment.getStatus() == null || deployment.getSpec().getTemplate() == null
+                || deployment.getSpec().getTemplate().getSpec() == null) return false;
+        var metadata = deployment.getMetadata();
+        var template = deployment.getSpec().getTemplate();
+        if (!labelsMatch(metadata.getLabels(), agent, sha) || template.getMetadata() == null
+                || !labelsMatch(template.getMetadata().getLabels(), agent, sha)) return false;
+        var desired = deployment.getSpec().getReplicas() == null ? 1 : deployment.getSpec().getReplicas();
+        var status = deployment.getStatus();
+        if (desired < 1 || metadata.getGeneration() == null || status.getObservedGeneration() == null
+                || status.getObservedGeneration() < metadata.getGeneration()
+                || status.getReadyReplicas() == null || status.getReadyReplicas() < desired
+                || status.getUpdatedReplicas() == null || status.getUpdatedReplicas() < desired
+                || status.getAvailableReplicas() == null || status.getAvailableReplicas() < desired) return false;
+        return template.getSpec().getContainers() != null
+                && template.getSpec().getContainers().stream().anyMatch(container -> image.equals(container.getImage()));
+    }
+
+    private static boolean labelsMatch(Map<String, String> labels, String agent, String sha) {
+        return labels != null && agent.equals(labels.get("keel.io/agent"))
+                && "prod".equals(labels.get("keel.io/env")) && sha.equals(labels.get("keel.io/commit"));
+    }
+
+    private record Release(Timestamp at, String image) {}
 }

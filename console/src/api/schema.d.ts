@@ -2620,6 +2620,8 @@ export interface components {
             mergeSha?: string;
             /** Format: date-time */
             watchStartedAt?: string;
+            /** @description 已核对 Deployment 就绪的生产镜像摘要 */
+            watchImage?: string;
             watchObservations?: {
                 /** Format: date */
                 day: string;
@@ -3218,6 +3220,7 @@ export interface operations {
                     /** @enum {string} */
                     env: "staging" | "prod";
                     gateRunId: string;
+                    /** @description 研发员工必须提供不可变的 registry 镜像摘要（@sha256:64 位） */
                     image: string;
                 };
             };

@@ -289,6 +289,7 @@ onUnmounted(() => {
           </div>
           <div v-if="execution.watchStartedAt" class="kv">
             <span>S7 观察起点</span><span>{{ execution.watchStartedAt }}</span>
+            <span>生产镜像</span><span class="mono">{{ execution.watchImage }}</span>
             <span>有证据的观察日</span><span>{{ execution.watchObservations?.length || 0 }} / 7</span>
             <template v-for="sample in execution.watchObservations || []" :key="sample.day">
               <span>{{ sample.day }} · {{ sample.healthy ? '正常' : '异常' }}</span>

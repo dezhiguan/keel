@@ -57,6 +57,9 @@ public class ReleaseService {
                     || !ciClient.equals(principal.username())) {
                 throw new KeelException(ErrorCode.AUTH_CONSOLE_FORBIDDEN, "研发员工只能由可信 CI 执行发布");
             }
+            if (!image.matches("[^\\s]+@sha256:[0-9a-f]{64}")) {
+                throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "研发员工发布镜像必须使用不可变 sha256 摘要");
+            }
         } else {
             catalog.authorize(agent);
         }
@@ -72,9 +75,9 @@ public class ReleaseService {
         }
         var version = agentVersion(agent);
         jdbc.update("""
-                INSERT INTO release_record (agent_name, version, env, gate_passed, prompt_versions_json, ci_run_url, kind)
-                VALUES (?, ?, ?, true, ?::jsonb, ?, 'release')
-                """, agent, version, env, promptVersions.toString(), gateRunId);
+                INSERT INTO release_record (agent_name, version, env, gate_passed, prompt_versions_json, ci_run_url, image, kind)
+                VALUES (?, ?, ?, true, ?::jsonb, ?, ?, 'release')
+                """, agent, version, env, promptVersions.toString(), gateRunId, image);
         var result = new LinkedHashMap<String, Object>();
         result.put("version", version);
         result.put("env", env);

@@ -450,7 +450,7 @@ paths:
               properties:
                 env: { type: string, enum: [staging, prod] }
                 gateRunId: { type: string }
-                image: { type: string }
+                image: { type: string, description: 研发员工必须提供不可变的 registry 镜像摘要（@sha256:64 位） }
       responses:
         "200":
           description: OK
@@ -3519,6 +3519,7 @@ components:
         h4ApprovalId: { type: string }
         mergeSha: { type: string, description: H4 批准后 GitHub 确认的合并提交 }
         watchStartedAt: { type: string, format: date-time }
+        watchImage: { type: string, description: 已核对 Deployment 就绪的生产镜像摘要 }
         watchObservations:
           type: array
           items:
