@@ -6,6 +6,7 @@ import pytest
 
 from keel.cli import main
 from keel.cli.new import create_project
+from keel.gate.runner import run_gate
 
 
 class _Server(ThreadingHTTPServer):
@@ -124,6 +125,24 @@ def test_gate_stops_before_the_report_when_a_tag_regresses(tmp_path, monkeypatch
     assert caught.value.code == 1
     assert not (project / ".keel" / "gate-run-id").exists()
     server.shutdown()
+
+
+def test_hidden_exam_failure_does_not_publish_a_passing_gate(tmp_path, monkeypatch):
+    project = _project(tmp_path, monkeypatch)
+    monkeypatch.setenv("KEEL_CANDIDATE_SHA", "a" * 40)
+    published = []
+    monkeypatch.setattr("keel.gate.runner.invoke_text", lambda *args, **kwargs: "ping")
+    monkeypatch.setattr("keel.gate.runner.record", lambda *args: published.append(args))
+
+    def fail_hidden(**kwargs):
+        raise RuntimeError("hidden exam failed")
+
+    monkeypatch.setattr("keel.holdout_run.run_holdout", fail_hidden)
+    with pytest.raises(RuntimeError, match="hidden exam failed"):
+        run_gate(env="staging", seed_file="evals/seed.jsonl", scorers_file="evals/scorers.py",
+                 endpoint="http://agent.invalid", baseline_file=None, root=project, holdout_job="DF-1")
+    assert published == []
+    assert not (project / ".keel" / "gate-run-id").exists()
 
 
 def test_passing_gate_is_what_release_sends(tmp_path, monkeypatch):

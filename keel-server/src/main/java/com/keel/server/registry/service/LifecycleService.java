@@ -62,11 +62,11 @@ public class LifecycleService {
         var manifest = manifest(body, selected, knowledge);
         validator.validate(manifest, java.util.Set.of());
         var name = manifest.path("metadata").path("name").asText();
-        var approvedGrants = approvedDevflowGrants(name, selected, manifest);
         var env = body.path("env").asText("dev");
         if (!env.equals("dev") && !env.equals("test") && !env.equals("staging") && !env.equals("prod")) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, ErrorCode.SERVER_INVALID_PARAM.message());
         }
+        var approvedGrants = approvedDevflowGrants(name, selected, manifest, env);
         var existing = agents.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Agent>()
                 .eq(Agent::getName, name));
         if (existing != null && ledger.hasActive(name, env)) {
@@ -118,7 +118,7 @@ public class LifecycleService {
     }
 
     private ApprovedDevflow approvedDevflowGrants(String name, List<WizardTools.Spec> selected,
-                                                 JsonNode manifest) {
+                                                 JsonNode manifest, String env) {
         var jobs = jdbc.query("""
                 SELECT job_id, tools_json::text FROM devflow_job
                 WHERE target_agent=? AND layer='DEV' AND kind='CREATE' AND status <> 'CANCEL'
@@ -170,7 +170,45 @@ public class LifecycleService {
                 }
             }
         }
+        requireProducedStage(job.getKey(), name, env);
         return new ApprovedDevflow(job.getKey(), approved);
+    }
+
+    private void requireProducedStage(String jobId, String name, String env) {
+        if (!"staging".equals(env) && !"prod".equals(env)) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "研发员工只能在通过 S4 后登记 staging，再经 H4 登记 prod");
+        }
+        var rows = jdbc.query("SELECT state_json::text FROM devflow_execution WHERE job_id=?",
+                (rs, row) -> rs.getString(1), jobId);
+        JsonNode state;
+        try { state = rows.isEmpty() ? null : json.readTree(rows.getFirst()); }
+        catch (Exception error) { state = null; }
+        if (state == null || !"PASS".equals(state.path("sandboxStatus").asText())
+                || !state.path("humanReview").path("approved").asBoolean(false)
+                || !state.path("modelReview").path("approved").asBoolean(false)
+                || !Set.of("STAGING_READY", "STAGING_GATE_PASSED", "RELEASING", "WATCHING")
+                       .contains(state.path("phase").asText())) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "候选员工尚未通过代码评审与人工 PR review");
+        }
+        if ("prod".equals(env)) {
+            var gate = state.path("gate");
+            var prodGate = state.path("prodGate");
+            var accepted = jdbc.queryForObject("""
+                    SELECT EXISTS(SELECT 1 FROM approval_request
+                        WHERE agent_name=? AND devflow_job_id=? AND devflow_gate='H4'
+                          AND subject_type='tool.call' AND subject_ref='git.pr.merge' AND status='APPROVED')
+                    """, Boolean.class, name, jobId);
+            var hidden = jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM devflow_holdout_result WHERE job_id=? AND passed)",
+                    Boolean.class, jobId);
+            if (!"RELEASING".equals(state.path("phase").asText()) || !gate.path("passed").asBoolean(false)
+                    || !state.path("delivery").path("sha").asText().equals(gate.path("sha").asText())
+                    || !prodGate.path("passed").asBoolean(false)
+                    || !"prod".equals(prodGate.path("env").asText())
+                    || !state.path("mergeSha").asText().equals(prodGate.path("sha").asText())
+                    || !Boolean.TRUE.equals(accepted) || !Boolean.TRUE.equals(hidden)) {
+                throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "生产登记需要 staging、合并提交的 prod 门禁、隐藏考题和 H4 审批");
+            }
+        }
     }
 
     private record ApprovedDevflow(String jobId, Map<String, ApprovedGrant> grants) {}

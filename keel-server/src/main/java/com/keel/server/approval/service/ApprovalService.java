@@ -141,6 +141,26 @@ public class ApprovalService {
         return load(id);
     }
 
+    /** Bind the existing approval inbox to one immutable devflow candidate commit. */
+    @Transactional
+    public ApprovalView openDevflowMerge(String jobId, String agent, String sha, String actor) {
+        if (jobId == null || !jobId.matches("DF-[0-9]+") || agent == null || agent.isBlank()
+                || sha == null || !sha.matches("[0-9a-f]{40}")) throw invalid();
+        var view = open(new OpenApproval("tool.call", "git.pr.merge",
+                "H4 合并 " + agent + " 的候选 PR（任务 " + jobId + "，提交 " + sha + "）",
+                actor, agent, "HIGH", null, null, sha, null, "prod", null));
+        if (!"PENDING".equals(view.status()) || !sha.equals(view.payloadDigest())
+                || !agent.equals(view.agent())) throw invalid();
+        var id = ApprovalPolicyEngine.parseId(view.id());
+        int changed = jdbc.update("""
+                UPDATE approval_request SET devflow_job_id=?, devflow_gate='H4',
+                    expires_at=now()+interval '7 days'
+                WHERE id=? AND devflow_job_id IS NULL AND status='PENDING'
+                """, jobId, id);
+        if (changed != 1) throw invalid();
+        return load(id);
+    }
+
     /**
      * Applies the decision and commits before returning an error for a row that was just expired.
      * {@code decidedBy} is the signed-in console username.

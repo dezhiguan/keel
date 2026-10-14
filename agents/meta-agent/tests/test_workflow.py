@@ -1,5 +1,7 @@
 import json
+import asyncio
 import httpx
+import pytest
 
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
@@ -15,6 +17,32 @@ def work():
                 "title": "需求分析师", "goal": "起草需求", "users": "研发同事", "io": "需求到文档",
                 "success": "包含目标与边界", "template": "tool-agent", "dailyBudgetCny": 7,
                 "owner": "QA", "tools": []}, "catalog": []}
+
+
+def test_bootstrap_code_review_is_bound_to_snapshot_and_fails_closed():
+    from workflow import review_candidate
+    files = [{"path": path, "content": "pass\n"} for path in
+             ("role.py", "app.py", "agent.yaml", "tests/test_role.py")]
+    request = {**work(), "action": "REVIEW", "delivery": {"sha": "a" * 40},
+               "snapshot": {"sha": "a" * 40, "files": files}}
+    checks = {name: True for name in ("modelAccess", "toolAuthorization", "audit",
+              "visibleCaseOverfit", "releaseApproval", "behaviorTests")}
+
+    class Llm:
+        async def chat(self, *args, **kwargs):
+            return json.dumps({"approved": True, "checks": {**checks, "audit": False},
+                               "findings": [{"path": "role.py", "line": 1,
+                                             "severity": "HIGH", "detail": "missing audit"}]})
+
+    class Ctx:
+        llm = Llm()
+
+    result = asyncio.run(review_candidate(request, Ctx()))
+    assert result["sha"] == "a" * 40
+    assert result["approved"] is False
+    request["snapshot"]["sha"] = "b" * 40
+    with pytest.raises(Exception, match="快照与候选提交不一致"):
+        asyncio.run(review_candidate(request, Ctx()))
 
 
 def test_workflow_drafts_and_revises_without_an_sdk_resume_token(gateway):

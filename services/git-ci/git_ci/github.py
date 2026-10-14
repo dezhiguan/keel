@@ -257,12 +257,31 @@ class GitHub:
                 "ready": not pull.get("draft", True), "reviewers": reviewers,
                 "approved": required >= 1 and not pull.get("draft", True) and len(reviewers) >= required}
 
-    def merge(self, repo: str, number: int) -> dict:
+    def merge(self, repo: str, number: int, *, job_id: str | None = None,
+              expected_sha: str | None = None) -> dict:
         repository = self.request("GET", f"/repos/{self.org}/{repo}")
         if str(repository.get("description") or "").startswith("keel-devflow:"):
-            protection = self.request("GET", f"/repos/{self.org}/{repo}/branches/main/protection")
-            if protection.get("required_pull_request_reviews", {}).get("required_approving_review_count", 0) < 1:
-                raise GitHubError(403, "Scaffold repositories require enforced review protection before merge")
+            if (not job_id or repository.get("description") != f"keel-devflow:{job_id}"
+                    or not isinstance(expected_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", expected_sha)):
+                raise GitHubError(403, "Produced employees require a job and exact reviewed commit")
+            pull = self.request("GET", f"/repos/{self.org}/{repo}/pulls/{number}")
+            if pull.get("head", {}).get("sha") != expected_sha:
+                raise GitHubError(409, "Reviewed candidate head changed")
+            if pull.get("merged") is True:
+                merged_sha = str(pull.get("merge_commit_sha") or "")
+                if not re.fullmatch(r"[0-9a-f]{40}", merged_sha):
+                    raise GitHubError(409, "Merged commit SHA missing")
+                return {"repo": f"{self.org}/{repo}", "number": number, "sha": merged_sha,
+                        "headSha": expected_sha, "merged": True}
+            review = self.review_status(repo, number, expected_sha, job_id)
+            if not review["approved"]:
+                raise GitHubError(403, "Protected human review is required before merge")
+            merged = self.request("PUT", f"/repos/{self.org}/{repo}/pulls/{number}/merge",
+                                  {"sha": expected_sha})
+            if merged.get("merged") is not True or not re.fullmatch(r"[0-9a-f]{40}", str(merged.get("sha") or "")):
+                raise GitHubError(409, "GitHub did not confirm the reviewed merge")
+            return {"repo": f"{self.org}/{repo}", "number": number, "sha": merged["sha"],
+                    "headSha": expected_sha, "merged": True}
         merged = self.request("PUT", f"/repos/{self.org}/{repo}/pulls/{number}/merge", {})
         return {"repo": f"{self.org}/{repo}", "number": number, "sha": merged.get("sha", "")}
 

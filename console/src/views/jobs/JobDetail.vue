@@ -5,6 +5,9 @@ import { ElMessage } from 'element-plus'
 import {
   approveDevflowToolGrant,
   refreshDevflowHumanReview,
+  runDevflowCodeReview,
+  requestDevflowH4,
+  refreshDevflowH4,
   assistDevflowJob,
   cancelDevflowJob,
   getDevflowJob,
@@ -128,6 +131,27 @@ async function refreshHumanReview() {
   }
 }
 
+async function codeReview() {
+  busy.value = true
+  try { execution.value = await runDevflowCodeReview(jobId.value); await load(true) }
+  catch (error) { ElMessage.error(toKeelError(error).message) }
+  finally { busy.value = false }
+}
+
+async function requestH4() {
+  busy.value = true
+  try { execution.value = await requestDevflowH4(jobId.value); await load(true) }
+  catch (error) { ElMessage.error(toKeelError(error).message) }
+  finally { busy.value = false }
+}
+
+async function refreshH4() {
+  busy.value = true
+  try { execution.value = await refreshDevflowH4(jobId.value); await load(true) }
+  catch (error) { ElMessage.error(toKeelError(error).message) }
+  finally { busy.value = false }
+}
+
 function confirmAssist() {
   if (!job.value) return
   run(() => assistDevflowJob(job.value!.jobId, instruction.value), '已发给 dev-agent')
@@ -182,7 +206,7 @@ onUnmounted(() => {
         <span class="mono mut">{{ job.jobId }}</span>
         <JobStatus :job="job" />
         <span class="sp" />
-        <RouterLink v-if="showApprovalLink(job) && (!execution || ['WAITING', 'WAITING_SEEDS', 'WAITING_EVAL'].includes(execution.phase))" class="btn pri" :to="`/approvals/devflow/${encodeURIComponent(job.jobId)}`">去审批中心处理</RouterLink>
+        <RouterLink v-if="showApprovalLink(job) && (!execution || ['WAITING', 'WAITING_SEEDS', 'WAITING_EVAL', 'WAITING_H4'].includes(execution.phase))" class="btn pri" :to="`/approvals/devflow/${encodeURIComponent(job.jobId)}`">去审批中心处理</RouterLink>
         <button v-if="!execution && canTakeover(job)" v-write class="btn vio" type="button" @click="modal = 'takeover'">人工接管开发</button>
         <template v-if="!execution && canHandback(job)">
           <button v-if="canAssist(job)" v-write class="btn vio" type="button" @click="modal = 'assist'">请智能体帮忙</button>
@@ -193,7 +217,7 @@ onUnmounted(() => {
 
       <template v-if="execution">
         <div class="banner" :class="execution.phase === 'FAILED' ? 'warn' : 'info'">
-          <b>{{ execution.phase === 'WAITING_REVIEW' ? '沙箱通过 · 等待人工 PR review' : execution.phase === 'SANDBOX_PENDING' || execution.phase === 'SANDBOX_RUNNING' ? '候选代码正在隔离沙箱验证' : execution.phase === 'WAITING_SEEDS' ? '等待人工种子用例' : execution.phase === 'WAITING_EVAL' ? '等待 H2 评测确认' : execution.phase === 'WAITING' ? '等待 H1 需求确认' : execution.phase === 'FAILED' ? '执行失败' : execution.phase === 'CANCELLED' ? '任务已取消' : '元智能体处理中' }}</b>
+          <b>{{ execution.phase === 'WAITING_REVIEW' ? '沙箱通过 · 等待 S4 代码与人工评审' : execution.phase === 'STAGING_READY' ? 'S4 已通过 · 等待 staging 门禁' : execution.phase === 'STAGING_GATE_PASSED' ? 'staging 门禁通过 · 待申请 H4' : execution.phase === 'WAITING_H4' ? '等待 H4 合并审批' : execution.phase === 'SANDBOX_PENDING' || execution.phase === 'SANDBOX_RUNNING' ? '候选代码正在隔离沙箱验证' : execution.phase === 'WAITING_SEEDS' ? '等待人工种子用例' : execution.phase === 'WAITING_EVAL' ? '等待 H2 评测确认' : execution.phase === 'WAITING' ? '等待 H1 需求确认' : execution.phase === 'FAILED' ? '执行失败' : execution.phase === 'CANCELLED' ? '任务已取消' : '元智能体处理中' }}</b>
           <span>{{ execution.error || '元智能体生产任务；沙箱、H2/H3、人工评审、staging 门禁、H4 与发布须逐项完成。' }}</span>
           <button v-if="execution.phase === 'FAILED'" v-write class="btn sm" :disabled="busy" @click="retry">重试执行</button>
         </div>
@@ -238,7 +262,26 @@ onUnmounted(() => {
               {{ execution.humanReview.reviewers.join('、') || '无有效审批人' }}
             </span>
             <span v-else>尚未核验</span>
+            <span>模型代码评审</span>
+            <button v-write class="btn sm" type="button" :disabled="busy || !execution.humanReview?.approved || !!execution.pendingToolGrants?.length" @click="codeReview">运行 S4 代码评审</button>
           </div>
+          <div v-if="execution.modelReview" class="kv">
+            <span>S4 代码评审</span><span>{{ execution.modelReview.approved ? '通过' : '待修复' }} · {{ execution.modelReview.reviewer }}</span>
+            <template v-for="(finding, index) in execution.modelReview.findings" :key="index">
+              <span>{{ finding.severity }} · {{ finding.path }}:{{ finding.line }}</span><span>{{ finding.detail }}</span>
+            </template>
+          </div>
+          <div v-if="execution.gate" class="kv">
+            <span>staging 门禁</span><span>{{ execution.gate.passed ? '通过' : '未通过' }} · {{ execution.gate.runId }}</span>
+            <span>候选提交</span><span class="mono">{{ execution.gate.sha }}</span>
+            <span>可见 / 隐藏分</span><span>{{ execution.gate.visibleScore }} / {{ execution.gate.hiddenScore }}</span>
+          </div>
+          <div v-if="execution.phase === 'STAGING_GATE_PASSED'" class="kv">
+            <span>H4 发布审批</span><button v-write class="btn sm" type="button" :disabled="busy" @click="requestH4">申请高风险合并审批</button>
+          </div>
+          <div v-if="execution.h4ApprovalId" class="kv"><span>H4 审批单</span><RouterLink :to="`/approvals/devflow/${encodeURIComponent(job.jobId)}`">{{ execution.h4ApprovalId }} →</RouterLink></div>
+          <div v-if="execution.phase === 'WAITING_H4'" class="kv"><span>H4 状态</span><button v-write class="btn sm" type="button" :disabled="busy" @click="refreshH4">核验审批并合并 PR</button></div>
+          <div v-if="execution.mergeSha" class="kv"><span>受保护合并提交</span><span class="mono">{{ execution.mergeSha }}</span></div>
         </div>
         <div v-if="execution.draft?.spec" class="row2">
           <div class="card">

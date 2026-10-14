@@ -58,7 +58,7 @@ class MetaAgentPersistenceTest {
         assertThatThrownBy(() -> restarted.grantTool(job.jobId(), "devflow.catalog.search", "v1"))
                 .isInstanceOf(KeelException.class);
         var seeds = new ArrayList<DevflowTypes.SeedCase>();
-        for (int i = 1; i <= Math.max(1, jobs.settings().minSeed()); i++) {
+        for (int i = 1; i <= Math.max(30, jobs.settings().minSeed()); i++) {
             seeds.add(new DevflowTypes.SeedCase("h-" + i, Map.of("text", "valid-" + i),
                     Map.of("status", "READY"), List.of("normal")));
         }

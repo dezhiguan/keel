@@ -88,6 +88,10 @@ public class DevflowController {
     public R<Map<String, Object>> report(@PathVariable String jobId, @PathVariable String stage,
                                          @RequestBody DevflowTypes.StageReport body) {
         var principal = requireService();
+        if (execution.get(jobId) != null) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM,
+                    "元智能体生产任务的阶段结论只能由可信执行器写入");
+        }
         var job = devflow.report(jobId, stage, body, principal.username());
         return R.ok(Map.of("jobId", job.jobId(), "stage", job.stage(), "attempt", job.fixRounds() + 1, "status", body.status()));
     }
@@ -143,6 +147,24 @@ public class DevflowController {
         return R.ok(execution.refreshHumanReview(jobId));
     }
 
+    @PostMapping("/jobs/{jobId}/code-review/run")
+    public R<com.fasterxml.jackson.databind.node.ObjectNode> runCodeReview(@PathVariable String jobId) {
+        requireWrite();
+        return R.ok(execution.runCodeReview(jobId));
+    }
+
+    @PostMapping("/jobs/{jobId}/h4/request")
+    public R<com.fasterxml.jackson.databind.node.ObjectNode> requestH4(@PathVariable String jobId) {
+        requireWrite();
+        return R.ok(execution.requestH4(jobId));
+    }
+
+    @PostMapping("/jobs/{jobId}/h4/refresh")
+    public R<com.fasterxml.jackson.databind.node.ObjectNode> refreshH4(@PathVariable String jobId) {
+        requireWrite();
+        return R.ok(execution.refreshH4(jobId));
+    }
+
     @GetMapping("/holdout/{jobId}")
     public R<Map<String, Object>> holdout(@PathVariable String jobId) {
         var principal = requireService();
@@ -154,6 +176,9 @@ public class DevflowController {
         var principal = requireService();
         var scores = body == null || body.byTag() == null ? List.<HoldoutRules.TagScore>of() : body.byTag();
         holdout.submit(body == null ? null : body.jobId(), scores, principal.username());
+        if (body != null && execution.get(body.jobId()) != null) {
+            execution.recordStagingGate(body);
+        }
         return R.ok(Map.of());
     }
 
@@ -222,7 +247,8 @@ public class DevflowController {
         return principal.username();
     }
 
-    public record HoldoutSubmission(String jobId, List<HoldoutRules.TagScore> byTag) {}
+    public record HoldoutSubmission(String jobId, List<HoldoutRules.TagScore> byTag, String gateRunId,
+                                    String sha, String env, Map<String, Double> visibleByTag) {}
 
     public record HumanSeeds(List<DevflowTypes.SeedCase> cases) {}
 

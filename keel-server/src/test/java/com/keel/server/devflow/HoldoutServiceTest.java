@@ -3,6 +3,7 @@ package com.keel.server.devflow;
 import com.keel.common.error.ErrorCode;
 import com.keel.server.common.KeelException;
 import com.keel.server.release.ReleaseGuard;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -44,6 +45,11 @@ class HoldoutServiceTest {
         var body = (List<DevflowTypes.SeedCase>) holdout.read("DF-0001", "keel-gate").get("cases");
         assertThat(body).hasSize(3);
 
+        assertThatThrownBy(() -> holdout.submit("DF-0001", List.of(new HoldoutRules.TagScore("safety", 1.0, 1)), "keel-gate"))
+                .isInstanceOf(KeelException.class)
+                .extracting(error -> ((KeelException) error).code())
+                .isEqualTo(ErrorCode.SERVER_INVALID_PARAM);
+
         assertThatThrownBy(() -> holdout.submit("DF-0001", List.of(new HoldoutRules.TagScore("safety", 0.5, 3)), "keel-gate"))
                 .isInstanceOf(KeelException.class)
                 .extracting(error -> ((KeelException) error).code())
@@ -67,6 +73,21 @@ class HoldoutServiceTest {
         assertThat(ReleaseGuard.rejection(null, false)).isNull();
         assertThat(ReleaseGuard.rejection("DF-0001", true)).isNull();
         assertThat(ReleaseGuard.rejection("DF-0001", false)).contains("git.pr.merge");
+    }
+
+    @Test
+    void aProducedAgentCannotUseAnArbitraryGateRunIdOrAStaleCommit() throws Exception {
+        var state = new ObjectMapper().readTree("""
+                {"phase":"RELEASING","delivery":{"sha":"abc"},
+                 "humanReview":{"approved":true},"modelReview":{"approved":true},
+                 "gate":{"passed":true,"runId":"gate-1","env":"prod","sha":"abc"}}
+                """);
+        assertThat(ReleaseGuard.evidenceRejection(state, "prod", "gate-1", true, true)).isNull();
+        assertThat(ReleaseGuard.evidenceRejection(state, "prod", "gate-2", true, true)).contains("门禁");
+        assertThat(ReleaseGuard.evidenceRejection(state, "prod", "gate-1", false, true)).contains("隐藏考题");
+        assertThat(ReleaseGuard.evidenceRejection(state, "prod", "gate-1", true, false)).contains("H4");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("delivery")).put("sha", "changed");
+        assertThat(ReleaseGuard.evidenceRejection(state, "prod", "gate-1", true, true)).contains("候选提交");
     }
 
     private static DevflowTypes.Job job(String id) {

@@ -48,7 +48,8 @@ public class ReleaseService {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "gateRunId 和 image 不能为空");
         }
         var jobId = devflowJobId(agent);
-        var rejection = ReleaseGuard.rejection(jobId, approvedMerge(agent, jobId));
+        var rejection = jobId == null ? null : devflowEvidenceRejection(jobId, env, gateRunId,
+                approvedMerge(agent, jobId));
         if (rejection != null) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, rejection);
         }
@@ -70,6 +71,19 @@ public class ReleaseService {
         result.put("ciRunUrl", gateRunId);
         result.put("releasedBy", PromptCatalog.Actor.current().userId());
         return result;
+    }
+
+    private String devflowEvidenceRejection(String jobId, String env, String gateRunId, boolean mergeApproved) {
+        var executions = jdbc.query("SELECT state_json::text FROM devflow_execution WHERE job_id=?",
+                (rs, row) -> rs.getString(1), jobId);
+        JsonNode state = null;
+        if (!executions.isEmpty()) {
+            try { state = json.readTree(executions.getFirst()); }
+            catch (Exception error) { return "元智能体生产任务的可信执行记录损坏"; }
+        }
+        var passed = jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM devflow_holdout_result WHERE job_id=? AND passed)",
+                Boolean.class, jobId);
+        return ReleaseGuard.evidenceRejection(state, env, gateRunId, Boolean.TRUE.equals(passed), mergeApproved);
     }
 
     public Map<String, Object> rollback(String agent, String prompt, int version, String reason) {

@@ -1,6 +1,8 @@
 """Local gate: invoke each seed row, score by tag, then report."""
 
 import json
+import os
+import re
 import uuid
 from pathlib import Path
 
@@ -41,11 +43,15 @@ def run_gate(*, env: str, seed_file: str, scorers_file: str, endpoint: str | Non
     print(json.dumps(summary, ensure_ascii=False))
     if not passed:
         raise SystemExit(1)
+    if holdout_job:
+        from keel.holdout_run import run_holdout
+        candidate_sha = os.environ.get("KEEL_CANDIDATE_SHA", "").strip()
+        if not re.fullmatch(r"[0-9a-f]{40}", candidate_sha):
+            raise ValueError("隐藏考题门禁需要精确的 KEEL_CANDIDATE_SHA")
+        run_holdout(job_id=holdout_job, scorers=scorers, endpoint=target, env=env,
+                    gate_run_id=gate_run_id, candidate_sha=candidate_sha, visible_by_tag=by_tag)
     record(manifest.metadata.name, gate_run_id, True)
     marker = root / ".keel"
     marker.mkdir(exist_ok=True)
     (marker / "gate-run-id").write_text(gate_run_id, encoding="utf-8")
-    if holdout_job:
-        from keel.holdout_run import run_holdout
-        run_holdout(job_id=holdout_job, scorers=scorers, endpoint=target, env=env)
     return gate_run_id

@@ -1980,6 +1980,63 @@ paths:
         "409":
           $ref: "#/components/responses/Error"
 
+  /devflow/jobs/{jobId}/code-review/run:
+    parameters:
+      - $ref: "#/components/parameters/DevflowJobId"
+    post:
+      tags: [devflow]
+      operationId: runDevflowCodeReview
+      summary: S4 读取精确候选提交并运行模型代码评审
+      responses:
+        "200":
+          description: 已记录评审结论
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowExecution" }
+
+  /devflow/jobs/{jobId}/h4/request:
+    parameters:
+      - $ref: "#/components/parameters/DevflowJobId"
+    post:
+      tags: [devflow]
+      operationId: requestDevflowH4
+      summary: staging 门禁通过后申请 git.pr.merge 高风险审批
+      responses:
+        "200":
+          description: H4 审批已排队
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowExecution" }
+
+  /devflow/jobs/{jobId}/h4/refresh:
+    parameters:
+      - $ref: "#/components/parameters/DevflowJobId"
+    post:
+      tags: [devflow]
+      operationId: refreshDevflowH4
+      summary: 重新核验 H4 审批并合并受保护的精确候选提交
+      responses:
+        "200":
+          description: H4 状态已刷新
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowExecution" }
+
   /devflow/jobs/{jobId}/stages/{stage}/report:
     parameters:
       - $ref: "#/components/parameters/DevflowJobId"
@@ -3338,6 +3395,12 @@ components:
       required: [jobId, byTag]
       properties:
         jobId: { type: string }
+        gateRunId: { type: string, description: 研发员工 staging 门禁的不可复用运行 ID }
+        sha: { type: string, description: 候选 PR 的精确提交 SHA }
+        env: { type: string, enum: [staging] }
+        visibleByTag:
+          type: object
+          additionalProperties: { type: number, minimum: 0, maximum: 1 }
         byTag:
           type: array
           items:
@@ -3362,7 +3425,7 @@ components:
       required: [jobId, phase, version, revisions, requirement]
       properties:
         jobId: { type: string }
-        phase: { type: string, enum: [QUEUED, RUNNING, WAITING, WAITING_SEEDS, WAITING_EVAL, DELIVERING, SANDBOX_PENDING, SANDBOX_RUNNING, WAITING_REVIEW, DELIVERED, FAILED, CANCELLED] }
+        phase: { type: string, enum: [QUEUED, RUNNING, WAITING, WAITING_SEEDS, WAITING_EVAL, DELIVERING, SANDBOX_PENDING, SANDBOX_RUNNING, WAITING_REVIEW, STAGING_READY, STAGING_GATE_PASSED, WAITING_H4, RELEASING, WATCHING, DELIVERED, FAILED, CANCELLED] }
         version: { type: integer }
         revisions: { type: integer }
         requirement: { type: object, additionalProperties: true }
@@ -3414,6 +3477,37 @@ components:
               type: array
               items: { type: string }
             approved: { type: boolean }
+        modelReview:
+          type: object
+          required: [sha, reviewer, approved, checks, findings]
+          properties:
+            sha: { type: string }
+            reviewer: { type: string }
+            approved: { type: boolean }
+            checks: { type: object, additionalProperties: { type: boolean } }
+            findings:
+              type: array
+              items:
+                type: object
+                required: [path, line, severity, detail]
+                properties:
+                  path: { type: string }
+                  line: { type: integer }
+                  severity: { type: string, enum: [HIGH, MID, LOW] }
+                  detail: { type: string }
+        modelReviewTraceId: { type: string }
+        gate:
+          type: object
+          required: [runId, sha, env, passed, visibleScore, hiddenScore]
+          properties:
+            runId: { type: string }
+            sha: { type: string }
+            env: { type: string, enum: [staging] }
+            passed: { type: boolean }
+            visibleScore: { type: number }
+            hiddenScore: { type: number }
+        h4ApprovalId: { type: string }
+        mergeSha: { type: string, description: H4 批准后 GitHub 确认的合并提交 }
         error: { type: string }
     MetaAgentWork:
       type: object
@@ -3421,12 +3515,13 @@ components:
       required: [workflow, action, jobId, requirement]
       properties:
         workflow: { type: boolean }
-        action: { type: string, enum: [DRAFT, EVAL, DELIVER] }
+        action: { type: string, enum: [DRAFT, EVAL, DELIVER, REVIEW] }
         jobId: { type: string }
         requirement: { type: object, additionalProperties: true }
         draft: { type: object, additionalProperties: true }
         feedback: { type: string }
         catalog: { type: array, items: { type: object, additionalProperties: true } }
+        snapshot: { type: object, additionalProperties: true }
     DevflowSeedCase:
       type: object
       required: [caseId, input, expected, tags]
