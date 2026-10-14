@@ -118,10 +118,15 @@ public class LiteLlmClient {
             data.forEach(row -> rows.add(new Spend(
                     row.path("alias").asText(""),
                     row.path("model").asText(""),
-                    row.path("costCny").asDouble(),
+                    row.path("costCny").isNull() ? null : row.path("costCny").asDouble(),
                     row.path("ts").asText(""),
                     row.has("latencyMs") && !row.path("latencyMs").isNull() ? row.path("latencyMs").asLong() : null,
-                    row.path("timedOut").asBoolean(false))));
+                    row.path("timedOut").asBoolean(false),
+                    row.path("requestId").asText(""),
+                    row.path("inputTokens").isNull() ? null : row.path("inputTokens").asInt(),
+                    row.path("outputTokens").isNull() ? null : row.path("outputTokens").asInt(),
+                    row.path("reservedCny").asDouble(),
+                    row.path("status").asText("SETTLED"))));
             if (data.size() < 50) {
                 break;
             }
@@ -186,7 +191,9 @@ public class LiteLlmClient {
 
     public record RotatedKey(String alias, String key, int version) {}
 
-    public record Spend(String alias, String model, double costCny, String ts, Long latencyMs, boolean timedOut) {}
+    public record Spend(String alias, String model, Double costCny, String ts, Long latencyMs, boolean timedOut,
+                        String requestId, Integer inputTokens, Integer outputTokens, double reservedCny,
+                        String status) {}
 
     public record Model(String name, boolean priceConfigured, String provider,
                         double inputCnyPerToken, double outputCnyPerToken) {}

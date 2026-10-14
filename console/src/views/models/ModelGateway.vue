@@ -21,7 +21,7 @@ const MODEL_STATUS: Record<string, { label: string; tone: StatusTone }> = {
 const envStore = useEnvStore()
 const userStore = useUserStore()
 const data = ref<ModelGateway | null>(null)
-const tab = ref<'model' | 'key'>('model')
+const tab = ref<'model' | 'key' | 'bill'>('model')
 const loading = ref(false)
 const saving = ref(false)
 const editing = ref<GatewayKey | null>(null)
@@ -36,6 +36,7 @@ const keySize = ref<PageSize>(10)
 
 const models = computed(() => data.value?.models ?? [])
 const keys = computed(() => data.value?.keys ?? [])
+const bills = computed(() => data.value?.bills ?? [])
 const modelRows = computed(() => models.value.slice((modelPage.value - 1) * modelSize.value, modelPage.value * modelSize.value))
 const keyRows = computed(() => keys.value.slice((keyPage.value - 1) * keySize.value, keyPage.value * keySize.value))
 
@@ -138,6 +139,7 @@ watch(() => envStore.env, load, { immediate: true })
     <div class="chipsel" style="margin-bottom: 14px">
       <button :class="{ on: tab === 'model' }" @click="tab = 'model'">模型 · {{ models.length }}</button>
       <button :class="{ on: tab === 'key' }" @click="tab = 'key'">虚拟 Key 与日预算 · {{ keys.length }}</button>
+      <button :class="{ on: tab === 'bill' }" @click="tab = 'bill'">账单 · 待计费 {{ data?.pendingCount ?? 0 }}</button>
     </div>
 
     <div v-if="tab === 'model'" class="card">
@@ -161,7 +163,7 @@ watch(() => envStore.env, load, { immediate: true })
       <Pager v-model:page="modelPage" v-model:size="modelSize" :total="models.length" />
     </div>
 
-    <div v-else class="card">
+    <div v-else-if="tab === 'key'" class="card">
       <h3>虚拟 Key 与日预算<small>keel register 自动创建，keel retire 自动吊销</small></h3>
       <table class="t">
         <thead><tr><th>智能体</th><th>Key 别名 · 版本</th><th>可用模型</th><th style="width: 34%">已结算 + 预留 / 日预算</th><th>状态</th><th /></tr></thead>
@@ -192,6 +194,25 @@ watch(() => envStore.env, load, { immediate: true })
         </tbody>
       </table>
       <Pager v-model:page="keyPage" v-model:size="keySize" :total="keys.length" />
+    </div>
+
+    <div v-else class="card">
+      <h3>账单<small>最近 50 条 · 同一 requestId 只结算一次</small></h3>
+      <table class="t">
+        <thead><tr><th>时间</th><th>requestId</th><th>智能体</th><th>模型</th><th>tokens</th><th>费用</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr v-for="(bill, index) in bills" :key="`${bill.requestId}-${index}`">
+            <td class="mono">{{ bill.ts ? new Date(bill.ts).toLocaleString('zh-CN') : '—' }}</td>
+            <td class="mono">{{ orDash(bill.requestId) }}</td>
+            <td>{{ orDash(bill.agent) }}</td>
+            <td class="mono">{{ orDash(bill.model) }}</td>
+            <td class="mono">{{ bill.inputTokens == null || bill.outputTokens == null ? '—' : fmtN(bill.inputTokens + bill.outputTokens) }}</td>
+            <td class="mono">{{ bill.costCny == null ? '—' : yuan(bill.costCny) }}</td>
+            <td><span class="pill" :class="bill.status === 'PENDING' ? 'p-warn' : bill.status === 'FAILED' ? 'p-bad' : 'p-ok'">{{ bill.status === 'PENDING' ? '待计费' : bill.status === 'FAILED' ? '失败' : '已结算' }}</span></td>
+          </tr>
+          <tr v-if="!bills.length"><td colspan="7" class="empty">当前窗口没有账单</td></tr>
+        </tbody>
+      </table>
     </div>
 
     <Teleport to="body">

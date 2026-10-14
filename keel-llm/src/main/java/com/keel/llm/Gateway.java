@@ -93,7 +93,12 @@ public final class Gateway {
     }
 
     public List<Spend> spend(String alias, int page, int size) {
-        var matched = spendLog.all().stream().filter(row -> alias == null || alias.isBlank() || row.alias.equals(alias)).toList();
+        var matched = spendLog.all().stream()
+                .filter(row -> alias == null || alias.isBlank() || row.alias.equals(alias))
+                .sorted((left, right) -> {
+                    int pending = Boolean.compare("PENDING".equals(right.status()), "PENDING".equals(left.status()));
+                    return pending != 0 ? pending : right.ts().compareTo(left.ts());
+                }).toList();
         int from = Math.max(0, (page - 1) * size);
         int to = Math.min(matched.size(), from + size);
         return from >= matched.size() ? List.of() : matched.subList(from, to);
@@ -126,7 +131,9 @@ public final class Gateway {
                 result = upstream.post(model.upstream(), model.upstreamKey(), path, forwarded, timeout);
                 latencyMs = Math.max(0L, (System.nanoTime() - started) / 1_000_000L);
                 if (result.retryable()) {
-                    remember(key.alias(), used, 0, 0, BigDecimal.ZERO, latencyMs, result.status() == 504, requestId);
+                    var failed = new Spend(key.alias(), used, 0, 0, BigDecimal.ZERO, requestId, Instant.now(),
+                            latencyMs, result.status() == 504, "FAILED", BigDecimal.ZERO);
+                    spendLog.append(failed);
                     if (i < attempts.size() - 1) {
                         continue;
                     }
@@ -137,7 +144,19 @@ public final class Gateway {
             if (result == null) {
                 throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "上游失败");
             }
+            if (result.status() >= 400) {
+                spendLog.append(new Spend(key.alias(), used, 0, 0, BigDecimal.ZERO, requestId, Instant.now(),
+                        latencyMs, false, "FAILED", BigDecimal.ZERO));
+                return new Completion(result.status(), result.body(), null);
+            }
             billableResponse = true;
+            if (!validUsage(result.body())) {
+                budget.markPending(key.alias, requestId);
+                var pending = new Spend(key.alias(), used, -1, -1, null, requestId, Instant.now(),
+                        latencyMs, false, "PENDING", maxCost);
+                spendLog.append(pending);
+                return new Completion(result.status(), result.body(), pending);
+            }
             var cost = costOf(used, result.body());
             budget.settle(key.alias, requestId, cost);
             var row = remember(key.alias, used, tokens(result.body(), "prompt_tokens"),
@@ -209,6 +228,15 @@ public final class Gateway {
         return node.path("usage").path(field).asInt(0);
     }
 
+    private boolean validUsage(String body) {
+        var usage = read(body).path("usage");
+        return validCount(usage.path("prompt_tokens")) && validCount(usage.path("completion_tokens"));
+    }
+
+    private static boolean validCount(JsonNode node) {
+        return node.isIntegralNumber() && node.canConvertToInt() && node.asInt() >= 0;
+    }
+
     private JsonNode read(String body) {
         try {
             return JSON.readTree(body == null || body.isBlank() ? "{}" : body);
@@ -233,7 +261,15 @@ public final class Gateway {
     public record ListedKey(String alias, List<String> models, BigDecimal dailyBudgetCny, BigDecimal spentCny,
                             BigDecimal reservedCny, boolean blocked, int version) {}
 
-    public record Spend(String alias, String model, int inputTokens, int outputTokens, BigDecimal costCny, String requestId, Instant ts, long latencyMs, boolean timedOut) {}
+    public record Spend(String alias, String model, int inputTokens, int outputTokens, BigDecimal costCny,
+                        String requestId, Instant ts, long latencyMs, boolean timedOut, String status,
+                        BigDecimal reservedCny) {
+        public Spend(String alias, String model, int inputTokens, int outputTokens, BigDecimal costCny,
+                     String requestId, Instant ts, long latencyMs, boolean timedOut) {
+            this(alias, model, inputTokens, outputTokens, costCny, requestId, ts, latencyMs, timedOut,
+                    "SETTLED", BigDecimal.ZERO);
+        }
+    }
 
     public record Completion(int status, String body, Spend spend) {}
 

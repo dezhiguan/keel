@@ -20,6 +20,7 @@ public final class BudgetCounter implements AutoCloseable {
     private static final BigDecimal SCALE = new BigDecimal("1000000");
     private static final long RESERVATION_MILLIS = 120_000;
     private static final int RETENTION_SECONDS = 172_800;
+    private static final int PENDING_RETENTION_SECONDS = 2_592_000;
     private static final String PREFIX = "keel-llm:budget:v2:";
     private static final String CLEANUP = """
             if redis.call('EXISTS', KEYS[1]) == 0 then
@@ -57,7 +58,12 @@ public final class BudgetCounter implements AutoCloseable {
             redis.call('HINCRBY', KEYS[1], 'reserved', amount)
             redis.call('HSET', KEYS[2], ARGV[2], cjson.encode({s='R', r=amount, a=0}))
             redis.call('ZADD', KEYS[3], tonumber(ARGV[5]), ARGV[2])
-            for i=1,3 do redis.call('EXPIRE', KEYS[i], tonumber(ARGV[6])) end
+            for i=1,3 do
+              local ttl = redis.call('TTL', KEYS[i])
+              if ttl == -1 or (ttl >= 0 and ttl < tonumber(ARGV[6])) then
+                redis.call('EXPIRE', KEYS[i], tonumber(ARGV[6]))
+              end
+            end
             return 1
             """;
     private static final String SETTLE = CLEANUP + """
@@ -65,7 +71,7 @@ public final class BudgetCounter implements AutoCloseable {
             if not raw then return -1 end
             local row = cjson.decode(raw)
             if row.s == 'S' then return 0 end
-            if row.s ~= 'R' then return -1 end
+            if row.s ~= 'R' and row.s ~= 'P' then return -1 end
             redis.call('HINCRBY', KEYS[1], 'reserved', -tonumber(row.r))
             redis.call('HINCRBY', KEYS[1], 'settled', tonumber(ARGV[3]))
             row.s = 'S'
@@ -83,6 +89,18 @@ public final class BudgetCounter implements AutoCloseable {
             row.s = 'X'
             redis.call('HSET', KEYS[2], ARGV[2], cjson.encode(row))
             redis.call('ZREM', KEYS[3], ARGV[2])
+            return 1
+            """;
+    private static final String MARK_PENDING = CLEANUP + """
+            local raw = redis.call('HGET', KEYS[2], ARGV[2])
+            if not raw then return -1 end
+            local row = cjson.decode(raw)
+            if row.s == 'P' then return 0 end
+            if row.s ~= 'R' then return -1 end
+            row.s = 'P'
+            redis.call('HSET', KEYS[2], ARGV[2], cjson.encode(row))
+            redis.call('ZREM', KEYS[3], ARGV[2])
+            for i=1,3 do redis.call('EXPIRE', KEYS[i], tonumber(ARGV[3])) end
             return 1
             """;
     private static final String SNAPSHOT = CLEANUP + """
@@ -150,6 +168,28 @@ public final class BudgetCounter implements AutoCloseable {
             day.reserved -= row.amount;
             day.settled += actual;
             row.state = State.SETTLED;
+            return true;
+        }
+    }
+
+    /** Keep the estimate charged against the daily limit until the unknown usage can be reconciled. */
+    public boolean markPending(String alias, String requestId) {
+        long now = clock.millis();
+        if (redis != null) {
+            Long result = redis.eval(MARK_PENDING, ScriptOutputType.INTEGER, keys(alias, requestId),
+                    Long.toString(now), requestId, Integer.toString(PENDING_RETENTION_SECONDS));
+            if (result == null || result < 0) throw new IllegalStateException("预留已过期，不能标记待计费");
+            return result == 1;
+        }
+        var day = day(alias, requestId);
+        synchronized (day) {
+            cleanup(day, now);
+            var row = day.requests.get(requestId);
+            if (row == null || row.state == State.EXPIRED || row.state == State.RELEASED || row.state == State.SETTLED) {
+                throw new IllegalStateException("预留已过期，不能标记待计费");
+            }
+            if (row.state == State.PENDING) return false;
+            row.state = State.PENDING;
             return true;
         }
     }
@@ -226,7 +266,7 @@ public final class BudgetCounter implements AutoCloseable {
     }
 
     public record Snapshot(BigDecimal settledCny, BigDecimal reservedCny) {}
-    private enum State { RESERVED, SETTLED, RELEASED, EXPIRED }
+    private enum State { RESERVED, PENDING, SETTLED, RELEASED, EXPIRED }
     private static final class Reservation {
         State state;
         final long amount;

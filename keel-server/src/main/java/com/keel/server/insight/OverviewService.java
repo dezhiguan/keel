@@ -24,7 +24,7 @@ public class OverviewService {
 
     public record Kpi(Integer onlineAgents, Integer totalAgents, Integer bizCount, Integer devCount,
                       Long calls, Double callsTrendPct, Double modelCostCny, Double avgScore,
-                      Double gateThreshold, Integer pendingApprovals) {}
+                      Double gateThreshold, Integer pendingApprovals, Integer pendingModelBills) {}
 
     public record Alert(String at, String level, String agent, String kind, String text, String link) {}
 
@@ -33,15 +33,17 @@ public class OverviewService {
     private final QualityService quality;
     private final Function<String, Integer> pendingApprovals;
     private final FindingBook findings;
+    private final CostService costs;
 
     @Autowired
     public OverviewService(AgentRegistryService agentRegistryService, AgentUsageService usage, QualityService quality,
-                           Function<String, Integer> pendingApprovals, FindingBook findings) {
+                           Function<String, Integer> pendingApprovals, FindingBook findings, CostService costs) {
         this.agentRegistryService = agentRegistryService;
         this.usage = usage;
         this.quality = quality;
         this.pendingApprovals = pendingApprovals;
         this.findings = findings;
+        this.costs = costs;
     }
 
     /** Spend-ledger tests construct the service without a usage cache or finding book. */
@@ -52,7 +54,7 @@ public class OverviewService {
                         costsGateway(costs), quality,
                         new EvalQueryService(new com.keel.server.integration.langfuse.LangfuseClient("", "", ""), name -> null),
                         com.keel.server.insight.SavedTraces.EMPTY),
-                quality, pendingApprovals, new FindingBook(null));
+                quality, pendingApprovals, new FindingBook(null), costs);
     }
 
     public Overview overview(String env, String range) {
@@ -63,6 +65,7 @@ public class OverviewService {
                 .toList();
         var agents = usage.apply(listed, scope);
         var snap = usage.snapshotOf(scope);
+        var bills = costs.cost(scope, range);
         var online = (int) agents.stream().filter(agent -> agent.status() == AgentStatus.ONLINE).count();
         var biz = (int) agents.stream().filter(agent -> "biz".equals(agent.category())).count();
         var dev = (int) agents.stream().filter(agent -> "dev".equals(agent.category())).count();
@@ -77,7 +80,8 @@ public class OverviewService {
         } else {
             avg = quality.average();
         }
-        var kpi = new Kpi(online, agents.size(), biz, dev, calls, snap.trendPct(), cost, avg, GATE, pendingApprovals.apply(scope));
+        var kpi = new Kpi(online, agents.size(), biz, dev, calls, snap.trendPct(), cost, avg, GATE,
+                pendingApprovals.apply(scope), bills.pendingCount());
         var costByAgent = new ArrayList<Map<String, Object>>();
         if (snap.costKnown()) {
             snap.cost().forEach((agent, amount) -> {
@@ -91,11 +95,22 @@ public class OverviewService {
                 costByAgent.add(row);
             });
         }
-        return new Overview(kpi, agents, alerts(scope, agents, snap), costByAgent);
+        return new Overview(kpi, agents, alerts(scope, agents, snap, bills), costByAgent);
     }
 
-    private List<Alert> alerts(String env, List<AgentSummary> agents, AgentUsageService.Snapshot snap) {
+    private List<Alert> alerts(String env, List<AgentSummary> agents, AgentUsageService.Snapshot snap,
+                               CostService.Result bills) {
         var rows = new ArrayList<Alert>();
+        var missingByAgent = new LinkedHashMap<String, Integer>();
+        var latestByAgent = new LinkedHashMap<String, String>();
+        for (var bill : bills.bills()) {
+            if (!"PENDING".equals(bill.status())) continue;
+            var agent = CostService.agentOf(bill.alias());
+            missingByAgent.merge(agent, 1, Integer::sum);
+            latestByAgent.merge(agent, bill.ts(), (left, right) -> left.compareTo(right) >= 0 ? left : right);
+        }
+        missingByAgent.forEach((agent, count) -> rows.add(new Alert(latestByAgent.get(agent), "WARN", agent,
+                "LLM_USAGE_MISSING", agent + " 有 " + count + " 条调用 usage 缺失，进入待计费", "/models")));
         for (var finding : findings.openFindings()) {
             if (!"all".equals(env) && !env.equals(finding.env())) {
                 continue;

@@ -48,7 +48,7 @@ public class CostService {
             return load(env == null || env.isBlank() ? "all" : env, range);
         } catch (IllegalStateException e) {
             if (e.getMessage() != null && e.getMessage().contains("未配置")) {
-                return new Result(0, 0, Map.of(), Map.of(), List.of(), List.of(), List.of());
+                return new Result(0, 0, Map.of(), Map.of(), List.of(), List.of(), List.of(), List.of(), 0);
             }
             throw e;
         }
@@ -87,9 +87,11 @@ public class CostService {
         double total = 0;
         var byModel = new LinkedHashMap<String, Double>();
         for (var row : rows) {
-            total += row.costCny();
-            byAgent.merge(agentOf(row.alias()), row.costCny(), Double::sum);
-            byModel.merge(row.model(), row.costCny(), Double::sum);
+            if (row.costCny() != null && "SETTLED".equals(row.status())) {
+                total += row.costCny();
+                byAgent.merge(agentOf(row.alias()), row.costCny(), Double::sum);
+                byModel.merge(row.model(), row.costCny(), Double::sum);
+            }
         }
         var keys = gateway.keys().stream()
                 .filter(key -> inEnv(key.alias(), env))
@@ -97,7 +99,8 @@ public class CostService {
                         key.dailyBudgetCny(), key.spentCny(), key.reservedCny(), key.blocked(), key.version()))
                 .toList();
         var stats = stats(gateway.models(), rows, keys, env, since, now);
-        return new Result(total, rows.size(), byAgent, byModel, gateway.models(), keys, stats);
+        int pending = (int) rows.stream().filter(row -> "PENDING".equals(row.status())).count();
+        return new Result(total, rows.size(), byAgent, byModel, gateway.models(), keys, stats, rows, pending);
     }
 
     private List<ModelStat> stats(List<LiteLlmClient.Model> catalog, List<LiteLlmClient.Spend> rows, List<Key> keys,
@@ -109,7 +112,9 @@ public class CostService {
         var instrumented = false;
         for (var row : rows) {
             calls.merge(row.model(), 1, Integer::sum);
-            cost.merge(row.model(), row.costCny(), Double::sum);
+            if (row.costCny() != null && "SETTLED".equals(row.status())) {
+                cost.merge(row.model(), row.costCny(), Double::sum);
+            }
             if (row.timedOut()) {
                 timeouts.merge(row.model(), 1, Integer::sum);
                 instrumented = true;
@@ -308,7 +313,7 @@ public class CostService {
         return env.equals(envOf(alias));
     }
 
-    static String agentOf(String alias) {
+    public static String agentOf(String alias) {
         for (var suffix : List.of("-prod", "-staging", "-test", "-dev")) {
             if (alias.endsWith(suffix)) {
                 return alias.substring(0, alias.length() - suffix.length());
@@ -333,5 +338,6 @@ public class CostService {
                             double costCny, String status, boolean priceConfigured) {}
 
     public record Result(double totalCny, int calls, Map<String, Double> byAgent, Map<String, Double> byModel,
-                         List<LiteLlmClient.Model> models, List<Key> keys, List<ModelStat> stats) {}
+                         List<LiteLlmClient.Model> models, List<Key> keys, List<ModelStat> stats,
+                         List<LiteLlmClient.Spend> bills, int pendingCount) {}
 }

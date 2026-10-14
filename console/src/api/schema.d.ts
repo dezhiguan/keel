@@ -1651,6 +1651,8 @@ export interface components {
              * @example 101.1
              */
             modelCostCny?: number;
+            /** @description 窗口内 usage 缺失、尚未计费的调用数 */
+            pendingModelBills?: number;
             /**
              * Format: float
              * @example 0.86
@@ -1674,7 +1676,7 @@ export interface components {
              * @description 对账 finding 或运行告警
              * @enum {string}
              */
-            kind?: "OFFLINE" | "UNREGISTERED" | "ZOMBIE" | "RETIRE_INCOMPLETE" | "VERSION_MISMATCH" | "BUDGET_WARN" | "GATE_FAILED" | "PROMPT_DRIFT";
+            kind?: "OFFLINE" | "UNREGISTERED" | "ZOMBIE" | "RETIRE_INCOMPLETE" | "VERSION_MISMATCH" | "BUDGET_WARN" | "GATE_FAILED" | "PROMPT_DRIFT" | "LLM_USAGE_MISSING";
             text?: string;
             link?: string | null;
         };
@@ -2276,6 +2278,24 @@ export interface components {
             prevHash?: string | null;
         };
         ModelGateway: {
+            /** @description 当前窗口待计费调用数 */
+            pendingCount?: number;
+            bills?: {
+                /** Format: date-time */
+                ts?: string;
+                requestId?: string;
+                alias?: string;
+                agent?: string;
+                model?: string;
+                inputTokens?: number | null;
+                outputTokens?: number | null;
+                /** Format: float */
+                costCny?: number | null;
+                /** Format: float */
+                reservedCny?: number | null;
+                /** @enum {string} */
+                status?: "SETTLED" | "PENDING" | "FAILED";
+            }[];
             models?: {
                 /** @example qwen-plus */
                 model?: string;

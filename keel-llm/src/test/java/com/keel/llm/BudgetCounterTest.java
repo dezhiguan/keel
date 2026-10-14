@@ -44,4 +44,25 @@ class BudgetCounterTest {
                 .isInstanceOf(IllegalStateException.class);
         assertThat(budget.reserve("echo-dev", "2026-10-15@fresh", new BigDecimal("0.01"), new BigDecimal("0.01"))).isTrue();
     }
+
+    @Test void pendingReservationSurvivesOrphanCleanupAndIsIdempotent() {
+        var instant = new AtomicReference<>(Instant.parse("2026-10-15T03:00:00Z"));
+        var clock = new Clock() {
+            @Override public ZoneId getZone() { return ZoneId.of("UTC"); }
+            @Override public Clock withZone(ZoneId zone) { return Clock.fixed(instant.get(), zone); }
+            @Override public Instant instant() { return instant.get(); }
+        };
+        var budget = new BudgetCounter(clock);
+        var id = "2026-10-15@pending";
+        assertThat(budget.reserve("echo-dev", id, new BigDecimal("0.006"), new BigDecimal("0.01"))).isTrue();
+        assertThat(budget.markPending("echo-dev", id)).isTrue();
+        assertThat(budget.markPending("echo-dev", id)).isFalse();
+        instant.set(instant.get().plusSeconds(121));
+        budget.release("echo-dev", id);
+        assertThat(budget.snapshot("echo-dev").reservedCny()).isEqualByComparingTo("0.006");
+        assertThat(budget.reserve("echo-dev", "2026-10-15@other", new BigDecimal("0.006"),
+                new BigDecimal("0.01"))).isFalse();
+        assertThat(budget.settle("echo-dev", id, new BigDecimal("0.002"))).isTrue();
+        assertThat(budget.snapshot("echo-dev").reservedCny()).isEqualByComparingTo("0");
+    }
 }

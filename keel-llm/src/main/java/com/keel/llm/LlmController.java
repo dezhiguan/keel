@@ -105,16 +105,21 @@ public class LlmController {
                               @RequestParam(defaultValue = "1") int page,
                               @RequestParam(defaultValue = "50") int size) {
         admin(authorization);
-        var rows = gateway.spend(alias, page, size).stream().map(row -> Map.of(
-                "alias", row.alias(),
-                "model", row.model(),
-                "inputTokens", row.inputTokens(),
-                "outputTokens", row.outputTokens(),
-                "costCny", row.costCny(),
-                "requestId", row.requestId(),
-                "ts", row.ts().toString(),
-                "latencyMs", row.latencyMs(),
-                "timedOut", row.timedOut())).toList();
+        var rows = gateway.spend(alias, page, size).stream().map(row -> {
+            var view = new LinkedHashMap<String, Object>();
+            view.put("alias", row.alias());
+            view.put("model", row.model());
+            view.put("inputTokens", row.inputTokens() < 0 ? null : row.inputTokens());
+            view.put("outputTokens", row.outputTokens() < 0 ? null : row.outputTokens());
+            view.put("costCny", row.costCny());
+            view.put("reservedCny", row.reservedCny());
+            view.put("status", row.status());
+            view.put("requestId", row.requestId());
+            view.put("ts", row.ts().toString());
+            view.put("latencyMs", row.latencyMs());
+            view.put("timedOut", row.timedOut());
+            return view;
+        }).toList();
         return Map.of("data", rows, "page", page, "size", size);
     }
 

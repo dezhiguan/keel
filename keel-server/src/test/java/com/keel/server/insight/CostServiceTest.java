@@ -22,6 +22,50 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CostServiceTest {
+    @Test void pendingUsageIsExcludedFromCostAndRaisesOverviewAlert() throws Exception {
+        var now = Instant.now().toString();
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            String body = switch (exchange.getRequestURI().getPath()) {
+                case "/admin/v1/spend" -> """
+                        {"data":[{"alias":"askdb-dev","model":"qwen-plus","requestId":"req-pending",
+                        "costCny":null,"reservedCny":0.5,"status":"PENDING","ts":"%s"},
+                        {"alias":"askdb-dev","model":"qwen-plus","requestId":"req-settled",
+                        "costCny":0.2,"status":"SETTLED","ts":"%s"}]}
+                        """.formatted(now, now);
+                default -> "{\"data\":[]}";
+            };
+            var bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var base = "http://127.0.0.1:" + server.getAddress().getPort();
+            var costs = new CostService(new LiteLlmClient(base, "admin"));
+            var result = costs.cost("dev", "24h");
+            assertThat(result.totalCny()).isEqualTo(0.2);
+            assertThat(result.pendingCount()).isEqualTo(1);
+            assertThat(result.bills()).filteredOn(row -> "PENDING".equals(row.status())).singleElement().satisfies(row -> {
+                assertThat(row.costCny()).isNull();
+                assertThat(row.reservedCny()).isEqualTo(0.5);
+            });
+            var registry = new AgentRegistryService(null, null, null, null, new ObjectMapper(), null) {
+                @Override public List<com.keel.server.registry.model.dto.AgentSummary> listAll() { return List.of(); }
+            };
+            var overview = new OverviewService(registry, costs, new QualityService(new LangfuseClient("", "", "")),
+                    env -> 0).overview("dev", "24h");
+            assertThat(overview.kpi().pendingModelBills()).isEqualTo(1);
+            assertThat(overview.alerts()).filteredOn(alert -> "LLM_USAGE_MISSING".equals(alert.kind())).singleElement().satisfies(alert -> {
+                assertThat(alert.agent()).isEqualTo("askdb");
+                assertThat(alert.text()).contains("1 条调用 usage 缺失");
+            });
+        } finally {
+            server.stop(0);
+        }
+    }
+
     @Test void twoSpendPagesSumToTheOverviewAndUnpricedModelsAreFlagged() throws Exception {
         var paths = new ArrayList<String>();
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);

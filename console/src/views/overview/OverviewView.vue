@@ -116,7 +116,7 @@ watch(() => envStore.env, () => {
       <div class="kpi">
         <div class="l">模型成本</div>
         <div class="v">{{ fmtMoney(kpi?.modelCostCny) }}</div>
-        <div class="d">经薄网关统计</div>
+        <div class="d">待计费 {{ kpi?.pendingModelBills ?? 0 }} 条 · 已结算金额</div>
       </div>
       <div class="kpi">
         <div class="l">平均评测分</div>
@@ -205,7 +205,7 @@ watch(() => envStore.env, () => {
         <ul v-else class="alerts">
           <li v-for="(alert, index) in overview.alerts" :key="`${alert.agent}-${alert.kind}-${index}`">
             <span class="tm">{{ hm(alert.at) }}</span>
-            <span class="pill nd" :class="ALERT_KIND[alert.kind || '']?.[1] || 'p-mute'">{{ ALERT_KIND[alert.kind || '']?.[0] || alert.level }}</span>
+            <span class="pill nd" :class="alert.kind === 'LLM_USAGE_MISSING' ? 'p-warn' : ALERT_KIND[alert.kind || '']?.[1] || 'p-mute'">{{ alert.kind === 'LLM_USAGE_MISSING' ? '网关' : ALERT_KIND[alert.kind || '']?.[0] || alert.level }}</span>
             <span>{{ alert.text }}</span>
           </li>
         </ul>

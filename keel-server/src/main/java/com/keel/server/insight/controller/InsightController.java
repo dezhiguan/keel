@@ -116,6 +116,22 @@ public class InsightController {
         body.put("models", models);
         body.put("totalCny", cost.totalCny());
         body.put("keys", keys);
+        body.put("pendingCount", cost.pendingCount());
+        body.put("bills", cost.bills().stream().sorted((left, right) -> right.ts().compareTo(left.ts()))
+                .limit(50).map(bill -> {
+                    var row = new LinkedHashMap<String, Object>();
+                    row.put("ts", bill.ts());
+                    row.put("requestId", bill.requestId());
+                    row.put("alias", bill.alias());
+                    row.put("agent", CostService.agentOf(bill.alias()));
+                    row.put("model", bill.model());
+                    row.put("inputTokens", bill.inputTokens());
+                    row.put("outputTokens", bill.outputTokens());
+                    row.put("costCny", bill.costCny());
+                    row.put("reservedCny", bill.reservedCny());
+                    row.put("status", bill.status());
+                    return row;
+                }).toList());
         var devflowCost = devflow.cost();
         if (devflowCost != null) {
             body.put("devflowCost", devflowCost);

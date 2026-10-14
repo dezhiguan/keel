@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -273,6 +274,61 @@ class GatewayTest {
                     .extracting(error -> ((Gateway.GatewayException) error).code())
                     .isEqualTo(ErrorCode.LLM_BUDGET_EXCEEDED);
             assertThat(calls.get()).isZero();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test void missingUsageStaysPendingWithoutZeroCost() throws Exception {
+        var server = server((model, exchange) -> write(exchange, 200, "{\"model\":\"qwen-plus\",\"choices\":[]}"));
+        try {
+            var budget = new BudgetCounter();
+            var gateway = new Gateway(catalog(server), budget, new Upstream());
+            var key = gateway.create("pending-dev", List.of("qwen-plus"), List.of(), new BigDecimal("0.012"), false);
+            var completion = gateway.complete("Bearer " + key.key(), "/v1/chat/completions",
+                    "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2));
+            assertThat(completion.spend().status()).isEqualTo("PENDING");
+            assertThat(completion.spend().costCny()).isNull();
+            assertThat(completion.spend().reservedCny()).isGreaterThan(BigDecimal.ZERO);
+            assertThat(gateway.spend("pending-dev", 1, 10)).singleElement().satisfies(row -> {
+                assertThat(row.status()).isEqualTo("PENDING");
+                assertThat(row.costCny()).isNull();
+            });
+            assertThat(budget.snapshot("pending-dev").reservedCny()).isGreaterThan(BigDecimal.ZERO);
+            assertThatThrownBy(() -> gateway.complete("Bearer " + key.key(), "/v1/chat/completions",
+                    "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2)))
+                    .extracting(error -> ((Gateway.GatewayException) error).code())
+                    .isEqualTo(ErrorCode.LLM_BUDGET_EXCEEDED);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test void pendingBillSurvivesRecentLedgerTrimming() {
+        var log = new SpendLog(null);
+        log.append(new Gateway.Spend("pending-dev", "qwen-plus", -1, -1, null, "pending-id", Instant.now(),
+                1, false, "PENDING", new BigDecimal("0.5")));
+        for (int i = 0; i < 5001; i++) {
+            log.append(new Gateway.Spend("echo-dev", "qwen-plus", 1, 1, BigDecimal.ZERO, "complete-" + i,
+                    Instant.now(), 1, false));
+        }
+        assertThat(log.all()).filteredOn(row -> "pending-id".equals(row.requestId())).singleElement().satisfies(row -> {
+            assertThat(row.status()).isEqualTo("PENDING");
+            assertThat(row.costCny()).isNull();
+        });
+    }
+
+    @Test void explicitZeroUsageIsSettledRatherThanPending() throws Exception {
+        var server = server((model, exchange) -> write(exchange, 200, usage(model, 0, 0)));
+        try {
+            var budget = new BudgetCounter();
+            var gateway = new Gateway(catalog(server), budget, new Upstream());
+            var key = gateway.create("zero-dev", List.of("qwen-plus"), List.of(), new BigDecimal("0.012"), false);
+            var completed = gateway.complete("Bearer " + key.key(), "/v1/chat/completions",
+                    "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2));
+            assertThat(completed.spend().status()).isEqualTo("SETTLED");
+            assertThat(completed.spend().costCny()).isEqualByComparingTo("0");
+            assertThat(budget.snapshot("zero-dev").reservedCny()).isEqualByComparingTo("0");
         } finally {
             server.stop(0);
         }
