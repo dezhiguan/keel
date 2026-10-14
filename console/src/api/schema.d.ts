@@ -2491,12 +2491,12 @@ export interface components {
         };
         DevflowHoldoutResult: {
             jobId: string;
-            /** @description 研发员工 staging 门禁的不可复用运行 ID */
+            /** @description 研发员工环境门禁的不可复用运行 ID */
             gateRunId?: string;
-            /** @description 候选 PR 的精确提交 SHA */
+            /** @description staging 候选 PR 或 prod 合并提交的精确 SHA */
             sha?: string;
             /** @enum {string} */
-            env?: "staging";
+            env?: "staging" | "prod";
             visibleByTag?: {
                 [key: string]: number;
             };
@@ -2601,6 +2601,16 @@ export interface components {
                 sha: string;
                 /** @enum {string} */
                 env: "staging";
+                passed: boolean;
+                visibleScore: number;
+                hiddenScore: number;
+            };
+            prodGate?: {
+                runId: string;
+                /** @description H4 合并提交 */
+                sha: string;
+                /** @enum {string} */
+                env: "prod";
                 passed: boolean;
                 visibleScore: number;
                 hiddenScore: number;

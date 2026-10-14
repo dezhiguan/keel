@@ -3395,9 +3395,9 @@ components:
       required: [jobId, byTag]
       properties:
         jobId: { type: string }
-        gateRunId: { type: string, description: 研发员工 staging 门禁的不可复用运行 ID }
-        sha: { type: string, description: 候选 PR 的精确提交 SHA }
-        env: { type: string, enum: [staging] }
+        gateRunId: { type: string, description: 研发员工环境门禁的不可复用运行 ID }
+        sha: { type: string, description: staging 候选 PR 或 prod 合并提交的精确 SHA }
+        env: { type: string, enum: [staging, prod] }
         visibleByTag:
           type: object
           additionalProperties: { type: number, minimum: 0, maximum: 1 }
@@ -3503,6 +3503,16 @@ components:
             runId: { type: string }
             sha: { type: string }
             env: { type: string, enum: [staging] }
+            passed: { type: boolean }
+            visibleScore: { type: number }
+            hiddenScore: { type: number }
+        prodGate:
+          type: object
+          required: [runId, sha, env, passed, visibleScore, hiddenScore]
+          properties:
+            runId: { type: string }
+            sha: { type: string, description: H4 合并提交 }
+            env: { type: string, enum: [prod] }
             passed: { type: boolean }
             visibleScore: { type: number }
             hiddenScore: { type: number }

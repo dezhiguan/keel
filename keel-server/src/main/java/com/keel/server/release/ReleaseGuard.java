@@ -25,11 +25,13 @@ public final class ReleaseGuard {
                 || !state.path("modelReview").path("approved").asBoolean(false)) {
             return "代码评审及人工 PR 审批尚未通过";
         }
-        var gate = state.path("gate");
+        var gate = "prod".equals(env) ? state.path("prodGate") : state.path("gate");
+        var expectedSha = "prod".equals(env) ? state.path("mergeSha").asText()
+                : state.path("delivery").path("sha").asText();
         if (!gate.path("passed").asBoolean(false) || !holdoutPassed
                 || !gateRunId.equals(gate.path("runId").asText())
                 || !env.equals(gate.path("env").asText())
-                || !state.path("delivery").path("sha").asText().equals(gate.path("sha").asText())) {
+                || !expectedSha.equals(gate.path("sha").asText())) {
             return "门禁或隐藏考题缺少与候选提交绑定的通过证据";
         }
         if ("prod".equals(env) && (!approvedMerge || !"RELEASING".equals(phase))) {

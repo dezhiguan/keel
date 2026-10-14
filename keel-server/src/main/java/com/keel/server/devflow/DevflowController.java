@@ -177,7 +177,9 @@ public class DevflowController {
         var scores = body == null || body.byTag() == null ? List.<HoldoutRules.TagScore>of() : body.byTag();
         holdout.submit(body == null ? null : body.jobId(), scores, principal.username());
         if (body != null && execution.get(body.jobId()) != null) {
-            execution.recordStagingGate(body);
+            if ("staging".equals(body.env())) execution.recordStagingGate(body);
+            else if ("prod".equals(body.env())) execution.recordProdGate(body);
+            else throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "门禁环境只能是 staging 或 prod");
         }
         return R.ok(Map.of());
     }

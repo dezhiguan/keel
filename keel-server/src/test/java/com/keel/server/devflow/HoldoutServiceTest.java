@@ -78,15 +78,21 @@ class HoldoutServiceTest {
     @Test
     void aProducedAgentCannotUseAnArbitraryGateRunIdOrAStaleCommit() throws Exception {
         var state = new ObjectMapper().readTree("""
-                {"phase":"RELEASING","delivery":{"sha":"abc"},
+                {"phase":"RELEASING","delivery":{"sha":"abc"},"mergeSha":"merged",
                  "humanReview":{"approved":true},"modelReview":{"approved":true},
-                 "gate":{"passed":true,"runId":"gate-1","env":"prod","sha":"abc"}}
+                 "gate":{"passed":true,"runId":"staging-gate","env":"staging","sha":"abc"},
+                 "prodGate":{"passed":true,"runId":"gate-1","env":"prod","sha":"merged"}}
                 """);
         assertThat(ReleaseGuard.evidenceRejection(state, "prod", "gate-1", true, true)).isNull();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state).remove("prodGate");
+        assertThat(ReleaseGuard.evidenceRejection(state, "prod", "staging-gate", true, true)).contains("门禁");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state).set("prodGate", new ObjectMapper().readTree("""
+                {"passed":true,"runId":"gate-1","env":"prod","sha":"merged"}
+                """));
         assertThat(ReleaseGuard.evidenceRejection(state, "prod", "gate-2", true, true)).contains("门禁");
         assertThat(ReleaseGuard.evidenceRejection(state, "prod", "gate-1", false, true)).contains("隐藏考题");
         assertThat(ReleaseGuard.evidenceRejection(state, "prod", "gate-1", true, false)).contains("H4");
-        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("delivery")).put("sha", "changed");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state).put("mergeSha", "changed");
         assertThat(ReleaseGuard.evidenceRejection(state, "prod", "gate-1", true, true)).contains("候选提交");
     }
 

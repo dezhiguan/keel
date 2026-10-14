@@ -217,7 +217,7 @@ onUnmounted(() => {
 
       <template v-if="execution">
         <div class="banner" :class="execution.phase === 'FAILED' ? 'warn' : 'info'">
-          <b>{{ execution.phase === 'WAITING_REVIEW' ? '沙箱通过 · 等待 S4 代码与人工评审' : execution.phase === 'STAGING_READY' ? 'S4 已通过 · 等待 staging 门禁' : execution.phase === 'STAGING_GATE_PASSED' ? 'staging 门禁通过 · 待申请 H4' : execution.phase === 'WAITING_H4' ? '等待 H4 合并审批' : execution.phase === 'SANDBOX_PENDING' || execution.phase === 'SANDBOX_RUNNING' ? '候选代码正在隔离沙箱验证' : execution.phase === 'WAITING_SEEDS' ? '等待人工种子用例' : execution.phase === 'WAITING_EVAL' ? '等待 H2 评测确认' : execution.phase === 'WAITING' ? '等待 H1 需求确认' : execution.phase === 'FAILED' ? '执行失败' : execution.phase === 'CANCELLED' ? '任务已取消' : '元智能体处理中' }}</b>
+          <b>{{ execution.phase === 'WAITING_REVIEW' ? '沙箱通过 · 等待 S4 代码与人工评审' : execution.phase === 'STAGING_READY' ? 'S4 已通过 · 等待 staging 门禁' : execution.phase === 'STAGING_GATE_PASSED' ? 'staging 门禁通过 · 待申请 H4' : execution.phase === 'WAITING_H4' ? '等待 H4 合并审批' : execution.phase === 'RELEASING' ? (execution.prodGate?.passed ? 'prod 门禁通过 · 等待 CI 发布' : 'H4 已合并 · 等待 prod 门禁') : execution.phase === 'SANDBOX_PENDING' || execution.phase === 'SANDBOX_RUNNING' ? '候选代码正在隔离沙箱验证' : execution.phase === 'WAITING_SEEDS' ? '等待人工种子用例' : execution.phase === 'WAITING_EVAL' ? '等待 H2 评测确认' : execution.phase === 'WAITING' ? '等待 H1 需求确认' : execution.phase === 'FAILED' ? '执行失败' : execution.phase === 'CANCELLED' ? '任务已取消' : '元智能体处理中' }}</b>
           <span>{{ execution.error || '元智能体生产任务；沙箱、H2/H3、人工评审、staging 门禁、H4 与发布须逐项完成。' }}</span>
           <button v-if="execution.phase === 'FAILED'" v-write class="btn sm" :disabled="busy" @click="retry">重试执行</button>
         </div>
@@ -282,6 +282,11 @@ onUnmounted(() => {
           <div v-if="execution.h4ApprovalId" class="kv"><span>H4 审批单</span><RouterLink :to="`/approvals/devflow/${encodeURIComponent(job.jobId)}`">{{ execution.h4ApprovalId }} →</RouterLink></div>
           <div v-if="execution.phase === 'WAITING_H4'" class="kv"><span>H4 状态</span><button v-write class="btn sm" type="button" :disabled="busy" @click="refreshH4">核验审批并合并 PR</button></div>
           <div v-if="execution.mergeSha" class="kv"><span>受保护合并提交</span><span class="mono">{{ execution.mergeSha }}</span></div>
+          <div v-if="execution.prodGate" class="kv">
+            <span>prod 门禁</span><span>{{ execution.prodGate.passed ? '通过' : '未通过' }} · {{ execution.prodGate.runId }}</span>
+            <span>合并提交</span><span class="mono">{{ execution.prodGate.sha }}</span>
+            <span>可见 / 隐藏分</span><span>{{ execution.prodGate.visibleScore }} / {{ execution.prodGate.hiddenScore }}</span>
+          </div>
         </div>
         <div v-if="execution.draft?.spec" class="row2">
           <div class="card">

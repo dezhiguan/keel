@@ -310,6 +310,55 @@ public class MetaAgentExecution {
         });
     }
 
+    /** The CI identity submits a fresh prod gate for the exact commit returned by the H4 merge. */
+    public ObjectNode recordProdGate(DevflowController.HoldoutSubmission result) {
+        if (result == null || !"prod".equals(result.env())
+                || result.gateRunId() == null || !result.gateRunId().matches("[0-9a-f]{32}")
+                || result.sha() == null || !result.sha().matches("[0-9a-f]{40}")
+                || result.visibleByTag() == null || result.visibleByTag().isEmpty()
+                || result.visibleByTag().values().stream().anyMatch(score -> score == null
+                    || !Double.isFinite(score) || score < HoldoutRules.MIN_SCORE || score > 1)) {
+            throw invalid("prod 门禁需要 CI 绑定的合并提交与可见用例分数");
+        }
+        return tx.execute(status -> {
+            var state = lock(result.jobId());
+            if (!"RELEASING".equals(state.path("phase").asText())
+                    || !state.path("gate").path("passed").asBoolean(false)
+                    || !result.sha().equals(state.path("mergeSha").asText())
+                    || result.gateRunId().equals(state.path("gate").path("runId").asText())) {
+                throw invalid("prod 门禁必须在 H4 合并后对合并提交重新执行");
+            }
+            var h4 = jdbc.queryForObject("""
+                    SELECT EXISTS(SELECT 1 FROM approval_request
+                        WHERE id=? AND devflow_job_id=? AND devflow_gate='H4'
+                          AND subject_type='tool.call' AND subject_ref='git.pr.merge' AND status='APPROVED')
+                    """, Boolean.class, ApprovalPolicyEngine.parseId(state.path("h4ApprovalId").asText()), result.jobId());
+            if (!Boolean.TRUE.equals(h4)) throw invalid("H4 审批证据已失效");
+            var hidden = jdbc.query("SELECT passed, score FROM devflow_holdout_result WHERE job_id=?",
+                    (rs, row) -> new Object[]{rs.getBoolean(1), rs.getDouble(2)}, result.jobId());
+            if (hidden.size() != 1 || !Boolean.TRUE.equals(hidden.getFirst()[0])) throw invalid("prod 隐藏考题尚未通过");
+            var visibleCounts = new LinkedHashMap<String, Integer>();
+            for (var seed : state.path("visibleSeeds")) {
+                for (var tag : seed.path("tags")) visibleCounts.merge(tag.asText(), 1, Integer::sum);
+            }
+            if (visibleCounts.isEmpty() || !visibleCounts.keySet().equals(result.visibleByTag().keySet())) {
+                throw invalid("prod 可见用例 tag 与 H2 已确认用例不一致");
+            }
+            var visibleTotal = visibleCounts.values().stream().mapToInt(Integer::intValue).sum();
+            var visibleScore = visibleCounts.entrySet().stream()
+                    .mapToDouble(item -> item.getValue() * result.visibleByTag().get(item.getKey())).sum() / visibleTotal;
+            var hiddenScore = (double) hidden.getFirst()[1];
+            if (Math.abs(visibleScore - hiddenScore) > 0.10) throw invalid("prod 可见与隐藏用例分差超过 0.10");
+            var prodGate = state.putObject("prodGate");
+            prodGate.put("runId", result.gateRunId()).put("sha", result.sha()).put("env", "prod")
+                    .put("passed", true).put("visibleScore", visibleScore).put("hiddenScore", hiddenScore);
+            prodGate.set("visibleByTag", json.valueToTree(result.visibleByTag()));
+            save(result.jobId(), state, "RELEASE");
+            jobs.progress(result.jobId(), "RUN", "RELEASE", "合并提交的 prod 门禁与隐藏考题通过，等待 CI 发布");
+            return publicState(state);
+        });
+    }
+
     public ObjectNode requestH4(String id) {
         requireAdmin();
         if (approvals == null) throw invalid("审批服务不可用");
