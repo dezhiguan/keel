@@ -217,7 +217,7 @@ onUnmounted(() => {
 
       <template v-if="execution">
         <div class="banner" :class="execution.phase === 'FAILED' ? 'warn' : 'info'">
-          <b>{{ execution.phase === 'WAITING_REVIEW' ? '沙箱通过 · 等待 S4 代码与人工评审' : execution.phase === 'STAGING_READY' ? 'S4 已通过 · 等待 staging 门禁' : execution.phase === 'STAGING_GATE_PASSED' ? 'staging 门禁通过 · 待申请 H4' : execution.phase === 'WAITING_H4' ? '等待 H4 合并审批' : execution.phase === 'RELEASING' ? (execution.prodGate?.passed ? 'prod 门禁通过 · 等待 CI 发布' : 'H4 已合并 · 等待 prod 门禁') : execution.phase === 'SANDBOX_PENDING' || execution.phase === 'SANDBOX_RUNNING' ? '候选代码正在隔离沙箱验证' : execution.phase === 'WAITING_SEEDS' ? '等待人工种子用例' : execution.phase === 'WAITING_EVAL' ? '等待 H2 评测确认' : execution.phase === 'WAITING' ? '等待 H1 需求确认' : execution.phase === 'FAILED' ? '执行失败' : execution.phase === 'CANCELLED' ? '任务已取消' : '元智能体处理中' }}</b>
+          <b>{{ execution.phase === 'WAITING_REVIEW' ? '沙箱通过 · 等待 S4 代码与人工评审' : execution.phase === 'STAGING_READY' ? 'S4 已通过 · 等待 staging 门禁' : execution.phase === 'STAGING_GATE_PASSED' ? 'staging 门禁通过 · 待申请 H4' : execution.phase === 'WAITING_H4' ? '等待 H4 合并审批' : execution.phase === 'RELEASING' ? (execution.prodGate?.passed ? 'prod 门禁通过 · 等待 CI 发布' : 'H4 已合并 · 等待 prod 门禁') : execution.phase === 'WATCHING' ? 'prod 已发布 · 七天质量与成本观察中' : execution.phase === 'DONE' ? '七天观察完成 · 数字员工已上岗' : execution.phase === 'SANDBOX_PENDING' || execution.phase === 'SANDBOX_RUNNING' ? '候选代码正在隔离沙箱验证' : execution.phase === 'WAITING_SEEDS' ? '等待人工种子用例' : execution.phase === 'WAITING_EVAL' ? '等待 H2 评测确认' : execution.phase === 'WAITING' ? '等待 H1 需求确认' : execution.phase === 'FAILED' ? '执行失败' : execution.phase === 'CANCELLED' ? '任务已取消' : '元智能体处理中' }}</b>
           <span>{{ execution.error || '元智能体生产任务；沙箱、H2/H3、人工评审、staging 门禁、H4 与发布须逐项完成。' }}</span>
           <button v-if="execution.phase === 'FAILED'" v-write class="btn sm" :disabled="busy" @click="retry">重试执行</button>
         </div>
@@ -286,6 +286,14 @@ onUnmounted(() => {
             <span>prod 门禁</span><span>{{ execution.prodGate.passed ? '通过' : '未通过' }} · {{ execution.prodGate.runId }}</span>
             <span>合并提交</span><span class="mono">{{ execution.prodGate.sha }}</span>
             <span>可见 / 隐藏分</span><span>{{ execution.prodGate.visibleScore }} / {{ execution.prodGate.hiddenScore }}</span>
+          </div>
+          <div v-if="execution.watchStartedAt" class="kv">
+            <span>S7 观察起点</span><span>{{ execution.watchStartedAt }}</span>
+            <span>有证据的观察日</span><span>{{ execution.watchObservations?.length || 0 }} / 7</span>
+            <template v-for="sample in execution.watchObservations || []" :key="sample.day">
+              <span>{{ sample.day }} · {{ sample.healthy ? '正常' : '异常' }}</span>
+              <span>质量 {{ sample.quality }} · 成本 ¥{{ sample.costCny }} / ¥{{ sample.budgetCny }} · 调用 {{ sample.calls }}</span>
+            </template>
           </div>
         </div>
         <div v-if="execution.draft?.spec" class="row2">

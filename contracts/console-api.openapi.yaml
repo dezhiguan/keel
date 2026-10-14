@@ -3425,7 +3425,7 @@ components:
       required: [jobId, phase, version, revisions, requirement]
       properties:
         jobId: { type: string }
-        phase: { type: string, enum: [QUEUED, RUNNING, WAITING, WAITING_SEEDS, WAITING_EVAL, DELIVERING, SANDBOX_PENDING, SANDBOX_RUNNING, WAITING_REVIEW, STAGING_READY, STAGING_GATE_PASSED, WAITING_H4, RELEASING, WATCHING, DELIVERED, FAILED, CANCELLED] }
+        phase: { type: string, enum: [QUEUED, RUNNING, WAITING, WAITING_SEEDS, WAITING_EVAL, DELIVERING, SANDBOX_PENDING, SANDBOX_RUNNING, WAITING_REVIEW, STAGING_READY, STAGING_GATE_PASSED, WAITING_H4, RELEASING, WATCHING, DONE, DELIVERED, FAILED, CANCELLED] }
         version: { type: integer }
         revisions: { type: integer }
         requirement: { type: object, additionalProperties: true }
@@ -3518,6 +3518,20 @@ components:
             hiddenScore: { type: number }
         h4ApprovalId: { type: string }
         mergeSha: { type: string, description: H4 批准后 GitHub 确认的合并提交 }
+        watchStartedAt: { type: string, format: date-time }
+        watchObservations:
+          type: array
+          items:
+            type: object
+            required: [day, quality, costCny, budgetCny, calls, healthy, observedAt]
+            properties:
+              day: { type: string, format: date }
+              quality: { type: number }
+              costCny: { type: number }
+              budgetCny: { type: number }
+              calls: { type: integer }
+              healthy: { type: boolean }
+              observedAt: { type: string, format: date-time }
         error: { type: string }
     MetaAgentWork:
       type: object

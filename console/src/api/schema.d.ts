@@ -2519,7 +2519,7 @@ export interface components {
         DevflowExecution: {
             jobId: string;
             /** @enum {string} */
-            phase: "QUEUED" | "RUNNING" | "WAITING" | "WAITING_SEEDS" | "WAITING_EVAL" | "DELIVERING" | "SANDBOX_PENDING" | "SANDBOX_RUNNING" | "WAITING_REVIEW" | "STAGING_READY" | "STAGING_GATE_PASSED" | "WAITING_H4" | "RELEASING" | "WATCHING" | "DELIVERED" | "FAILED" | "CANCELLED";
+            phase: "QUEUED" | "RUNNING" | "WAITING" | "WAITING_SEEDS" | "WAITING_EVAL" | "DELIVERING" | "SANDBOX_PENDING" | "SANDBOX_RUNNING" | "WAITING_REVIEW" | "STAGING_READY" | "STAGING_GATE_PASSED" | "WAITING_H4" | "RELEASING" | "WATCHING" | "DONE" | "DELIVERED" | "FAILED" | "CANCELLED";
             version: number;
             revisions: number;
             requirement: {
@@ -2618,6 +2618,19 @@ export interface components {
             h4ApprovalId?: string;
             /** @description H4 批准后 GitHub 确认的合并提交 */
             mergeSha?: string;
+            /** Format: date-time */
+            watchStartedAt?: string;
+            watchObservations?: {
+                /** Format: date */
+                day: string;
+                quality: number;
+                costCny: number;
+                budgetCny: number;
+                calls: number;
+                healthy: boolean;
+                /** Format: date-time */
+                observedAt: string;
+            }[];
             error?: string;
         };
         /** @description 服务端经 SDK input.text 传递的工作请求，使用 bridge 身份鉴别 */
