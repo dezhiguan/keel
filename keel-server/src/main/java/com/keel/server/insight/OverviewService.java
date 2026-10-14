@@ -64,13 +64,14 @@ public class OverviewService {
                 .filter(agent -> "all".equals(scope) || scope.equals(agent.env()))
                 .toList();
         var agents = usage.apply(listed, scope);
-        var snap = usage.snapshotOf(scope);
+        var snap = usage.snapshotOf(scope, range);
+        var daily = "24h".equals(range) ? snap : usage.snapshotOf(scope);
         var bills = costs.cost(scope, range);
         var online = (int) agents.stream().filter(agent -> agent.status() == AgentStatus.ONLINE).count();
         var biz = (int) agents.stream().filter(agent -> "biz".equals(agent.category())).count();
         var dev = (int) agents.stream().filter(agent -> "dev".equals(agent.category())).count();
         Long calls = snap.callsKnown() ? snap.callTotal() : null;
-        Double cost = snap.costKnown() ? snap.costTotal() : null;
+        Double cost = daily.costKnown() ? bills.totalCny() : null;
         var scored = agents.stream().map(AgentSummary::score).filter(score -> score != null).toList();
         Double avg;
         if (!scored.isEmpty()) {
@@ -83,19 +84,19 @@ public class OverviewService {
         var kpi = new Kpi(online, agents.size(), biz, dev, calls, snap.trendPct(), cost, avg, GATE,
                 pendingApprovals.apply(scope), bills.pendingCount());
         var costByAgent = new ArrayList<Map<String, Object>>();
-        if (snap.costKnown()) {
-            snap.cost().forEach((agent, amount) -> {
+        if (daily.costKnown()) {
+            bills.byAgent().forEach((agent, amount) -> {
                 var row = new LinkedHashMap<String, Object>();
                 row.put("agent", agent);
                 row.put("costCny", amount);
-                var budget = snap.budgets().get(agent);
+                var budget = "24h".equals(range) ? daily.budgets().get(agent) : null;
                 if (budget != null) {
                     row.put("dailyBudgetCny", budget);
                 }
                 costByAgent.add(row);
             });
         }
-        return new Overview(kpi, agents, alerts(scope, agents, snap, bills), costByAgent);
+        return new Overview(kpi, agents, alerts(scope, agents, daily, bills), costByAgent);
     }
 
     private List<Alert> alerts(String env, List<AgentSummary> agents, AgentUsageService.Snapshot snap,

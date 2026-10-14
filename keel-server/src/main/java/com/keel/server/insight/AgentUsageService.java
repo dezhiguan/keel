@@ -78,7 +78,7 @@ public class AgentUsageService {
     }
 
     public List<AgentSummary> apply(List<AgentSummary> items, String env) {
-        var snap = snapshot(env == null || env.isBlank() ? "all" : env);
+        var snap = snapshot(env == null || env.isBlank() ? "all" : env, "24h");
         return items.stream().map(item -> item.withUsage(
                 snap.callsKnown ? snap.calls.getOrDefault(item.name(), 0L) : null,
                 snap.totalsKnown ? snap.totals.getOrDefault(item.name(), 0L) : null,
@@ -89,16 +89,21 @@ public class AgentUsageService {
     }
 
     public Snapshot snapshotOf(String env) {
-        return snapshot(env == null || env.isBlank() ? "all" : env);
+        return snapshotOf(env, "24h");
+    }
+
+    public Snapshot snapshotOf(String env, String range) {
+        return snapshot(env == null || env.isBlank() ? "all" : env, range);
     }
 
     public AgentSummary apply(AgentSummary summary, String env) {
         return apply(List.of(summary), env).getFirst();
     }
 
-    private Snapshot snapshot(String env) {
+    private Snapshot snapshot(String env, String range) {
+        var key = env + ":" + range;
         synchronized (this) {
-            var ready = freshOrStale(env, clock.instant());
+            var ready = freshOrStale(key, env, range, clock.instant());
             if (ready != null) {
                 return ready;
             }
@@ -106,15 +111,15 @@ public class AgentUsageService {
         // Load outside the monitor. Blocking on Langfuse while holding synchronized
         // pins the virtual thread and stalls every other request on a one-CPU pod.
         var created = new CompletableFuture<Snapshot>();
-        var existing = inflight.putIfAbsent(env, created);
+        var existing = inflight.putIfAbsent(key, created);
         if (existing != null) {
             return existing.join();
         }
         try {
-            var loaded = load(env, clock.instant());
+            var loaded = load(env, range, clock.instant());
             synchronized (this) {
-                cache.put(env, loaded);
-                cachedAt.put(env, clock.instant());
+                cache.put(key, loaded);
+                cachedAt.put(key, clock.instant());
             }
             created.complete(loaded);
             return loaded;
@@ -122,47 +127,53 @@ public class AgentUsageService {
             created.completeExceptionally(e);
             throw e;
         } finally {
-            inflight.remove(env, created);
+            inflight.remove(key, created);
         }
     }
 
     /** Caller holds {@code this}. Returns a fresh snapshot, or the previous one while a refresh is scheduled. */
-    private Snapshot freshOrStale(String env, Instant now) {
-        var hit = cache.get(env);
-        var at = cachedAt.get(env);
+    private Snapshot freshOrStale(String key, String env, String range, Instant now) {
+        var hit = cache.get(key);
+        var at = cachedAt.get(key);
         if (hit == null || at == null) {
             return null;
         }
         if (at.plus(TTL).isAfter(now)) {
             return hit;
         }
-        scheduleRefresh(env);
+        scheduleRefresh(key, env, range);
         return hit;
     }
 
     /** Caller holds {@code this}. */
-    private void scheduleRefresh(String env) {
-        if (!refreshing.add(env)) {
+    private void scheduleRefresh(String key, String env, String range) {
+        if (!refreshing.add(key)) {
             return;
         }
         refresh.execute(() -> {
             try {
-                var loaded = load(env, clock.instant());
+                var loaded = load(env, range, clock.instant());
                 synchronized (AgentUsageService.this) {
-                    cache.put(env, loaded);
-                    cachedAt.put(env, clock.instant());
+                    cache.put(key, loaded);
+                    cachedAt.put(key, clock.instant());
                 }
             } finally {
                 synchronized (AgentUsageService.this) {
-                    refreshing.remove(env);
+                    refreshing.remove(key);
                 }
             }
         });
     }
 
-    private Snapshot load(String env, Instant now) {
-        var since = now.minus(Duration.ofHours(24));
-        var prevFrom = now.minus(Duration.ofHours(48));
+    private Snapshot load(String env, String range, Instant now) {
+        var window = switch (range) {
+            case "24h" -> Duration.ofHours(24);
+            case "7d" -> Duration.ofDays(7);
+            case "30d" -> Duration.ofDays(30);
+            default -> throw new IllegalArgumentException("Unsupported overview range: " + range);
+        };
+        var since = now.minus(window);
+        var prevFrom = since.minus(window);
         var rootsF = parallel.submit(() -> langfuse.roots(since, now));
         var keysF = parallel.submit(this::loadKeys);
         var freshScores = scoresFresh(now);

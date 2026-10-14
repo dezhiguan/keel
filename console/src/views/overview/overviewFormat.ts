@@ -1,3 +1,10 @@
+export type OverviewRange = '24h' | '7d' | '30d'
+export const OVERVIEW_RANGES: [OverviewRange, string][] = [['24h', '近 24 小时'], ['7d', '近 7 天'], ['30d', '近 30 天']]
+
+export function overviewRangeLabel(range: OverviewRange): string {
+  return OVERVIEW_RANGES.find(([value]) => value === range)![1]
+}
+
 export function fmtScore(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—'
   return value.toFixed(3).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')

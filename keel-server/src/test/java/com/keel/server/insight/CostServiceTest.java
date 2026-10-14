@@ -22,6 +22,46 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CostServiceTest {
+    @Test void overviewCostUsesSettledSpendForEachWindow() throws Exception {
+        var now = Instant.now();
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            String body = switch (exchange.getRequestURI().getPath()) {
+                case "/admin/v1/spend" -> """
+                        {"data":[{"alias":"askdb-dev","model":"qwen-plus","costCny":1.0,"status":"SETTLED","ts":"%s"},
+                        {"alias":"askdb-dev","model":"qwen-plus","costCny":2.0,"status":"SETTLED","ts":"%s"},
+                        {"alias":"askdb-dev","model":"qwen-plus","costCny":3.0,"status":"SETTLED","ts":"%s"},
+                        {"alias":"askdb-dev","model":"qwen-plus","costCny":null,"status":"PENDING","ts":"%s"}]}
+                        """.formatted(now.minusSeconds(3600), now.minusSeconds(3 * 86400),
+                        now.minusSeconds(15 * 86400), now.minusSeconds(3600));
+                case "/admin/v1/keys" -> "{\"data\":[{\"alias\":\"askdb-dev\",\"models\":[],\"dailyBudgetCny\":100,\"spentCny\":99,\"blocked\":false}]}";
+                default -> "{\"data\":[]}";
+            };
+            var bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var base = "http://127.0.0.1:" + server.getAddress().getPort();
+            var costs = new CostService(new LiteLlmClient(base, "admin"));
+            var registry = new AgentRegistryService(null, null, null, null, new ObjectMapper(), null) {
+                @Override public List<com.keel.server.registry.model.dto.AgentSummary> listAll() { return List.of(); }
+            };
+            var overview = new OverviewService(registry, costs, new QualityService(new LangfuseClient("", "", "")), env -> 0);
+            for (var expected : List.of(new Object[]{"24h", 1.0}, new Object[]{"7d", 3.0}, new Object[]{"30d", 6.0})) {
+                var result = overview.overview("dev", (String) expected[0]);
+                assertThat(result.kpi().modelCostCny()).isEqualTo((Double) expected[1]);
+                assertThat(result.kpi().pendingModelBills()).isEqualTo(1);
+                assertThat(result.costByAgent()).singleElement().satisfies(row ->
+                        assertThat(row.get("costCny")).isEqualTo(expected[1]));
+            }
+        } finally {
+            server.stop(0);
+        }
+    }
+
     @Test void pendingUsageIsExcludedFromCostAndRaisesOverviewAlert() throws Exception {
         var now = Instant.now().toString();
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -135,12 +175,12 @@ class CostServiceTest {
             @Override public List<com.keel.server.registry.model.dto.AgentSummary> listAll() { return List.of(); }
         };
         var overview = new OverviewService(registry, costs, new QualityService(langfuse), env -> 0).overview("all", "24h");
-        assertThat(overview.kpi().modelCostCny()).isEqualTo(1.5);
+        assertThat(overview.kpi().modelCostCny()).isEqualTo(53.0);
         assertThat(overview.kpi().calls()).isZero();
         assertThat(overview.kpi().avgScore()).isEqualTo(0.9);
         assertThat(overview.kpi().gateThreshold()).isEqualTo(0.85);
         assertThat(overview.kpi().pendingApprovals()).isZero();
-        assertThat(overview.costByAgent().stream().mapToDouble(row -> (Double) row.get("costCny")).sum()).isEqualTo(1.5);
+        assertThat(overview.costByAgent().stream().mapToDouble(row -> (Double) row.get("costCny")).sum()).isEqualTo(53.0);
         assertThat(paths).noneMatch(path -> path.contains("/spend/logs") || path.contains("/key/generate")
                 || path.equals("/api/public/metrics") || path.equals("/api/public/scores") || path.equals("/api/public/traces"));
         var monitor = new SharedServiceMonitor(new RagForgeInsightClient("", "", ""), new LiteLlmClient("", ""));

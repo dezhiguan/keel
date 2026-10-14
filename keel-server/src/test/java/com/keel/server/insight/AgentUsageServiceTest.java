@@ -24,6 +24,35 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class AgentUsageServiceTest {
+    @Test void overviewRangesCountTheirOwnWindowsAndKeepSeparateSnapshots() {
+        var now = Instant.parse("2026-10-05T08:00:00Z");
+        var timestamps = List.of(now.minus(Duration.ofHours(12)), now.minus(Duration.ofDays(3)),
+                now.minus(Duration.ofDays(15)));
+        var langfuse = new LangfuseClient("", "", "") {
+            @Override public RootPage roots(Instant from, Instant to) { return new RootPage(List.of(), true); }
+        };
+        var usage = new AgentUsageService(langfuse, new LiteLlmClient("", "") {
+            @Override public List<VirtualKey> keys() { return List.of(); }
+        }, new QualityService(langfuse), new EvalQueryService(langfuse, name -> null), new SavedTraces() {
+            @Override public void save(String agent, String env, String traceId, String question, int durationMs) {}
+            @Override public java.util.Map<String, Object> list(int page, int size, String agent) { return java.util.Map.of(); }
+            @Override public java.util.Map<String, Object> detail(String traceId) { return null; }
+            @Override public List<TraceHit> since(Instant from, String env) {
+                var hits = new ArrayList<TraceHit>();
+                for (int i = 0; i < timestamps.size(); i++) {
+                    if (!timestamps.get(i).isBefore(from)) hits.add(new TraceHit("trace-" + i, "echo"));
+                }
+                return hits;
+            }
+        }, Clock.fixed(now, ZoneOffset.UTC));
+
+        assertThat(usage.snapshotOf("all", "24h").callTotal()).isEqualTo(1);
+        assertThat(usage.snapshotOf("all", "7d").callTotal()).isEqualTo(2);
+        assertThat(usage.snapshotOf("all", "30d").callTotal()).isEqualTo(3);
+        assertThat(usage.snapshotOf("all", "24h").callTotal()).isEqualTo(1);
+        assertThat(usage.apply(summary("echo"), "all").calls24h()).isEqualTo(1);
+    }
+
     @Test void countsEachTraceOnceAndUsesTheGatewayDailySpend() throws Exception {
         var paths = new ArrayList<String>();
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);

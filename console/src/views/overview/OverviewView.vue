@@ -10,7 +10,7 @@ import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { agentStatus, fmtN } from '@/utils/format'
 import { agentType } from '@/views/agents/employees'
-import { ALERT_KIND, fmtMoney, fmtScore, fmtSeconds, hm, pipelineCards, pipelineMoney, techLabel, trendText, type PipelineCards } from './overviewFormat'
+import { ALERT_KIND, OVERVIEW_RANGES, fmtMoney, fmtScore, fmtSeconds, hm, overviewRangeLabel, pipelineCards, pipelineMoney, techLabel, trendText, type OverviewRange, type PipelineCards } from './overviewFormat'
 
 type Category = 'all' | 'biz' | 'dev' | 'meta'
 
@@ -23,8 +23,10 @@ const overview = ref<Overview | null>(null)
 const pipeline = ref<PipelineCards>(pipelineCards(null))
 const loading = ref(false)
 const category = ref<Category>('all')
+const range = ref<OverviewRange>('24h')
 const page = ref(1)
 const size = ref<10 | 20 | 50 | 100>(10)
+let loadSequence = 0
 
 const envLabel = computed(() => (envStore.env === 'all' ? '全部环境' : envStore.env))
 const kpi = computed(() => overview.value?.kpi)
@@ -45,11 +47,13 @@ const bars = computed(() =>
 )
 
 async function load() {
+  const sequence = ++loadSequence
   loading.value = true
   const [overviewResult, jobsResult] = await Promise.allSettled([
-    getOverview({ env: envStore.env, range: '24h' }),
+    getOverview({ env: envStore.env, range: range.value }),
     listDevflowJobs(),
   ])
+  if (sequence !== loadSequence) return
   if (overviewResult.status === 'fulfilled') {
     overview.value = overviewResult.value
   } else {
@@ -74,18 +78,19 @@ function belowGate(score?: number | null) {
 }
 
 function barWidth(cost?: number, budget?: number) {
-  if (!budget || budget <= 0) return 0
+  if (!budget || budget <= 0) return Math.min(100, ((cost ?? 0) / (bars.value[0]?.costCny || 1)) * 100)
   return Math.min(100, ((cost ?? 0) / budget) * 100)
 }
 
 function barColor(cost?: number, budget?: number) {
+  if (!budget || budget <= 0) return 'var(--teal)'
   const pct = barWidth(cost, budget)
   if (pct > 80) return 'var(--bad)'
   if (pct > 60) return 'var(--warn)'
   return 'var(--teal)'
 }
 
-watch(() => envStore.env, () => {
+watch([() => envStore.env, range], () => {
   page.value = 1
   load()
 }, { immediate: true })
@@ -95,8 +100,11 @@ watch(() => envStore.env, () => {
   <div v-loading="loading">
     <div class="vh">
       <h2>总览</h2>
-      <span class="sub">{{ envLabel }} · 近 24 小时</span>
+      <span class="sub">{{ envLabel }} · {{ overviewRangeLabel(range) }}</span>
       <span class="sp" />
+      <div class="chipsel" aria-label="总览时间窗">
+        <button v-for="[value, label] in OVERVIEW_RANGES" :key="value" :class="{ on: range === value }" @click="range = value">{{ label }}</button>
+      </div>
       <span class="envtag">研发任务产出只进 staging · 上生产需人批</span>
       <button v-write class="btn pri" @click="router.push('/agents/new')">+ 新建智能体</button>
     </div>
@@ -111,7 +119,7 @@ watch(() => envStore.env, () => {
         <div class="l">调用次数</div>
         <div class="v">{{ fmtN(kpi?.calls) }}</div>
         <div v-if="trend" class="d" :class="trend.tone">{{ trend.text }}</div>
-        <div v-else class="d">近 24 小时</div>
+        <div v-else class="d">{{ overviewRangeLabel(range) }}</div>
       </div>
       <div class="kpi">
         <div class="l">模型成本</div>
@@ -211,8 +219,8 @@ watch(() => envStore.env, () => {
         </ul>
       </section>
       <section class="card">
-        <h3>今日成本<small>按智能体 / 日预算</small></h3>
-        <p v-if="!bars.length" class="empty">今日还没有模型花费</p>
+        <h3>{{ overviewRangeLabel(range) }}成本<small>按智能体<template v-if="range === '24h'"> / 日预算</template></small></h3>
+        <p v-if="!bars.length" class="empty">{{ overviewRangeLabel(range) }}还没有模型花费</p>
         <div v-else class="bars">
           <div v-for="row in bars" :key="row.agent">
             <div class="h"><span>{{ row.agent }}</span><span class="mono">{{ fmtMoney(row.costCny) }}<template v-if="row.dailyBudgetCny != null"> / {{ fmtMoney(row.dailyBudgetCny) }}</template></span></div>
