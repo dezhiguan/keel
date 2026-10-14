@@ -3,6 +3,9 @@
 import json
 import os
 import re
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 from keel.manifest import load_manifest
@@ -46,8 +49,11 @@ def create_project(name: str, *, template: str = "hello-agent", root: str | Path
     target = Path(root) / name
     if target.exists():
         raise FileExistsError(f"{target} already exists")
+    wheel = _sdk_wheel() if template != "java-spring" else None
     if template in TEMPLATES:
         _copy_template(template_dir(template), target, name)
+        if wheel is not None:
+            _copy_wheel(wheel, target)
         print(f"Created {target}. Run: cd {name} && keel dev")
         return target
     target.mkdir(parents=True)
@@ -67,12 +73,12 @@ def create_project(name: str, *, template: str = "hello-agent", root: str | Path
         "evals/scorers.py": "# Add deterministic scorers here.\n",
         "tests/.gitkeep": "",
         "Dockerfile": ("FROM python:3.11-slim\nWORKDIR /app\n"
-                       "COPY . /app\nRUN pip install keel-sdk uvicorn\n"
+                       "COPY . /app\nRUN pip install --no-cache-dir /app/vendor/keel_sdk-*.whl uvicorn\n"
                        "CMD [\"uvicorn\", \"app:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]\n"),
         ".github/workflows/keel.yml": ("name: keel\non: [push, pull_request]\n"
                                        "jobs:\n  test:\n    runs-on: ubuntu-latest\n"
                                        "    steps:\n      - uses: actions/checkout@v4\n"
-                                       "      - run: pip install keel-sdk pytest\n"
+                                       "      - run: pip install vendor/keel_sdk-*.whl pytest\n"
                                        "      - run: pytest -q\n"),
         ".gitignore": ".keel/\n__pycache__/\n.pytest_cache/\n",
     }
@@ -80,9 +86,35 @@ def create_project(name: str, *, template: str = "hello-agent", root: str | Path
         path = target / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
+    _copy_wheel(wheel, target)
     load_manifest(target / "agent.yaml")
     print(f"Created {target}. Run: cd {name} && keel dev")
     return target
+
+
+def _sdk_wheel() -> Path:
+    configured = os.environ.get("KEEL_SDK_WHEEL")
+    if configured:
+        wheel = Path(configured).expanduser().resolve()
+    else:
+        repo = Path(__file__).resolve().parents[3]
+        builder = repo / "scripts/build-template-wheel.sh"
+        if not builder.is_file():
+            raise FileNotFoundError("未找到 Keel SDK wheel；请设置 KEEL_SDK_WHEEL 指向本地构建的 wheel")
+        env = os.environ.copy()
+        env["KEEL_PYTHON_BIN"] = sys.executable
+        built = subprocess.run(["bash", str(builder)], cwd=repo, env=env,
+                               text=True, capture_output=True, check=True)
+        wheel = Path(built.stdout.strip().splitlines()[-1])
+    if not wheel.is_file() or not wheel.name.startswith("keel_sdk-") or wheel.suffix != ".whl":
+        raise FileNotFoundError(f"无效的 Keel SDK wheel：{wheel}")
+    return wheel
+
+
+def _copy_wheel(wheel: Path, target: Path) -> None:
+    vendor = target / "vendor"
+    vendor.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(wheel, vendor / wheel.name)
 
 
 def _copy_template(source: Path, target: Path, name: str) -> None:

@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 import jsonschema
@@ -16,6 +17,21 @@ ROOT = Path(__file__).resolve().parents[3]
 SDK = ROOT / "sdk-python"
 SCHEMA = json.loads((ROOT / "contracts/manifest.schema.json").read_text())
 PYTHON_TEMPLATES = ("chat-rag", "tool-agent", "graph-agent", "supervisor")
+
+
+def test_all_template_dockerfiles_use_the_bundled_wheel(tmp_path):
+    for template in PYTHON_TEMPLATES:
+        project = create_project("demo-agent", template=template, root=tmp_path / template)
+        dockerfile = (project / "Dockerfile").read_text(encoding="utf-8")
+        wheel, = (project / "vendor").glob("keel_sdk-*.whl")
+        assert "/app/vendor/keel_sdk-*.whl" in dockerfile
+        assert "pip install keel-sdk" not in dockerfile
+        with zipfile.ZipFile(wheel) as archive:
+            assert archive.testzip() is None
+            assert "keel/_schemas/manifest.schema.json" in archive.namelist()
+    java_project = create_project("demo-agent", template="java-spring", root=tmp_path / "java")
+    assert not (java_project / "vendor").exists()
+    assert "keel-sdk" not in (java_project / "Dockerfile").read_text(encoding="utf-8")
 
 
 def _rules():
@@ -33,6 +49,13 @@ def test_each_template_generates_and_its_smoke_tests_pass(tmp_path):
     for template in PYTHON_TEMPLATES:
         project = create_project("demo-agent", template=template, root=tmp_path / template)
         _assert_project(project, rules, source_ext)
+        dockerfile = (project / "Dockerfile").read_text(encoding="utf-8")
+        assert "/app/vendor/keel_sdk-*.whl" in dockerfile
+        assert "pip install keel-sdk" not in dockerfile
+        wheel, = (project / "vendor").glob("keel_sdk-*.whl")
+        with zipfile.ZipFile(wheel) as archive:
+            assert archive.testzip() is None
+            assert "keel/_schemas/manifest.schema.json" in archive.namelist()
         completed = subprocess.run(
             [sys.executable, "-m", "pytest", "tests", "-q", "--tb=short"],
             cwd=project, env=env, text=True, capture_output=True,
@@ -46,6 +69,8 @@ def test_java_spring_template_builds_two_agents(tmp_path):
     project = create_project("demo-agent", template="java-spring", root=tmp_path)
     rules, source_ext = _rules()
     _assert_project(project, rules, source_ext)
+    assert not (project / "vendor").exists()
+    assert "keel-sdk" not in (project / "Dockerfile").read_text(encoding="utf-8")
     install = subprocess.run(
         ["mvn", "-pl", ":keel-spring-boot-starter", "-am", "install", "-DskipTests"],
         cwd=ROOT, text=True, capture_output=True,

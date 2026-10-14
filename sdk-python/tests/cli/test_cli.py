@@ -62,6 +62,16 @@ def test_new_project_matches_schema_and_ignores_local_state(tmp_path):
     jsonschema.Draft202012Validator(MANIFEST).validate(manifest)
     assert manifest["metadata"]["name"] == "hello-agent"
     assert "ctx.step('greet')" in (project / "app.py").read_text()
+    assert list((project / "vendor").glob("keel_sdk-*.whl"))
+    assert "pip install keel-sdk" not in (project / "Dockerfile").read_text()
+    assert "pip install keel-sdk" not in (project / ".github/workflows/keel.yml").read_text()
+
+
+def test_new_rejects_a_missing_local_sdk_wheel(tmp_path, monkeypatch):
+    monkeypatch.setenv("KEEL_SDK_WHEEL", str(tmp_path / "missing.whl"))
+    with pytest.raises(FileNotFoundError, match="无效的 Keel SDK wheel"):
+        create_project("hello-agent", root=tmp_path)
+    assert not (tmp_path / "hello-agent").exists()
 
 
 def test_from_spec_copies_the_template_and_keeps_the_confirmed_manifest(tmp_path, monkeypatch, capsys):
