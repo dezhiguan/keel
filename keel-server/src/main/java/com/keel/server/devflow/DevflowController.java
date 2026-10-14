@@ -88,6 +88,10 @@ public class DevflowController {
     public R<Map<String, Object>> report(@PathVariable String jobId, @PathVariable String stage,
                                          @RequestBody DevflowTypes.StageReport body) {
         var principal = requireService();
+        if (execution.get(jobId) != null) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM,
+                    "元智能体生产任务的阶段结论只能由可信执行器写入");
+        }
         var job = devflow.report(jobId, stage, body, principal.username());
         return R.ok(Map.of("jobId", job.jobId(), "stage", job.stage(), "attempt", job.fixRounds() + 1, "status", body.status()));
     }
@@ -129,6 +133,38 @@ public class DevflowController {
         return R.ok(execution.uploadHumanSeeds(jobId, body == null ? null : body.cases()));
     }
 
+    @PostMapping("/jobs/{jobId}/tool-grants")
+    public R<com.fasterxml.jackson.databind.node.ObjectNode> grantTool(@PathVariable String jobId,
+            @RequestBody ToolGrant body) {
+        requireWrite();
+        return R.ok(execution.grantTool(jobId, body == null ? null : body.toolName(),
+                body == null ? null : body.versionRange()));
+    }
+
+    @PostMapping("/jobs/{jobId}/human-review/refresh")
+    public R<com.fasterxml.jackson.databind.node.ObjectNode> refreshHumanReview(@PathVariable String jobId) {
+        requireWrite();
+        return R.ok(execution.refreshHumanReview(jobId));
+    }
+
+    @PostMapping("/jobs/{jobId}/code-review/run")
+    public R<com.fasterxml.jackson.databind.node.ObjectNode> runCodeReview(@PathVariable String jobId) {
+        requireWrite();
+        return R.ok(execution.runCodeReview(jobId));
+    }
+
+    @PostMapping("/jobs/{jobId}/h4/request")
+    public R<com.fasterxml.jackson.databind.node.ObjectNode> requestH4(@PathVariable String jobId) {
+        requireWrite();
+        return R.ok(execution.requestH4(jobId));
+    }
+
+    @PostMapping("/jobs/{jobId}/h4/refresh")
+    public R<com.fasterxml.jackson.databind.node.ObjectNode> refreshH4(@PathVariable String jobId) {
+        requireWrite();
+        return R.ok(execution.refreshH4(jobId));
+    }
+
     @GetMapping("/holdout/{jobId}")
     public R<Map<String, Object>> holdout(@PathVariable String jobId) {
         var principal = requireService();
@@ -140,6 +176,11 @@ public class DevflowController {
         var principal = requireService();
         var scores = body == null || body.byTag() == null ? List.<HoldoutRules.TagScore>of() : body.byTag();
         holdout.submit(body == null ? null : body.jobId(), scores, principal.username());
+        if (body != null && execution.get(body.jobId()) != null) {
+            if ("staging".equals(body.env())) execution.recordStagingGate(body);
+            else if ("prod".equals(body.env())) execution.recordProdGate(body);
+            else throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "门禁环境只能是 staging 或 prod");
+        }
         return R.ok(Map.of());
     }
 
@@ -208,9 +249,12 @@ public class DevflowController {
         return principal.username();
     }
 
-    public record HoldoutSubmission(String jobId, List<HoldoutRules.TagScore> byTag) {}
+    public record HoldoutSubmission(String jobId, List<HoldoutRules.TagScore> byTag, String gateRunId,
+                                    String sha, String image, String env, Map<String, Double> visibleByTag) {}
 
     public record HumanSeeds(List<DevflowTypes.SeedCase> cases) {}
+
+    public record ToolGrant(String toolName, String versionRange) {}
 
     private static ConsolePrincipal requireService() {
         var principal = ConsolePrincipal.current();

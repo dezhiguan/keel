@@ -55,8 +55,10 @@ class MetaAgentPersistenceTest {
         restarted.decide(job.jobId(), confirm);
         restarted.decide(job.jobId(), confirm);
         assertThat(restarted.get(job.jobId()).path("phase").asText()).isEqualTo("WAITING_SEEDS");
+        assertThatThrownBy(() -> restarted.grantTool(job.jobId(), "devflow.catalog.search", "v1"))
+                .isInstanceOf(KeelException.class);
         var seeds = new ArrayList<DevflowTypes.SeedCase>();
-        for (int i = 1; i <= Math.max(1, jobs.settings().minSeed()); i++) {
+        for (int i = 1; i <= Math.max(30, jobs.settings().minSeed()); i++) {
             seeds.add(new DevflowTypes.SeedCase("h-" + i, Map.of("text", "valid-" + i),
                     Map.of("status", "READY"), List.of("normal")));
         }
@@ -66,6 +68,15 @@ class MetaAgentPersistenceTest {
         assertThat(restarted.get(job.jobId()).has("humanSeeds")).isFalse();
         assertThat(restarted.review(job.jobId())).containsKey("cases");
         restarted.acceptEval(job.jobId(), new DevflowTypes.SeedAccept(List.of("a-1"), List.of()), "QA");
+        assertThat(restarted.get(job.jobId()).path("pendingToolGrants").size()).isEqualTo(2);
+        assertThatThrownBy(() -> restarted.grantTool(job.jobId(), "git.pr.merge", "v1"))
+                .isInstanceOf(KeelException.class);
+        restarted.grantTool(job.jobId(), "devflow.catalog.search", "v1");
+        restarted.grantTool(job.jobId(), "devflow.catalog.search", "v1");
+        restarted.grantTool(job.jobId(), "devflow.stage.report", "v1");
+        assertThat(restarted.get(job.jobId()).path("pendingToolGrants").isEmpty()).isTrue();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM devflow_tool_grant WHERE job_id=?", Integer.class, job.jobId()))
+                .isEqualTo(2);
         assertThat(restarted.get(job.jobId()).has("visibleSeeds")).isTrue();
         assertThat(restarted.get(job.jobId()).has("humanSeeds")).isFalse();
         restarted.tick();

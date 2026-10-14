@@ -220,12 +220,68 @@ class GitHub:
         self.request("POST", f"/repos/{self.org}/{repo}/issues/{number}/comments", {"body": body})
         return {"repo": f"{self.org}/{repo}", "number": number}
 
-    def merge(self, repo: str, number: int) -> dict:
+    def review_status(self, repo: str, number: int, sha: str, job_id: str) -> dict:
+        """Report human approval only for the immutable candidate commit and protected main."""
+        if not re.fullmatch(r"[0-9a-f]{40}", sha):
+            raise ValueError("sha")
+        root = f"/repos/{self.org}/{repo}"
+        metadata = self.request("GET", root)
+        if metadata.get("description") != f"keel-devflow:{job_id}" or metadata.get("private") is not True:
+            raise GitHubError(403, "Repository is not the private repository for this task")
+        pull = self.request("GET", root + f"/pulls/{number}")
+        if (pull.get("head", {}).get("sha") != sha or pull.get("base", {}).get("ref") != "main"
+                or pull.get("state") != "open"):
+            raise GitHubError(409, "PR head, base or state changed; review evidence is stale")
+        try:
+            protection = self.request("GET", root + "/branches/main/protection")
+            required = protection.get("required_pull_request_reviews", {}).get("required_approving_review_count", 0)
+        except GitHubError as exc:
+            if exc.status != 403:
+                raise
+            required = 0
+        reviews = self.request("GET", root + f"/pulls/{number}/reviews?per_page=100")
+        if not isinstance(reviews, list) or len(reviews) >= 100:
+            raise GitHubError(409, "Review history is incomplete")
+        latest = {}
+        for index, review in enumerate(reviews):
+            user = review.get("user") or {}
+            login = user.get("login")
+            if user.get("type") == "User" and isinstance(login, str) and login:
+                order = review.get("id") if isinstance(review.get("id"), int) else index
+                if login not in latest or order > latest[login][0]:
+                    latest[login] = (order, review)
+        reviewers = sorted(login for login, (_, review) in latest.items()
+                           if review.get("state") == "APPROVED" and review.get("commit_id") == sha)
+        return {"repo": f"{self.org}/{repo}", "number": number, "headSha": sha,
+                "protection": "ENFORCED" if required >= 1 else "UNAVAILABLE",
+                "ready": not pull.get("draft", True), "reviewers": reviewers,
+                "approved": required >= 1 and not pull.get("draft", True) and len(reviewers) >= required}
+
+    def merge(self, repo: str, number: int, *, job_id: str | None = None,
+              expected_sha: str | None = None) -> dict:
         repository = self.request("GET", f"/repos/{self.org}/{repo}")
         if str(repository.get("description") or "").startswith("keel-devflow:"):
-            protection = self.request("GET", f"/repos/{self.org}/{repo}/branches/main/protection")
-            if protection.get("required_pull_request_reviews", {}).get("required_approving_review_count", 0) < 1:
-                raise GitHubError(403, "Scaffold repositories require enforced review protection before merge")
+            if (not job_id or repository.get("description") != f"keel-devflow:{job_id}"
+                    or not isinstance(expected_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", expected_sha)):
+                raise GitHubError(403, "Produced employees require a job and exact reviewed commit")
+            pull = self.request("GET", f"/repos/{self.org}/{repo}/pulls/{number}")
+            if pull.get("head", {}).get("sha") != expected_sha:
+                raise GitHubError(409, "Reviewed candidate head changed")
+            if pull.get("merged") is True:
+                merged_sha = str(pull.get("merge_commit_sha") or "")
+                if not re.fullmatch(r"[0-9a-f]{40}", merged_sha):
+                    raise GitHubError(409, "Merged commit SHA missing")
+                return {"repo": f"{self.org}/{repo}", "number": number, "sha": merged_sha,
+                        "headSha": expected_sha, "merged": True}
+            review = self.review_status(repo, number, expected_sha, job_id)
+            if not review["approved"]:
+                raise GitHubError(403, "Protected human review is required before merge")
+            merged = self.request("PUT", f"/repos/{self.org}/{repo}/pulls/{number}/merge",
+                                  {"sha": expected_sha})
+            if merged.get("merged") is not True or not re.fullmatch(r"[0-9a-f]{40}", str(merged.get("sha") or "")):
+                raise GitHubError(409, "GitHub did not confirm the reviewed merge")
+            return {"repo": f"{self.org}/{repo}", "number": number, "sha": merged["sha"],
+                    "headSha": expected_sha, "merged": True}
         merged = self.request("PUT", f"/repos/{self.org}/{repo}/pulls/{number}/merge", {})
         return {"repo": f"{self.org}/{repo}", "number": number, "sha": merged.get("sha", "")}
 

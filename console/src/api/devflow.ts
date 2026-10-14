@@ -69,6 +69,26 @@ export function uploadDevflowHumanSeeds(jobId: string, cases: DevflowSeedCase[])
   return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/human-seeds`, { cases })
 }
 
+export function approveDevflowToolGrant(jobId: string, toolName: string, versionRange = 'v1') {
+  return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/tool-grants`, { toolName, versionRange })
+}
+
+export function refreshDevflowHumanReview(jobId: string) {
+  return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/human-review/refresh`)
+}
+
+export function runDevflowCodeReview(jobId: string) {
+  return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/code-review/run`)
+}
+
+export function requestDevflowH4(jobId: string) {
+  return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/h4/request`)
+}
+
+export function refreshDevflowH4(jobId: string) {
+  return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/h4/refresh`)
+}
+
 export function listDevflowBatches() {
   return get<{ items: DevflowBatch[] }>('/devflow/batches')
 }

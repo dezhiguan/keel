@@ -44,13 +44,13 @@ class MetaAgentRulesTest {
     }
     static DevflowTypes.Draft draft(String name, String template, String layer, String kind, int seeds, double budget) {
         var tools = Map.of(
-                "dev-lead", List.of("devflow.job.read", "devflow.stage.report"),
-                "spec-agent", List.of("devflow.catalog.search"),
-                "dev-agent", List.of("sandbox.run", "git.repo.create", "git.pr.open"),
-                "eval-agent", List.of("sandbox.run"),
+                "dev-lead", List.of("devflow.job.read", "devflow.stage.report", "devflow.batch.read"),
+                "spec-agent", List.of("devflow.catalog.search", "devflow.stage.report"),
+                "dev-agent", List.of("sandbox.run", "git.repo.create", "git.branch.push", "git.pr.open"),
+                "eval-agent", List.of("devflow.job.read", "sandbox.run", "devflow.stage.report"),
                 "code-review", List.of("git.pr.diff", "git.pr.comment"),
                 "ci-doctor", List.of("ci.log.fetch", "keel.gate.report.read"),
-                "release-agent", List.of("ci.workflow.dispatch", "git.pr.merge"));
+                "release-agent", List.of("ci.workflow.dispatch", "keel.gate.report.read", "git.pr.merge"));
         return new DevflowTypes.Draft("QA", name, layer, kind, "COLLAB", "生成需求文档", template, budget,
                 seeds, tools.getOrDefault(name, List.of()), List.of(), "QA", "研发人员", "需求到文档", "包含目标", true);
     }

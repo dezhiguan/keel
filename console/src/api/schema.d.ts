@@ -1240,6 +1240,105 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/devflow/jobs/{jobId}/tool-grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * H3 平台管理员逐项批准候选研发员工的工具权限
+         * @description H2 确认后可与 S3 开发并行进行。批准记录绑定任务、工具版本和审批人；
+         *     注册候选员工时只接受与这些批准记录完全一致的工具清单。
+         */
+        post: operations["approveDevflowToolGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/jobs/{jobId}/human-review/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** S4 核验候选 PR 最新提交的人工 review 和分支保护 */
+        post: operations["refreshDevflowHumanReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/jobs/{jobId}/code-review/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** S4 读取精确候选提交并运行模型代码评审 */
+        post: operations["runDevflowCodeReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/jobs/{jobId}/h4/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** staging 门禁通过后申请 git.pr.merge 高风险审批 */
+        post: operations["requestDevflowH4"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/jobs/{jobId}/h4/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 重新核验 H4 审批并合并受保护的精确候选提交 */
+        post: operations["refreshDevflowH4"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/devflow/jobs/{jobId}/stages/{stage}/report": {
         parameters: {
             query?: never;
@@ -2392,6 +2491,17 @@ export interface components {
         };
         DevflowHoldoutResult: {
             jobId: string;
+            /** @description 研发员工环境门禁的不可复用运行 ID */
+            gateRunId?: string;
+            /** @description staging 候选 PR 或 prod 合并提交的精确 SHA */
+            sha?: string;
+            /** @description 门禁实测的不可变镜像摘要 */
+            image?: string;
+            /** @enum {string} */
+            env?: "staging" | "prod";
+            visibleByTag?: {
+                [key: string]: number;
+            };
             byTag: {
                 tag: string;
                 /** Format: float */
@@ -2411,7 +2521,7 @@ export interface components {
         DevflowExecution: {
             jobId: string;
             /** @enum {string} */
-            phase: "QUEUED" | "RUNNING" | "WAITING" | "WAITING_SEEDS" | "WAITING_EVAL" | "DELIVERING" | "SANDBOX_PENDING" | "SANDBOX_RUNNING" | "WAITING_REVIEW" | "DELIVERED" | "FAILED" | "CANCELLED";
+            phase: "QUEUED" | "RUNNING" | "WAITING" | "WAITING_SEEDS" | "WAITING_EVAL" | "DELIVERING" | "SANDBOX_PENDING" | "SANDBOX_RUNNING" | "WAITING_REVIEW" | "STAGING_READY" | "STAGING_GATE_PASSED" | "WAITING_H4" | "RELEASING" | "WATCHING" | "DONE" | "DELIVERED" | "FAILED" | "CANCELLED";
             version: number;
             revisions: number;
             requirement: {
@@ -2456,13 +2566,86 @@ export interface components {
             sandboxRunId?: string;
             /** @enum {string} */
             sandboxStatus?: "PASS" | "FAILED";
+            toolGrants?: {
+                toolName: string;
+                versionRange: string;
+                grantedBy: string;
+            }[];
+            pendingToolGrants?: string[];
+            humanReview?: {
+                repo: string;
+                number: number;
+                headSha: string;
+                /** @enum {string} */
+                protection: "ENFORCED" | "UNAVAILABLE";
+                ready: boolean;
+                reviewers: string[];
+                approved: boolean;
+            };
+            modelReview?: {
+                sha: string;
+                reviewer: string;
+                approved: boolean;
+                checks: {
+                    [key: string]: boolean;
+                };
+                findings: {
+                    path: string;
+                    line: number;
+                    /** @enum {string} */
+                    severity: "HIGH" | "MID" | "LOW";
+                    detail: string;
+                }[];
+            };
+            modelReviewTraceId?: string;
+            gate?: {
+                runId: string;
+                sha: string;
+                /** @description staging 门禁实测镜像摘要 */
+                image?: string;
+                /** @enum {string} */
+                env: "staging";
+                passed: boolean;
+                visibleScore: number;
+                hiddenScore: number;
+            };
+            prodGate?: {
+                runId: string;
+                /** @description H4 合并提交 */
+                sha: string;
+                /** @description prod 门禁实测镜像摘要 */
+                image?: string;
+                /** @enum {string} */
+                env: "prod";
+                passed: boolean;
+                visibleScore: number;
+                hiddenScore: number;
+            };
+            h4ApprovalId?: string;
+            /** @description H4 批准后 GitHub 确认的合并提交 */
+            mergeSha?: string;
+            /** Format: date-time */
+            watchStartedAt?: string;
+            /** @description 已核对 Deployment 就绪的生产镜像摘要 */
+            watchImage?: string;
+            watchObservations?: {
+                /** Format: date */
+                day: string;
+                quality: number;
+                costCny: number;
+                budgetCny: number;
+                calls: number;
+                healthy: boolean;
+                /** Format: date-time */
+                observedAt: string;
+            }[];
             error?: string;
         };
         /** @description 服务端经 SDK input.text 传递的工作请求，使用 bridge 身份鉴别 */
         MetaAgentWork: {
             workflow: boolean;
             /** @enum {string} */
-            action: "DRAFT" | "EVAL" | "DELIVER";
+            action: "DRAFT" | "EVAL" | "DELIVER" | "REVIEW";
             jobId: string;
             requirement: {
                 [key: string]: unknown;
@@ -2474,6 +2657,9 @@ export interface components {
             catalog?: {
                 [key: string]: unknown;
             }[];
+            snapshot?: {
+                [key: string]: unknown;
+            };
         };
         DevflowSeedCase: {
             caseId: string;
@@ -3040,6 +3226,7 @@ export interface operations {
                     /** @enum {string} */
                     env: "staging" | "prod";
                     gateRunId: string;
+                    /** @description 研发员工必须提供不可变的 registry 镜像摘要（@sha256:64 位） */
                     image: string;
                 };
             };
@@ -4581,6 +4768,136 @@ export interface operations {
         };
         responses: {
             /** @description 已排队扩充评测集 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowExecution"];
+                    };
+                };
+            };
+        };
+    };
+    approveDevflowToolGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    toolName: string;
+                    /** @example v1 */
+                    versionRange: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 已记录该工具的人工授权 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowExecution"];
+                    };
+                };
+            };
+            409: components["responses"]["Error"];
+        };
+    };
+    refreshDevflowHumanReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已读取并记录 GitHub 评审证据 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowExecution"];
+                    };
+                };
+            };
+            409: components["responses"]["Error"];
+        };
+    };
+    runDevflowCodeReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已记录评审结论 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowExecution"];
+                    };
+                };
+            };
+        };
+    };
+    requestDevflowH4: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description H4 审批已排队 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowExecution"];
+                    };
+                };
+            };
+        };
+    };
+    refreshDevflowH4: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description H4 状态已刷新 */
             200: {
                 headers: {
                     [name: string]: unknown;

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.keel.common.error.ErrorCode;
 import com.keel.server.common.KeelException;
+import com.keel.server.auth.ConsolePrincipal;
 import com.keel.server.integration.audit.AuditStore;
 import com.keel.server.integration.langfuse.LangfuseClient;
 import com.keel.server.prompt.PromptCatalog;
@@ -12,6 +13,7 @@ import com.keel.server.prompt.PromptService;
 import com.keel.server.prompt.PromptTexts;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -25,19 +27,20 @@ public class ReleaseService {
     private final JdbcTemplate jdbc;
     private final AuditStore audit;
     private final PromptService prompts;
+    private final String ciClient;
     private final ObjectMapper json = new ObjectMapper();
 
     public ReleaseService(PromptCatalog catalog, LangfuseClient langfuse, JdbcTemplate jdbc, AuditStore audit,
-                          PromptService prompts) {
+                          PromptService prompts, @Value("${keel.ci.client-id:}") String ciClient) {
         this.catalog = catalog;
         this.langfuse = langfuse;
         this.jdbc = jdbc;
         this.audit = audit;
         this.prompts = prompts;
+        this.ciClient = ciClient == null ? "" : ciClient;
     }
 
     public Map<String, Object> release(String agent, JsonNode body) {
-        catalog.authorize(agent);
         var env = body.path("env").asText("");
         var gateRunId = body.path("gateRunId").asText("");
         var image = body.path("image").asText("");
@@ -48,20 +51,33 @@ public class ReleaseService {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "gateRunId 和 image 不能为空");
         }
         var jobId = devflowJobId(agent);
-        var rejection = ReleaseGuard.rejection(jobId, approvedMerge(agent, jobId));
+        if (jobId != null) {
+            var principal = ConsolePrincipal.current();
+            if (ciClient.isBlank() || principal == null || !"SERVICE".equals(principal.mode())
+                    || !ciClient.equals(principal.username())) {
+                throw new KeelException(ErrorCode.AUTH_CONSOLE_FORBIDDEN, "研发员工只能由可信 CI 执行发布");
+            }
+            if (!image.matches("[^\\s]+@sha256:[0-9a-f]{64}")) {
+                throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "研发员工发布镜像必须使用不可变 sha256 摘要");
+            }
+        } else {
+            catalog.authorize(agent);
+        }
+        var rejection = jobId == null ? null : devflowEvidenceRejection(jobId, env, gateRunId, image,
+                approvedMerge(agent, jobId));
         if (rejection != null) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, rejection);
         }
         ObjectNode promptVersions = json.createObjectNode();
         if ("prod".equals(env)) {
             prompts.invalidateListCache();
-            promptVersions = moveProduction(agent, gateRunId);
+            promptVersions = moveProduction(agent, gateRunId, jobId != null);
         }
         var version = agentVersion(agent);
         jdbc.update("""
-                INSERT INTO release_record (agent_name, version, env, gate_passed, prompt_versions_json, ci_run_url, kind)
-                VALUES (?, ?, ?, true, ?::jsonb, ?, 'release')
-                """, agent, version, env, promptVersions.toString(), gateRunId);
+                INSERT INTO release_record (agent_name, version, env, gate_passed, prompt_versions_json, ci_run_url, image, kind)
+                VALUES (?, ?, ?, true, ?::jsonb, ?, ?, 'release')
+                """, agent, version, env, promptVersions.toString(), gateRunId, image);
         var result = new LinkedHashMap<String, Object>();
         result.put("version", version);
         result.put("env", env);
@@ -70,6 +86,20 @@ public class ReleaseService {
         result.put("ciRunUrl", gateRunId);
         result.put("releasedBy", PromptCatalog.Actor.current().userId());
         return result;
+    }
+
+    private String devflowEvidenceRejection(String jobId, String env, String gateRunId,
+                                           String image, boolean mergeApproved) {
+        var executions = jdbc.query("SELECT state_json::text FROM devflow_execution WHERE job_id=?",
+                (rs, row) -> rs.getString(1), jobId);
+        JsonNode state = null;
+        if (!executions.isEmpty()) {
+            try { state = json.readTree(executions.getFirst()); }
+            catch (Exception error) { return "元智能体生产任务的可信执行记录损坏"; }
+        }
+        var passed = jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM devflow_holdout_result WHERE job_id=? AND passed)",
+                Boolean.class, jobId);
+        return ReleaseGuard.evidenceRejection(state, env, gateRunId, image, Boolean.TRUE.equals(passed), mergeApproved);
     }
 
     public Map<String, Object> rollback(String agent, String prompt, int version, String reason) {
@@ -127,12 +157,14 @@ public class ReleaseService {
         return count != null && count > 0;
     }
 
-    private ObjectNode moveProduction(String agent, String gateRunId) {
+    private ObjectNode moveProduction(String agent, String gateRunId, boolean trustedCi) {
         if (!langfuse.ready()) {
             throw new KeelException(ErrorCode.PROMPT_UNAVAILABLE, "Langfuse 未配置");
         }
         var plan = new ArrayList<Step>();
-        for (var item : catalog.declared(agent)) {
+        var declared = trustedCi ? catalog.declaredForDriftScan().stream()
+                .filter(item -> agent.equals(item.agent())).toList() : catalog.declared(agent);
+        for (var item : declared) {
             var staging = labelVersion(item.fullName(), "staging");
             var passed = latestPassed(agent, item.name());
             if (staging == null || passed == null || staging != passed.version()) {

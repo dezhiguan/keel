@@ -67,10 +67,21 @@ def call_tool(github: GitHub, tool: str, body: dict) -> dict:
                               _text(body.get("title")), _text(body.get("body")))
     if tool == "git.pr.diff":
         return github.diff(_name(body.get("repo"), "repo"), _number(body.get("number")))
+    if tool == "git.pr.review.status":
+        sha = body.get("sha")
+        if not isinstance(sha, str):
+            raise ValueError("sha")
+        return github.review_status(_name(body.get("repo"), "repo"), _number(body.get("number")),
+                                    sha, _job(body.get("jobId")))
     if tool == "git.pr.comment":
         return github.comment(_name(body.get("repo"), "repo"), _number(body.get("number")), _text(body.get("body")))
     if tool == "git.pr.merge":
-        return github.merge(_name(body.get("repo"), "repo"), _number(body.get("number")))
+        job_id = _job(body["jobId"]) if body.get("jobId") is not None else None
+        expected_sha = body.get("expectedSha")
+        if expected_sha is not None and (not isinstance(expected_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", expected_sha)):
+            raise ValueError("expectedSha")
+        return github.merge(_name(body.get("repo"), "repo"), _number(body.get("number")),
+                            job_id=job_id, expected_sha=expected_sha)
     if tool == "ci.workflow.dispatch":
         inputs = body.get("inputs") or {}
         if not isinstance(inputs, dict):
@@ -82,7 +93,7 @@ def call_tool(github: GitHub, tool: str, body: dict) -> dict:
     raise ValueError("tool")
 
 
-def create_app(github: GitHub, token: str | None = None) -> Starlette:
+def create_app(github: GitHub, token: str | None = None, merge_token: str | None = None) -> Starlette:
     async def invoke(request: Request):
         if token is not None and not hmac.compare_digest(request.headers.get("authorization", ""), "Bearer " + token):
             return _error(ErrorCode.AUTH_UNAUTHENTICATED)
@@ -92,6 +103,10 @@ def create_app(github: GitHub, token: str | None = None) -> Starlette:
             return _error(ErrorCode.SERVER_INVALID_PARAM)
         if not isinstance(body, dict):
             return _error(ErrorCode.SERVER_INVALID_PARAM)
+        if request.path_params["tool"] == "git.pr.merge" and body.get("jobId"):
+            if not merge_token or not hmac.compare_digest(
+                    request.headers.get("x-keel-merge-token", ""), merge_token):
+                return _error(ErrorCode.AUTH_UNAUTHENTICATED)
         try:
             return JSONResponse(call_tool(github, request.path_params["tool"], body))
         except ValueError:
@@ -108,7 +123,7 @@ def app():
     token = os.environ.get("KEEL_GIT_CI_TOKEN", "").strip()
     if not token:
         raise ValueError("KEEL_GIT_CI_TOKEN 未设置")
-    return create_app(client_from_env(), token)
+    return create_app(client_from_env(), token, os.environ.get("KEEL_GIT_CI_MERGE_TOKEN", "").strip())
 
 
 def _name(value, _label: str) -> str:

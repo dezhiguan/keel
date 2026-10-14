@@ -132,6 +132,61 @@ def test_plan_limit_keeps_private_scaffolds_but_blocks_merge_and_other_permissio
         Restricted("Resource not accessible by integration").ensure_repo("qa", "DF-9001")
 
 
+def test_human_pr_review_is_bound_to_protected_main_and_exact_candidate_sha():
+    sha = "a" * 40
+
+    class Reviews(GitHub):
+        def __init__(self, *, protected=True, draft=False, head=sha, latest="APPROVED", review_sha=sha):
+            super().__init__("http://unused", "test")
+            self.protected, self.draft, self.head = protected, draft, head
+            self.latest, self.review_sha = latest, review_sha
+
+        def request(self, method, path, payload=None, **kwargs):
+            if path.endswith("/qa"):
+                return {"description": "keel-devflow:DF-9001", "private": True}
+            if path.endswith("/pulls/7"):
+                return {"head": {"sha": self.head}, "base": {"ref": "main"},
+                        "state": "open", "draft": self.draft}
+            if path.endswith("/branches/main/protection"):
+                if not self.protected:
+                    raise GitHubError(403, "Upgrade to GitHub Pro")
+                return {"required_pull_request_reviews": {"required_approving_review_count": 1}}
+            if path.endswith("/pulls/7/reviews?per_page=100"):
+                return [{"user": {"login": "human", "type": "User"},
+                         "state": self.latest, "commit_id": self.review_sha}]
+            raise AssertionError(path)
+
+    assert call_tool(Reviews(), "git.pr.review.status",
+                     {"repo": "qa", "number": 7, "sha": sha, "jobId": "DF-9001"})["approved"] is True
+    assert Reviews(draft=True).review_status("qa", 7, sha, "DF-9001")["approved"] is False
+    assert Reviews(protected=False).review_status("qa", 7, sha, "DF-9001")["approved"] is False
+    assert Reviews(review_sha="b" * 40).review_status("qa", 7, sha, "DF-9001")["approved"] is False
+    assert Reviews(latest="CHANGES_REQUESTED").review_status("qa", 7, sha, "DF-9001")["approved"] is False
+    with pytest.raises(GitHubError, match="stale"):
+        Reviews(head="b" * 40).review_status("qa", 7, sha, "DF-9001")
+
+    class MergeReviews(Reviews):
+        def request(self, method, path, payload=None, **kwargs):
+            if path.endswith("/pulls/7/merge"):
+                assert method == "PUT" and payload == {"sha": sha}
+                return {"merged": True, "sha": "c" * 40}
+            return super().request(method, path, payload, **kwargs)
+
+    result = call_tool(MergeReviews(), "git.pr.merge", {"repo": "qa", "number": 7,
+                                                  "jobId": "DF-9001", "expectedSha": sha})
+    assert result["merged"] is True and result["headSha"] == sha
+    with pytest.raises(GitHubError, match="job and exact reviewed commit"):
+        MergeReviews().merge("qa", 7)
+
+    class AlreadyMerged(MergeReviews):
+        def request(self, method, path, payload=None, **kwargs):
+            if path.endswith("/pulls/7"):
+                return {"head": {"sha": sha}, "merged": True, "merge_commit_sha": "c" * 40}
+            return super().request(method, path, payload, **kwargs)
+
+    assert AlreadyMerged().merge("qa", 7, job_id="DF-9001", expected_sha=sha)["sha"] == "c" * 40
+
+
 class Handler(BaseHTTPRequestHandler):
     seen = []
 
@@ -254,6 +309,21 @@ def test_runtime_requires_service_auth_before_accessing_github():
     response = client.post("/v1/tools/git.pr.diff", json={"repo": "example", "number": 1})
     assert response.status_code == 401
     assert response.json()["code"] == "AUTH_UNAUTHENTICATED"
+
+
+def test_produced_employee_merge_requires_a_server_only_h4_secret():
+    class MergeStub:
+        def merge(self, repo, number, *, job_id=None, expected_sha=None):
+            return {"repo": repo, "number": number, "merged": True, "sha": "c" * 40,
+                    "headSha": expected_sha}
+
+    client = TestClient(create_app(MergeStub(), "tool-token", "h4-only-token"))
+    body = {"repo": "spec-agent", "number": 1, "jobId": "DF-9001", "expectedSha": "a" * 40}
+    headers = {"Authorization": "Bearer tool-token"}
+    assert client.post("/v1/tools/git.pr.merge", json=body, headers=headers).status_code == 401
+    approved = client.post("/v1/tools/git.pr.merge", json=body,
+                           headers={**headers, "X-Keel-Merge-Token": "h4-only-token"})
+    assert approved.status_code == 200 and approved.json()["merged"] is True
 
 
 def test_snapshot_uses_exact_private_task_commit_and_returns_utf8_files():

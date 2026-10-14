@@ -5,9 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.keel.common.error.ErrorCode;
 import com.keel.server.auth.ConsolePrincipal;
+import com.keel.server.approval.service.ApprovalService;
+import com.keel.server.approval.service.ApprovalPolicyEngine;
 import com.keel.server.common.KeelException;
 import com.keel.server.integration.agent.AgentEndpointClient;
 import com.keel.server.registry.service.WizardCatalog;
+import io.fabric8.kubernetes.client.KubernetesClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -21,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -32,13 +36,13 @@ public class MetaAgentExecution {
             "eval-agent", "tool-agent", "code-review", "tool-agent", "ci-doctor", "tool-agent",
             "release-agent", "tool-agent");
     private static final Map<String, Set<String>> DEV_TOOLS = Map.of(
-            "dev-lead", Set.of("devflow.job.read", "devflow.stage.report"),
-            "spec-agent", Set.of("devflow.catalog.search"),
-            "dev-agent", Set.of("sandbox.run", "git.repo.create", "git.pr.open"),
-            "eval-agent", Set.of("sandbox.run"),
+            "dev-lead", Set.of("devflow.job.read", "devflow.stage.report", "devflow.batch.read"),
+            "spec-agent", Set.of("devflow.catalog.search", "devflow.stage.report"),
+            "dev-agent", Set.of("sandbox.run", "git.repo.create", "git.branch.push", "git.pr.open"),
+            "eval-agent", Set.of("devflow.job.read", "sandbox.run", "devflow.stage.report"),
             "code-review", Set.of("git.pr.diff", "git.pr.comment"),
             "ci-doctor", Set.of("ci.log.fetch", "keel.gate.report.read"),
-            "release-agent", Set.of("ci.workflow.dispatch", "git.pr.merge"));
+            "release-agent", Set.of("ci.workflow.dispatch", "keel.gate.report.read", "git.pr.merge"));
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
     private final TransactionTemplate tx;
@@ -46,24 +50,30 @@ public class MetaAgentExecution {
     private final WizardCatalog catalog;
     private final AgentEndpointClient agent;
     private final SandboxService sandbox;
+    private final GitSnapshotClient git;
+    private final ApprovalService approvals;
+    private final KubernetesClient cluster;
     private final String endpoint;
     private final String token;
 
     @Autowired
     public MetaAgentExecution(JdbcTemplate jdbc, ObjectMapper json, PlatformTransactionManager transactions,
                               DevflowService jobs, WizardCatalog catalog, AgentEndpointClient agent,
-                              SandboxService sandbox,
+                              SandboxService sandbox, GitSnapshotClient git, ApprovalService approvals,
+                              KubernetesClient cluster,
                               @Value("${KEEL_META_AGENT_URL:}") String endpoint,
                               @Value("${KEEL_META_AGENT_TOKEN:}") String token) {
         this.jdbc = jdbc; this.json = json; this.tx = new TransactionTemplate(transactions);
-        this.jobs = jobs; this.catalog = catalog; this.agent = agent; this.sandbox = sandbox;
+        this.jobs = jobs; this.catalog = catalog; this.agent = agent; this.sandbox = sandbox; this.git = git;
+        this.approvals = approvals;
+        this.cluster = cluster;
         this.endpoint = endpoint; this.token = token;
     }
 
     MetaAgentExecution(JdbcTemplate jdbc, ObjectMapper json, PlatformTransactionManager transactions,
                        DevflowService jobs, WizardCatalog catalog, AgentEndpointClient agent,
                        String endpoint, String token) {
-        this(jdbc, json, transactions, jobs, catalog, agent, null, endpoint, token);
+        this(jdbc, json, transactions, jobs, catalog, agent, null, null, null, null, endpoint, token);
     }
 
     public static void requireAdmin() {
@@ -126,12 +136,315 @@ public class MetaAgentExecution {
         return rows.isEmpty() ? null : publicState(rows.getFirst());
     }
 
+    public ObjectNode grantTool(String id, String toolName, String versionRange) {
+        requireAdmin();
+        return tx.execute(status -> {
+            var state = lock(id);
+            if (!state.has("acceptedAgentCount") || "CANCELLED".equals(state.path("phase").asText())) {
+                throw invalid("H2 确认后才能批准候选员工工具权限");
+            }
+            if (blank(toolName) || blank(versionRange) || versionRange.length() > 128) {
+                throw invalid("工具名称和版本不能为空");
+            }
+            var selected = new HashSet<String>();
+            state.path("requirement").path("tools").forEach(item -> selected.add(item.asText()));
+            if (!selected.contains(toolName)) throw invalid("只能批准 H1 确认的岗位工具");
+            var versions = jdbc.query("""
+                    SELECT t.scope, t.status, v.risk, v.approval_policy_id
+                    FROM tool t JOIN tool_version v ON v.tool_name = t.name
+                    WHERE t.name = ? AND v.version = ?
+                    """, (rs, n) -> new Object[]{rs.getString(1), rs.getString(2), rs.getString(3), rs.getObject(4)},
+                    toolName, versionRange);
+            if (versions.size() != 1 || !"SHARED".equals(versions.getFirst()[0])
+                    || !"ONLINE".equals(versions.getFirst()[1])
+                    || ("HIGH".equals(versions.getFirst()[2]) && versions.getFirst()[3] == null)) {
+                throw invalid("工具版本不可授权，或高风险审批策略未绑定");
+            }
+            var previous = jdbc.query("SELECT version_range FROM devflow_tool_grant WHERE job_id=? AND tool_name=?",
+                    (rs, n) -> rs.getString(1), id, toolName);
+            if (!previous.isEmpty()) {
+                if (!previous.getFirst().equals(versionRange)) throw invalid("工具已有不同版本的 H3 授权");
+                return publicState(state);
+            }
+            jdbc.update("INSERT INTO devflow_tool_grant(job_id,tool_name,version_range,granted_by) VALUES (?,?,?,?)",
+                    id, toolName, versionRange, ConsolePrincipal.current().username());
+            return publicState(state);
+        });
+    }
+
+    public ObjectNode refreshHumanReview(String id) {
+        requireAdmin();
+        var state = stateInternal(id);
+        if (!"WAITING_REVIEW".equals(state.path("phase").asText()) || git == null) {
+            throw invalid("候选代码尚未进入人工 PR 评审阶段");
+        }
+        var delivery = state.path("delivery");
+        var repo = delivery.path("repo").asText().replaceFirst("^[^/]+/", "");
+        var evidence = git.reviewStatus(id, repo, delivery.path("number").asInt(), delivery.path("sha").asText());
+        return tx.execute(status -> {
+            var current = lock(id);
+            if (!"WAITING_REVIEW".equals(current.path("phase").asText())
+                    || !delivery.path("sha").asText().equals(current.path("delivery").path("sha").asText())) {
+                throw invalid("候选提交已变化，请重新核验人工评审");
+            }
+            current.set("humanReview", evidence);
+            save(id, current, "DELIVER");
+            return publicState(current);
+        });
+    }
+
+    public ObjectNode runCodeReview(String id) {
+        requireAdmin();
+        var state = stateInternal(id);
+        if (!"WAITING_REVIEW".equals(state.path("phase").asText())
+                || !state.path("humanReview").path("approved").asBoolean(false)
+                || !"PASS".equals(state.path("sandboxStatus").asText()) || git == null) {
+            throw invalid("代码评审需先通过沙箱及当前提交的人工 PR 审批");
+        }
+        var required = new HashSet<String>();
+        state.path("requirement").path("tools").forEach(item -> required.add(item.asText()));
+        var grants = jdbc.query("SELECT tool_name FROM devflow_tool_grant WHERE job_id=?",
+                (rs, row) -> rs.getString(1), id);
+        if (!Set.copyOf(grants).equals(required)) throw invalid("H3 工具授权尚未全部完成");
+        var delivery = state.path("delivery");
+        var sha = delivery.path("sha").asText();
+        var repo = delivery.path("repo").asText().replaceFirst("^[^/]+/", "");
+        try {
+            var request = state.deepCopy();
+            request.put("workflow", true).put("action", "REVIEW");
+            request.set("snapshot", json.readTree(git.fetch(id, repo, sha)));
+            var answer = agent.invokeWork(endpoint, request.toString(), token, jobs.job(id).requester());
+            var report = read(answer.text());
+            if (!sha.equals(report.path("sha").asText()) || !report.path("approved").isBoolean()
+                    || !report.path("checks").isObject() || !report.path("findings").isArray()) {
+                throw invalid("模型代码评审结果与候选提交不一致");
+            }
+            for (var check : List.of("modelAccess", "toolAuthorization", "audit", "visibleCaseOverfit",
+                    "releaseApproval", "behaviorTests")) {
+                if (!report.path("checks").path(check).isBoolean()) throw invalid("代码评审维度不完整");
+                if (report.path("approved").asBoolean() && !report.path("checks").path(check).asBoolean()) {
+                    throw invalid("模型代码评审结论与分项结果冲突");
+                }
+            }
+            for (var finding : report.path("findings")) {
+                if (finding.path("severity").asText().matches("HIGH|MID") && report.path("approved").asBoolean()) {
+                    throw invalid("模型代码评审结论与风险发现冲突");
+                }
+            }
+            return tx.execute(status -> {
+                var current = lock(id);
+                if (!"WAITING_REVIEW".equals(current.path("phase").asText())
+                        || !sha.equals(current.path("delivery").path("sha").asText())
+                        || !current.path("humanReview").path("approved").asBoolean(false)) {
+                    throw invalid("候选提交或人工评审已变化，请重新运行代码评审");
+                }
+                current.set("modelReview", report);
+                current.put("modelReviewTraceId", answer.traceId());
+                if (report.path("approved").asBoolean()) {
+                    current.put("phase", "STAGING_READY");
+                    jobs.progress(id, "RUN", "GATE", "模型代码评审与人工 PR review 已通过，等待 staging 部署和门禁");
+                } else {
+                    jobs.progress(id, "WAIT", "REVIEW", "模型代码评审发现问题，请在同一 PR 修复后重验");
+                }
+                save(id, current, "REVIEW");
+                return publicState(current);
+            });
+        } catch (KeelException error) {
+            throw error;
+        } catch (Exception error) {
+            throw invalid("代码评审服务不可用或未返回可信结果");
+        }
+    }
+
+    /** Called only after HoldoutService authenticates and scores the CI identity's hidden result. */
+    public ObjectNode recordStagingGate(DevflowController.HoldoutSubmission result) {
+        if (result == null || !"staging".equals(result.env())
+                || result.gateRunId() == null || !result.gateRunId().matches("[0-9a-f]{32}")
+                || result.sha() == null || !result.sha().matches("[0-9a-f]{40}")
+                || result.image() == null || !result.image().matches("[^\\s]+@sha256:[0-9a-f]{64}")
+                || result.visibleByTag() == null || result.visibleByTag().isEmpty()
+                || result.visibleByTag().values().stream().anyMatch(score -> score == null
+                    || !Double.isFinite(score) || score < HoldoutRules.MIN_SCORE || score > 1)) {
+            throw invalid("staging 门禁需要 CI 绑定的候选提交与可见用例分数");
+        }
+        return tx.execute(status -> {
+            var state = lock(result.jobId());
+            if (!"STAGING_READY".equals(state.path("phase").asText())
+                    || !result.sha().equals(state.path("delivery").path("sha").asText())
+                    || !state.path("humanReview").path("approved").asBoolean(false)
+                    || !state.path("modelReview").path("approved").asBoolean(false)) {
+                throw invalid("候选提交或评审状态与 staging 门禁不一致");
+            }
+            var target = state.path("requirement").path("target_agent").asText();
+            var registered = jdbc.queryForObject("""
+                    SELECT EXISTS(SELECT 1 FROM agent_version WHERE agent_name=? AND env='staging')
+                    """, Boolean.class, target);
+            var provisioned = jdbc.queryForObject("""
+                    SELECT EXISTS(SELECT 1 FROM agent_resource WHERE agent_name=? AND env='staging' AND status='ACTIVE')
+                    """, Boolean.class, target);
+            if (!Boolean.TRUE.equals(registered) || !Boolean.TRUE.equals(provisioned)) {
+                throw invalid("员工尚未登记并开通 staging 资源");
+            }
+            if (!DeploymentEvidence.ready(cluster, target, "staging", result.sha(), result.image())) {
+                throw invalid("staging 预览 Deployment 未就绪，或镜像与候选提交不一致");
+            }
+            var hidden = jdbc.query("SELECT passed, score FROM devflow_holdout_result WHERE job_id=?",
+                    (rs, row) -> new Object[]{rs.getBoolean(1), rs.getDouble(2)}, result.jobId());
+            if (hidden.size() != 1 || !Boolean.TRUE.equals(hidden.getFirst()[0])) {
+                throw invalid("隐藏考题尚未通过");
+            }
+            var submitted = result.byTag() == null ? 0 : result.byTag().stream().mapToInt(HoldoutRules.TagScore::count).sum();
+            if (submitted < state.path("holdoutCount").asInt(1)) throw invalid("隐藏考题回报数量不足");
+            var visibleCounts = new LinkedHashMap<String, Integer>();
+            for (var seed : state.path("visibleSeeds")) {
+                for (var tag : seed.path("tags")) visibleCounts.merge(tag.asText(), 1, Integer::sum);
+            }
+            if (visibleCounts.isEmpty() || !visibleCounts.keySet().equals(result.visibleByTag().keySet())) {
+                throw invalid("可见用例 tag 分数与 H2 已确认用例不一致");
+            }
+            double hiddenScore = (double) hidden.getFirst()[1];
+            int visibleTotal = visibleCounts.values().stream().mapToInt(Integer::intValue).sum();
+            double visibleScore = visibleCounts.entrySet().stream()
+                    .mapToDouble(item -> item.getValue() * result.visibleByTag().get(item.getKey())).sum() / visibleTotal;
+            if (Math.abs(visibleScore - hiddenScore) > 0.10) throw invalid("可见与隐藏用例分差超过 0.10");
+            var gate = state.putObject("gate");
+            gate.put("runId", result.gateRunId()).put("sha", result.sha()).put("image", result.image()).put("env", "staging")
+                    .put("passed", true).put("visibleScore", visibleScore).put("hiddenScore", hiddenScore);
+            gate.set("visibleByTag", json.valueToTree(result.visibleByTag()));
+            state.put("phase", "STAGING_GATE_PASSED");
+            save(result.jobId(), state, "GATE");
+            jobs.progress(result.jobId(), "WAIT", "H4", "staging 可见与隐藏考题门禁通过，等待 H4 合并审批");
+            return publicState(state);
+        });
+    }
+
+    /** The CI identity submits a fresh prod gate for the exact commit returned by the H4 merge. */
+    public ObjectNode recordProdGate(DevflowController.HoldoutSubmission result) {
+        if (result == null || !"prod".equals(result.env())
+                || result.gateRunId() == null || !result.gateRunId().matches("[0-9a-f]{32}")
+                || result.sha() == null || !result.sha().matches("[0-9a-f]{40}")
+                || result.image() == null || !result.image().matches("[^\\s]+@sha256:[0-9a-f]{64}")
+                || result.visibleByTag() == null || result.visibleByTag().isEmpty()
+                || result.visibleByTag().values().stream().anyMatch(score -> score == null
+                    || !Double.isFinite(score) || score < HoldoutRules.MIN_SCORE || score > 1)) {
+            throw invalid("prod 门禁需要 CI 绑定的合并提交与可见用例分数");
+        }
+        return tx.execute(status -> {
+            var state = lock(result.jobId());
+            if (!"RELEASING".equals(state.path("phase").asText())
+                    || !state.path("gate").path("passed").asBoolean(false)
+                    || !result.sha().equals(state.path("mergeSha").asText())
+                    || result.gateRunId().equals(state.path("gate").path("runId").asText())) {
+                throw invalid("prod 门禁必须在 H4 合并后对合并提交重新执行");
+            }
+            var h4 = jdbc.queryForObject("""
+                    SELECT EXISTS(SELECT 1 FROM approval_request
+                        WHERE id=? AND devflow_job_id=? AND devflow_gate='H4'
+                          AND subject_type='tool.call' AND subject_ref='git.pr.merge' AND status='APPROVED')
+                    """, Boolean.class, ApprovalPolicyEngine.parseId(state.path("h4ApprovalId").asText()), result.jobId());
+            if (!Boolean.TRUE.equals(h4)) throw invalid("H4 审批证据已失效");
+            var hidden = jdbc.query("SELECT passed, score FROM devflow_holdout_result WHERE job_id=?",
+                    (rs, row) -> new Object[]{rs.getBoolean(1), rs.getDouble(2)}, result.jobId());
+            if (hidden.size() != 1 || !Boolean.TRUE.equals(hidden.getFirst()[0])) throw invalid("prod 隐藏考题尚未通过");
+            var visibleCounts = new LinkedHashMap<String, Integer>();
+            for (var seed : state.path("visibleSeeds")) {
+                for (var tag : seed.path("tags")) visibleCounts.merge(tag.asText(), 1, Integer::sum);
+            }
+            if (visibleCounts.isEmpty() || !visibleCounts.keySet().equals(result.visibleByTag().keySet())) {
+                throw invalid("prod 可见用例 tag 与 H2 已确认用例不一致");
+            }
+            var visibleTotal = visibleCounts.values().stream().mapToInt(Integer::intValue).sum();
+            var visibleScore = visibleCounts.entrySet().stream()
+                    .mapToDouble(item -> item.getValue() * result.visibleByTag().get(item.getKey())).sum() / visibleTotal;
+            var hiddenScore = (double) hidden.getFirst()[1];
+            if (Math.abs(visibleScore - hiddenScore) > 0.10) throw invalid("prod 可见与隐藏用例分差超过 0.10");
+            var prodGate = state.putObject("prodGate");
+            prodGate.put("runId", result.gateRunId()).put("sha", result.sha()).put("image", result.image()).put("env", "prod")
+                    .put("passed", true).put("visibleScore", visibleScore).put("hiddenScore", hiddenScore);
+            prodGate.set("visibleByTag", json.valueToTree(result.visibleByTag()));
+            save(result.jobId(), state, "RELEASE");
+            jobs.progress(result.jobId(), "RUN", "RELEASE", "合并提交的 prod 门禁与隐藏考题通过，等待 CI 发布");
+            return publicState(state);
+        });
+    }
+
+    public ObjectNode requestH4(String id) {
+        requireAdmin();
+        if (approvals == null) throw invalid("审批服务不可用");
+        return tx.execute(status -> {
+            var state = lock(id);
+            if ("WAITING_H4".equals(state.path("phase").asText()) && state.has("h4ApprovalId")) {
+                return publicState(state);
+            }
+            if (!"STAGING_GATE_PASSED".equals(state.path("phase").asText())
+                    || !state.path("gate").path("passed").asBoolean(false)
+                    || !state.path("delivery").path("sha").asText()
+                        .equals(state.path("gate").path("sha").asText())) {
+                throw invalid("只有通过 staging 门禁的候选提交可以申请 H4");
+            }
+            var target = state.path("requirement").path("target_agent").asText();
+            var approval = approvals.openDevflowMerge(id, target, state.path("delivery").path("sha").asText(),
+                    ConsolePrincipal.current().username());
+            state.put("h4ApprovalId", approval.id()).put("phase", "WAITING_H4");
+            save(id, state, "H4");
+            jobs.progress(id, "WAIT", "H4", "H4 高风险合并审批已提交，等待平台管理员处理");
+            return publicState(state);
+        });
+    }
+
+    public ObjectNode refreshH4(String id) {
+        requireAdmin();
+        var state = stateInternal(id);
+        if (!"WAITING_H4".equals(state.path("phase").asText()) || git == null) {
+            throw invalid("任务尚未等待 H4 审批");
+        }
+        var sha = state.path("delivery").path("sha").asText();
+        var approvalId = state.path("h4ApprovalId").asText();
+        var rows = jdbc.query("""
+                SELECT status, payload_digest FROM approval_request
+                WHERE id=? AND devflow_job_id=? AND devflow_gate='H4'
+                  AND subject_type='tool.call' AND subject_ref='git.pr.merge'
+                  AND agent_name=?
+                """, (rs, row) -> new String[]{rs.getString(1), rs.getString(2)},
+                ApprovalPolicyEngine.parseId(approvalId), id,
+                state.path("requirement").path("target_agent").asText());
+        if (rows.size() != 1 || !sha.equals(rows.getFirst()[1])) throw invalid("H4 审批与候选提交不一致");
+        var verdict = rows.getFirst()[0];
+        if ("PENDING".equals(verdict)) return publicState(state);
+        if ("REJECTED".equals(verdict) || "EXPIRED".equals(verdict)) {
+            return tx.execute(status -> {
+                var current = lock(id);
+                if (!"WAITING_H4".equals(current.path("phase").asText())) return publicState(current);
+                current.put("phase", "FAILED").put("error", "H4 合并审批已驳回或过期，候选 PR 保留待人工接管");
+                save(id, current, "H4");
+                jobs.progress(id, "FAIL", "H4", "H4 合并审批已驳回或过期，未执行 Git 合并");
+                return publicState(current);
+            });
+        }
+        if (!"APPROVED".equals(verdict)) throw invalid("H4 审批状态无效");
+        var delivery = state.path("delivery");
+        var merged = git.mergeApproved(id, delivery.path("repo").asText().replaceFirst("^[^/]+/", ""),
+                delivery.path("number").asInt(), sha);
+        return tx.execute(status -> {
+            var current = lock(id);
+            if (!"WAITING_H4".equals(current.path("phase").asText())
+                    || !sha.equals(current.path("delivery").path("sha").asText())
+                    || !approvalId.equals(current.path("h4ApprovalId").asText())) {
+                throw invalid("H4 候选提交或审批单已变化");
+            }
+            current.put("mergeSha", merged.path("sha").asText()).put("phase", "RELEASING");
+            save(id, current, "RELEASE");
+            jobs.progress(id, "RUN", "RELEASE", "H4 已批准且受保护 PR 已合并，等待生产门禁及 CI 发布");
+            return publicState(current);
+        });
+    }
+
     public Map<String, Object> review(String id) {
         var state = get(id);
         if (state == null) return jobs.review(id);
         if ("WAITING_SEEDS".equals(state.path("phase").asText())) {
             return Map.of("jobId", id, "gate", "H2", "execution", state, "seedInputRequired", true,
-                    "humanCount", 0, "minSeed", Math.max(1, jobs.settings().minSeed()),
+                    "humanCount", 0, "minSeed", Math.max(30, jobs.settings().minSeed()),
                     "holdoutRatio", jobs.settings().holdoutPercent() / 100.0);
         }
         if ("WAITING_EVAL".equals(state.path("phase").asText())) {
@@ -144,6 +457,28 @@ public class MetaAgentExecution {
             return Map.of("jobId", id, "gate", "H2", "execution", state, "seedInputRequired", false,
                     "humanCount", stateInternal(id).path("humanSeeds").size(),
                     "holdoutRatio", jobs.settings().holdoutPercent() / 100.0, "cases", cases);
+        }
+        if ("WAITING_H4".equals(state.path("phase").asText())) {
+            var response = new LinkedHashMap<String, Object>();
+            response.put("jobId", id);
+            response.put("gate", "H4");
+            response.put("execution", state);
+            response.put("approvalId", state.path("h4ApprovalId").asText());
+            var gate = state.path("gate");
+            var reports = jdbc.query("SELECT by_tag::text FROM devflow_holdout_result WHERE job_id=? AND passed",
+                    (rs, row) -> readArray(rs.getString(1)), id);
+            var hiddenByTag = new LinkedHashMap<String, Double>();
+            if (!reports.isEmpty()) {
+                for (var item : reports.getFirst()) hiddenByTag.put(item.path("tag").asText(), item.path("score").asDouble());
+            }
+            var byTag = new ArrayList<Map<String, Object>>();
+            gate.path("visibleByTag").fields().forEachRemaining(entry -> byTag.add(Map.of(
+                    "tag", entry.getKey(), "visible", entry.getValue().asDouble(),
+                    "holdout", hiddenByTag.getOrDefault(entry.getKey(), 0.0))));
+            response.put("gateReport", Map.of("visible", gate.path("visibleScore").asDouble(),
+                    "holdout", gate.path("hiddenScore").asDouble(), "minScore", HoldoutRules.MIN_SCORE,
+                    "byTag", byTag));
+            return response;
         }
         if (!"WAITING".equals(state.path("phase").asText())) throw new KeelException(ErrorCode.RUN_NOT_RESUMABLE, "任务当前不在人工确认关口");
         var draft = state.path("draft");
@@ -192,7 +527,8 @@ public class MetaAgentExecution {
         return tx.execute(status -> {
             var state = lock(id);
             if (!"WAITING_SEEDS".equals(state.path("phase").asText())) throw invalid("当前不在人工种子用例上传阶段");
-            int minimum = Math.max(1, jobs.settings().minSeed());
+            // DEV onboarding requires at least 30 human-authored seed cases per role.
+            int minimum = Math.max(30, jobs.settings().minSeed());
             if (cases == null || cases.size() < minimum || cases.size() > 100) throw invalid("人工种子用例数量不足或超过上限：至少 " + minimum + " 条");
             if (json.valueToTree(cases).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 100_000) {
                 throw invalid("人工种子用例总量不得超过 100KB");
@@ -399,8 +735,30 @@ public class MetaAgentExecution {
         try { return (ObjectNode) json.readTree(value); } catch (Exception e) { throw invalid("执行产物不是 JSON 对象"); }
     }
 
+    private JsonNode readArray(String value) {
+        try {
+            var node = json.readTree(value);
+            if (node.isArray()) return node;
+        } catch (Exception ignored) { }
+        throw invalid("隐藏考题聚合报告损坏");
+    }
+
     private ObjectNode publicState(ObjectNode state) {
-        var result = state.deepCopy(); result.remove(List.of("catalog", "feedback", "confirmedVersion", "humanSeeds", "evalDraft")); return result;
+        var result = state.deepCopy();
+        result.remove(List.of("catalog", "feedback", "confirmedVersion", "humanSeeds", "evalDraft"));
+        if (state.has("acceptedAgentCount")) {
+            var grants = jdbc.query("SELECT tool_name, version_range, granted_by FROM devflow_tool_grant WHERE job_id=? ORDER BY tool_name",
+                    (rs, n) -> Map.of("toolName", rs.getString(1), "versionRange", rs.getString(2),
+                            "grantedBy", rs.getString(3)), state.path("jobId").asText());
+            result.set("toolGrants", json.valueToTree(grants));
+            var approved = grants.stream().map(row -> row.get("toolName")).collect(java.util.stream.Collectors.toSet());
+            var pending = new ArrayList<String>();
+            state.path("requirement").path("tools").forEach(item -> {
+                if (!approved.contains(item.asText())) pending.add(item.asText());
+            });
+            result.set("pendingToolGrants", json.valueToTree(pending));
+        }
+        return result;
     }
 
     private ObjectNode stateInternal(String id) {

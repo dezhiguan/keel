@@ -90,13 +90,13 @@ export const DEV_ROLE_TEMPLATES: Record<string, string> = {
   'release-agent': 'tool-agent',
 }
 export const DEV_ROLE_TOOLS: Record<string, string[]> = {
-  'dev-lead': ['devflow.job.read', 'devflow.stage.report'],
-  'spec-agent': ['devflow.catalog.search'],
-  'dev-agent': ['sandbox.run', 'git.repo.create', 'git.pr.open'],
-  'eval-agent': ['sandbox.run'],
+  'dev-lead': ['devflow.job.read', 'devflow.stage.report', 'devflow.batch.read'],
+  'spec-agent': ['devflow.catalog.search', 'devflow.stage.report'],
+  'dev-agent': ['sandbox.run', 'git.repo.create', 'git.branch.push', 'git.pr.open'],
+  'eval-agent': ['devflow.job.read', 'sandbox.run', 'devflow.stage.report'],
   'code-review': ['git.pr.diff', 'git.pr.comment'],
   'ci-doctor': ['ci.log.fetch', 'keel.gate.report.read'],
-  'release-agent': ['ci.workflow.dispatch', 'git.pr.merge'],
+  'release-agent': ['ci.workflow.dispatch', 'keel.gate.report.read', 'git.pr.merge'],
 }
 
 export const DEVFLOW_TOOLS = ['git.log.read', 'git.tag.list', 'jira.issue.search', 'wecom.message.send', 'rag.search', 'work_order_create']
