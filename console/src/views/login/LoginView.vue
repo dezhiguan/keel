@@ -252,10 +252,28 @@ async function enterPreview() {
         </div>
       </section>
     </div>
+    <footer class="icp-footer">
+      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">闽ICP备2026020389号-1</a>
+    </footer>
   </div>
 </template>
 
 <style scoped>
+.login-page { position: relative; }
+.lhero { padding-bottom: 48px; }
+.lside { padding-bottom: 48px; }
+.icp-footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  z-index: 2;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.icp-footer a { color: #8b9bb4; text-decoration: none; }
+.icp-footer a:hover { color: var(--white); text-decoration: underline; }
 .logo { display: flex; align-items: center; gap: 10px; padding: 0 0 12px; }
 .logo b { color: var(--white); font-size: 16px; display: block; line-height: 1.1; }
 .logo small { color: var(--mute); font-family: var(--mono); font-size: 10px; }
