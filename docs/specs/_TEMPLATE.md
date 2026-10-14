@@ -26,6 +26,14 @@ keel-server/src/main/resources/db/migration/V*__*.sql
 
 贴出本任务涉及的接口签名、表结构、事件格式。以 `contracts/` 为准，这里只是摘录。
 
+## 界面对齐
+
+不能留空。没有界面改动写"无"。
+
+- 原型位置：`docs/console/Keel-控制台前端-20261014.html` 的哪个路由、哪个 tab、哪个区块
+- 对齐清单里的行：`docs/specs/r1014/ui-checklist.md` 中本任务编号对应的行
+- 页面数据来自哪个 keel-server 接口
+
 ## 实现要点
 
 只写容易做错的地方。常规写法不用写，`AGENTS.md` 和 `.cursor/rules/` 里已经有了。

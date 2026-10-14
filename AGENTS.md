@@ -11,6 +11,7 @@ Keel 是智能体平台底座。设计文档在 `docs/` 下按包分类，冲突
 1. 先读 `docs/specs/p0/` 或 `docs/specs/p1/` 下对应任务的 spec。没有 spec 就先写 spec，不要直接改代码。
 2. 涉及跨语言的数据结构，先看 `contracts/`。契约是唯一事实来源。
 3. 外部组件（Langfuse Cloud、薄网关、auth-gateway）的接口**不要凭记忆写**。这三处的正确用法和通用写法差别很大，见 `.cursor/rules/external-apis.mdc`。核实不了就停下来问。
+4. **会影响控制台页面的任务（包括只改后端接口字段的），先对照原型 `docs/console/Keel-控制台前端-20261014.html` 和对齐清单 `docs/specs/r1014/ui-checklist.md`。** 清单里该任务编号对应的行要一起做完并更新状态；接口有了、页面没跟上，不算完成。
 
 ## 铁律
 

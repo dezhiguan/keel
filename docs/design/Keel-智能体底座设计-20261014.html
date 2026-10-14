@@ -2181,7 +2181,7 @@ keel retire --env prod
     <tbody>
       <tr><td><b>工具调用</b></td><td><code>ctx.llm.chat</code> 增加可选参数 <code>tools</code>，返回内容 + tool_calls；现有调用方不变。薄网关原样转发，能力表标出哪些模型支持。</td></tr>
       <tr><td><b>ctx.loop</b></td><td>SDK 里的函数，不是底座远程控制。停止条件统一：目标完成、步数上限（执行 <code>budget.maxSteps</code>）、预算上限（委派时向下传）、原地打转（同工具同参数连续 2 次）。循环内高风险工具存 checkpoint 后发 <code>suspend</code>，恢复后接着跑。每步一个 span，属性 <code>keel.loop.step</code>。</td></tr>
-      <tr><td><b>执行方式三档</b></td><td>从最简单的选起：① 普通代码，固定流程用；② <code>ctx.loop</code>；③ 图，只在有回退、并行、中途等人时用，Python 适配 LangGraph（挂起恢复、追踪、预算），Java 实现方式待定。</td></tr>
+      <tr><td><b>执行方式三档</b></td><td>从最简单的选起：① 普通代码，固定流程用；② <code>ctx.loop</code>；③ 图，只在有回退、并行、中途等人时用，Python 适配 LangGraph（挂起恢复、追踪、预算）；Java 暂不做图。</td></tr>
       <tr><td><b>ctx.memory</b></td><td>运行内上下文由 loop 自动累积；会话记忆、用户记忆存独立库 <code>keel_memory</code>（PG + pgvector）；评测流量（<code>eval_run_id</code> 非空）一律不写；用户可查可删，审计只记条数和类别。</td></tr>
       <tr><td><b>ctx.skills</b></td><td>技能 = 说明 + 依赖工具 + 示例 + 用例，manifest <code>spec.skills</code> 锁定版本，按需加载进上下文。技能不带权限，依赖的工具和知识库分别走 H3；风险继承依赖工具中最高的。</td></tr>
       <tr><td><b>独立运行模式</b></td><td><code>KEEL_MODE=standalone</code>：模型直连任意 OpenAI 兼容地址，提示词读本地 <code>prompts/</code>，审计写本地（keel-lite），追踪可选，不需要注册。默认受治理模式，生产必须受治理。</td></tr>
@@ -2318,15 +2318,15 @@ keel retire --env prod
 
 <!-- 32 -->
 <section class="sec" id="s32">
-  <div class="sec-h reveal"><div class="no">32</div><h2>待拍板与实施顺序</h2><p>定不了的先列出来，不在实现里猜。</p></div>
+  <div class="sec-h reveal"><div class="no">32</div><h2>决策与实施顺序</h2><p>2026-10-15 已定四项；未定的不在实现里猜。任务拆解见 <code>docs/specs/r1014/README.md</code>。</p></div>
   <table class="doc reveal">
-    <thead><tr><th>待拍板</th><th>为什么现在定不了</th></tr></thead>
+    <thead><tr><th>事项</th><th>结论（2026-10-15）</th></tr></thead>
     <tbody>
-      <tr><td>会话原文、用户记忆存 Keel 库的合规口径</td><td>Keel 第一次在自有库里存用户原文</td></tr>
-      <tr><td>结构化提示词的结构信息存 Langfuse config 还是 Keel 库</td><td>Langfuse config 的传法未实测；现规则只认三个模型参数</td></tr>
-      <tr><td>Java 侧图的实现</td><td>没有 LangGraph，需评估现成库或自研最小执行器</td></tr>
-      <tr><td>托管页面域名</td><td>统一域名子路径还是每个智能体绑自己的域名</td></tr>
-      <tr><td>私有包仓库</td><td>Nexus、私有 PyPI 或 GitHub Packages</td></tr>
+      <tr><td>私有包仓库</td><td>用当前 GitHub：Java starter 发 GitHub Packages（Maven）；Python SDK 发 GitHub Release wheel（GitHub Packages 不支持 PyPI）</td></tr>
+      <tr><td>结构化提示词的结构信息</td><td>存 Langfuse 提示词 config 的 <code>keel</code> 命名空间；先实测 config 传法，再改"config 只认三项"的规则</td></tr>
+      <tr><td>托管页面域名</td><td>先用底座域名的子路径；控制台 Cookie 限定路径，托管页面不可读</td></tr>
+      <tr><td>Java 侧的图</td><td>暂不做；Java 智能体用普通代码和 <code>ctx.loop</code></td></tr>
+      <tr><td>会话原文、用户记忆存 Keel 库的合规口径</td><td class="n">待定，记忆服务不开工</td></tr>
     </tbody>
   </table>
   <div class="road reveal" style="margin-top:26px;grid-template-columns:repeat(4,1fr)">

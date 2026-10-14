@@ -10,7 +10,7 @@ Vue 3.4+ · Vite 5 · TypeScript · Element Plus · Pinia · Vue Router · EChar
 
 ## 和原型的关系
 
-页面原型是 `docs/console/Keel-控制台前端.html`，按它拆成 `src/views/` 下的组件。
+页面原型以 `docs/console/Keel-控制台前端-20261014.html`（第 3 版，最终形态）为准，按它拆成 `src/views/` 下的组件；`Keel-控制台前端.html`、`Keel-全流程智能体化控制台.html` 是历史版本。紫色"提案"标签是要新做的功能，逐项对照 `docs/specs/r1014/ui-checklist.md`。同一页的多维度信息用 tab，不上下堆叠。
 **原型里的写死数据只是布局参考**，实现时全部换成接口数据。原型里下面这些是没做的，正式工程必须真正实现：
 
 - 链路追踪只有一条写死的 trace（`RECENT` 数组、`N_M` 节点数组），要改成从 `insight/traces` 拉列表 + 详情
