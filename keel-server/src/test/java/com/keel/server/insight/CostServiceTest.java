@@ -34,7 +34,7 @@ class CostServiceTest {
                         : query.contains("page=2") ? page(1, "wind-prod", "deepseek-v3", 3)
                         : "{\"data\":[]}";
                 case "/admin/v1/models" -> "{\"data\":[{\"name\":\"qwen-plus\",\"priceConfigured\":true},{\"name\":\"draft\",\"priceConfigured\":false}]}";
-                case "/admin/v1/keys" -> "{\"data\":[{\"alias\":\"askdb-dev\",\"version\":4,\"models\":[\"qwen-plus\"],\"dailyBudgetCny\":30,\"spentCny\":1.5,\"blocked\":false}]}";
+                case "/admin/v1/keys" -> "{\"data\":[{\"alias\":\"askdb-dev\",\"version\":4,\"models\":[\"qwen-plus\"],\"dailyBudgetCny\":30,\"spentCny\":1.5,\"reservedCny\":2.25,\"blocked\":false}]}";
                 case "/api/public/v3/scores" -> "{\"data\":[{\"name\":\"askdb\",\"value\":0.8},{\"name\":\"wind\",\"value\":1.0}]}";
                 default -> "{\"data\":[]}";
             };
@@ -57,6 +57,7 @@ class CostServiceTest {
             assertThat(key.env()).isEqualTo("dev");
             assertThat(key.dailyBudgetCny()).isEqualTo(30);
             assertThat(key.spentCny()).isEqualTo(1.5);
+            assertThat(key.reservedCny()).isEqualTo(2.25);
             assertThat(key.version()).isEqualTo(4);
         });
         assertThat(result.models()).anySatisfy(model -> {

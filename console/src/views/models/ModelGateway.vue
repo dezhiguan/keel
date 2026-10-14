@@ -164,7 +164,7 @@ watch(() => envStore.env, load, { immediate: true })
     <div v-else class="card">
       <h3>虚拟 Key 与日预算<small>keel register 自动创建，keel retire 自动吊销</small></h3>
       <table class="t">
-        <thead><tr><th>智能体</th><th>Key 别名 · 版本</th><th>可用模型</th><th style="width: 34%">今日 / 日预算</th><th>状态</th><th /></tr></thead>
+        <thead><tr><th>智能体</th><th>Key 别名 · 版本</th><th>可用模型</th><th style="width: 34%">已结算 + 预留 / 日预算</th><th>状态</th><th /></tr></thead>
         <tbody>
           <tr v-for="k in keyRows" :key="k.alias">
             <td>{{ k.agent }}</td>
@@ -172,13 +172,13 @@ watch(() => envStore.env, load, { immediate: true })
             <td class="mono">{{ k.models?.length }}</td>
             <td>
               <div style="display: flex; justify-content: space-between; font-size: 12px">
-                <span class="mono">{{ yuan(k.spentCny) }}</span><span class="mono mut">¥{{ k.dailyBudgetCny }}</span>
+                <span class="mono">{{ yuan(k.spentCny) }} + {{ yuan(k.reservedCny) }}</span><span class="mono mut">¥{{ k.dailyBudgetCny }}</span>
               </div>
-              <div class="bar"><i :style="{ width: `${usage(k.spentCny, k.dailyBudgetCny)}%`, background: barColor(usage(k.spentCny, k.dailyBudgetCny)) }" /></div>
+              <div class="bar"><i :style="{ width: `${usage((k.spentCny ?? 0) + (k.reservedCny ?? 0), k.dailyBudgetCny)}%`, background: barColor(usage((k.spentCny ?? 0) + (k.reservedCny ?? 0), k.dailyBudgetCny)) }" /></div>
             </td>
             <td>
               <StatusPill v-if="k.status === 'BLOCKED'" tone="idle" label="已吊销" />
-              <StatusPill v-else-if="usage(k.spentCny, k.dailyBudgetCny) > 60" tone="degraded" :label="`${Math.round(usage(k.spentCny, k.dailyBudgetCny))}%`" />
+              <StatusPill v-else-if="usage((k.spentCny ?? 0) + (k.reservedCny ?? 0), k.dailyBudgetCny) > 60" tone="degraded" :label="`${Math.round(usage((k.spentCny ?? 0) + (k.reservedCny ?? 0), k.dailyBudgetCny))}%`" />
               <StatusPill v-else tone="ok" label="有效" />
             </td>
             <td style="white-space: nowrap">

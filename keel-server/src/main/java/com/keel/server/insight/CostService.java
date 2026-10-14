@@ -94,7 +94,7 @@ public class CostService {
         var keys = gateway.keys().stream()
                 .filter(key -> inEnv(key.alias(), env))
                 .map(key -> new Key(key.alias(), agentOf(key.alias()), envOf(key.alias()), key.models(),
-                        key.dailyBudgetCny(), key.spentCny(), key.blocked(), key.version()))
+                        key.dailyBudgetCny(), key.spentCny(), key.reservedCny(), key.blocked(), key.version()))
                 .toList();
         var stats = stats(gateway.models(), rows, keys, env, since, now);
         return new Result(total, rows.size(), byAgent, byModel, gateway.models(), keys, stats);
@@ -326,7 +326,8 @@ public class CostService {
         return "";
     }
 
-    public record Key(String alias, String agent, String env, List<String> models, double dailyBudgetCny, double spentCny, boolean blocked, int version) {}
+    public record Key(String alias, String agent, String env, List<String> models, double dailyBudgetCny,
+                      double spentCny, double reservedCny, boolean blocked, int version) {}
 
     public record ModelStat(String name, String provider, String role, int calls, String p95, Double timeoutRate,
                             double costCny, String status, boolean priceConfigured) {}

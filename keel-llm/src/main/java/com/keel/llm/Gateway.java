@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -75,7 +76,11 @@ public final class Gateway {
 
     public List<ListedKey> listed() {
         return keys.list().stream()
-                .map(key -> new ListedKey(key.alias(), key.models(), key.dailyBudgetCny(), budget.spent(key.alias()), key.blocked(), key.version()))
+                .map(key -> {
+                    var amounts = budget.snapshot(key.alias());
+                    return new ListedKey(key.alias(), key.models(), key.dailyBudgetCny(),
+                            amounts.settledCny(), amounts.reservedCny(), key.blocked(), key.version());
+                })
                 .toList();
     }
 
@@ -101,40 +106,64 @@ public final class Gateway {
         if (!key.models.contains(requested)) {
             throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "模型不在该 Key 的允许列表里");
         }
-        if (budget.spent(key.alias).compareTo(key.dailyBudgetCny) >= 0) {
+        var attempts = attempts(key, requested, "/v1/embeddings".equals(path));
+        var forwarding = (ObjectNode) request.deepCopy();
+        var maxCost = reservationCost(attempts, path);
+        var requestId = LocalDate.now(BudgetCounter.SHANGHAI) + "@" + UUID.randomUUID();
+        if (!budget.reserve(key.alias, requestId, maxCost, key.dailyBudgetCny)) {
             throw new GatewayException(ErrorCode.LLM_BUDGET_EXCEEDED, ErrorCode.LLM_BUDGET_EXCEEDED.message());
         }
-        var attempts = attempts(key, requested, "/v1/embeddings".equals(path));
         Upstream.Result result = null;
         String used = requested;
         long latencyMs = 0;
-        for (int i = 0; i < attempts.size(); i++) {
-            used = attempts.get(i);
-            var model = catalog.require(used);
-            var forwarded = ((ObjectNode) request.deepCopy()).put("model", used).toString();
-            var started = System.nanoTime();
-            result = upstream.post(model.upstream(), model.upstreamKey(), path, forwarded, timeout);
-            latencyMs = Math.max(0L, (System.nanoTime() - started) / 1_000_000L);
-            if (result.retryable()) {
-                remember(key.alias(), used, 0, 0, BigDecimal.ZERO, latencyMs, result.status() == 504);
-                if (i < attempts.size() - 1) {
-                    continue;
+        var billableResponse = false;
+        try {
+            for (int i = 0; i < attempts.size(); i++) {
+                used = attempts.get(i);
+                var model = catalog.require(used);
+                var forwarded = forwarding.deepCopy().put("model", used).toString();
+                var started = System.nanoTime();
+                result = upstream.post(model.upstream(), model.upstreamKey(), path, forwarded, timeout);
+                latencyMs = Math.max(0L, (System.nanoTime() - started) / 1_000_000L);
+                if (result.retryable()) {
+                    remember(key.alias(), used, 0, 0, BigDecimal.ZERO, latencyMs, result.status() == 504, requestId);
+                    if (i < attempts.size() - 1) {
+                        continue;
+                    }
+                    throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "上游失败");
                 }
+                break;
+            }
+            if (result == null) {
                 throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "上游失败");
             }
-            break;
+            billableResponse = true;
+            var cost = costOf(used, result.body());
+            budget.settle(key.alias, requestId, cost);
+            var row = remember(key.alias, used, tokens(result.body(), "prompt_tokens"),
+                    tokens(result.body(), "completion_tokens"), cost, latencyMs, false, requestId);
+            return new Completion(result.status(), result.body(), row);
+        } finally {
+            if (!billableResponse) budget.release(key.alias, requestId);
         }
-        if (result == null) {
-            throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "上游失败");
-        }
-        var cost = costOf(used, result.body());
-        budget.add(key.alias, cost);
-        var row = remember(key.alias, used, tokens(result.body(), "prompt_tokens"), tokens(result.body(), "completion_tokens"), cost, latencyMs, false);
-        return new Completion(result.status(), result.body(), row);
     }
 
-    private Spend remember(String alias, String model, int inputTokens, int outputTokens, BigDecimal cost, long latencyMs, boolean timedOut) {
-        var row = new Spend(alias, model, inputTokens, outputTokens, cost, "req-" + UUID.randomUUID(), Instant.now(), latencyMs, timedOut);
+    private BigDecimal reservationCost(List<String> attempts, String path) {
+        BigDecimal highest = BigDecimal.ZERO;
+        for (var name : attempts) {
+            var model = catalog.require(name);
+            var estimated = model.inputCnyPerToken().multiply(BigDecimal.valueOf(model.maxInputTokens()));
+            if (!"/v1/embeddings".equals(path)) {
+                estimated = estimated.add(model.outputCnyPerToken().multiply(BigDecimal.valueOf(model.maxOutputTokens())));
+            }
+            highest = highest.max(estimated);
+        }
+        return highest.setScale(6, RoundingMode.CEILING);
+    }
+
+    private Spend remember(String alias, String model, int inputTokens, int outputTokens, BigDecimal cost, long latencyMs,
+                           boolean timedOut, String requestId) {
+        var row = new Spend(alias, model, inputTokens, outputTokens, cost, requestId, Instant.now(), latencyMs, timedOut);
         spendLog.append(row);
         return row;
     }
@@ -201,7 +230,8 @@ public final class Gateway {
         }
     }
 
-    public record ListedKey(String alias, List<String> models, BigDecimal dailyBudgetCny, BigDecimal spentCny, boolean blocked, int version) {}
+    public record ListedKey(String alias, List<String> models, BigDecimal dailyBudgetCny, BigDecimal spentCny,
+                            BigDecimal reservedCny, boolean blocked, int version) {}
 
     public record Spend(String alias, String model, int inputTokens, int outputTokens, BigDecimal costCny, String requestId, Instant ts, long latencyMs, boolean timedOut) {}
 

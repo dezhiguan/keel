@@ -108,6 +108,7 @@ public class InsightController {
                     row.put("models", key.models());
                     row.put("dailyBudgetCny", key.dailyBudgetCny());
                     row.put("spentCny", key.spentCny());
+                    row.put("reservedCny", key.reservedCny());
                     row.put("status", key.blocked() ? "BLOCKED" : "ACTIVE");
                     return row;
                 }).toList();

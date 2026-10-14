@@ -75,6 +75,7 @@ public class LlmController {
             view.put("models", key.models());
             view.put("dailyBudgetCny", key.dailyBudgetCny());
             view.put("spentCny", key.spentCny());
+            view.put("reservedCny", key.reservedCny());
             view.put("blocked", key.blocked());
             view.put("version", key.version());
             return view;

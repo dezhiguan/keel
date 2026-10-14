@@ -2313,6 +2313,11 @@ export interface components {
                 dailyBudgetCny?: number;
                 /** Format: float */
                 spentCny?: number;
+                /**
+                 * Format: float
+                 * @description 尚未结算的模型请求预留额
+                 */
+                reservedCny?: number;
                 /** @enum {string} */
                 status?: "ACTIVE" | "BLOCKED";
             }[];

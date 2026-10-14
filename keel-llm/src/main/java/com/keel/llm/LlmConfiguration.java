@@ -25,7 +25,9 @@ public class LlmConfiguration {
                 decimal(model.getInputCnyPerToken()),
                 decimal(model.getOutputCnyPerToken()),
                 model.getUpstream(),
-                model.getUpstreamKey())));
+                model.getUpstreamKey(),
+                model.getMaxInputTokens(),
+                model.getMaxOutputTokens())));
         return new ModelCatalog(models);
     }
 
@@ -74,6 +76,8 @@ public class LlmConfiguration {
         private String outputCnyPerToken = "";
         private String upstream = "";
         private String upstreamKey = "";
+        private int maxInputTokens;
+        private int maxOutputTokens;
 
         public String getInputCnyPerToken() { return inputCnyPerToken; }
         public void setInputCnyPerToken(String inputCnyPerToken) { this.inputCnyPerToken = inputCnyPerToken; }
@@ -83,5 +87,9 @@ public class LlmConfiguration {
         public void setUpstream(String upstream) { this.upstream = upstream; }
         public String getUpstreamKey() { return upstreamKey; }
         public void setUpstreamKey(String upstreamKey) { this.upstreamKey = upstreamKey; }
+        public int getMaxInputTokens() { return maxInputTokens; }
+        public void setMaxInputTokens(int maxInputTokens) { this.maxInputTokens = maxInputTokens; }
+        public int getMaxOutputTokens() { return maxOutputTokens; }
+        public void setMaxOutputTokens(int maxOutputTokens) { this.maxOutputTokens = maxOutputTokens; }
     }
 }

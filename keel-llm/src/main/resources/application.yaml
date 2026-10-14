@@ -7,17 +7,23 @@ keel:
     # 单价是占位，部署前改成厂商当天价目。缺了或写成 0，进程拒绝启动。
     models:
       qwen-plus:
+        max-input-tokens: 1000000
+        max-output-tokens: 32768
         input-cny-per-token: "0.0000008"
         output-cny-per-token: "0.000002"
         upstream: ${QWEN_UPSTREAM:https://dashscope.aliyuncs.com/compatible-mode}
         upstream-key: ${QWEN_API_KEY:}
       deepseek-v3:
+        max-input-tokens: 1000000
+        max-output-tokens: 131072
         input-cny-per-token: "0.000001"
         output-cny-per-token: "0.000002"
         upstream: ${DEEPSEEK_UPSTREAM:https://api.deepseek.com}
         upstream-key: ${DEEPSEEK_API_KEY:}
       # 2026-10-08 阿里云百炼中国站华北2（北京）标准价：输入 0.8 元/百万 tokens，输出 2.7 元/百万 tokens。不含缓存折扣。
       qwen3.8-flash:
+        max-input-tokens: 991808
+        max-output-tokens: 131072
         input-cny-per-token: "0.0000008"
         output-cny-per-token: "0.0000027"
         upstream: ${QWEN_UPSTREAM:https://dashscope.aliyuncs.com/compatible-mode}

@@ -136,6 +136,7 @@ public class LiteLlmClient {
                 texts(row.path("models")),
                 row.path("dailyBudgetCny").asDouble(),
                 row.path("spentCny").asDouble(),
+                row.path("reservedCny").asDouble(),
                 row.path("blocked").asBoolean(false),
                 row.path("version").asInt(1))));
         return rows;
@@ -176,9 +177,10 @@ public class LiteLlmClient {
         send("/admin/v1/keys/" + alias + "/budget", Map.of("dailyBudgetCny", dailyBudgetCny));
     }
 
-    public record VirtualKey(String alias, List<String> models, double dailyBudgetCny, double spentCny, boolean blocked, int version) {
+    public record VirtualKey(String alias, List<String> models, double dailyBudgetCny, double spentCny,
+                             double reservedCny, boolean blocked, int version) {
         public VirtualKey(String alias, List<String> models, double dailyBudgetCny, double spentCny, boolean blocked) {
-            this(alias, models, dailyBudgetCny, spentCny, blocked, 1);
+            this(alias, models, dailyBudgetCny, spentCny, 0, blocked, 1);
         }
     }
 

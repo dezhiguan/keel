@@ -3200,6 +3200,7 @@ components:
                 items: { type: string }
               dailyBudgetCny: { type: number, format: float }
               spentCny: { type: number, format: float }
+              reservedCny: { type: number, format: float, description: 尚未结算的模型请求预留额 }
               status: { type: string, enum: [ACTIVE, BLOCKED] }
         routing:
           type: array

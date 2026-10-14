@@ -9,9 +9,15 @@ import java.util.Map;
 
 /** Prices are CNY per token. A missing or non-positive price refuses startup. */
 public final class ModelCatalog {
-    public record Model(String name, BigDecimal inputCnyPerToken, BigDecimal outputCnyPerToken, String upstream, String upstreamKey) {
+    public record Model(String name, BigDecimal inputCnyPerToken, BigDecimal outputCnyPerToken, String upstream, String upstreamKey,
+                        int maxInputTokens, int maxOutputTokens) {
+        public Model(String name, BigDecimal inputCnyPerToken, BigDecimal outputCnyPerToken, String upstream, String upstreamKey) {
+            this(name, inputCnyPerToken, outputCnyPerToken, upstream, upstreamKey, 1_000_000, 262_144);
+        }
+
         public boolean priceConfigured() {
-            return inputCnyPerToken.signum() > 0 && outputCnyPerToken.signum() > 0;
+            return inputCnyPerToken.signum() > 0 && outputCnyPerToken.signum() > 0
+                    && maxInputTokens > 0 && maxOutputTokens > 0;
         }
     }
 
