@@ -25,4 +25,6 @@ packages = ["keel"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "../contracts/manifest.schema.json" = "keel/_schemas/manifest.schema.json"
+"../contracts/sse-events.schema.json" = "keel/_schemas/sse-events.schema.json"
 "../contracts/invoke.openapi.yaml" = "keel/_schemas/invoke.openapi.yaml"
+"../contracts/error-codes.yaml" = "keel/_schemas/error-codes.yaml"

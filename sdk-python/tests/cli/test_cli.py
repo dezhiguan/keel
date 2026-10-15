@@ -65,12 +65,17 @@ def test_new_project_matches_schema_and_ignores_local_state(tmp_path):
     assert "ctx.step('greet')" in (project / "app.py").read_text()
     assert not (project / "vendor").exists()
     assert (project / "scripts/install-keel-sdk.py").is_file()
+    assert (project / "contracts/manifest.schema.json").is_file()
+    lock = (project / "requirements.lock").read_text()
+    assert "httpx==0.28.1" in lock and "pytest==9.1.1" in lock
     dockerfile = (project / "Dockerfile").read_text()
     workflow = (project / ".github/workflows/keel.yml").read_text()
     assert "pip install keel-sdk" not in dockerfile
     assert "pip install keel-sdk" not in workflow
     assert "scripts/install-keel-sdk.py" in dockerfile
+    assert "requirements.lock" in dockerfile
     assert "KEEL_GITHUB_TOKEN" in dockerfile
+    assert workflow.index("pytest -q") < workflow.index("keel gate --env staging") < workflow.index("docker build")
 
 
 def test_new_does_not_vendor_a_local_wheel(tmp_path, monkeypatch):

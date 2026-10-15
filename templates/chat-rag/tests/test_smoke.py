@@ -45,10 +45,11 @@ def test_prompt_forbids_invented_sources():
     assert "Do not invent" in (ROOT / "prompts/answer.md").read_text()
 
 
-def test_workflow_runs_pytest_until_gate_exists():
+def test_workflow_runs_tests_then_gate_then_release():
     text = (ROOT / ".github/workflows/keel.yml").read_text()
-    assert "pytest -q" in text
-    assert "keel release" not in text.split("run:")[-1]
+    assert text.index("pytest -q") < text.index("keel gate --env staging")
+    assert text.index("keel gate --env staging") < text.index("docker build")
+    assert text.index("docker build") < text.index("keel release --env staging")
 
 
 def test_dockerfile_uses_public_python_until_runtime_image_exists():

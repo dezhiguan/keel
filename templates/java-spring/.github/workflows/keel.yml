@@ -1,7 +1,7 @@
 name: keel
 on: [push, pull_request]
 jobs:
-  test:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -10,9 +10,46 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
-      # P2-3 replaces this job with: test -> keel gate -> build -> keel release.
-      - name: Test against the published starter
+      - name: Unit tests
         env:
           KEEL_GITHUB_TOKEN: ${{ secrets.KEEL_GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
         run: mvn -s ci/settings.xml -B test
+      - name: Package
+        env:
+          KEEL_GITHUB_TOKEN: ${{ secrets.KEEL_GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        run: mvn -s ci/settings.xml -B -DskipTests package
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install the keel CLI
+        env:
+          KEEL_GITHUB_TOKEN: ${{ secrets.KEEL_GITHUB_TOKEN }}
+        run: python scripts/install-keel-sdk.py
+      - name: Gate
+        env:
+          KEEL_SERVER_URL: ${{ secrets.KEEL_SERVER_URL }}
+        run: |
+          java -jar target/app.jar --server.port=8080 &
+          python -c 'import socket,time
+for _ in range(50):
+    try:
+        socket.create_connection(("127.0.0.1", 8080), 1).close(); break
+    except OSError:
+        time.sleep(0.2)
+else:
+    raise SystemExit("agent did not open port 8080")'
+          keel gate --env staging
+      - name: Build the image
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA}"
+          docker build -t "$image" .
+          echo "image=$image" >> "$GITHUB_ENV"
+      - name: Register and release staging
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          KEEL_SERVER_URL: ${{ secrets.KEEL_SERVER_URL }}
+        run: |
+          keel register --env staging
+          keel release --env staging --image "$image"

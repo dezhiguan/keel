@@ -19,18 +19,50 @@ SCHEMA = json.loads((ROOT / "contracts/manifest.schema.json").read_text())
 PYTHON_TEMPLATES = ("loop-agent", "chat-rag", "tool-agent", "graph-agent", "supervisor")
 
 
+def _assert_no_platform_source_path(project: Path):
+    banned = ("sdk-python", "CursorProject", "../contracts", "/templates/")
+    for path in project.rglob("*"):
+        if not path.is_file() or path.suffix not in {".py", ".yml", ".yaml", ".lock", ".xml", ".json"}:
+            if path.suffix != "" or path.name != "Dockerfile":
+                continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        for item in banned:
+            assert item not in text, f"{path} references {item}"
+
+
+def _assert_pipeline(workflow: str):
+    steps = ("pytest -q", "keel gate --env staging", "docker build", "keel register --env staging", "keel release --env staging")
+    indexes = [workflow.index(step) for step in steps]
+    assert indexes == sorted(indexes)
+    assert "refs/heads/main" in workflow
+
+
+def _assert_contracts(project: Path):
+    for name in ("manifest.schema.json", "sse-events.schema.json", "invoke.openapi.yaml", "error-codes.yaml"):
+        generated = (project / "contracts" / name).read_text(encoding="utf-8")
+        original = (ROOT / "contracts" / name).read_text(encoding="utf-8")
+        assert generated == original
+
+
 def _assert_private_python_install(project: Path):
     dockerfile = (project / "Dockerfile").read_text(encoding="utf-8")
     workflow = (project / ".github/workflows/keel.yml").read_text(encoding="utf-8")
     installer = (project / "scripts/install-keel-sdk.py").read_text(encoding="utf-8")
+    lock = (project / "requirements.lock").read_text(encoding="utf-8")
     assert "pip install keel-sdk" not in dockerfile
     assert "pip install keel-sdk" not in workflow
     assert "vendor/" not in dockerfile
     assert not (project / "vendor").exists()
     assert "scripts/install-keel-sdk.py" in dockerfile
+    assert "requirements.lock" in dockerfile
     assert "KEEL_GITHUB_TOKEN" in dockerfile
     assert "pypi.org" not in dockerfile
     assert "dezhiguan/keel" in installer
+    assert lock.strip()
+    assert all("==" in line for line in lock.splitlines() if line.strip())
+    _assert_contracts(project)
+    _assert_pipeline(workflow)
+    _assert_no_platform_source_path(project)
 
 
 def test_templates_install_sdk_from_the_github_release(tmp_path):
@@ -65,7 +97,8 @@ def test_each_template_generates_and_its_smoke_tests_pass(tmp_path, template):
     _assert_project(project, rules, source_ext)
     _assert_private_python_install(project)
     if template == "graph-agent":
-        assert "-r /app/requirements.txt" in (project / "Dockerfile").read_text(encoding="utf-8")
+        assert "langgraph==1.2.12" in (project / "requirements.lock").read_text(encoding="utf-8")
+        assert not (project / "requirements.txt").exists()
     completed = subprocess.run(
         [sys.executable, "-m", "pytest", "tests", "-q", "--tb=short"],
         cwd=project, env=env, text=True, capture_output=True,
@@ -84,6 +117,14 @@ def test_java_spring_template_builds_two_agents(tmp_path):
     pom_path = project / "pom.xml"
     pom = pom_path.read_text(encoding="utf-8")
     assert "https://maven.pkg.github.com/dezhiguan/keel" in pom
+    _assert_contracts(project)
+    java_workflow = (project / ".github/workflows/keel.yml").read_text(encoding="utf-8")
+    java_steps = ("mvn -s ci/settings.xml -B test", "keel gate --env staging", "docker build",
+                  "keel register --env staging", "keel release --env staging")
+    java_indexes = [java_workflow.index(step) for step in java_steps]
+    assert java_indexes == sorted(java_indexes)
+    assert "refs/heads/main" in java_workflow
+    _assert_no_platform_source_path(project)
     settings = (project / "ci/settings.xml").read_text(encoding="utf-8")
     assert "${env.KEEL_GITHUB_TOKEN}" in settings
     assert "ghp_" not in settings

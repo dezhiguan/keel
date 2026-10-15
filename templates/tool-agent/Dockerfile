@@ -6,5 +6,5 @@ COPY . /app
 RUN --mount=type=secret,id=KEEL_GITHUB_TOKEN \
     KEEL_GITHUB_TOKEN="$(cat /run/secrets/KEEL_GITHUB_TOKEN)" \
     python scripts/install-keel-sdk.py \
- && pip install --no-cache-dir uvicorn pytest httpx
+ && pip install --no-cache-dir -r requirements.lock
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

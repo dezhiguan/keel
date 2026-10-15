@@ -10,6 +10,8 @@ from keel.manifest import load_manifest
 
 
 TEMPLATES = ("loop-agent", "chat-rag", "tool-agent", "graph-agent", "supervisor", "java-spring")
+CONTRACTS = ("manifest.schema.json", "sse-events.schema.json", "invoke.openapi.yaml", "error-codes.yaml")
+PYTHON_LOCK = "httpx==0.28.1\npytest==9.1.1\nuvicorn==0.54.0\n"
 
 
 def template_dir(name: str) -> Path:
@@ -49,8 +51,8 @@ def create_project(name: str, *, template: str = "loop-agent", root: str | Path 
         raise FileExistsError(f"{target} already exists")
     if template in TEMPLATES:
         _copy_template(template_dir(template), target, name)
-        if template != "java-spring":
-            _write_sdk_installer(target)
+        _write_sdk_installer(target)
+        _copy_contracts(target)
         print(f"Created {target}. Run: cd {name} && keel dev")
         return target
     target.mkdir(parents=True)
@@ -69,8 +71,9 @@ def create_project(name: str, *, template: str = "loop-agent", root: str | Path 
         "evals/seed.jsonl": "",
         "evals/scorers.py": "# Add deterministic scorers here.\n",
         "tests/.gitkeep": "",
-        "Dockerfile": _python_dockerfile("uvicorn"),
-        ".github/workflows/keel.yml": _python_workflow("pip install pytest httpx"),
+        "Dockerfile": _python_dockerfile(),
+        ".github/workflows/keel.yml": _python_workflow(),
+        "requirements.lock": PYTHON_LOCK,
         ".gitignore": ".keel/\n__pycache__/\n.pytest_cache/\n",
     }
     for relative, content in files.items():
@@ -78,36 +81,90 @@ def create_project(name: str, *, template: str = "loop-agent", root: str | Path 
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
     _write_sdk_installer(target)
+    _copy_contracts(target)
     load_manifest(target / "agent.yaml")
     print(f"Created {target}. Run: cd {name} && keel dev")
     return target
 
 
-def _python_dockerfile(extra_packages: str) -> str:
+def _python_dockerfile() -> str:
     return (
         "FROM python:3.11-slim\nWORKDIR /app\nCOPY . /app\n"
         "# docker build --secret id=KEEL_GITHUB_TOKEN,env=KEEL_GITHUB_TOKEN .\n"
         "RUN --mount=type=secret,id=KEEL_GITHUB_TOKEN \\\n"
         "    KEEL_GITHUB_TOKEN=\"$(cat /run/secrets/KEEL_GITHUB_TOKEN)\" \\\n"
         "    python scripts/install-keel-sdk.py \\\n"
-        f" && pip install --no-cache-dir {extra_packages}\n"
+        " && pip install --no-cache-dir -r requirements.lock\n"
         "CMD [\"uvicorn\", \"app:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]\n"
     )
 
 
-def _python_workflow(install_tests: str) -> str:
-    return (
-        "name: keel\non: [push, pull_request]\njobs:\n  test:\n"
-        "    runs-on: ubuntu-latest\n    steps:\n"
-        "      - uses: actions/checkout@v4\n"
-        "      - uses: actions/setup-python@v5\n        with:\n"
-        "          python-version: \"3.11\"\n"
-        "      - name: Install keel-sdk from the GitHub Release\n        env:\n"
-        "          KEEL_GITHUB_TOKEN: ${{ secrets.KEEL_GITHUB_TOKEN }}\n"
-        "        run: python scripts/install-keel-sdk.py\n"
-        f"      - run: {install_tests}\n"
-        "      - run: pytest -q\n"
-    )
+def _python_workflow() -> str:
+    return """name: keel
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install keel-sdk from the GitHub Release
+        env:
+          KEEL_GITHUB_TOKEN: ${{ secrets.KEEL_GITHUB_TOKEN }}
+        run: python scripts/install-keel-sdk.py
+      - name: Install locked dependencies
+        run: pip install -r requirements.lock
+      - name: Unit tests
+        run: pytest -q
+      - name: Gate
+        env:
+          KEEL_SERVER_URL: ${{ secrets.KEEL_SERVER_URL }}
+        run: |
+          uvicorn app:app --host 127.0.0.1 --port 8000 &
+          python -c 'import socket,time
+for _ in range(50):
+    try:
+        socket.create_connection(("127.0.0.1", 8000), 1).close(); break
+    except OSError:
+        time.sleep(0.2)
+else:
+    raise SystemExit("agent did not open port 8000")'
+          keel gate --env staging
+      - name: Build the image
+        env:
+          KEEL_GITHUB_TOKEN: ${{ secrets.KEEL_GITHUB_TOKEN }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA}"
+          docker build --secret id=KEEL_GITHUB_TOKEN,env=KEEL_GITHUB_TOKEN -t "$image" .
+          echo "image=$image" >> "$GITHUB_ENV"
+      - name: Register and release staging
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          KEEL_SERVER_URL: ${{ secrets.KEEL_SERVER_URL }}
+        run: |
+          keel register --env staging
+          keel release --env staging --image "$image"
+"""
+
+
+def _contract_dir() -> Path:
+    packaged = Path(__file__).resolve().parents[1] / "_schemas"
+    if all((packaged / name).is_file() for name in CONTRACTS):
+        return packaged
+    repo = Path(__file__).resolve().parents[3] / "contracts"
+    if all((repo / name).is_file() for name in CONTRACTS):
+        return repo
+    raise FileNotFoundError("找不到契约文件，无法生成独立项目")
+
+
+def _copy_contracts(target: Path) -> None:
+    source = _contract_dir()
+    destination = target / "contracts"
+    destination.mkdir(parents=True, exist_ok=True)
+    for name in CONTRACTS:
+        shutil.copy2(source / name, destination / name)
 
 
 def _write_sdk_installer(target: Path) -> None:
