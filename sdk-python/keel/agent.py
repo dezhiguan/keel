@@ -58,6 +58,16 @@ class Agent:
         return mount_to(app, self)
 
     def validate_config(self) -> None:
+        from keel.runtime import GOVERNED, mode, standalone_env
+
+        selected = mode()
+        if selected != GOVERNED:
+            standalone_env()
+            required = ["KEEL_LLM_BASE_URL"] if self.manifest.spec.models is not None else []
+            missing = [key for key in required if not os.environ.get(key)]
+            if missing:
+                raise RuntimeError(f"Missing required environment variable(s): {', '.join(missing)}")
+            return
         required = []
         if self.manifest.spec.models is not None:
             required.extend(("KEEL_LLM_BASE_URL", "KEEL_LLM_KEY"))

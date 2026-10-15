@@ -49,6 +49,9 @@ class PromptClient:
         declared = _declared(self.manifest, short_name)
         if declared is None:
             raise KeelError(ErrorCode.PROMPT_NOT_DECLARED)
+        from keel.runtime import standalone
+        if standalone():
+            return _local(self.root, f"{agent}/{short_name}", declared, trace_id, agent)
         label = _label(self.env, self.manifest)
         full_name = f"{agent}/{short_name}"
         cached = self._cache.get((full_name, label))

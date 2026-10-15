@@ -54,8 +54,13 @@ def _observation_input(messages: list[dict]) -> str:
 class LlmClient:
     def __init__(self, agent: str, default_model: str | None, trace_id: str,
                  tracer=None, http_client: httpx.AsyncClient | None = None):
+        from keel.runtime import standalone
+
         base_url = _openai_base(os.environ.get("KEEL_LLM_BASE_URL"))
+        self.standalone = standalone()
         api_key = os.environ.get("KEEL_LLM_KEY")
+        if self.standalone and not api_key:
+            api_key = "standalone"
         if not base_url or not api_key:
             raise RuntimeError("KEEL_LLM_BASE_URL and KEEL_LLM_KEY are required")
         self.agent = agent
@@ -92,15 +97,17 @@ class LlmClient:
                     options["top_p"] = config["top_p"]
                 if tools is not None:
                     options["tools"] = tools
+                if not self.standalone:
+                    options["extra_body"] = {"metadata": {"caller_agent": self.agent}}
                 response = await self.client.chat.completions.create(
-                    model=chosen, messages=messages, **options,
-                    extra_body={"metadata": {"caller_agent": self.agent}})
+                    model=chosen, messages=messages, **options)
             except openai.RateLimitError as exc:
                 span.set_attribute(attrs.STATUS, "failed")
                 raise KeelError(ErrorCode.GW_QUOTA_EXCEEDED) from exc
             except openai.APIStatusError as exc:
                 span.set_attribute(attrs.STATUS, "failed")
-                raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, f"薄网关 HTTP {exc.status_code}") from exc
+                target = "模型服务" if self.standalone else "薄网关"
+                raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, f"{target} HTTP {exc.status_code}") from exc
             except (openai.APIConnectionError, openai.APITimeoutError) as exc:
                 span.set_attribute(attrs.STATUS, "failed")
                 raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR) from exc
@@ -112,7 +119,7 @@ class LlmClient:
                 token_count = usage.total_tokens
             extras = response.model_extra or {}
             cost = extras.get("response_cost", extras.get("cost", 0))
-            if token_count and not cost:
+            if token_count and not cost and not self.standalone:
                 logger.warning("LiteLLM reported zero cost for nonzero tokens trace_id=%s agent=%s",
                                self.trace_id, self.agent)
             reply = response.choices[0].message.content or ""

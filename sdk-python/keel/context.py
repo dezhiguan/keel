@@ -104,9 +104,16 @@ class Context:
                                             trace_id, self._tracer) if models else _UnimplementedClient("llm"))
         self.knowledge = knowledge_client or (KnowledgeClient(agent, self._tracer)
                                               if knowledge else _UnimplementedClient("knowledge"))
-        self.audit = audit_reporter or (AuditReporter(
-            agent, env, audit_spec.captureFields or () if audit_spec else ())
-            if ((tool_specs and tool_functions) or audit_spec) and env else None)
+        from keel.audit.lite_reporter import LiteAuditReporter
+        from keel.runtime import standalone
+        capture = audit_spec.captureFields or () if audit_spec else ()
+        if audit_reporter is not None:
+            self.audit = audit_reporter
+        elif standalone():
+            self.audit = LiteAuditReporter(agent, env, capture)
+        else:
+            self.audit = (AuditReporter(agent, env, capture)
+                          if ((tool_specs and tool_functions) or audit_spec) and env else None)
         self.tools = (_ToolClient(tool_functions or {}, manifest, self)
                       if manifest else _UnimplementedClient("tools"))
         self._prompts = PromptClient(manifest, env) if manifest else None
