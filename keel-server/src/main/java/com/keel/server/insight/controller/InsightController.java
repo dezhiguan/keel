@@ -54,7 +54,7 @@ public class InsightController {
     @GetMapping("/overview")
     public R<OverviewService.Overview> overview(
             @RequestParam(defaultValue = "all") @Pattern(regexp = "all|dev|test|staging|prod") String env,
-            @RequestParam(defaultValue = "24h") @Pattern(regexp = "24h|7d|30d") String range) {
+            @RequestParam(defaultValue = "24h") @Pattern(regexp = "today|24h|7d|30d|all") String range) {
         return R.ok(overviewService.overview(env, range));
     }
 

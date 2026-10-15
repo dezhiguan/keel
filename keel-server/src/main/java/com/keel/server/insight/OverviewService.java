@@ -1,6 +1,8 @@
 package com.keel.server.insight;
 
 import com.keel.server.discovery.FindingBook;
+import com.keel.server.metering.MeteringService;
+import com.keel.server.metering.UsageMath;
 import com.keel.server.registry.model.dto.AgentSummary;
 import com.keel.server.registry.model.enums.AgentStatus;
 import com.keel.server.registry.service.AgentRegistryService;
@@ -20,7 +22,12 @@ import java.util.function.Function;
 public class OverviewService {
     public static final double GATE = 0.85;
 
-    public record Overview(Kpi kpi, List<AgentSummary> agents, List<Alert> alerts, List<Map<String, Object>> costByAgent) {}
+    public record Overview(Kpi kpi, List<AgentSummary> agents, List<Alert> alerts, List<Map<String, Object>> costByAgent,
+                           Cumulative cumulative, List<Metric> metrics) {}
+
+    public record Cumulative(Integer agents, Long calls, Long tokens, Double costCny, Long users, String since) {}
+
+    public record Metric(String key, String definition, String source, boolean connected) {}
 
     public record Kpi(Integer onlineAgents, Integer totalAgents, Integer bizCount, Integer devCount,
                       Long calls, Double callsTrendPct, Double modelCostCny, Double avgScore,
@@ -34,16 +41,19 @@ public class OverviewService {
     private final Function<String, Integer> pendingApprovals;
     private final FindingBook findings;
     private final CostService costs;
+    private final MeteringService metering;
 
     @Autowired
     public OverviewService(AgentRegistryService agentRegistryService, AgentUsageService usage, QualityService quality,
-                           Function<String, Integer> pendingApprovals, FindingBook findings, CostService costs) {
+                           Function<String, Integer> pendingApprovals, FindingBook findings, CostService costs,
+                           MeteringService metering) {
         this.agentRegistryService = agentRegistryService;
         this.usage = usage;
         this.quality = quality;
         this.pendingApprovals = pendingApprovals;
         this.findings = findings;
         this.costs = costs;
+        this.metering = metering;
     }
 
     /** Spend-ledger tests construct the service without a usage cache or finding book. */
@@ -54,7 +64,7 @@ public class OverviewService {
                         costsGateway(costs), quality,
                         new EvalQueryService(new com.keel.server.integration.langfuse.LangfuseClient("", "", ""), name -> null),
                         com.keel.server.insight.SavedTraces.EMPTY),
-                quality, pendingApprovals, new FindingBook(null), costs);
+                quality, pendingApprovals, new FindingBook(null), costs, null);
     }
 
     public Overview overview(String env, String range) {
@@ -64,14 +74,28 @@ public class OverviewService {
                 .filter(agent -> "all".equals(scope) || scope.equals(agent.env()))
                 .toList();
         var agents = usage.apply(listed, scope);
-        var snap = usage.snapshotOf(scope, range);
+        var window = "today".equals(range) || "all".equals(range) ? "24h" : range;
+        var snap = usage.snapshotOf(scope, window);
         var daily = "24h".equals(range) ? snap : usage.snapshotOf(scope);
         var bills = costs.cost(scope, range);
+        UsageMath.Slice ledger = null;
+        UsageMath.Slice todayLedger = null;
+        if (metering != null) {
+            ledger = metering.rollup(scope, costs.cost(scope, "today"), Instant.now());
+            todayLedger = metering.today(scope, Instant.now());
+        }
         var online = (int) agents.stream().filter(agent -> agent.status() == AgentStatus.ONLINE).count();
         var biz = (int) agents.stream().filter(agent -> "biz".equals(agent.category())).count();
         var dev = (int) agents.stream().filter(agent -> "dev".equals(agent.category())).count();
         Long calls = snap.callsKnown() ? snap.callTotal() : null;
         Double cost = daily.costKnown() ? bills.totalCny() : null;
+        if ("today".equals(range) && todayLedger != null) {
+            calls = todayLedger.calls();
+            cost = todayLedger.costCny() == null ? null : todayLedger.costCny().doubleValue();
+        } else if ("all".equals(range) && ledger != null) {
+            calls = ledger.calls();
+            cost = ledger.costCny() == null ? null : ledger.costCny().doubleValue();
+        }
         var scored = agents.stream().map(AgentSummary::score).filter(score -> score != null).toList();
         Double avg;
         if (!scored.isEmpty()) {
@@ -96,7 +120,25 @@ public class OverviewService {
                 costByAgent.add(row);
             });
         }
-        return new Overview(kpi, agents, alerts(scope, agents, daily, bills), costByAgent);
+        var registered = (int) agentRegistryService.listAll().stream()
+                .filter(agent -> "all".equals(scope) || scope.equals(agent.env()))
+                .count();
+        var since = metering == null || metering.earliest(scope) == null ? null : metering.earliest(scope).toString();
+        var cumulative = new Cumulative(registered,
+                ledger == null ? null : ledger.calls(),
+                ledger == null ? null : ledger.tokens(),
+                ledger == null || ledger.costCny() == null ? null : ledger.costCny().doubleValue(),
+                ledger == null ? null : ledger.users(),
+                since);
+        var metrics = List.of(
+                new Metric("calls", "所选时间窗内已结算模型请求数，按 requestId 去重", calls == null ? "未接入" : "usage_daily", calls != null),
+                new Metric("modelCost", "已结算的 costCny 之和", cost == null ? "未接入" : "keel_llm 账单", cost != null),
+                new Metric("cumulativeCalls", "已封账各天之和 + 今天实时", cumulative.calls() == null ? "未接入" : "usage_daily", cumulative.calls() != null),
+                new Metric("cumulativeTokens", "已结算账单的输入 token 加输出 token", cumulative.tokens() == null ? "未接入" : "keel_llm 账单", cumulative.tokens() != null),
+                new Metric("cumulativeCost", "已封账花费 + 今天已结算花费", cumulative.costCny() == null ? "未接入" : "keel_llm 账单", cumulative.costCny() != null),
+                new Metric("cumulativeUsers", "agent_run 中去重的 actor_user", cumulative.users() == null ? "未接入" : "agent_run", cumulative.users() != null),
+                new Metric("agents", "注册中心中的智能体，含已下线，不含已删除", "registry", true));
+        return new Overview(kpi, agents, alerts(scope, agents, daily, bills), costByAgent, cumulative, metrics);
     }
 
     private List<Alert> alerts(String env, List<AgentSummary> agents, AgentUsageService.Snapshot snap,

@@ -298,6 +298,9 @@ public class CostService {
         return switch (range) {
             case "7d" -> now.minus(Duration.ofDays(7));
             case "30d" -> now.minus(Duration.ofDays(30));
+            case "today" -> now.atZone(java.time.ZoneId.of("Asia/Shanghai")).toLocalDate()
+                    .atStartOfDay(java.time.ZoneId.of("Asia/Shanghai")).toInstant();
+            case "all" -> Instant.parse("2020-01-01T00:00:00Z");
             default -> now.minus(Duration.ofHours(24));
         };
     }

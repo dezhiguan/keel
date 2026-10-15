@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { OVERVIEW_RANGES, fmtMoney, fmtScore, fmtSeconds, overviewRangeLabel, pipelineCards, pipelineMoney, techLabel, trendText } from './overviewFormat'
+import { OVERVIEW_RANGES, fmtMoney, fmtScore, fmtSeconds, metricValue, overviewRangeLabel, pipelineCards, pipelineMoney, techLabel, trendText } from './overviewFormat'
 
 describe('overview format', () => {
   it('offers the three server supported time windows', () => {
-    expect(OVERVIEW_RANGES.map(([range]) => range)).toEqual(['24h', '7d', '30d'])
-    expect(overviewRangeLabel('7d')).toBe('近 7 天')
+    expect(OVERVIEW_RANGES.map(([range]) => range)).toEqual(['today', '24h', '7d', '30d', 'all'])
+    expect(overviewRangeLabel('today')).toBe('今日')
+    expect(overviewRangeLabel('all')).toBe('累计')
+    expect(metricValue(false, '0')).toBe('未接入')
+    expect(metricValue(true, '13')).toBe('13')
   })
   it('keeps the eval score digits the eval page shows', () => {
     expect(fmtScore(0.915)).toBe('0.915')

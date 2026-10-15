@@ -235,7 +235,7 @@ paths:
         - $ref: "#/components/parameters/Env"
         - name: range
           in: query
-          schema: { type: string, enum: [24h, 7d, 30d], default: 24h }
+          schema: { type: string, enum: [today, 24h, 7d, 30d, all], default: 24h }
       responses:
         "200":
           description: OK
@@ -2598,6 +2598,24 @@ components:
               agent: { type: string }
               costCny: { type: number, format: float }
               dailyBudgetCny: { type: number, format: float }
+        cumulative:
+          type: object
+          properties:
+            agents: { type: integer, description: 在册智能体，含已下线，不含已删除 }
+            calls: { type: integer, nullable: true }
+            tokens: { type: integer, nullable: true }
+            costCny: { type: number, format: float, nullable: true }
+            users: { type: integer, nullable: true, description: 去重用户，不是各天去重人数之和 }
+            since: { type: string, format: date, nullable: true, description: 日账最早一天 }
+        metrics:
+          type: array
+          items:
+            type: object
+            properties:
+              key: { type: string }
+              definition: { type: string }
+              source: { type: string }
+              connected: { type: boolean }
 
     OverviewKpi:
       type: object

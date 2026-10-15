@@ -1,8 +1,22 @@
-export type OverviewRange = '24h' | '7d' | '30d'
-export const OVERVIEW_RANGES: [OverviewRange, string][] = [['24h', '近 24 小时'], ['7d', '近 7 天'], ['30d', '近 30 天']]
+export type OverviewRange = 'today' | '24h' | '7d' | '30d' | 'all'
+export const OVERVIEW_RANGES: [OverviewRange, string][] = [
+  ['today', '今日'],
+  ['24h', '24 小时'],
+  ['7d', '7 天'],
+  ['30d', '30 天'],
+  ['all', '累计'],
+]
 
 export function overviewRangeLabel(range: OverviewRange): string {
   return OVERVIEW_RANGES.find(([value]) => value === range)![1]
+}
+
+export function metricByKey(metrics: { key?: string; definition?: string; source?: string; connected?: boolean }[] | undefined, key: string) {
+  return metrics?.find((metric) => metric.key === key)
+}
+
+export function metricValue(connected: boolean | undefined, text: string) {
+  return connected === false ? '未接入' : text
 }
 
 export function fmtScore(value: number | null | undefined): string {

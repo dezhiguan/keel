@@ -1702,6 +1702,27 @@ export interface components {
                 /** Format: float */
                 dailyBudgetCny?: number;
             }[];
+            cumulative?: {
+                /** @description 在册智能体，含已下线，不含已删除 */
+                agents?: number;
+                calls?: number | null;
+                tokens?: number | null;
+                /** Format: float */
+                costCny?: number | null;
+                /** @description 去重用户，不是各天去重人数之和 */
+                users?: number | null;
+                /**
+                 * Format: date
+                 * @description 日账最早一天
+                 */
+                since?: string | null;
+            };
+            metrics?: {
+                key?: string;
+                definition?: string;
+                source?: string;
+                connected?: boolean;
+            }[];
         };
         OverviewKpi: {
             /** @example 7 */
@@ -3186,7 +3207,7 @@ export interface operations {
         parameters: {
             query?: {
                 env?: components["parameters"]["Env"];
-                range?: "24h" | "7d" | "30d";
+                range?: "today" | "24h" | "7d" | "30d" | "all";
             };
             header?: never;
             path?: never;

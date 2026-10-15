@@ -10,7 +10,7 @@ import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { agentStatus, fmtN } from '@/utils/format'
 import { agentType } from '@/views/agents/employees'
-import { ALERT_KIND, OVERVIEW_RANGES, fmtMoney, fmtScore, fmtSeconds, hm, overviewRangeLabel, pipelineCards, pipelineMoney, techLabel, trendText, type OverviewRange, type PipelineCards } from './overviewFormat'
+import { ALERT_KIND, OVERVIEW_RANGES, fmtMoney, fmtScore, fmtSeconds, hm, metricByKey, metricValue, overviewRangeLabel, pipelineCards, pipelineMoney, techLabel, trendText, type OverviewRange, type PipelineCards } from './overviewFormat'
 
 type Category = 'all' | 'biz' | 'dev' | 'meta'
 
@@ -30,6 +30,14 @@ let loadSequence = 0
 
 const envLabel = computed(() => (envStore.env === 'all' ? '全部环境' : envStore.env))
 const kpi = computed(() => overview.value?.kpi)
+const cumulative = computed(() => overview.value?.cumulative)
+function tip(key: string) {
+  const metric = metricByKey(overview.value?.metrics, key)
+  return metric ? `口径：${metric.definition ?? ''}\n来源：${metric.source ?? ''}` : undefined
+}
+function shown(key: string, text: string) {
+  return metricValue(metricByKey(overview.value?.metrics, key)?.connected, text)
+}
 const gate = computed(() => kpi.value?.gateThreshold ?? 0.85)
 const trend = computed(() => trendText(kpi.value?.callsTrendPct))
 const uncategorized = computed(() => {
@@ -115,15 +123,15 @@ watch([() => envStore.env, range], () => {
         <div class="v">{{ kpi?.onlineAgents ?? '—' }}<span class="mut frac"> / {{ kpi?.totalAgents ?? '—' }}</span></div>
         <div class="d">业务 {{ kpi?.bizCount ?? 0 }} · 研发 {{ kpi?.devCount ?? 0 }}<template v-if="uncategorized"> · 未分类 {{ uncategorized }}</template></div>
       </div>
-      <div class="kpi">
+      <div class="kpi" :title="tip('calls')">
         <div class="l">调用次数</div>
-        <div class="v">{{ fmtN(kpi?.calls) }}</div>
+        <div class="v">{{ shown('calls', fmtN(kpi?.calls)) }}</div>
         <div v-if="trend" class="d" :class="trend.tone">{{ trend.text }}</div>
         <div v-else class="d">{{ overviewRangeLabel(range) }}</div>
       </div>
-      <div class="kpi">
+      <div class="kpi" :title="tip('modelCost')">
         <div class="l">模型成本</div>
-        <div class="v">{{ fmtMoney(kpi?.modelCostCny) }}</div>
+        <div class="v">{{ shown('modelCost', fmtMoney(kpi?.modelCostCny)) }}</div>
         <div class="d">待计费 {{ kpi?.pendingModelBills ?? 0 }} 条 · 已结算金额</div>
       </div>
       <div class="kpi">
@@ -135,6 +143,34 @@ watch([() => envStore.env, range], () => {
         <div class="l">待办审批</div>
         <div class="v" :style="(kpi?.pendingApprovals ?? 0) > 0 ? { color: 'var(--warn)' } : undefined">{{ kpi?.pendingApprovals ?? '—' }}</div>
         <div class="d"><RouterLink to="/approvals">去处理 →</RouterLink></div>
+      </div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi" :title="tip('agents')">
+        <div class="l">在册智能体</div>
+        <div class="v">{{ cumulative?.agents ?? '—' }}</div>
+        <div class="d">含已下线</div>
+      </div>
+      <div class="kpi" :title="tip('cumulativeCalls')">
+        <div class="l">累计调用</div>
+        <div class="v">{{ shown('cumulativeCalls', fmtN(cumulative?.calls)) }}</div>
+        <div class="d">{{ cumulative?.since ? `自 ${cumulative.since} 起` : '自日账上线起' }}</div>
+      </div>
+      <div class="kpi" :title="tip('cumulativeTokens')">
+        <div class="l">累计 token</div>
+        <div class="v">{{ shown('cumulativeTokens', fmtN(cumulative?.tokens)) }}</div>
+        <div class="d">输入 + 输出</div>
+      </div>
+      <div class="kpi" :title="tip('cumulativeCost')">
+        <div class="l">累计模型花费</div>
+        <div class="v">{{ shown('cumulativeCost', fmtMoney(cumulative?.costCny)) }}</div>
+        <div class="d">已结算 costCny</div>
+      </div>
+      <div class="kpi" :title="tip('cumulativeUsers')">
+        <div class="l">累计服务用户</div>
+        <div class="v">{{ shown('cumulativeUsers', fmtN(cumulative?.users)) }}</div>
+        <div class="d">去重</div>
       </div>
     </div>
 
