@@ -641,7 +641,8 @@ public class MetaAgentExecution {
             complete(work, lease, output, answer.traceId(), null);
         } catch (Exception error) {
             org.slf4j.LoggerFactory.getLogger(MetaAgentExecution.class).warn(
-                    "meta-agent execution failed trace_id= agent=meta-agent job={} error={}", work.id, error.getClass().getSimpleName());
+                    "meta-agent execution failed trace_id= agent=meta-agent job={} error={} message={}",
+                    work.id, error.getClass().getSimpleName(), error.getMessage());
             complete(work, lease, null, null, "元智能体执行失败，请检查运行服务和 Git 服务后重试");
         }
     }

@@ -21,6 +21,8 @@ keel-llm/src/main/java/com/keel/llm/ProbeMarks.java
 keel-llm/src/main/java/com/keel/llm/Gateway.java
 keel-llm/src/main/java/com/keel/llm/LlmConfiguration.java
 keel-llm/src/test/java/com/keel/llm/GatewayTest.java
+keel-llm/src/main/java/com/keel/llm/LlmController.java
+keel-server/src/main/java/com/keel/server/devflow/MetaAgentExecution.java
 ```
 
 ## 接口契约
@@ -37,6 +39,7 @@ keel-llm/src/test/java/com/keel/llm/GatewayTest.java
 
 - 控制台 nginx 的 `location /` 会把未知路径回落到 `index.html`。`/a/` 必须单独反代到 keel-server，且写在这条兜底之前。
 - 探测标记不能只放在进程内存。未配置 Redis 时仍用本进程集合，测试可以让两个 Gateway 共用同一个 `ProbeMarks`。
+- 非流式对话超时 45 秒时，岗位代码生成会被上游掐断并记成 500。对话改为 3 分钟；向量化仍是 45 秒。失败日志带上异常消息。
 
 ## 验收标准
 

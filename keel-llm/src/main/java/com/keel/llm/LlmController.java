@@ -216,7 +216,9 @@ public class LlmController {
             gateway.stream(authorization, request.getRequestURI(), body, Duration.ofMinutes(5), response.getOutputStream(), trace(request));
             return;
         }
-        var completion = gateway.complete(authorization, request.getRequestURI(), body, Duration.ofSeconds(45), trace(request));
+        var chat = request.getRequestURI() != null && request.getRequestURI().endsWith("/chat/completions");
+        var completion = gateway.complete(authorization, request.getRequestURI(), body,
+                chat ? Duration.ofMinutes(3) : Duration.ofSeconds(45), trace(request));
         response.setStatus(completion.status());
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
