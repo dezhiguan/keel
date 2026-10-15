@@ -32,7 +32,7 @@
 | R1-1 | 契约：manifest 加 `spec.kind`（agent / workflow）；追踪属性 `keel.loop.step`；错误码 `AGENT_MAX_STEPS_EXCEEDED`、`PROMPT_VARIABLE_MISSING` | — | `contracts/tests` 通过，Python / Java 模型同步生成 · ✅ r1014-r1-1 |
 | R1-2 | SDK：`ctx.llm.chat` 支持可选 `tools`，返回内容 + tool_calls；现有调用方不变 | — | 原有用例全过；新增用例：模型返回 tool_calls 时能拿到结构化结果 · ✅ r1014-r1-2 |
 | R1-3 | SDK：`ctx.loop` —— 工具调用循环；停止条件：完成、`maxSteps`、预算、同工具同参数连续 2 次；循环内高风险工具存 checkpoint 后 `suspend`，恢复后接着跑；每步一个 span | R1-1 R1-2 | 用假薄网关的集成测试覆盖四种停止条件和一次挂起恢复；超步数返回 `AGENT_MAX_STEPS_EXCEEDED` 并发 `event: error` · ✅ r1014-r1-3 |
-| R1-4 | SDK：运行内上下文由 loop 自动累积；会话记忆（按 session，有 TTL）先用 keel-lite 本地实现，接口为 `ctx.memory`；评测流量禁止写入 | R1-3 | 两轮对话第二轮能引用第一轮内容；`eval_run_id` 非空时写入被拒 |
+| R1-4 | SDK：运行内上下文由 loop 自动累积；会话记忆（按 session，有 TTL）先用 keel-lite 本地实现，接口为 `ctx.memory`；评测流量禁止写入 | R1-3 | 两轮对话第二轮能引用第一轮内容；`eval_run_id` 非空时写入被拒 · ✅ r1014-r1-4 |
 | R1-5 | 模板：新增 `loop-agent` 并设为默认；`graph-agent` 改成真实 LangGraph 示例；普通代码模板 manifest 写 `kind: workflow` | R1-3 | `keel new` 默认生成 loop-agent，自带冒烟用例能跑通 |
 | R1-6 | 元智能体产出修正：生成的 manifest 声明 `prompts.items`、knowledge、guardrails；交付保留 `prompts/`；生成代码只能用 `ctx.prompt()`；code-review 检查项加"硬编码提示词" | — | 新交付的项目注册后，提示词出现在 Langfuse 和控制台提示词页；源码里没有大段提示词字符串 |
 | R1-7 | 元智能体：交付时"生成 → `sandbox.run` 跑测试 → 按报错修改"有界循环，最多 3 轮 | DF-3 沙箱 | 故意给一个会失败的需求，能看到修正轮次；3 轮不过则任务失败而不是交付 |

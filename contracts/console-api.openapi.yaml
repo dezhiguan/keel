@@ -2592,6 +2592,14 @@ components:
                 current: { type: string }
                 target: { type: string }
                 constraints: { type: string }
+            memory:
+              type: object
+              description: 各层记忆的真实接入状态；本地会话记忆不代表生产已开通
+              properties:
+                session: { type: string }
+                user: { type: string }
+                task: { type: string }
+                experience: { type: string }
             interaction:
               type: object
               description: manifest spec.interaction。缺省或没有 mode 时按 chat

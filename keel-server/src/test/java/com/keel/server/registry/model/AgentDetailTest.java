@@ -90,6 +90,7 @@ class AgentDetailTest {
         var detail = AgentDetail.of(agent(), null, null, List.of(), null, List.of());
         assertThat(detail.manifestYaml()).isNull();
         assertThat(detail.models()).isEmpty();
+        assertThat(detail.memory()).isNull();
     }
 
     @Test void executionDescriptionComesFromSavedManifest() throws Exception {
@@ -97,6 +98,8 @@ class AgentDetailTest {
                 {"apiVersion":"keel/v1","spec":{"kind":"agent","models":{"budget":{"maxSteps":4}}}}
                 """);
         var detail = AgentDetail.of(agent(), null, null, List.of(), agentManifest, List.of());
+        assertThat(detail.memory().session()).isEqualTo("本地开发可用 · 7 天");
+        assertThat(detail.memory().user()).isEqualTo("未接入");
         assertThat(detail.execution().current()).isEqualTo("声明为智能体");
         assertThat(detail.execution().target()).contains("ctx.loop");
         assertThat(detail.execution().constraints()).contains("maxSteps 4");

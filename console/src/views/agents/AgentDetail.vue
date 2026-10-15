@@ -22,6 +22,7 @@ import {
   isSelfChecking,
   withEvalGate,
   executionRows,
+  memoryRows,
   sourceLabel,
   versionRows,
 } from './agentDrawer'
@@ -31,6 +32,7 @@ const TABS = [
   ['ov', '概览'],
   ['yaml', 'agent.yaml'],
   ['inst', '实例与资源'],
+  ['mem', '记忆'],
   ['ver', '版本'],
   ['dev', '研发记录'],
 ] as const
@@ -333,6 +335,15 @@ onUnmounted(() => {
                 </tr>
               </tbody>
             </table>
+          </template>
+
+          <template v-else-if="detail && tab === 'mem'">
+            <h4>记忆</h4>
+            <div class="kv">
+              <template v-for="[label, value] in memoryRows(detail.memory)" :key="label">
+                <span>{{ label }}</span><b>{{ value }}</b>
+              </template>
+            </div>
           </template>
 
           <template v-else-if="tab === 'dev'">

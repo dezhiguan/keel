@@ -88,6 +88,8 @@ def create_app(agent) -> Starlette:
         if agent._entry is None:
             return JSONResponse(_error(ErrorCode.SERVER_INTERNAL_ERROR, trace_id), status_code=500)
 
+        eval_run_id = request.headers.get("X-Keel-Eval-Run") or (data.get("context") or {}).get("eval_run_id")
+
         # TODO(P3-1): persist idempotency_key and return the original run on retries.
         run_id = uuid.uuid4().hex
         parent = TraceContextTextMapPropagator().extract(dict(request.headers))
@@ -97,15 +99,16 @@ def create_app(agent) -> Starlette:
             attrs.RUN_ID: run_id, attrs.STATUS: "ok",
         })
         _stamp_call(root, data, request.headers.get("X-Keel-Env") or os.environ.get("KEEL_ENV"))
-        if request.headers.get("X-Keel-Eval-Run"):
-            root.set_attribute("keel.eval_run", request.headers["X-Keel-Eval-Run"])
+        if eval_run_id:
+            root.set_attribute("keel.eval_run", eval_run_id)
         if root.get_span_context().is_valid:
             trace_id = f"{root.get_span_context().trace_id:032x}"
         events: asyncio.Queue = asyncio.Queue()
         context = Context(caller, run_id, trace_id, events, tracer,
                           manifest=agent.manifest, tool_functions=agent._tools,
                           children=agent._children, budget=_budget(request),
-                          env=request.headers.get("X-Keel-Env") or os.environ.get("KEEL_ENV"))
+                          env=request.headers.get("X-Keel-Env") or os.environ.get("KEEL_ENV"),
+                          session_id=data.get("session_id"), eval_run_id=eval_run_id)
         entry_request = SimpleNamespace(**data)
 
         async def execute():
@@ -119,7 +122,8 @@ def create_app(agent) -> Starlette:
                             if isinstance(event, (FinalEvent, SuspendEvent, ErrorEvent)):
                                 if isinstance(event, SuspendEvent):
                                     root.set_attribute(attrs.RUN_SUSPENDED, True)
-                                    _remember(agent.name, run_id, trace_id, data.get("input"), event, context.pending)
+                                    _remember(agent.name, run_id, trace_id, data.get("input"), event, context.pending,
+                                              context.session_id, context.eval_run_id)
                                 if isinstance(event, ErrorEvent):
                                     root.set_attribute(attrs.STATUS, "failed")
                                 terminal = True
@@ -132,7 +136,8 @@ def create_app(agent) -> Starlette:
                     if isinstance(result, (FinalEvent, SuspendEvent, ErrorEvent)):
                         if isinstance(result, SuspendEvent):
                             root.set_attribute(attrs.RUN_SUSPENDED, True)
-                            _remember(agent.name, run_id, trace_id, data.get("input"), result, context.pending)
+                            _remember(agent.name, run_id, trace_id, data.get("input"), result, context.pending,
+                                      context.session_id, context.eval_run_id)
                         if isinstance(result, ErrorEvent):
                             root.set_attribute(attrs.STATUS, "failed")
                         events.put_nowait(result)
@@ -261,17 +266,20 @@ def create_app(agent) -> Starlette:
             resumed["text"] = reply
         elif record.get("input_text"):
             resumed["text"] = record["input_text"]
-        return await invoke_resume(request, {"input": resumed}, record["run_id"], original,
-                                   delegation_token=delegation_token)
+        return await invoke_resume(request, {"input": resumed, "session_id": record.get("session_id")},
+                                   record["run_id"], original, delegation_token=delegation_token,
+                                   eval_run_id=record.get("eval_run_id"))
 
     async def invoke_resume(request: Request, data: dict, run_id: str, original: dict,
-                            delegation_token: str | None = None):
+                            delegation_token: str | None = None,
+                            eval_run_id: str | None = None):
         trace_id = record_trace(request)
         events: asyncio.Queue = asyncio.Queue()
         context = Context(agent.name, run_id, trace_id, events, tracer,
                           manifest=agent.manifest, tool_functions=agent._tools,
                           children=agent._children, budget=_budget(request),
-                          env=request.headers.get("X-Keel-Env") or os.environ.get("KEEL_ENV"))
+                          env=request.headers.get("X-Keel-Env") or os.environ.get("KEEL_ENV"),
+                          session_id=data.get("session_id"), eval_run_id=eval_run_id)
         context.resuming = True
         context.delegation_token = delegation_token
         entry_request = SimpleNamespace(**data, resume=True)
@@ -290,7 +298,8 @@ def create_app(agent) -> Starlette:
                     if isinstance(result, (FinalEvent, SuspendEvent, ErrorEvent)):
                         if isinstance(result, SuspendEvent):
                             root.set_attribute(attrs.RUN_SUSPENDED, True)
-                            _remember(agent.name, run_id, trace_id, original, result, context.pending)
+                            _remember(agent.name, run_id, trace_id, original, result, context.pending,
+                                      context.session_id, context.eval_run_id)
                         events.put_nowait(result)
                     elif result is not None:
                         events.put_nowait(context.final(str(result)))
@@ -352,7 +361,8 @@ def _budget(request: Request) -> dict:
 
 
 def _remember(agent: str, run_id: str, trace_id: str, payload: dict | None,
-              event: SuspendEvent, pending: dict | None) -> None:
+              event: SuspendEvent, pending: dict | None, session_id: str | None,
+              eval_run_id: str | None) -> None:
     pending = pending or {}
     save_run({
         "run_id": run_id, "agent": agent, "status": "SUSPENDED",
@@ -360,6 +370,7 @@ def _remember(agent: str, run_id: str, trace_id: str, payload: dict | None,
         "ref": event.ref, "resume_token": event.resume_token, "trace_id": trace_id,
         "input": payload or {}, "checkpoint_ref": pending.get("checkpoint_ref") or event.ref,
         "approval_id": pending.get("approval_id"), "input_text": pending.get("input_text"),
+        "session_id": session_id, "eval_run_id": eval_run_id,
     })
 
 

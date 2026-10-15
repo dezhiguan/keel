@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { avatarLetter, canRelease, cardChips, cardCost, executionRows, highlightYaml, isSelfChecking, kindLine, readyPill, resourceStatus, scoreText, toolChip, versionRows, withEvalGate } from './agentDrawer'
+import { avatarLetter, canRelease, cardChips, cardCost, executionRows, highlightYaml, isSelfChecking, kindLine, memoryRows, readyPill, resourceStatus, scoreText, toolChip, versionRows, withEvalGate } from './agentDrawer'
 
 describe('agent drawer', () => {
+  it('shows memory status from the API and keeps unavailable layers explicit', () => {
+    expect(memoryRows({ session: '本地开发可用 · 7 天', user: '未接入' })).toEqual([
+      ['会话记忆', '本地开发可用 · 7 天'], ['用户记忆', '未接入'],
+      ['任务记忆', '未接入'], ['经验记忆', '未接入'],
+    ])
+  })
   it('renders execution data returned by the agent detail API', () => {
     expect(executionRows({ current: '声明为智能体', target: 'ctx.loop', constraints: 'maxSteps 4' })).toEqual([
       ['现在', '声明为智能体'], ['目标', 'ctx.loop'], ['约束', 'maxSteps 4'],

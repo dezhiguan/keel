@@ -1737,6 +1737,13 @@ export interface components {
                 target?: string;
                 constraints?: string;
             };
+            /** @description 各层记忆的真实接入状态；本地会话记忆不代表生产已开通 */
+            memory?: {
+                session?: string;
+                user?: string;
+                task?: string;
+                experience?: string;
+            };
             /** @description manifest spec.interaction。缺省或没有 mode 时按 chat */
             interaction?: {
                 /** @enum {string} */

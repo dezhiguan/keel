@@ -37,7 +37,8 @@ class Audit:
         pass
 
 
-def context(monkeypatch, replies, functions=None, *, high=False, budget=None, run_id="run-1", tracer=None):
+def context(monkeypatch, replies, functions=None, *, high=False, budget=None, run_id="run-1", tracer=None,
+            session_id=None, eval_run_id=None):
     monkeypatch.setenv("KEEL_LLM_BASE_URL", "https://gateway.test")
     monkeypatch.setenv("KEEL_LLM_KEY", "test-virtual-key")
     requests = []
@@ -58,7 +59,8 @@ def context(monkeypatch, replies, functions=None, *, high=False, budget=None, ru
     })
     ctx = Context("loop-agent", run_id, "trace-1", asyncio.Queue(), tracer,
                   manifest=manifest, tool_functions=functions or {}, budget=budget,
-                  env="dev", llm_client=llm, audit_reporter=Audit())
+                  env="dev", llm_client=llm, audit_reporter=Audit(),
+                  session_id=session_id, eval_run_id=eval_run_id)
     return ctx, requests
 
 
@@ -91,6 +93,32 @@ def test_loop_executes_tool_and_returns_model_completion(monkeypatch, tmp_path):
     assert [span.attributes["keel.loop.step"] for span in memory.get_finished_spans()
             if span.name == "agent.loop.step"] == [1, 2]
     provider.shutdown()
+
+
+def test_loop_remembers_previous_turn_and_eval_does_not_write(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    first, _ = context(monkeypatch, [completion("记住了")], run_id="run-first", session_id="session-a")
+
+    async def run(ctx, prompt):
+        try:
+            return await ctx.loop([{"role": "user", "content": prompt}], TOOLS)
+        finally:
+            await ctx.aclose()
+
+    assert asyncio.run(run(first, "我叫小明")).answer == "记住了"
+    second, requests = context(monkeypatch, [completion("你叫小明")], run_id="run-second",
+                               session_id="session-a")
+    assert asyncio.run(run(second, "我叫什么" )).answer == "你叫小明"
+    assert requests[0]["messages"] == [
+        {"role": "user", "content": "我叫小明"},
+        {"role": "assistant", "content": "记住了"},
+        {"role": "user", "content": "我叫什么"},
+    ]
+    evaluation, requests = context(monkeypatch, [completion("评测回答")], run_id="run-eval",
+                                   session_id="session-a", eval_run_id="eval-1")
+    assert asyncio.run(run(evaluation, "评测问题")).answer == "评测回答"
+    assert len(requests[0]["messages"]) == 5
+    assert [row["content"] for row in second.memory.history()] == ["我叫小明", "记住了", "我叫什么", "你叫小明"]
 
 
 def test_loop_stops_on_max_steps_and_budget(monkeypatch, tmp_path):

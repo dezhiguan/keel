@@ -32,6 +32,15 @@ export function executionRows(execution?: { current?: string; target?: string; c
   ] as const
 }
 
+export function memoryRows(memory?: { session?: string; user?: string; task?: string; experience?: string } | null) {
+  return [
+    ['会话记忆', memory?.session || '未接入'],
+    ['用户记忆', memory?.user || '未接入'],
+    ['任务记忆', memory?.task || '未接入'],
+    ['经验记忆', memory?.experience || '未接入'],
+  ] as const
+}
+
 export interface VersionRow {
   version: string
   env: string

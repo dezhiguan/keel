@@ -16,6 +16,7 @@ public record AgentDetail(
         String manifestYaml,
         String manifestHash,
         Execution execution,
+        Memory memory,
         List<String> knowledgeBases,
         List<String> tools,
         List<String> models,
@@ -34,6 +35,7 @@ public record AgentDetail(
         var modelNames = models(manifest);
         return new AgentDetail(summary, ManifestYaml.of(manifest), latest == null ? null : latest.getManifestHash(),
                 execution(manifest),
+                memory(manifest),
                 texts(manifest, "knowledge", "kb"),
                 toolLabels(manifest),
                 modelNames,
@@ -230,13 +232,18 @@ public record AgentDetail(
         return new Execution("未声明", "未声明", "以 agent.yaml 为准");
     }
 
+    private static Memory memory(JsonNode manifest) {
+        if (manifest == null) return null;
+        return new Memory("本地开发可用 · 7 天", "未接入", "未接入", "未接入");
+    }
+
     public AgentDetail withSummary(AgentSummary summary) {
-        return new AgentDetail(summary, manifestYaml, manifestHash, execution, knowledgeBases, tools, models, delegates,
+        return new AgentDetail(summary, manifestYaml, manifestHash, execution, memory, knowledgeBases, tools, models, delegates,
                 selfCheck, instanceList, resources, versions, findings);
     }
 
     public AgentDetail withSelfCheck(CheckReport report) {
-        return new AgentDetail(summary, manifestYaml, manifestHash, execution, knowledgeBases, tools, models, delegates,
+        return new AgentDetail(summary, manifestYaml, manifestHash, execution, memory, knowledgeBases, tools, models, delegates,
                 report, instanceList, resources, versions, findings);
     }
 
@@ -248,6 +255,8 @@ public record AgentDetail(
     }
 
     public record Execution(String current, String target, String constraints) {}
+
+    public record Memory(String session, String user, String task, String experience) {}
 
     public record ResourceRow(String type, String externalId, String status) {}
 

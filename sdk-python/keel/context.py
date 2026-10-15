@@ -16,6 +16,8 @@ from keel.audit.reporter import AuditReporter
 from keel.knowledge import KnowledgeClient
 from keel.llm.client import LlmClient
 from keel.llm.client import ChatResult
+from keel.lite.memory import LiteMemory
+from keel.lite.store import LiteStore
 from keel.prompts import PromptClient
 from keel.protocol.errors import ErrorCode, KeelError
 from keel.tracing import attrs
@@ -78,11 +80,14 @@ class Context:
     def __init__(self, agent: str, run_id: str, trace_id: str, events: asyncio.Queue, tracer=None,
                  *, manifest=None, tool_functions=None, children=None, budget=None,
                  env: str | None = None, llm_client=None, knowledge_client=None,
-                 audit_reporter=None):
+                 audit_reporter=None, session_id: str | None = None,
+                 eval_run_id: str | None = None):
         self.agent = agent
         self.env = env
         self.run_id = run_id
         self.trace_id = trace_id
+        self.session_id = session_id
+        self.eval_run_id = eval_run_id
         self._events = events
         self.manifest = manifest
         self.resuming = False
@@ -105,6 +110,7 @@ class Context:
         self.tools = (_ToolClient(tool_functions or {}, manifest, self)
                       if manifest else _UnimplementedClient("tools"))
         self._prompts = PromptClient(manifest, env) if manifest else None
+        self.memory = LiteMemory(LiteStore(".") if session_id else None, agent, session_id, eval_run_id)
 
     async def prompt(self, name: str):
         if self._prompts is None:
@@ -181,13 +187,15 @@ class Context:
         if limit < 1:
             raise KeelError(ErrorCode.AGENT_MAX_STEPS_EXCEEDED)
         checkpoint = Path(".keel/checkpoints") / f"ckpt_{self.run_id}"
-        history = list(messages)
+        turn_messages = list(messages)
+        history = self.memory.history() + turn_messages if not self.resuming else turn_messages
         step = 0
         last_call = None
         if self.resuming:
             try:
                 state = json.loads(checkpoint.read_text(encoding="utf-8"))
                 history = state["messages"]
+                turn_messages = state["turn_messages"]
                 step = state["step"]
                 limit = min(limit, state["limit"])
                 last_call = state["last_call"]
@@ -200,12 +208,12 @@ class Context:
                 if index > 0 and call["signature"] == last_call:
                     raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型连续重复调用同一工具")
                 if index > 0 and self._requires_approval(call["name"]):
-                    self._save_loop(checkpoint, history, step, limit, last_call, pending[index:])
+                    self._save_loop(checkpoint, history, turn_messages, step, limit, last_call, pending[index:])
                 outcome = await self.tools.call(call["name"], **call["arguments"])
                 if index == 0:
                     self.resuming = False
                 if isinstance(outcome, SuspendEvent):
-                    self._save_loop(checkpoint, history, step, limit, last_call, pending[index:])
+                    self._save_loop(checkpoint, history, turn_messages, step, limit, last_call, pending[index:])
                     return outcome
                 history.append({"role": "tool", "tool_call_id": call["id"],
                                 "content": json.dumps(outcome, ensure_ascii=False, default=str)})
@@ -227,6 +235,11 @@ class Context:
                     if not isinstance(result, ChatResult):
                         raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型没有返回结构化工具结果")
                     if not result.tool_calls:
+                        if self.session_id and not self.eval_run_id:
+                            for message in turn_messages:
+                                if message.get("role") == "user" and isinstance(message.get("content"), str):
+                                    self.memory.append("user", message["content"])
+                            self.memory.append("assistant", result.content)
                         checkpoint.unlink(missing_ok=True)
                         return self.final(result.content)
                     calls = [{"id": call.id, "name": call.name, "arguments": call.arguments,
@@ -241,10 +254,10 @@ class Context:
                         if call["signature"] == last_call:
                             raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型连续重复调用同一工具")
                         if self._requires_approval(call["name"]):
-                            self._save_loop(checkpoint, history, step, limit, last_call, calls[index:])
+                            self._save_loop(checkpoint, history, turn_messages, step, limit, last_call, calls[index:])
                         outcome = await self.tools.call(call["name"], **call["arguments"])
                         if isinstance(outcome, SuspendEvent):
-                            self._save_loop(checkpoint, history, step, limit, last_call, calls[index:])
+                            self._save_loop(checkpoint, history, turn_messages, step, limit, last_call, calls[index:])
                             return outcome
                         history.append({"role": "tool", "tool_call_id": call["id"],
                                         "content": json.dumps(outcome, ensure_ascii=False, default=str)})
@@ -253,11 +266,12 @@ class Context:
                     span.set_attribute(attrs.STATUS, "failed")
                     raise
 
-    def _save_loop(self, path: Path, messages: list[dict], step: int, limit: int,
+    def _save_loop(self, path: Path, messages: list[dict], turn_messages: list[dict], step: int, limit: int,
                    last_call: str | None, pending_calls: list[dict]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_suffix(".tmp")
-        temporary.write_text(json.dumps({"agent": self.agent, "messages": messages, "step": step,
+        temporary.write_text(json.dumps({"agent": self.agent, "messages": messages,
+                                         "turn_messages": turn_messages, "step": step,
                                          "limit": limit, "last_call": last_call,
                                          "pending_calls": pending_calls}, ensure_ascii=False), encoding="utf-8")
         temporary.replace(path)

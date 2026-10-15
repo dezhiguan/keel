@@ -44,6 +44,14 @@ class LiteStore:
                     payload_digest TEXT, resumed_at TEXT
                 );
                 CREATE INDEX IF NOT EXISTS ix_approval_status ON approval_request(status, created_at);
+                CREATE TABLE IF NOT EXISTS session_message (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    agent TEXT NOT NULL, session_id TEXT NOT NULL,
+                    role TEXT NOT NULL, content TEXT NOT NULL,
+                    created_at REAL NOT NULL, expires_at REAL NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS ix_session_message
+                    ON session_message(agent, session_id, id);
             """)
 
     @contextmanager
@@ -119,6 +127,24 @@ class LiteStore:
         with self._connect() as connection:
             row = connection.execute("SELECT * FROM audit_chain_head WHERE agent=?", (agent,)).fetchone()
             return dict(row) if row else None
+
+    def append_session_message(self, agent: str, session_id: str, role: str,
+                               content: str, now: float, ttl_seconds: int) -> None:
+        with self._lock, self._connect() as connection:
+            connection.execute("DELETE FROM session_message WHERE expires_at <= ?", (now,))
+            connection.execute("""
+                INSERT INTO session_message(agent, session_id, role, content, created_at, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (agent, session_id, role, content, now, now + ttl_seconds))
+
+    def session_messages(self, agent: str, session_id: str, now: float, limit: int = 40) -> list[dict]:
+        with self._connect() as connection:
+            rows = connection.execute("""
+                SELECT role, content FROM session_message
+                WHERE agent=? AND session_id=? AND expires_at>?
+                ORDER BY id DESC LIMIT ?
+            """, (agent, session_id, now, limit)).fetchall()
+        return [{"role": row["role"], "content": row["content"]} for row in reversed(rows)]
 
     def insert_approval(self, data: dict, audit_events: list[dict]) -> dict:
         if not audit_events:
