@@ -18,6 +18,25 @@ class LiteMemory:
         self.eval_run_id = eval_run_id
         self.ttl_seconds = ttl_seconds
         self.clock = clock
+        self._user = None
+
+    def bind_user(self, remote) -> None:
+        self._user = remote
+
+    def remember(self, owner: str, content: str):
+        if self._user is None:
+            raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "用户记忆未配置")
+        return self._user.remember(owner, content)
+
+    def recall(self, owner: str):
+        if self._user is None:
+            raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "用户记忆未配置")
+        return self._user.recall(owner)
+
+    def forget(self, memory_id: int):
+        if self._user is None:
+            raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "用户记忆未配置")
+        return self._user.forget(memory_id)
 
     def history(self) -> list[dict]:
         if not self.session_id:

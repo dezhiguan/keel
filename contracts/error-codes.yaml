@@ -159,6 +159,12 @@ codes:
     retryable: true
     http: 429
 
+  # ── 记忆 ────────────────────────────────────────────────────────
+  MEMORY_WRITE_DENIED:
+    message: 当前智能体不允许写入这类记忆
+    retryable: false
+    http: 403
+
   # ── 技能 ────────────────────────────────────────────────────────
   SKILL_NOT_GRANTED:
     message: 技能未授权或版本与 manifest 不一致

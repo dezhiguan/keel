@@ -983,6 +983,60 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Envelope" }
 
+  # ---------------------------------------------------------------- 用户记忆
+  /agents/{name}/memories:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+    get:
+      tags: [agents]
+      operationId: listUserMemories
+      summary: 列出未删除的用户记忆
+      parameters:
+        - name: ownerUser
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+    post:
+      tags: [agents]
+      operationId: writeUserMemory
+      summary: 写入用户记忆。元智能体和评测流量被拒绝
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ownerUser, content]
+              properties:
+                ownerUser: { type: string }
+                content: { type: string }
+                evalRunId: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+  /agents/{name}/memories/{id}:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+      - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+    delete:
+      tags: [agents]
+      operationId: deleteUserMemory
+      summary: 删除一条用户记忆。审计只记条数和类别
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+
   # ---------------------------------------------------------------- 技能
   /skills:
     get:
@@ -2866,7 +2920,7 @@ components:
                 constraints: { type: string }
             memory:
               type: object
-              description: 各层记忆的真实接入状态；本地会话记忆不代表生产已开通
+              description: 会话记忆在本地。用户记忆可查可删。任务和经验记忆未接入
               properties:
                 session: { type: string }
                 user: { type: string }

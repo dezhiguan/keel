@@ -18,10 +18,24 @@ import java.util.UUID;
 
 @Service
 public class JdbcAuditStore implements AuditStore {
-    private static final Set<String> PAYLOAD_KEYS = Set.of("version", "sha256", "diffLines", "gateRunId", "gitSha", "kind");
+    private static final Set<String> PAYLOAD_KEYS = Set.of(
+            "version", "sha256", "diffLines", "gateRunId", "gitSha", "kind", "count", "category");
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper json = new ObjectMapper();
+
+    public static Map<String, Object> kept(Map<String, Object> payload) {
+        var safe = new LinkedHashMap<String, Object>();
+        if (payload == null) {
+            return safe;
+        }
+        payload.forEach((key, value) -> {
+            if (PAYLOAD_KEYS.contains(key) && value != null && !(value instanceof String text && text.length() > 200)) {
+                safe.put(key, value);
+            }
+        });
+        return safe;
+    }
 
     public JdbcAuditStore(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
@@ -44,14 +58,7 @@ public class JdbcAuditStore implements AuditStore {
         var prevHash = prev.isEmpty() ? "" : prev.getFirst();
         var hash = AuditChain.hash(prevHash, agent, env, action, normalizedRisk, decision, resource, traceId);
         var ts = Instant.now();
-        var safePayload = new LinkedHashMap<String, Object>();
-        if (payload != null) {
-            payload.forEach((key, value) -> {
-                if (PAYLOAD_KEYS.contains(key) && value != null && !(value instanceof String text && text.length() > 200)) {
-                    safePayload.put(key, value);
-                }
-            });
-        }
+        var safePayload = kept(payload);
         String payloadJson;
         try {
             payloadJson = json.writeValueAsString(safePayload);

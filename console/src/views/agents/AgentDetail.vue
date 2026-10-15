@@ -6,6 +6,7 @@ import StatusPill from '@/components/StatusPill.vue'
 import { deleteAgent, getAgent, getAgentUsage, mergeUsage, retireAgent, recheckAgent, type AgentDetail } from '@/api/agents'
 import { listDevflowJobs, type DevflowJob } from '@/api/devflow'
 import { grantSkill, listAgentSkills, listSkills, type SkillGrant, type SkillSummary } from '@/api/skills'
+import { deleteMemory, listMemories, type UserMemory } from '@/api/memories'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { agentStatus, orDash, fmtCny, RISK } from '@/utils/format'
@@ -59,6 +60,7 @@ const agentSkills = ref<SkillGrant[]>([])
 const catalog = ref<SkillSummary[]>([])
 const granting = ref(false)
 const grantName = ref('')
+const memories = ref<UserMemory[]>([])
 
 function markChecking(agent: string, on: boolean) {
   const rest = checkingAgents.value.filter((item) => item !== agent)
@@ -197,6 +199,25 @@ async function confirmDelete() {
   }
 }
 
+async function loadUserMemories(agent: string) {
+  try {
+    memories.value = (await listMemories(agent)).items ?? []
+  } catch (error) {
+    ElMessage.error(`加载用户记忆失败：${toKeelError(error).message}`)
+  }
+}
+
+async function removeMemory(id: number) {
+  if (!name.value) return
+  try {
+    await deleteMemory(name.value, id)
+    memories.value = memories.value.filter((item) => item.id !== id)
+    ElMessage.success('已删除，不能再召回')
+  } catch (error) {
+    ElMessage.error(toKeelError(error).message)
+  }
+}
+
 async function loadSkills(agent: string) {
   try {
     agentSkills.value = (await listAgentSkills(agent)).items ?? []
@@ -240,7 +261,9 @@ function onKey(event: KeyboardEvent) {
 }
 
 watch(tab, () => {
-  if (tab.value === 'skill' && name.value) loadSkills(name.value)
+  if (!name.value) return
+  if (tab.value === 'skill') loadSkills(name.value)
+  if (tab.value === 'mem') loadUserMemories(name.value)
 })
 watch(name, async (agent) => {
   tab.value = 'ov'
@@ -253,6 +276,7 @@ watch(name, async (agent) => {
     detail.value = null
     jobs.value = []
     agentSkills.value = []
+    memories.value = []
     document.body.style.overflow = ''
     return
   }
@@ -398,7 +422,19 @@ onUnmounted(() => {
                 <span>{{ label }}</span><b>{{ value }}</b>
               </template>
             </div>
-            <p class="mut">用户记忆管理尚未接入。<span class="pill nd p-vio">占位</span></p>
+            <h4 style="margin-top: 16px">用户记忆</h4>
+            <table class="t">
+              <thead><tr><th>用户</th><th>内容</th><th></th></tr></thead>
+              <tbody>
+                <tr v-if="!memories.length"><td colspan="3" class="empty">还没有用户记忆</td></tr>
+                <tr v-for="item in memories" :key="item.id">
+                  <td class="mono">{{ item.ownerUser }}</td>
+                  <td>{{ item.content }}</td>
+                  <td><button v-write class="btn sm" type="button" @click="removeMemory(item.id)">删除</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="mut">删除后不能再召回。审计只记条数和类别，不记正文。任务记忆和经验记忆尚未接入。</p>
           </template>
 
           <template v-else-if="detail && tab === 'skill'">

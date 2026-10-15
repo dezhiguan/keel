@@ -120,6 +120,8 @@ class Context:
         self.skills = SkillClient(manifest, agent, env) if manifest else _UnimplementedClient("skills")
         self._prompts = PromptClient(manifest, env) if manifest else None
         self.memory = LiteMemory(LiteStore(".") if session_id else None, agent, session_id, eval_run_id)
+        from keel.memory_remote import UserMemory
+        self.memory.bind_user(UserMemory(agent, env, eval_run_id))
 
     async def prompt(self, name: str):
         if self._prompts is None:

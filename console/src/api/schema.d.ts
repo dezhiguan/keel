@@ -673,6 +673,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agents/{name}/memories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        /** 列出未删除的用户记忆 */
+        get: operations["listUserMemories"];
+        put?: never;
+        /** 写入用户记忆。元智能体和评测流量被拒绝 */
+        post: operations["writeUserMemory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{name}/memories/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 删除一条用户记忆。审计只记条数和类别 */
+        delete: operations["deleteUserMemory"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/skills": {
         parameters: {
             query?: never;
@@ -1909,7 +1949,7 @@ export interface components {
                 target?: string;
                 constraints?: string;
             };
-            /** @description 各层记忆的真实接入状态；本地会话记忆不代表生产已开通 */
+            /** @description 会话记忆在本地。用户记忆可查可删。任务和经验记忆未接入 */
             memory?: {
                 session?: string;
                 user?: string;
@@ -4181,6 +4221,83 @@ export interface operations {
                 "application/json": Record<string, never>;
             };
         };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    listUserMemories: {
+        parameters: {
+            query?: {
+                ownerUser?: string;
+            };
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    writeUserMemory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ownerUser: string;
+                    content: string;
+                    evalRunId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    deleteUserMemory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {
