@@ -133,7 +133,8 @@ public class AgentRegistryService {
                             row.status()))
                     .toList();
         }
-        var detail = AgentDetail.of(agent, latest, instanceLabel, instances, manifest, resources);
+        var detail = AgentDetail.of(agent, latest, instanceLabel, instances, manifest, resources)
+                .withVersions(versions.stream().map(AgentDetail.VersionRow::of).toList());
         return selfCheckRecords == null ? detail : selfCheckRecords.apply(detail);
     }
 

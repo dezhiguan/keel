@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { avatarLetter, canRelease, cardChips, cardCost, channelIdentity, channelMethod, elementCell, executionRows, highlightYaml, isSelfChecking, kindLine, memoryRows, memoryTone, readyPill, resourceStatus, scoreText, toolChip, versionRows, withEvalGate } from './agentDrawer'
+import { avatarLetter, canRelease, cardChips, cardCost, channelIdentity, channelMethod, elementCell, executionRows, highlightYaml, isSelfChecking, kindLine, memoryRows, memoryTone, readyPill, resourceStatus, scoreText, stamp, toolChip, versionRows, withEvalGate } from './agentDrawer'
 
 describe('agent drawer', () => {
   it('shows memory status from the API and keeps unavailable layers explicit', () => {
@@ -67,6 +67,20 @@ describe('agent drawer', () => {
     expect(versionRows({ version: 'v2.4.1', env: 'prod', score: 0.91, gatePassed: true })).toEqual([
       { version: 'v2.4.1', env: 'prod', change: '当前版本', score: '0.91', gate: true, time: '—' },
     ])
+  })
+
+  it('shows the release time and keeps the live score on the current version', () => {
+    const rows = versionRows({
+      version: 'v0',
+      env: 'dev',
+      score: 1,
+      gatePassed: true,
+      versions: [{ version: 'v0', env: 'dev', releasedAt: '2026-10-16T02:20:00+08:00' }],
+    })
+    expect(rows).toEqual([
+      { version: 'v0', env: 'dev', change: '当前版本', score: '1.00', gate: true, time: stamp('2026-10-16T02:20:00+08:00') },
+    ])
+    expect(rows[0].time).not.toBe('—')
   })
 
   it('marks only the live version as current', () => {

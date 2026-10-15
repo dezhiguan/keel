@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-type PageSize = 10 | 20 | 50 | 100
-
-const props = defineProps<{ total: number }>()
+const props = withDefaults(defineProps<{ total: number; sizes?: number[] }>(), {
+  sizes: () => [10, 20, 50, 100],
+})
 const page = defineModel<number>('page', { required: true })
-const size = defineModel<PageSize>('size', { required: true })
-
-const SIZES: PageSize[] = [10, 20, 50, 100]
+const size = defineModel<number>('size', { required: true })
 
 const pages = computed(() => Math.max(1, Math.ceil(props.total / size.value)))
 const from = computed(() => (props.total ? (page.value - 1) * size.value + 1 : 0))
@@ -26,7 +24,7 @@ function go(p: number) {
 }
 
 function changeSize(event: Event) {
-  size.value = Number((event.target as HTMLSelectElement).value) as PageSize
+  size.value = Number((event.target as HTMLSelectElement).value)
   page.value = 1
 }
 </script>
@@ -36,7 +34,7 @@ function changeSize(event: Event) {
     <div class="size">
       每页
       <select :value="size" @change="changeSize">
-        <option v-for="s in SIZES" :key="s" :value="s">{{ s }}</option>
+        <option v-for="s in props.sizes" :key="s" :value="s">{{ s }}</option>
       </select>
       条
     </div>

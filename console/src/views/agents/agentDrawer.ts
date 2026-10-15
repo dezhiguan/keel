@@ -182,8 +182,8 @@ export function versionRows(agent: DrawerAgent): VersionRow[] {
       version: record.version || '—',
       env: record.env || '—',
       change: current ? '当前版本' : '—',
-      score: scoreText(record.scoreTotal),
-      gate: record.gatePassed ?? null,
+      score: scoreText(record.scoreTotal ?? (current ? agent.score : null)),
+      gate: record.gatePassed ?? (current ? agent.gatePassed ?? null : null),
       time: stamp(record.releasedAt),
     }
   })

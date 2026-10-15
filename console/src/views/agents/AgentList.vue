@@ -27,8 +27,9 @@ const filter = reactive<{
   status: AgentStatus | ''
   q: string
   page: number
-  size: 10 | 20 | 50 | 100
-}>({ category: 'all', status: '', q: '', page: 1, size: 10 })
+  size: number
+}>({ category: 'all', status: '', q: '', page: 1, size: 9 })
+const PAGE_SIZES = [9, 18, 36, 72]
 const cards = computed(() => mergeEmployees(result.value?.items ?? []))
 const shown = computed(() => {
   const q = filter.q.trim().toLowerCase()
@@ -39,7 +40,8 @@ const shown = computed(() => {
     return `${card.displayName} ${card.name} ${card.description}`.toLowerCase().includes(q)
   })
 })
-const pageRows = computed(() => shown.value.slice((filter.page - 1) * filter.size, filter.page * filter.size))
+const ordered = computed(() => [...shown.value].reverse())
+const pageRows = computed(() => ordered.value.slice((filter.page - 1) * filter.size, filter.page * filter.size))
 const registered = computed(() => result.value?.total ?? 0)
 
 function open(name?: string) {
@@ -166,7 +168,7 @@ watch(() => route.query.drawer, (drawer, previous) => {
           <small class="mono" style="font-size: 11px">keel new 或向导</small>
         </div>
       </div>
-      <Pager v-model:page="filter.page" v-model:size="filter.size" :total="shown.length" />
+      <Pager v-model:page="filter.page" v-model:size="filter.size" :sizes="PAGE_SIZES" :total="shown.length" />
     </template>
   </div>
 </template>

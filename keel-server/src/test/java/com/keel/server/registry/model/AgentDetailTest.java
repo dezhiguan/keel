@@ -9,6 +9,7 @@ import com.keel.server.registry.model.entity.AgentVersion;
 import com.keel.server.registry.model.enums.AgentStatus;
 import org.junit.jupiter.api.Test;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -84,6 +85,21 @@ class AgentDetailTest {
             assertThat(item.passed()).isNull();
         });
         assertThat(detail.selfCheck().passed()).isNull();
+    }
+
+    @Test void versionRowKeepsTheReleaseTime() {
+        var version = new AgentVersion();
+        version.setVersion("v0");
+        version.setEnv("dev");
+        version.setReleasedBy("amy");
+        version.setReleasedAt(OffsetDateTime.parse("2026-10-16T02:20:00+08:00"));
+        var row = AgentDetail.VersionRow.of(version);
+        assertThat(row.version()).isEqualTo("v0");
+        assertThat(row.env()).isEqualTo("dev");
+        assertThat(row.releasedBy()).isEqualTo("amy");
+        assertThat(row.releasedAt()).isEqualTo("2026-10-16T02:20+08:00");
+        assertThat(row.gatePassed()).isNull();
+        assertThat(row.scoreTotal()).isNull();
     }
 
     @Test void missingManifestLeavesYamlEmpty() {

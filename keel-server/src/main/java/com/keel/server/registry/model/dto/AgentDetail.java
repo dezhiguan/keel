@@ -25,7 +25,7 @@ public record AgentDetail(
         AgentElements elements,
         List<InstanceRow> instanceList,
         List<ResourceRow> resources,
-        List<Object> versions,
+        List<VersionRow> versions,
         List<Object> findings) {
 
     public static AgentDetail of(Agent agent, AgentVersion latest, String instances,
@@ -45,6 +45,11 @@ public record AgentDetail(
                 AgentElements.of(manifest),
                 instanceList,
                 bound, List.of(), List.of());
+    }
+
+    public AgentDetail withVersions(List<VersionRow> versions) {
+        return new AgentDetail(summary, manifestYaml, manifestHash, execution, memory, knowledgeBases, tools, models, delegates,
+                selfCheck, elements, instanceList, resources, versions == null ? List.of() : List.copyOf(versions), findings);
     }
 
     private static CheckReport checks(AgentSummary summary, List<String> models, JsonNode manifest,
@@ -261,6 +266,15 @@ public record AgentDetail(
     public record Memory(String session, String user, String task, String experience) {}
 
     public record ResourceRow(String type, String externalId, String status) {}
+
+    /** 版本页一行。评测分不在 agent_version 上，当前版本由控制台用智能体评分补上。 */
+    public record VersionRow(String version, String env, Boolean gatePassed, Double scoreTotal,
+                             String image, String ciRunUrl, String releasedBy, String releasedAt) {
+        public static VersionRow of(AgentVersion row) {
+            return new VersionRow(row.getVersion(), row.getEnv(), null, null, row.getImage(), null,
+                    row.getReleasedBy(), row.getReleasedAt() == null ? null : row.getReleasedAt().toString());
+        }
+    }
 
     public record CheckItem(String name, Boolean passed, String detail) {}
 
