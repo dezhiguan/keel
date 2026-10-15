@@ -12,7 +12,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -29,6 +31,7 @@ public final class Gateway {
     private final Admission admission;
     private final RoutePolicy routes = new RoutePolicy();
     private final List<AlertRule> alertRules = new ArrayList<>();
+    private final Set<String> probed = new HashSet<>();
 
     public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream) {
         this(catalog, budget, upstream, new KeyDirectory());
@@ -114,6 +117,20 @@ public final class Gateway {
         return key;
     }
 
+    public synchronized void probe(String name) {
+        var model = catalog.models().get(name);
+        if (model == null) {
+            throw new GatewayException(ErrorCode.SERVER_NOT_FOUND, "模型不存在");
+        }
+        var result = upstream.post(model.upstream(), model.upstreamKey(), "/v1/chat/completions",
+                "{\"model\":\"" + name + "\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}],\"max_tokens\":1}",
+                Duration.ofSeconds(5));
+        if (result.status() >= 400 || result.failed()) {
+            throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "探测失败");
+        }
+        probed.add(name);
+    }
+
     public List<ModelReport> reports() {
         var ledger = history == null ? spendLog : history;
         var settled = new HashMap<String, Spend>();
@@ -124,7 +141,8 @@ public final class Gateway {
             var last = settled.get(model.name());
             var drift = last != null && last.priceVersion() != null && !last.priceVersion().isBlank()
                     && !model.version().equals(last.priceVersion());
-            return new ModelReport(model, last == null ? "CONFIGURED" : "LIVE", drift);
+            var health = last != null ? "LIVE" : probed.contains(model.name()) ? "PROBED" : "CONFIGURED";
+            return new ModelReport(model, health, drift);
         }).toList();
     }
 

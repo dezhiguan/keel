@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
-import { createAlertRule, exportModelBills, getModelGateway, rotateModelKey, updateModelBudget, type ModelGateway } from '@/api/models'
+import { createAlertRule, exportModelBills, getModelGateway, probeModel, rotateModelKey, updateModelBudget, type ModelGateway } from '@/api/models'
 import { billStatusLabel, healthLabel, limitLabel, priceLabel } from './modelBill'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
@@ -62,6 +62,17 @@ function timeoutStyle(status?: string) {
 function yuan(value?: number | null) {
   if (value == null) return '—'
   return `¥${value.toFixed(Math.abs(value) > 0 && Math.abs(value) < 0.01 ? 6 : 2)}`
+}
+
+async function probe(name?: string) {
+  if (!name) return
+  try {
+    await probeModel(name)
+    ElMessage.success(`${name} 已探测`)
+    await load()
+  } catch (error) {
+    ElMessage.error(toKeelError(error).message)
+  }
 }
 
 async function load() {
@@ -184,7 +195,7 @@ watch(() => envStore.env, load, { immediate: true })
             <td>{{ orDash(m.provider) }}</td>
             <td>{{ orDash(m.role) }}</td>
             <td class="mono">{{ priceLabel(m.priceVersion, m.cacheCnyPerToken) }}<span v-if="m.drift" class="pill p-warn" style="margin-left: 6px">配置漂移</span></td>
-            <td>{{ healthLabel(m.health) }}</td>
+            <td>{{ healthLabel(m.health) }} <button v-if="m.health !== 'LIVE'" v-write class="btn sm" type="button" @click="probe(m.model)">探测</button></td>
             <td class="mono">{{ fmtN(m.calls) }}</td>
             <td class="mono">{{ orDash(m.p95) }}</td>
             <td class="mono" :style="timeoutStyle(m.status)">{{ fmtTimeout(m.errorRate) }}</td>

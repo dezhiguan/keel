@@ -174,6 +174,14 @@ public class LlmController {
         return Map.of("id", rule.id(), "name", rule.name(), "metric", rule.metric());
     }
 
+    @PostMapping("/admin/v1/models/{name}/probe")
+    Map<String, String> probe(@RequestHeader(value = "Authorization", required = false) String authorization,
+                              @PathVariable String name) {
+        admin(authorization);
+        gateway.probe(name);
+        return Map.of("name", name, "health", "PROBED");
+    }
+
     @GetMapping("/admin/v1/models")
     Map<String, Object> models(@RequestHeader(value = "Authorization", required = false) String authorization) {
         admin(authorization);

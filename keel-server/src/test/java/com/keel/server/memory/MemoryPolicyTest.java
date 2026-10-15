@@ -5,6 +5,7 @@ import com.keel.server.common.KeelException;
 import com.keel.server.integration.audit.JdbcAuditStore;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,5 +32,12 @@ class MemoryPolicyTest {
         var kept = JdbcAuditStore.kept(Map.of("count", 1, "category", "USER", "content", "用户原文"));
         assertThat(kept).containsEntry("count", 1).containsEntry("category", "USER");
         assertThat(kept).doesNotContainKey("content");
+    }
+
+    @Test void recallOrdersByCosineAndDropsADeletedVector() {
+        var query = List.of(1.0, 0.0);
+        var order = MemoryRecall.nearest(query, List.of(List.of(0.0, 1.0), List.of(1.0, 0.0)));
+        assertThat(order).containsExactly(1);
+        assertThat(MemoryRecall.nearest(query, List.of())).isEmpty();
     }
 }

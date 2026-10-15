@@ -260,6 +260,10 @@ public class LiteLlmClient {
         return new AlertRule(created.path("id").asText(""), name, metric, threshold, window, groupBy);
     }
 
+    public void probe(String name) {
+        send("/admin/v1/models/" + name + "/probe", Map.of());
+    }
+
     public void updateBudget(String alias, BigDecimal dailyBudgetCny) {
         send("/admin/v1/keys/" + alias + "/budget", Map.of("dailyBudgetCny", dailyBudgetCny));
     }

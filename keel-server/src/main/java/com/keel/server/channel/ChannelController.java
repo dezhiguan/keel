@@ -3,6 +3,7 @@ package com.keel.server.channel;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.keel.server.common.R;
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,6 +34,12 @@ public class ChannelController {
     @PostMapping("/api/v1/agents/{name}/channels")
     public R<Map<String, Object>> publish(@PathVariable String name, @RequestBody JsonNode body) {
         return R.ok(channels.publish(name, body));
+    }
+
+    @PostMapping(value = "/api/v1/agents/{name}/channels/stream", produces = "text/plain;charset=UTF-8")
+    public String stream(@PathVariable String name, @RequestBody JsonNode body) {
+        channels.entry(name, body);
+        return MiniprogramStream.chunks(body.path("text").asText(""));
     }
 
     @PostMapping("/api/v1/agents/{name}/channels/entry")

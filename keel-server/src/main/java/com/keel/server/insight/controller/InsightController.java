@@ -192,6 +192,12 @@ public class InsightController {
                 .body(csv.toString());
     }
 
+    @PostMapping("/models/{name}/probe")
+    public R<Map<String, String>> probe(@PathVariable String name) {
+        costs.probe(name);
+        return R.ok(Map.of("name", name, "health", "PROBED"));
+    }
+
     @PostMapping("/alert-rules")
     public R<java.util.Map<String, Object>> addAlert(@RequestBody java.util.Map<String, Object> body) {
         var threshold = body.get("threshold") == null ? -1d : Double.parseDouble(body.get("threshold").toString());

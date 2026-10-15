@@ -64,7 +64,7 @@ public class ChannelService {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "匿名访客不能发布到有高风险工具的智能体");
         }
         var quota = body.path("quotaPerHour").isNumber() ? body.path("quotaPerHour").asInt() : null;
-        var status = "OPENID".equals(identity) ? "REGISTERED" : "ONLINE";
+        var status = "ONLINE";
         var id = jdbc.queryForObject("""
                 INSERT INTO channel (agent_name, kind, identity, origin, quota_per_hour, status)
                 VALUES (?, ?, ?, ?, ?, ?) RETURNING id

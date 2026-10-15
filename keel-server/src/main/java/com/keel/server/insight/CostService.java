@@ -70,6 +70,10 @@ public class CostService {
      * Writes the new daily budget onto the virtual key, then audits. Audit failure aborts the response
      * after the gateway has the new value, so the caller can retry the audit by saving again.
      */
+    public void probe(String model) {
+        gateway.probe(model);
+    }
+
     public void updateBudget(String alias, BigDecimal dailyBudgetCny) {
         if (alias == null || alias.isBlank()) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "别名不能为空");
@@ -177,7 +181,9 @@ public class CostService {
             var latest = rows.stream().filter(row -> name.equals(row.model()) && "SETTLED".equals(row.status())).findFirst().orElse(null);
             var version = catalogModel == null ? "" : catalogModel.priceVersion();
             var drift = latest != null && !latest.priceVersion().isBlank() && !latest.priceVersion().equals(version);
-            var health = latest != null ? "LIVE" : (catalogModel != null && catalogModel.priceConfigured() ? "CONFIGURED" : "");
+            var health = latest != null ? "LIVE"
+                    : catalogModel != null && "PROBED".equals(catalogModel.health()) ? "PROBED"
+                    : catalogModel != null && catalogModel.priceConfigured() ? "CONFIGURED" : "";
             stats.add(new ModelStat(
                     name,
                     providers.getOrDefault(name, provider("", name)),

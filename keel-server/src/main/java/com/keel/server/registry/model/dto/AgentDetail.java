@@ -236,7 +236,7 @@ public record AgentDetail(
 
     private static Memory memory(JsonNode manifest) {
         if (manifest == null) return null;
-        return new Memory("本地开发可用 · 7 天", "可查可删", "未接入", "未接入");
+        return new Memory("本地开发可用 · 7 天", "可查可删", "可查可删", "可查可删");
     }
 
     public AgentDetail withSummary(AgentSummary summary) {

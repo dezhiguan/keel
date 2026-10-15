@@ -24,8 +24,17 @@ public class MemoryController {
     }
 
     @GetMapping
-    public R<Map<String, Object>> list(@PathVariable String name, @RequestParam(required = false) String ownerUser) {
-        return R.ok(memories.list(name, ownerUser));
+    public R<Map<String, Object>> list(@PathVariable String name,
+                                       @RequestParam(required = false) String ownerUser,
+                                       @RequestParam(required = false) String layer) {
+        return R.ok(memories.list(name, ownerUser, layer));
+    }
+
+    @PostMapping("/recall")
+    public R<Map<String, Object>> recall(@PathVariable String name, @RequestBody JsonNode body) {
+        var query = new java.util.ArrayList<Double>();
+        body.path("embedding").forEach(item -> query.add(item.asDouble()));
+        return R.ok(memories.recall(name, body.path("ownerUser").asText(""), body.path("layer").asText("USER"), query));
     }
 
     @PostMapping

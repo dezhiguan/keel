@@ -14,6 +14,10 @@ export function updateModelBudget(alias: string, dailyBudgetCny: number) {
   })
 }
 
+export function probeModel(name: string) {
+  return post<{ name: string; health: string }>(`/insight/models/${encodeURIComponent(name)}/probe`)
+}
+
 export function createAlertRule(body: { name: string; metric: string; threshold: number; window?: string; groupBy?: string }) {
   return post<{ id: string; name: string }>('/insight/alert-rules', body)
 }

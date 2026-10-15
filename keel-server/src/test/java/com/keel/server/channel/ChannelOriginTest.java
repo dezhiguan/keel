@@ -25,6 +25,8 @@ class ChannelOriginTest {
         assertThat(html).doesNotContain("keel_console").doesNotContain("document.cookie");
         var widget = new String(ChannelOriginTest.class.getResourceAsStream("/static/a/widget.js").readAllBytes(), StandardCharsets.UTF_8);
         assertThat(widget).contains("CHANNEL_ORIGIN_DENIED").contains("event: suspend").contains("feedback");
+        assertThat(MiniprogramStream.chunks("abcdefghij")).isEqualTo("abcdefgh\nij\n");
+        assertThat(MiniprogramStream.chunks("hi")).doesNotContain("event:");
         assertThat(widget).doesNotContain("keel_console");
     }
 }

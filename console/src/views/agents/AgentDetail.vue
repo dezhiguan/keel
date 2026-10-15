@@ -220,7 +220,7 @@ async function addChannel() {
       identity: channelIdentity.value,
       origin: channelOrigin.value.trim() || undefined,
     })
-    ElMessage.success(saved.status === 'REGISTERED' ? '小程序渠道已登记，流式方案以后再做' : '渠道已发布')
+    ElMessage.success('渠道已发布')
     await loadChannels(name.value)
   } catch (error) {
     ElMessage.error(toKeelError(error).message)
@@ -464,7 +464,7 @@ onUnmounted(() => {
                 </tr>
               </tbody>
             </table>
-            <p class="mut">删除后不能再召回。审计只记条数和类别，不记正文。任务记忆和经验记忆尚未接入。</p>
+            <p class="mut">用户、任务、经验记忆都可以删除。删除后不能再召回。会话原文仍在本地。审计只记条数和类别。</p>
           </template>
 
           <template v-else-if="detail && tab === 'skill'">
@@ -510,7 +510,7 @@ onUnmounted(() => {
                   <td>{{ row.identity === 'EXCHANGE' ? '换票' : row.identity === 'OPENID' ? 'openid 映射' : '匿名访客' }}</td>
                   <td class="mono">{{ row.origin || '—' }}</td>
                   <td class="mono">{{ row.quotaPerHour ?? '—' }}</td>
-                  <td>{{ row.status === 'REGISTERED' ? '流式方案待定' : row.status }}</td>
+                  <td>{{ row.status }}</td>
                 </tr>
               </tbody>
             </table>
