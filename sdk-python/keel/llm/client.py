@@ -6,6 +6,8 @@ The LiteLLM Langfuse callback must stay disabled: this SDK owns generation spans
 import json
 import logging
 import os
+from dataclasses import dataclass
+from typing import Any
 
 import httpx
 import openai
@@ -15,6 +17,19 @@ from keel.protocol.errors import ErrorCode, KeelError
 from keel.tracing import attrs
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ToolCall:
+    id: str
+    name: str
+    arguments: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class ChatResult:
+    content: str
+    tool_calls: tuple[ToolCall, ...]
 
 
 def _openai_base(url: str | None) -> str:
@@ -50,7 +65,8 @@ class LlmClient:
         self.client = openai.AsyncOpenAI(base_url=base_url, api_key=api_key, max_retries=0,
                                          http_client=http_client)
 
-    async def chat(self, messages: list[dict], model: str | None = None, prompt=None) -> str:
+    async def chat(self, messages: list[dict], model: str | None = None, prompt=None,
+                   tools: list[dict] | None = None) -> str | ChatResult:
         chosen = model or self.default_model
         if not chosen:
             raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "No LiteLLM model alias configured")
@@ -74,6 +90,8 @@ class LlmClient:
                     options["max_tokens"] = config["max_tokens"]
                 if "top_p" in config:
                     options["top_p"] = config["top_p"]
+                if tools is not None:
+                    options["tools"] = tools
                 response = await self.client.chat.completions.create(
                     model=chosen, messages=messages, **options,
                     extra_body={"metadata": {"caller_agent": self.agent}})
@@ -99,7 +117,20 @@ class LlmClient:
                                self.trace_id, self.agent)
             reply = response.choices[0].message.content or ""
             span.set_attribute(attrs.OBSERVATION_OUTPUT, reply)
-            return reply
+            if tools is None:
+                return reply
+            calls = []
+            for call in response.choices[0].message.tool_calls or []:
+                try:
+                    arguments = json.loads(call.function.arguments)
+                except (TypeError, ValueError) as exc:
+                    span.set_attribute(attrs.STATUS, "failed")
+                    raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型工具参数不是有效 JSON") from exc
+                if not isinstance(arguments, dict):
+                    span.set_attribute(attrs.STATUS, "failed")
+                    raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型工具参数必须是 JSON 对象")
+                calls.append(ToolCall(call.id, call.function.name, arguments))
+            return ChatResult(reply, tuple(calls))
 
     async def aclose(self):
         await self.client.close()

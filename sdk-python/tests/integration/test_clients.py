@@ -12,7 +12,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from keel.audit.reporter import AuditReporter
 from keel.context import Context
 from keel.knowledge import KnowledgeClient
-from keel.llm.client import LlmClient
+from keel.llm.client import ChatResult, LlmClient, ToolCall
 from keel.manifest import AgentManifest
 from keel.protocol.errors import ErrorCode, KeelError
 
@@ -63,6 +63,66 @@ def test_litellm_request_generation_span_and_zero_cost_warning(monkeypatch, capl
     assert span.attributes["gen_ai.usage.input_tokens"] == 3
     assert "zero cost" in caplog.text
     provider.shutdown()
+
+
+@pytest.mark.parametrize("arguments,expected", [('{"city":"上海"}', {"city": "上海"}),
+                                                      ('[]', None), ('not-json', None)])
+def test_chat_forwards_tools_and_returns_structured_calls(monkeypatch, arguments, expected):
+    monkeypatch.setenv("KEEL_LLM_BASE_URL", "https://gateway.test")
+    monkeypatch.setenv("KEEL_LLM_KEY", "test-virtual-key")
+    requests = []
+
+    def handle(request):
+        requests.append(json.loads(request.content))
+        return httpx.Response(200, json={
+            "id": "chatcmpl-tools", "object": "chat.completion", "created": 1,
+            "model": "qwen-plus", "choices": [{"index": 0,
+                "message": {"role": "assistant", "content": None, "tool_calls": [{
+                    "id": "call-1", "type": "function", "function": {
+                        "name": "weather.lookup", "arguments": arguments}}]},
+                "finish_reason": "tool_calls"}],
+            "usage": {"prompt_tokens": 4, "completion_tokens": 3, "total_tokens": 7},
+        })
+
+    client = LlmClient("agent", "qwen-plus", "trace-1", http_client=httpx.AsyncClient(
+        transport=httpx.MockTransport(handle)))
+    tools = [{"type": "function", "function": {"name": "weather.lookup",
+              "parameters": {"type": "object", "properties": {"city": {"type": "string"}}}}}]
+
+    async def scenario():
+        try:
+            if expected is None:
+                with pytest.raises(KeelError) as error:
+                    await client.chat([{"role": "user", "content": "天气"}], tools=tools)
+                assert error.value.code is ErrorCode.SERVER_INTERNAL_ERROR
+            else:
+                result = await client.chat([{"role": "user", "content": "天气"}], tools=tools)
+                assert result == ChatResult("", (ToolCall("call-1", "weather.lookup", expected),))
+        finally:
+            await client.aclose()
+
+    run(scenario())
+    assert requests[0]["tools"] == tools
+    assert requests[0]["metadata"]["caller_agent"] == "agent"
+
+
+def test_chat_with_tools_and_no_tool_call_returns_content(monkeypatch):
+    monkeypatch.setenv("KEEL_LLM_BASE_URL", "https://gateway.test")
+    monkeypatch.setenv("KEEL_LLM_KEY", "test-virtual-key")
+    client = LlmClient("agent", "qwen-plus", "trace-1", http_client=httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json={
+            "id": "chatcmpl-final", "object": "chat.completion", "created": 1,
+            "model": "qwen-plus", "choices": [{"index": 0,
+                "message": {"role": "assistant", "content": "完成"}, "finish_reason": "stop"}],
+        }))))
+
+    async def scenario():
+        try:
+            return await client.chat([{"role": "user", "content": "你好"}], tools=[])
+        finally:
+            await client.aclose()
+
+    assert run(scenario()) == ChatResult("完成", ())
 
 
 @pytest.mark.parametrize("status,expected", [(429, ErrorCode.GW_QUOTA_EXCEEDED),
