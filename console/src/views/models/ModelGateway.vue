@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
-import { exportModelBills, getModelGateway, rotateModelKey, updateModelBudget, type ModelGateway } from '@/api/models'
+import { createAlertRule, exportModelBills, getModelGateway, rotateModelKey, updateModelBudget, type ModelGateway } from '@/api/models'
 import { billStatusLabel, healthLabel, limitLabel, priceLabel } from './modelBill'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
@@ -23,6 +23,9 @@ const envStore = useEnvStore()
 const userStore = useUserStore()
 const data = ref<ModelGateway | null>(null)
 const tab = ref<'model' | 'key' | 'route' | 'bill' | 'alert'>('model')
+const ruleName = ref('')
+const ruleMetric = ref('budget')
+const ruleThreshold = ref(0.8)
 const loading = ref(false)
 const saving = ref(false)
 const editing = ref<GatewayKey | null>(null)
@@ -128,6 +131,17 @@ async function confirmRotation() {
   }
 }
 
+async function saveRule() {
+  if (!ruleName.value.trim()) return
+  try {
+    await createAlertRule({ name: ruleName.value.trim(), metric: ruleMetric.value, threshold: ruleThreshold.value, window: '1d', groupBy: 'alias' })
+    ruleName.value = ''
+    await load()
+  } catch (error) {
+    ElMessage.error(`新建规则失败：${toKeelError(error).message}`)
+  }
+}
+
 async function exportBills() {
   try {
     const csv = await exportModelBills({ env: envStore.env, range: '24h' })
@@ -155,9 +169,9 @@ watch(() => envStore.env, load, { immediate: true })
     <div class="chipsel" style="margin-bottom: 14px">
       <button :class="{ on: tab === 'model' }" @click="tab = 'model'">模型与渠道 · {{ models.length }}</button>
       <button :class="{ on: tab === 'key' }" @click="tab = 'key'">Key 与配额 · {{ keys.length }}</button>
-      <button :class="{ on: tab === 'route' }" @click="tab = 'route'">路由与降级 <span class="pill nd p-vio">占位</span></button>
+      <button :class="{ on: tab === 'route' }" @click="tab = 'route'">路由与降级</button>
       <button :class="{ on: tab === 'bill' }" @click="tab = 'bill'">账单 · 待计费 {{ data?.pendingCount ?? 0 }}</button>
-      <button :class="{ on: tab === 'alert' }" @click="tab = 'alert'">告警规则 <span class="pill nd p-vio">占位</span></button>
+      <button :class="{ on: tab === 'alert' }" @click="tab = 'alert'">告警规则</button>
     </div>
 
     <div v-if="tab === 'model'" class="card">
@@ -218,12 +232,39 @@ watch(() => envStore.env, load, { immediate: true })
     </div>
 
     <div v-else-if="tab === 'route'" class="card">
-      <h3>路由与降级 <span class="pill nd p-vio">占位</span></h3>
-      <div class="kv"><span>策略版本</span><b>未接入</b><span>硬约束</span><b>授权、上下文、工具能力、健康度</b><span>降级链</span><b>未接入</b><span>渠道熔断</span><b>未接入</b><span>路由试算</span><b>未接入</b></div>
+      <h3>路由与降级</h3>
+      <div class="kv">
+        <span>策略版本</span><b>{{ data?.routePolicy?.version ?? '未接入' }}</b>
+        <span>目标</span><b>{{ data?.routePolicy?.objective ?? '未接入' }}</b>
+        <span>降级</span><b>超时或 5xx 只切换一次。401、403 和预算不足不降级。</b>
+        <span>熔断</span><b>同一渠道连续 2 次失败后跳过 60 秒</b>
+      </div>
     </div>
     <div v-else-if="tab === 'alert'" class="card">
-      <h3>告警规则 <span class="pill nd p-vio">占位</span></h3>
-      <table class="t"><thead><tr><th>规则</th><th>指标</th><th>阈值</th><th>窗口</th><th>分组</th><th>通知</th><th>状态</th></tr></thead><tbody><tr><td colspan="7" class="empty">告警规则接口尚未接入</td></tr></tbody></table>
+      <h3>告警规则<small>触发后进入运行总览</small></h3>
+      <table class="t">
+        <thead><tr><th>规则</th><th>指标</th><th>阈值</th><th>窗口</th><th>分组</th></tr></thead>
+        <tbody>
+          <tr v-for="rule in data?.alertRules ?? []" :key="rule.id">
+            <td>{{ rule.name }}</td>
+            <td class="mono">{{ rule.metric }}</td>
+            <td class="mono">{{ rule.threshold }}</td>
+            <td>{{ rule.window || '—' }}</td>
+            <td>{{ rule.groupBy || '—' }}</td>
+          </tr>
+          <tr v-if="!(data?.alertRules ?? []).length"><td colspan="5" class="empty">还没有告警规则</td></tr>
+        </tbody>
+      </table>
+      <div class="field" style="display: flex; gap: 8px; margin-top: 12px">
+        <input v-model="ruleName" class="inp" placeholder="规则名称">
+        <select v-model="ruleMetric" class="inp">
+          <option value="budget">budget</option>
+          <option value="usage_missing">usage_missing</option>
+          <option value="channel_failure">channel_failure</option>
+        </select>
+        <input v-model.number="ruleThreshold" class="inp" type="number" min="0" step="0.1">
+        <button v-write class="btn pri sm" type="button" @click="saveRule">新建规则</button>
+      </div>
     </div>
     <div v-else class="card">
       <h3>账单<small>每次尝试一行 · 同一 requestId 只结算一次</small> <button class="btn sm" type="button" @click="exportBills">导出</button></h3>

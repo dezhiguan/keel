@@ -652,10 +652,12 @@ X-Keel-Eval-Run: &lt;run_id&gt;                 <span class="c"># 评测流量�
   <table>
     <thead><tr><th>组件</th><th>Keel 调用的接口</th><th>用途</th></tr></thead>
     <tbody>
-      <tr><td rowspan="4">薄网关 keel-llm</td><td><code>POST /v1/chat/completions</code> · <code>/v1/embeddings</code></td><td>智能体调用。Bearer 虚拟 Key。没有 <code>/rerank</code></td></tr>
+      <tr><td rowspan="6">薄网关 keel-llm</td><td><code>POST /v1/chat/completions</code> · <code>/v1/embeddings</code></td><td>智能体调用。Bearer 虚拟 Key。没有 <code>/rerank</code></td></tr>
       <tr><td><code>POST /admin/v1/keys</code></td><td>注册时建虚拟 Key：alias=<code>{agent}-{env}</code>、models、fallback、dailyBudgetCny、allowFallback。别名必须带 dev、staging 或 prod 后缀。向量化 Key 的 allowFallback 为 false</td></tr>
       <tr><td><code>POST /admin/v1/keys/{alias}/block</code></td><td>下线只 block</td></tr>
       <tr><td><code>GET /admin/v1/keys/{alias}</code> · <code>/admin/v1/spend</code> · <code>/admin/v1/models</code></td><td>预算、分页花费明细（人民币 costCny）、模型单价。缺单价的模型拒绝启动</td></tr>
+      <tr><td><code>GET /admin/v1/route-policy</code> · <code>POST /admin/v1/route-policy</code> · <code>POST /admin/v1/route-policy/rollback</code> · <code>POST /admin/v1/route/preview</code></td><td>路由策略版本。objective 为 balanced、cost 或 latency。显式指定的模型先试；只在超时、5xx 时切换一次。401/403 和预算不足不降级。试算返回的模型顺序与实际调用一致。渠道连续失败后熔断，冷却后半开探测</td></tr>
+      <tr><td><code>GET /admin/v1/alert-rules</code> · <code>POST /admin/v1/alert-rules</code></td><td>告警规则。metric 为 budget、usage_missing、channel_failure。触发后进入总览告警</td></tr>
       <tr><td rowspan="8">Langfuse v4</td><td><code>POST /api/public/otel/v1/traces</code></td><td>OTLP/HTTP 上报；Basic Auth（公钥:私钥）；<b>必须带请求头 <code>x-langfuse-ingestion-version: 4</code></b>，否则数据约 15 分钟后才可见</td></tr>
       <tr><td><code>GET /api/public/v2/observations</code> · <code>/v2/metrics</code> · <code>/v3/scores</code></td><td>控制台追踪、总览、质量。旧的 <code>/api/public/traces</code> 等接口不要用；2026-09-16 及之后创建的云端组织上，<code>GET /api/public/traces</code> 返回 410</td></tr>
       <tr><td><code>GET /api/public/experiments</code> · <code>/experiment-items</code></td><td>读实验结果（门禁对比）。评测中心只取近 90 天的一页（空了再取 2020 起的一页），不跟 cursor；experiment-items 用实验时间前后的窄窗口。结果缓存 45 秒。写实验用 Python SDK 的实验运行器，<b>不用</b>已废弃的 <code>dataset-run-items</code></td></tr>

@@ -37,6 +37,8 @@ alwaysApply: true
 - 管理：`POST /admin/v1/keys`、`POST /admin/v1/keys/{alias}/block`、`GET /admin/v1/keys/{alias}`、`GET /admin/v1/spend`、`GET /admin/v1/models`。下线只 block。
 - `POST /admin/v1/keys` 可选 `rpm`、`tpm`、`concurrency`。缺省不限制。超限返回 `LLM_RATE_LIMITED`（429，可重试）。
 - `GET /admin/v1/spend?limit=&cursor=` 按创建时间从新到旧。`nextCursor` 为空表示没有下一页。每一行是一次尝试，带 `attemptId`、`requestId`、`traceId`、`priceVersion`、`routeVersion`（`primary` 或 `fallback`）、`status`。配置了 `KEEL_LLM_JDBC_URL` 时这些行写入库 `keel_llm` 的表 `llm_spend`；没配置时游标仍读近期账单。
+- 路由：`GET /admin/v1/route-policy` 返回 `{version, objective}`。`POST /admin/v1/route-policy` body `{objective}`，objective 只能是 `balanced`、`cost`、`latency`，版本加一。`POST /admin/v1/route-policy/rollback` 回到上一版；只有一版时 400。`POST /admin/v1/route/preview` body `{alias, model}`，返回 `{version, objective, models}`。请求里写了模型就先用它。只在超时或 5xx 时改试 `models` 里的下一个，最多一次。401、403 和 `LLM_BUDGET_EXCEEDED` 不改模型。渠道连续 2 次超时或 5xx 后熔断 60 秒，期间跳过该渠道；冷却后半开，放行一次探测。
+- 告警规则：`GET /admin/v1/alert-rules`、`POST /admin/v1/alert-rules`。body `{name, metric, threshold, window, groupBy}`。metric 只能是 `budget`、`usage_missing`、`channel_failure`。
 - 别名 `{agent}-{env}`，必须匹配 `^[a-z][a-z0-9-]{1,38}[a-z0-9]-(dev|test|staging|prod)$`。
 - **预算按人民币计**，字段 `dailyBudgetCny`，与 manifest 的 `budget.dailyCny` 相同，开通时原样下发。
 - 单价写在网关配置里。缺单价拒绝启动，不允许成本静默记 0。Langfuse Model Definitions 配同一组价格；控制台金额以网关的 `costCny` 为准。

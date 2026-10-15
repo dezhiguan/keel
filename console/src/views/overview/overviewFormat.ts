@@ -156,6 +156,7 @@ export const ALERT_KIND: Record<string, [string, string]> = {
   RETIRE_INCOMPLETE: ['下线', 'p-bad'],
   VERSION_MISMATCH: ['版本', 'p-bad'],
   BUDGET_WARN: ['预算', 'p-warn'],
+  CHANNEL_FAULT: ['渠道', 'p-bad'],
   GATE_FAILED: ['门禁', 'p-bad'],
   PROMPT_DRIFT: ['提示词', 'p-warn'],
 }

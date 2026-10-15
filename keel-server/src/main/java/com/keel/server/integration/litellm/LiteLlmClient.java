@@ -225,6 +225,41 @@ public class LiteLlmClient {
         return rows;
     }
 
+    public RoutePolicy routePolicy() {
+        try {
+            var body = get("/admin/v1/route-policy");
+            if (!body.has("version")) {
+                return null;
+            }
+            return new RoutePolicy(body.path("version").asInt(), body.path("objective").asText("balanced"));
+        } catch (RuntimeException error) {
+            return null;
+        }
+    }
+
+    public List<AlertRule> alertRules() {
+        try {
+            var rows = new ArrayList<AlertRule>();
+            get("/admin/v1/alert-rules").path("data").forEach(row -> rows.add(new AlertRule(
+                    row.path("id").asText(""), row.path("name").asText(""), row.path("metric").asText(""),
+                    row.path("threshold").asDouble(), row.path("window").asText(""), row.path("groupBy").asText(""))));
+            return rows;
+        } catch (RuntimeException error) {
+            return List.of();
+        }
+    }
+
+    public AlertRule addAlert(String name, String metric, double threshold, String window, String groupBy) {
+        var body = new java.util.LinkedHashMap<String, Object>();
+        body.put("name", name);
+        body.put("metric", metric);
+        body.put("threshold", threshold);
+        body.put("window", window);
+        body.put("groupBy", groupBy);
+        var created = send("/admin/v1/alert-rules", body);
+        return new AlertRule(created.path("id").asText(""), name, metric, threshold, window, groupBy);
+    }
+
     public void updateBudget(String alias, BigDecimal dailyBudgetCny) {
         send("/admin/v1/keys/" + alias + "/budget", Map.of("dailyBudgetCny", dailyBudgetCny));
     }
@@ -243,6 +278,10 @@ public class LiteLlmClient {
     }
 
     public record RotatedKey(String alias, String key, int version) {}
+
+    public record RoutePolicy(int version, String objective) {}
+
+    public record AlertRule(String id, String name, String metric, double threshold, String window, String groupBy) {}
 
     public record Spend(String alias, String model, Double costCny, String ts, Long latencyMs, boolean timedOut,
                         String requestId, Integer inputTokens, Integer outputTokens, double reservedCny,

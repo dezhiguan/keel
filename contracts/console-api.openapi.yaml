@@ -2652,6 +2652,7 @@ components:
               GATE_FAILED,
               PROMPT_DRIFT,
               LLM_USAGE_MISSING,
+              CHANNEL_FAULT,
             ]
         text: { type: string }
         link: { type: string, nullable: true }
@@ -3409,6 +3410,23 @@ components:
               rpm: { type: integer, nullable: true, description: 每分钟请求上限。为空表示不限制 }
               tpm: { type: integer, nullable: true, description: 每分钟 token 上限。为空表示不限制 }
               concurrency: { type: integer, nullable: true, description: 并发上限。为空表示不限制 }
+        routePolicy:
+          type: object
+          nullable: true
+          properties:
+            version: { type: integer }
+            objective: { type: string, enum: [balanced, cost, latency] }
+        alertRules:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              name: { type: string }
+              metric: { type: string, enum: [budget, usage_missing, channel_failure] }
+              threshold: { type: number, format: float }
+              window: { type: string }
+              groupBy: { type: string }
         routing:
           type: array
           description: 由各智能体 manifest 生成，写入薄网关的虚拟 Key

@@ -39,6 +39,18 @@ public class CostService {
         this.audit = audit;
     }
 
+    public LiteLlmClient.RoutePolicy routePolicy() {
+        return gateway.routePolicy();
+    }
+
+    public List<LiteLlmClient.AlertRule> alertRules() {
+        return gateway.alertRules();
+    }
+
+    public LiteLlmClient.AlertRule addAlert(String name, String metric, double threshold, String window, String groupBy) {
+        return gateway.addAlert(name, metric, threshold, window, groupBy);
+    }
+
     public Result cost() {
         return cost("all", null);
     }

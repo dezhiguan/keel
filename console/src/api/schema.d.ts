@@ -1770,7 +1770,7 @@ export interface components {
              * @description 对账 finding 或运行告警
              * @enum {string}
              */
-            kind?: "OFFLINE" | "UNREGISTERED" | "ZOMBIE" | "RETIRE_INCOMPLETE" | "VERSION_MISMATCH" | "BUDGET_WARN" | "GATE_FAILED" | "PROMPT_DRIFT" | "LLM_USAGE_MISSING";
+            kind?: "OFFLINE" | "UNREGISTERED" | "ZOMBIE" | "RETIRE_INCOMPLETE" | "VERSION_MISMATCH" | "BUDGET_WARN" | "GATE_FAILED" | "PROMPT_DRIFT" | "LLM_USAGE_MISSING" | "CHANNEL_FAULT";
             text?: string;
             link?: string | null;
         };
@@ -2512,6 +2512,21 @@ export interface components {
                 tpm?: number | null;
                 /** @description 并发上限。为空表示不限制 */
                 concurrency?: number | null;
+            }[];
+            routePolicy?: {
+                version?: number;
+                /** @enum {string} */
+                objective?: "balanced" | "cost" | "latency";
+            } | null;
+            alertRules?: {
+                id?: string;
+                name?: string;
+                /** @enum {string} */
+                metric?: "budget" | "usage_missing" | "channel_failure";
+                /** Format: float */
+                threshold?: number;
+                window?: string;
+                groupBy?: string;
             }[];
             /** @description 由各智能体 manifest 生成，写入薄网关的虚拟 Key */
             routing?: {

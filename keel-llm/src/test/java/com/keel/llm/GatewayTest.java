@@ -502,6 +502,76 @@ class GatewayTest {
         }
     }
 
+    @Test void failureSwitchesOnceAndAuthDoesNot() throws Exception {
+        var seen = new ArrayList<String>();
+        var server = server((model, exchange) -> {
+            seen.add(model);
+            if ("qwen-plus".equals(model)) {
+                write(exchange, 500, "");
+                return;
+            }
+            if ("deepseek-v3".equals(model)) {
+                write(exchange, 500, "");
+                return;
+            }
+            write(exchange, 200, usage(model, 1, 1));
+        });
+        try {
+            var gateway = gateway(server);
+            var key = gateway.create("askdb-dev", List.of("qwen-plus", "deepseek-v3", "text-embedding-v3"),
+                    List.of("deepseek-v3", "text-embedding-v3"), new BigDecimal("30"), true);
+            var preview = gateway.preview("askdb-dev", "qwen-plus");
+            assertThatThrownBy(() -> gateway.complete("Bearer " + key.key(), "/v1/chat/completions",
+                    "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2)))
+                    .isInstanceOf(Gateway.GatewayException.class);
+            assertThat(seen).containsExactlyElementsOf(preview.models());
+            assertThat(seen).hasSize(2);
+        } finally {
+            server.stop(0);
+        }
+        seen.clear();
+        var denied = server((model, exchange) -> {
+            seen.add(model);
+            write(exchange, 401, "");
+        });
+        try {
+            var gateway = gateway(denied);
+            var key = gateway.create("askdb-dev", List.of("qwen-plus", "deepseek-v3"), List.of("deepseek-v3"), new BigDecimal("30"), true);
+            var completion = gateway.complete("Bearer " + key.key(), "/v1/chat/completions",
+                    "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2));
+            assertThat(completion.status()).isEqualTo(401);
+            assertThat(seen).containsExactly("qwen-plus");
+        } finally {
+            denied.stop(0);
+        }
+    }
+
+    @Test void previewMatchesThePublishedCostRouteAndRollbackRestoresIt() throws Exception {
+        var seen = new ArrayList<String>();
+        var server = server((model, exchange) -> {
+            seen.add(model);
+            if ("deepseek-v3".equals(model)) {
+                write(exchange, 500, "");
+                return;
+            }
+            write(exchange, 200, usage(model, 1, 1));
+        });
+        try {
+            var gateway = gateway(server);
+            gateway.create("askdb-dev", List.of("qwen-plus", "deepseek-v3"), List.of("deepseek-v3", "qwen-plus"), new BigDecimal("30"), true);
+            var published = gateway.publishRoute("cost");
+            assertThat(published.version()).isEqualTo(2);
+            var preview = gateway.preview("askdb-dev", "deepseek-v3");
+            gateway.complete("Bearer " + gateway.requireAlias("askdb-dev").token(), "/v1/chat/completions",
+                    "{\"model\":\"deepseek-v3\"}", Duration.ofSeconds(2));
+            assertThat(seen).containsExactlyElementsOf(preview.models());
+            assertThat(gateway.rollbackRoute().objective()).isEqualTo("balanced");
+            assertThat(gateway.routePolicy().version()).isEqualTo(1);
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static Gateway.Spend spendAt(String attemptId, String instant) {
         return new Gateway.Spend("echo-dev", "qwen-plus", 1, 1, BigDecimal.ONE, "request",
                 Instant.parse(instant), 1, false, "SETTLED", BigDecimal.ZERO, attemptId, "", "v", "primary", -1);

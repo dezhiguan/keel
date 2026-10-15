@@ -146,6 +146,20 @@ public class InsightController {
                     row.put("cacheTokens", bill.cacheTokens());
                     return row;
                 }).toList());
+        var policy = costs.routePolicy();
+        if (policy != null) {
+            body.put("routePolicy", java.util.Map.of("version", policy.version(), "objective", policy.objective()));
+        }
+        body.put("alertRules", costs.alertRules().stream().map(rule -> {
+            var row = new LinkedHashMap<String, Object>();
+            row.put("id", rule.id());
+            row.put("name", rule.name());
+            row.put("metric", rule.metric());
+            row.put("threshold", rule.threshold());
+            row.put("window", rule.window());
+            row.put("groupBy", rule.groupBy());
+            return row;
+        }).toList());
         var devflowCost = devflow.cost();
         if (devflowCost != null) {
             body.put("devflowCost", devflowCost);
@@ -176,6 +190,14 @@ public class InsightController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=bills.csv")
                 .body(csv.toString());
+    }
+
+    @PostMapping("/alert-rules")
+    public R<java.util.Map<String, Object>> addAlert(@RequestBody java.util.Map<String, Object> body) {
+        var threshold = body.get("threshold") == null ? -1d : Double.parseDouble(body.get("threshold").toString());
+        var rule = costs.addAlert(String.valueOf(body.get("name")), String.valueOf(body.get("metric")), threshold,
+                String.valueOf(body.getOrDefault("window", "")), String.valueOf(body.getOrDefault("groupBy", "")));
+        return R.ok(java.util.Map.of("id", rule.id(), "name", rule.name()));
     }
 
     @PostMapping("/costs/keys/{alias}/budget")

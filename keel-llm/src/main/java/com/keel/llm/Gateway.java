@@ -27,6 +27,8 @@ public final class Gateway {
     private final SpendLog spendLog;
     private final SpendLedger history;
     private final Admission admission;
+    private final RoutePolicy routes = new RoutePolicy();
+    private final List<AlertRule> alertRules = new ArrayList<>();
 
     public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream) {
         this(catalog, budget, upstream, new KeyDirectory());
@@ -177,6 +179,7 @@ public final class Gateway {
                 result = upstream.post(model.upstream(), model.upstreamKey(), path, forwarded, timeout);
                 latencyMs = Math.max(0L, (System.nanoTime() - started) / 1_000_000L);
                 if (result.retryable()) {
+                    observe(used, true);
                     line(key.alias(), used, 0, 0, BigDecimal.ZERO, requestId, latencyMs, result.status() == 504,
                             "FAILED", BigDecimal.ZERO, traceId, route(i), -1);
                     if (i < attempts.size() - 1) {
@@ -204,6 +207,7 @@ public final class Gateway {
             var node = read(result.body());
             var cost = costOf(used, node);
             budget.settle(key.alias, requestId, cost);
+            observe(used, false);
             int input = tokens(node, "prompt_tokens");
             int output = tokens(node, "completion_tokens");
             tokensUsed = input + output;
@@ -358,15 +362,49 @@ public final class Gateway {
         return found;
     }
 
+    public RoutePolicy.Version routePolicy() {
+        return routes.current();
+    }
+
+    public RoutePolicy.Version publishRoute(String objective) {
+        return routes.publish(objective);
+    }
+
+    public RoutePolicy.Version rollbackRoute() {
+        return routes.rollback();
+    }
+
+    public Preview preview(String alias, String model) {
+        var key = requireAlias(alias);
+        if (!key.models().contains(model)) {
+            throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "模型不在该 Key 的允许列表里");
+        }
+        var version = routes.current();
+        return new Preview(version.version(), version.objective(), routes.plan(key, model, false, catalog));
+    }
+
+    public AlertRule addAlert(String name, String metric, double threshold, String window, String groupBy) {
+        if (name == null || name.isBlank() || threshold < 0) {
+            throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "告警规则缺少名称或阈值");
+        }
+        if (!"budget".equals(metric) && !"usage_missing".equals(metric) && !"channel_failure".equals(metric)) {
+            throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "metric 只能是 budget、usage_missing 或 channel_failure");
+        }
+        var rule = new AlertRule("rule-" + (alertRules.size() + 1), name, metric, threshold, window == null ? "" : window, groupBy == null ? "" : groupBy);
+        alertRules.add(rule);
+        return rule;
+    }
+
+    public List<AlertRule> alertRules() {
+        return List.copyOf(alertRules);
+    }
+
     private List<String> attempts(VirtualKey key, String requested, boolean embedding) {
-        if (embedding || !key.allowFallback || key.fallback.isEmpty()) {
-            return List.of(requested);
-        }
-        var next = key.fallback.get(0);
-        if (next.equals(requested)) {
-            return List.of(requested);
-        }
-        return List.of(requested, next);
+        return routes.plan(key, requested, embedding, catalog);
+    }
+
+    private void observe(String model, boolean failed) {
+        routes.observe(catalog.require(model).upstream(), failed);
     }
 
     private VirtualKey virtualKey(String bearer) {
@@ -436,6 +474,10 @@ public final class Gateway {
     }
 
     public record ModelReport(ModelCatalog.Model model, String health, boolean drift) {}
+
+    public record Preview(int version, String objective, List<String> models) {}
+
+    public record AlertRule(String id, String name, String metric, double threshold, String window, String groupBy) {}
 
     public record Created(String alias, String key, int version) {}
 

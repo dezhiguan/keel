@@ -127,6 +127,53 @@ public class LlmController {
         return Map.of("data", rows, "page", page, "size", size);
     }
 
+    @GetMapping("/admin/v1/route-policy")
+    Map<String, Object> routePolicy(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        admin(authorization);
+        var current = gateway.routePolicy();
+        return Map.of("version", current.version(), "objective", current.objective());
+    }
+
+    @PostMapping("/admin/v1/route-policy")
+    Map<String, Object> publishRoute(@RequestHeader(value = "Authorization", required = false) String authorization,
+                                     @RequestBody Map<String, Object> body) {
+        admin(authorization);
+        var current = gateway.publishRoute(text(body.get("objective")));
+        return Map.of("version", current.version(), "objective", current.objective());
+    }
+
+    @PostMapping("/admin/v1/route-policy/rollback")
+    Map<String, Object> rollbackRoute(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        admin(authorization);
+        var current = gateway.rollbackRoute();
+        return Map.of("version", current.version(), "objective", current.objective());
+    }
+
+    @PostMapping("/admin/v1/route/preview")
+    Map<String, Object> preview(@RequestHeader(value = "Authorization", required = false) String authorization,
+                                @RequestBody Map<String, Object> body) {
+        admin(authorization);
+        var preview = gateway.preview(text(body.get("alias")), text(body.get("model")));
+        return Map.of("version", preview.version(), "objective", preview.objective(), "models", preview.models());
+    }
+
+    @GetMapping("/admin/v1/alert-rules")
+    Map<String, Object> alertRules(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        admin(authorization);
+        return Map.of("data", gateway.alertRules().stream().map(rule -> Map.of(
+                "id", rule.id(), "name", rule.name(), "metric", rule.metric(),
+                "threshold", rule.threshold(), "window", rule.window(), "groupBy", rule.groupBy())).toList());
+    }
+
+    @PostMapping("/admin/v1/alert-rules")
+    Map<String, Object> addAlert(@RequestHeader(value = "Authorization", required = false) String authorization,
+                                 @RequestBody Map<String, Object> body) {
+        admin(authorization);
+        var threshold = body.get("threshold") == null ? -1d : Double.parseDouble(body.get("threshold").toString());
+        var rule = gateway.addAlert(text(body.get("name")), text(body.get("metric")), threshold, text(body.get("window")), text(body.get("groupBy")));
+        return Map.of("id", rule.id(), "name", rule.name(), "metric", rule.metric());
+    }
+
     @GetMapping("/admin/v1/models")
     Map<String, Object> models(@RequestHeader(value = "Authorization", required = false) String authorization) {
         admin(authorization);

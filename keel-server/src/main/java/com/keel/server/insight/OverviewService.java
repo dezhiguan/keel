@@ -154,6 +154,9 @@ public class OverviewService {
         }
         missingByAgent.forEach((agent, count) -> rows.add(new Alert(latestByAgent.get(agent), "WARN", agent,
                 "LLM_USAGE_MISSING", agent + " 有 " + count + " 条调用 usage 缺失，进入待计费", "/models")));
+        for (var hit : GatewayAlertRules.evaluate(costs.alertRules(), bills.bills(), bills.keys())) {
+            rows.add(new Alert(Instant.now().toString(), "WARN", hit.agent(), hit.kind(), hit.text(), "/models"));
+        }
         for (var finding : findings.openFindings()) {
             if (!"all".equals(env) && !env.equals(finding.env())) {
                 continue;
