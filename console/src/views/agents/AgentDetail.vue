@@ -215,7 +215,7 @@ async function loadChannels(agent: string) {
 async function addChannel() {
   if (!name.value) return
   try {
-    const saved = await publishChannel(name.value, {
+    await publishChannel(name.value, {
       kind: channelKind.value,
       identity: channelIdentity.value,
       origin: channelOrigin.value.trim() || undefined,

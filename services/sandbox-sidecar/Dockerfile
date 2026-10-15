@@ -1,6 +1,7 @@
 # Build from repository root. Runner has the Keel SDK and test tools but no credentials.
 FROM python:3.11-slim
 COPY contracts /src/contracts
+COPY templates /src/templates
 COPY sdk-python /src/sdk-python
 RUN pip install --no-cache-dir /src/sdk-python pytest
 WORKDIR /app

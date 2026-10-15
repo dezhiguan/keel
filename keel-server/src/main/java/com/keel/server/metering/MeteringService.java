@@ -1,6 +1,7 @@
 package com.keel.server.metering;
 
 import com.keel.server.insight.CostService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ public class MeteringService {
     private final UsageDailyStore store;
     private final CostService costs;
 
+    @Autowired
     public MeteringService(JdbcTemplate jdbc, CostService costs) {
         this(new JdbcUsageDailyStore(jdbc), costs);
     }
