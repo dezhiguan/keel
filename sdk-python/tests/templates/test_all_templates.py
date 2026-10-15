@@ -5,7 +5,6 @@ import re
 import shutil
 import subprocess
 import sys
-import zipfile
 from pathlib import Path
 
 import jsonschema
@@ -20,22 +19,33 @@ SCHEMA = json.loads((ROOT / "contracts/manifest.schema.json").read_text())
 PYTHON_TEMPLATES = ("loop-agent", "chat-rag", "tool-agent", "graph-agent", "supervisor")
 
 
-def test_all_template_dockerfiles_use_the_bundled_wheel(tmp_path):
+def _assert_private_python_install(project: Path):
+    dockerfile = (project / "Dockerfile").read_text(encoding="utf-8")
+    workflow = (project / ".github/workflows/keel.yml").read_text(encoding="utf-8")
+    installer = (project / "scripts/install-keel-sdk.py").read_text(encoding="utf-8")
+    assert "pip install keel-sdk" not in dockerfile
+    assert "pip install keel-sdk" not in workflow
+    assert "vendor/" not in dockerfile
+    assert not (project / "vendor").exists()
+    assert "scripts/install-keel-sdk.py" in dockerfile
+    assert "KEEL_GITHUB_TOKEN" in dockerfile
+    assert "pypi.org" not in dockerfile
+    assert "dezhiguan/keel" in installer
+
+
+def test_templates_install_sdk_from_the_github_release(tmp_path):
     for template in PYTHON_TEMPLATES:
         project = create_project("demo-agent", template=template, root=tmp_path / template)
         manifest = yaml.safe_load((project / "agent.yaml").read_text(encoding="utf-8"))
         assert manifest["spec"]["kind"] == ("agent" if template == "loop-agent" else "workflow")
-        dockerfile = (project / "Dockerfile").read_text(encoding="utf-8")
-        wheel, = (project / "vendor").glob("keel_sdk-*.whl")
-        assert "/app/vendor/keel_sdk-*.whl" in dockerfile
-        assert "pip install keel-sdk" not in dockerfile
-        with zipfile.ZipFile(wheel) as archive:
-            assert archive.testzip() is None
-            assert "keel/_schemas/manifest.schema.json" in archive.namelist()
+        _assert_private_python_install(project)
     java_project = create_project("demo-agent", template="java-spring", root=tmp_path / "java")
     assert yaml.safe_load((java_project / "agent.yaml").read_text())["spec"]["kind"] == "workflow"
     assert not (java_project / "vendor").exists()
     assert "keel-sdk" not in (java_project / "Dockerfile").read_text(encoding="utf-8")
+    pom = (java_project / "pom.xml").read_text(encoding="utf-8")
+    assert "https://maven.pkg.github.com/dezhiguan/keel" in pom
+    assert "<version>1.0.0</version>" in pom
 
 
 def _rules():
@@ -53,15 +63,9 @@ def test_each_template_generates_and_its_smoke_tests_pass(tmp_path, template):
     env["PYTHONPATH"] = str(SDK)
     project = create_project("demo-agent", template=template, root=tmp_path / template)
     _assert_project(project, rules, source_ext)
-    dockerfile = (project / "Dockerfile").read_text(encoding="utf-8")
-    assert "/app/vendor/keel_sdk-*.whl" in dockerfile
-    assert "pip install keel-sdk" not in dockerfile
+    _assert_private_python_install(project)
     if template == "graph-agent":
-        assert "-r /app/requirements.txt" in dockerfile
-    wheel, = (project / "vendor").glob("keel_sdk-*.whl")
-    with zipfile.ZipFile(wheel) as archive:
-        assert archive.testzip() is None
-        assert "keel/_schemas/manifest.schema.json" in archive.namelist()
+        assert "-r /app/requirements.txt" in (project / "Dockerfile").read_text(encoding="utf-8")
     completed = subprocess.run(
         [sys.executable, "-m", "pytest", "tests", "-q", "--tb=short"],
         cwd=project, env=env, text=True, capture_output=True,
@@ -77,6 +81,17 @@ def test_java_spring_template_builds_two_agents(tmp_path):
     _assert_project(project, rules, source_ext)
     assert not (project / "vendor").exists()
     assert "keel-sdk" not in (project / "Dockerfile").read_text(encoding="utf-8")
+    pom_path = project / "pom.xml"
+    pom = pom_path.read_text(encoding="utf-8")
+    assert "https://maven.pkg.github.com/dezhiguan/keel" in pom
+    settings = (project / "ci/settings.xml").read_text(encoding="utf-8")
+    assert "${env.KEEL_GITHUB_TOKEN}" in settings
+    assert "ghp_" not in settings
+    pom_path.write_text(pom.replace(
+        "<artifactId>keel-spring-boot-starter</artifactId>\n      <version>1.0.0</version>",
+        "<artifactId>keel-spring-boot-starter</artifactId>\n      <version>0.1.0-SNAPSHOT</version>",
+        1,
+    ), encoding="utf-8")
     install = subprocess.run(
         ["mvn", "-pl", ":keel-spring-boot-starter", "-am", "install", "-DskipTests"],
         cwd=ROOT, text=True, capture_output=True,

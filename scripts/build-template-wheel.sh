@@ -7,6 +7,8 @@ import base64
 import csv
 import hashlib
 import io
+import os
+import re
 import sys
 import tomllib
 import zipfile
@@ -15,7 +17,9 @@ from pathlib import Path
 root = Path(sys.argv[1])
 sdk = root / "sdk-python"
 project = tomllib.loads((sdk / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-version = project["version"]
+version = os.environ.get("KEEL_SDK_VERSION", "").strip() or project["version"]
+if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+    raise SystemExit(f"invalid SDK version {version}")
 name = project["name"].replace("-", "_")
 dist_info = f"{name}-{version}.dist-info"
 wheel = sdk / "dist" / f"{name}-{version}-py3-none-any.whl"

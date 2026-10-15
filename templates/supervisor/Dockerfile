@@ -2,5 +2,9 @@
 FROM python:3.11-slim
 WORKDIR /app
 COPY . /app
-RUN pip install --no-cache-dir /app/vendor/keel_sdk-*.whl uvicorn pytest httpx
+# docker build --secret id=KEEL_GITHUB_TOKEN,env=KEEL_GITHUB_TOKEN .
+RUN --mount=type=secret,id=KEEL_GITHUB_TOKEN \
+    KEEL_GITHUB_TOKEN="$(cat /run/secrets/KEEL_GITHUB_TOKEN)" \
+    python scripts/install-keel-sdk.py \
+ && pip install --no-cache-dir uvicorn pytest httpx
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

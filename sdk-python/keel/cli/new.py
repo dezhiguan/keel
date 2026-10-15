@@ -4,8 +4,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
-import sys
 from pathlib import Path
 
 from keel.manifest import load_manifest
@@ -49,11 +47,10 @@ def create_project(name: str, *, template: str = "loop-agent", root: str | Path 
     target = Path(root) / name
     if target.exists():
         raise FileExistsError(f"{target} already exists")
-    wheel = _sdk_wheel() if template != "java-spring" else None
     if template in TEMPLATES:
         _copy_template(template_dir(template), target, name)
-        if wheel is not None:
-            _copy_wheel(wheel, target)
+        if template != "java-spring":
+            _write_sdk_installer(target)
         print(f"Created {target}. Run: cd {name} && keel dev")
         return target
     target.mkdir(parents=True)
@@ -72,49 +69,52 @@ def create_project(name: str, *, template: str = "loop-agent", root: str | Path 
         "evals/seed.jsonl": "",
         "evals/scorers.py": "# Add deterministic scorers here.\n",
         "tests/.gitkeep": "",
-        "Dockerfile": ("FROM python:3.11-slim\nWORKDIR /app\n"
-                       "COPY . /app\nRUN pip install --no-cache-dir /app/vendor/keel_sdk-*.whl uvicorn\n"
-                       "CMD [\"uvicorn\", \"app:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]\n"),
-        ".github/workflows/keel.yml": ("name: keel\non: [push, pull_request]\n"
-                                       "jobs:\n  test:\n    runs-on: ubuntu-latest\n"
-                                       "    steps:\n      - uses: actions/checkout@v4\n"
-                                       "      - run: pip install vendor/keel_sdk-*.whl pytest\n"
-                                       "      - run: pytest -q\n"),
+        "Dockerfile": _python_dockerfile("uvicorn"),
+        ".github/workflows/keel.yml": _python_workflow("pip install pytest httpx"),
         ".gitignore": ".keel/\n__pycache__/\n.pytest_cache/\n",
     }
     for relative, content in files.items():
         path = target / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
-    _copy_wheel(wheel, target)
+    _write_sdk_installer(target)
     load_manifest(target / "agent.yaml")
     print(f"Created {target}. Run: cd {name} && keel dev")
     return target
 
 
-def _sdk_wheel() -> Path:
-    configured = os.environ.get("KEEL_SDK_WHEEL")
-    if configured:
-        wheel = Path(configured).expanduser().resolve()
-    else:
-        repo = Path(__file__).resolve().parents[3]
-        builder = repo / "scripts/build-template-wheel.sh"
-        if not builder.is_file():
-            raise FileNotFoundError("未找到 Keel SDK wheel；请设置 KEEL_SDK_WHEEL 指向本地构建的 wheel")
-        env = os.environ.copy()
-        env["KEEL_PYTHON_BIN"] = sys.executable
-        built = subprocess.run(["bash", str(builder)], cwd=repo, env=env,
-                               text=True, capture_output=True, check=True)
-        wheel = Path(built.stdout.strip().splitlines()[-1])
-    if not wheel.is_file() or not wheel.name.startswith("keel_sdk-") or wheel.suffix != ".whl":
-        raise FileNotFoundError(f"无效的 Keel SDK wheel：{wheel}")
-    return wheel
+def _python_dockerfile(extra_packages: str) -> str:
+    return (
+        "FROM python:3.11-slim\nWORKDIR /app\nCOPY . /app\n"
+        "# docker build --secret id=KEEL_GITHUB_TOKEN,env=KEEL_GITHUB_TOKEN .\n"
+        "RUN --mount=type=secret,id=KEEL_GITHUB_TOKEN \\\n"
+        "    KEEL_GITHUB_TOKEN=\"$(cat /run/secrets/KEEL_GITHUB_TOKEN)\" \\\n"
+        "    python scripts/install-keel-sdk.py \\\n"
+        f" && pip install --no-cache-dir {extra_packages}\n"
+        "CMD [\"uvicorn\", \"app:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]\n"
+    )
 
 
-def _copy_wheel(wheel: Path, target: Path) -> None:
-    vendor = target / "vendor"
-    vendor.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(wheel, vendor / wheel.name)
+def _python_workflow(install_tests: str) -> str:
+    return (
+        "name: keel\non: [push, pull_request]\njobs:\n  test:\n"
+        "    runs-on: ubuntu-latest\n    steps:\n"
+        "      - uses: actions/checkout@v4\n"
+        "      - uses: actions/setup-python@v5\n        with:\n"
+        "          python-version: \"3.11\"\n"
+        "      - name: Install keel-sdk from the GitHub Release\n        env:\n"
+        "          KEEL_GITHUB_TOKEN: ${{ secrets.KEEL_GITHUB_TOKEN }}\n"
+        "        run: python scripts/install-keel-sdk.py\n"
+        f"      - run: {install_tests}\n"
+        "      - run: pytest -q\n"
+    )
+
+
+def _write_sdk_installer(target: Path) -> None:
+    source = Path(__file__).with_name("install_keel_sdk.py")
+    destination = target / "scripts" / "install-keel-sdk.py"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, destination)
 
 
 def _copy_template(source: Path, target: Path, name: str) -> None:

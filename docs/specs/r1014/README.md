@@ -42,7 +42,7 @@
 
 | ID | 任务 | 前置 | 验收 |
 |---|---|---|---|
-| R2-1 | 发布到当前 GitHub：Java starter → GitHub Packages（Maven）；Python SDK → GitHub Release 附件（wheel，tag `sdk-v1.x.y`），GitHub Packages 不支持 PyPI。版本对齐契约（`keel/v1` → `1.x`）；CI 打 tag 自动发布；模板按 Release 地址 + 访问令牌安装 | R0-4 | 新机器只配 GitHub 令牌就能装 SDK、引入 starter；不访问公网 PyPI 的 `keel-sdk` |
+| R2-1 | 发布到当前 GitHub：Java starter → GitHub Packages（Maven）；Python SDK → GitHub Release 附件（wheel，tag `sdk-v1.x.y`），GitHub Packages 不支持 PyPI。版本对齐契约（`keel/v1` → `1.x`）；CI 打 tag 自动发布；模板按 Release 地址 + 访问令牌安装 | R0-4 | 新机器只配 GitHub 令牌就能装 SDK、引入 starter；不访问公网 PyPI 的 `keel-sdk` · ✅ r1014-r2-1 |
 | R2-2 | `keel new` 生成完整独立仓库：Dockerfile、依赖锁定、契约 schema、CI（单测 → gate → 构建镜像 → register / release）；不引用底座源码路径 | R2-1 | 在与底座无关的新仓库里，从 `keel new` 到 staging 注册全程不需要底座源码 |
 | R2-3 | Git 服务补写 `.github/workflows` 的权限，交付的仓库 CI 开箱生效 | — | 新交付仓库首次推送即触发 CI |
 | R2-4 | SDK 独立运行模式 `KEEL_MODE=standalone`：模型直连 OpenAI 兼容地址、提示词读本地、审计写 keel-lite、追踪可选 | R1-3 | 不注册、不连薄网关也能在本地完整跑一次 loop-agent；生产 profile 下禁止开启 |

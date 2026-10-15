@@ -5,6 +5,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       # P2-3 replaces this job with: pytest -> keel gate -> build -> keel release.
-      - run: pip install keel-sdk pytest httpx
+      - name: Install keel-sdk from the GitHub Release
+        env:
+          KEEL_GITHUB_TOKEN: ${{ secrets.KEEL_GITHUB_TOKEN }}
+        run: python scripts/install-keel-sdk.py
+      - run: pip install pytest httpx
       - run: pytest -q

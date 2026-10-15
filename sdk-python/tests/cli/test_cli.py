@@ -63,16 +63,21 @@ def test_new_project_matches_schema_and_ignores_local_state(tmp_path):
     assert manifest["metadata"]["name"] == "hello-agent"
     assert manifest["spec"]["kind"] == "workflow"
     assert "ctx.step('greet')" in (project / "app.py").read_text()
-    assert list((project / "vendor").glob("keel_sdk-*.whl"))
-    assert "pip install keel-sdk" not in (project / "Dockerfile").read_text()
-    assert "pip install keel-sdk" not in (project / ".github/workflows/keel.yml").read_text()
+    assert not (project / "vendor").exists()
+    assert (project / "scripts/install-keel-sdk.py").is_file()
+    dockerfile = (project / "Dockerfile").read_text()
+    workflow = (project / ".github/workflows/keel.yml").read_text()
+    assert "pip install keel-sdk" not in dockerfile
+    assert "pip install keel-sdk" not in workflow
+    assert "scripts/install-keel-sdk.py" in dockerfile
+    assert "KEEL_GITHUB_TOKEN" in dockerfile
 
 
-def test_new_rejects_a_missing_local_sdk_wheel(tmp_path, monkeypatch):
+def test_new_does_not_vendor_a_local_wheel(tmp_path, monkeypatch):
     monkeypatch.setenv("KEEL_SDK_WHEEL", str(tmp_path / "missing.whl"))
-    with pytest.raises(FileNotFoundError, match="无效的 Keel SDK wheel"):
-        create_project("hello-agent", root=tmp_path)
-    assert not (tmp_path / "hello-agent").exists()
+    project = create_project("hello-agent", root=tmp_path)
+    assert (project / "scripts/install-keel-sdk.py").is_file()
+    assert not (project / "vendor").exists()
 
 
 def test_from_spec_copies_the_template_and_keeps_the_confirmed_manifest(tmp_path, monkeypatch, capsys):

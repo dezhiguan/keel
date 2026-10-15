@@ -1,0 +1,43 @@
+name: Release SDK
+on:
+  push:
+    tags:
+      - "sdk-v1.*"
+permissions:
+  contents: write
+  packages: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+      - name: Check the release tag and build the wheel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(python sdk-python/keel/cli/install_keel_sdk.py --check-tag "$GITHUB_REF_NAME")
+          KEEL_SDK_VERSION="$version" scripts/build-template-wheel.sh
+          gh release create "$GITHUB_REF_NAME" \
+            "sdk-python/dist/keel_sdk-${version}-py3-none-any.whl" \
+            --title "$GITHUB_REF_NAME" \
+            --notes "keel-sdk ${version} for contract keel/v1"
+      - name: Publish the Java starter to GitHub Packages
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(python sdk-python/keel/cli/install_keel_sdk.py --check-tag "$GITHUB_REF_NAME")
+          mvn -B org.codehaus.mojo:versions-maven-plugin:2.18.0:set -DnewVersion="$version" -DgenerateBackupPoms=false -DprocessAllModules=true
+          mvn -B deploy -N -DskipTests
+          mvn -B deploy -pl keel-common,keel-spring-boot-starter -DskipTests
