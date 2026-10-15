@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { avatarLetter, canRelease, cardChips, cardCost, executionRows, highlightYaml, isSelfChecking, kindLine, memoryRows, readyPill, resourceStatus, scoreText, toolChip, versionRows, withEvalGate } from './agentDrawer'
+import { avatarLetter, canRelease, cardChips, cardCost, channelIdentity, channelMethod, elementCell, executionRows, highlightYaml, isSelfChecking, kindLine, memoryRows, memoryTone, readyPill, resourceStatus, scoreText, toolChip, versionRows, withEvalGate } from './agentDrawer'
 
 describe('agent drawer', () => {
   it('shows memory status from the API and keeps unavailable layers explicit', () => {
@@ -13,6 +13,29 @@ describe('agent drawer', () => {
       ['现在', '声明为智能体'], ['目标', 'ctx.loop'], ['约束', 'maxSteps 4'],
     ])
     expect(executionRows(null)[0]).toEqual(['现在', '未声明'])
+  })
+  it('lays out element cells the way the overview grid does', () => {
+    expect(elementCell({ name: '模型接入', passed: true, detail: 'manifest 已声明' }, 4)).toMatchObject({
+      label: '5. 模型接入', cls: 'ok', mark: '✓', note: '',
+    })
+    expect(elementCell({ name: '记忆', passed: false, detail: 'manifest 缺少核心声明' }, 2).cls).toBe('no core')
+    expect(elementCell({ name: '评测', passed: null, detail: 'manifest 已声明；运行行为待门禁验证' }, 6)).toMatchObject({
+      cls: 'mid core', mark: '·', note: '待验证',
+    })
+    expect(elementCell({ name: '知识检索', passed: null, detail: '未声明（可选）' }, 5).note).toBe('未声明')
+    expect(elementCell({ name: '人在回路', passed: null, detail: '无高风险工具' }, 8).note).toBe('—')
+    expect(elementCell({ name: '人在回路', passed: null, detail: '高风险工具已声明审批；挂起恢复待实测' }, 8).note).toBe('有，未实测')
+  })
+  it('colors memory status and names channel columns', () => {
+    expect(memoryTone('未接入')).toBe('p-mute')
+    expect(memoryTone('候选 3 条待人审')).toBe('p-warn')
+    expect(memoryTone('可查可删')).toBe('p-ok')
+    expect(channelMethod('HOSTED')).toBe('独立成站')
+    expect(channelMethod('EMBED')).toBe('对话气泡')
+    expect(channelMethod('MINIPROGRAM')).toBe('小程序 SDK')
+    expect(channelIdentity('HOSTED', 'EXCHANGE')).toBe('登录用户（换票）')
+    expect(channelIdentity('EMBED', 'EXCHANGE')).toBe('业务系统用户（换票）')
+    expect(channelIdentity('MINIPROGRAM', 'OPENID')).toBe('openid 映射')
   })
   it('matches the registry card chips', () => {
     expect(cardChips({ category: 'biz', language: 'java', env: 'prod', version: 'v2.4.1' })).toEqual(['业务', 'Java', 'prod', 'v2.4.1'])

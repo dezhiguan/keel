@@ -15,8 +15,12 @@ import {
   avatarColor,
   avatarLetter,
   canRelease,
+  channelIdentity as identityLabel,
+  channelMethod,
+  elementCell,
   highlightYaml,
   kindLine,
+  memoryTone,
   readyPill,
   resourceLabel,
   resourceStatus,
@@ -99,8 +103,14 @@ const name = computed(() => {
 })
 const checking = computed(() => isSelfChecking(checkingAgents.value, name.value))
 const layer = computed(() => layerOf({ name: detail.value?.name || name.value, layer: detail.value?.layer, category: detail.value?.category }))
+const sourceText = computed(() => {
+  const job = detail.value?.devflowJobId
+  if (!job) return '人工编写（现有）'
+  return `${layer.value === 'dev' ? 'meta-agent' : 'dev-lead'} · ${job}`
+})
 
 const rows = computed(() => (detail.value ? versionRows(detail.value) : []))
+const elementCells = computed(() => (detail.value?.elements?.items ?? []).map((item, index) => elementCell(item, index)))
 const releaseOk = computed(() => (detail.value ? canRelease(detail.value) : false))
 const yaml = computed(() => (detail.value?.manifestYaml ? highlightYaml(detail.value.manifestYaml) : ''))
 
@@ -168,6 +178,20 @@ function openAgent(agent?: string) {
 
 function viewTraces() {
   router.push('/traces')
+}
+
+async function copyEmbed() {
+  const text = channels.value
+    .filter((item) => item.status === 'ONLINE' && item.kind !== 'MINIPROGRAM' && item.embed)
+    .map((item) => item.embed)
+    .join('\n\n')
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    ElMessage.success('已复制嵌入代码')
+  } catch {
+    ElMessage.error('复制失败')
+  }
 }
 
 const retireBusy = ref(false)
@@ -366,25 +390,11 @@ onUnmounted(() => {
                 </b>
               </template>
             </div>
-            <h4>运行方式</h4>
-            <div class="kv">
-              <template v-for="[label, value] in executionRows(detail.execution)" :key="label">
-                <span>{{ label }}</span><b>{{ value }}</b>
-              </template>
-            </div>
-            <template v-if="detail.elements">
-              <h4>要素检查 <span class="pill" :class="detail.elements.kind === 'agent' ? 'p-ok' : 'p-warn'">{{ detail.elements.kind === 'agent' ? '智能体 · 待行为验证' : '工作流型' }}</span></h4>
-              <p v-if="detail.elements.missing.length" class="mut">缺：{{ detail.elements.missing.join('、') }}</p>
-              <ul class="checks">
-                <li v-for="(item, index) in detail.elements.items" :key="item.name">
-                  <span class="ic" :class="item.passed === true ? 'ok' : item.passed === false ? 'no' : ''">{{ item.passed === true ? '✓' : item.passed === false ? '✗' : '·' }}</span>
-                  {{ index + 1 }}. {{ item.name }}
-                  <small>{{ item.detail }}</small>
-                </li>
-              </ul>
-            </template>
-            <h4>接入自检</h4>
-            <button v-if="detail.status !== 'RETIRED' && detail.status !== 'DRAFT'" class="btn" :disabled="checking" @click="recheck">{{ checking ? '自检中…' : '重新自检' }}</button>
+            <h4>
+              接入自检
+              <span class="sp" />
+              <button v-if="detail.status !== 'RETIRED' && detail.status !== 'DRAFT'" class="btn sm" :disabled="checking" @click="recheck">{{ checking ? '自检中…' : '重新自检' }}</button>
+            </h4>
             <p v-if="detail.selfCheck?.checkedAt" class="mut">最近自检：{{ new Date(detail.selfCheck.checkedAt).toLocaleString() }}</p>
             <ul v-if="detail.selfCheck?.items?.length" class="checks">
               <li v-for="(item, index) in detail.selfCheck.items" :key="index">
@@ -417,6 +427,25 @@ onUnmounted(() => {
                 <span class="chip">今日 {{ fmtCny(detail.costCny, 6) }}</span>
               </div>
             </div>
+            <h4>运行方式</h4>
+            <div class="kv">
+              <template v-for="[label, value] in executionRows(detail.execution)" :key="label">
+                <span>{{ label }}</span><b>{{ value }}</b>
+              </template>
+            </div>
+            <template v-if="detail.elements">
+              <h4>
+                要素检查
+                <span class="pill" :class="detail.elements.kind === 'agent' ? 'p-ok' : 'p-warn'">{{ detail.elements.kind === 'agent' ? '智能体' : '工作流型' }}</span>
+                <small v-if="detail.elements.missing.length" class="mut">缺：{{ detail.elements.missing.join('、') }}</small>
+              </h4>
+              <div class="elem">
+                <span v-for="cell in elementCells" :key="cell.label" :class="cell.cls">
+                  <i>{{ cell.mark }}</i>{{ cell.label }}
+                  <small v-if="cell.note">{{ cell.note }}</small>
+                </span>
+              </div>
+            </template>
           </template>
 
           <template v-else-if="detail && tab === 'yaml'">
@@ -452,13 +481,19 @@ onUnmounted(() => {
           </template>
 
           <template v-else-if="detail && tab === 'mem'">
-            <h4>记忆</h4>
-            <div class="kv">
-              <template v-for="[label, value] in memoryRows(detail.memory)" :key="label">
-                <span>{{ label }}</span><b>{{ value }}</b>
-              </template>
+            <table class="t">
+              <thead><tr><th>类型</th><th>状态</th></tr></thead>
+              <tbody>
+                <tr v-for="[label, value] in memoryRows(detail.memory)" :key="label">
+                  <td><b>{{ label }}</b></td>
+                  <td><span class="pill" :class="memoryTone(value)">{{ value }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="drawer-actions">
+              <span class="mut">用户记忆 {{ memories.length }} 条 · 评测流量不写入</span>
             </div>
-            <h4 style="margin-top: 16px">用户记忆</h4>
+            <h4>用户记忆</h4>
             <table class="t">
               <thead><tr><th>用户</th><th>内容</th><th></th></tr></thead>
               <tbody>
@@ -474,7 +509,6 @@ onUnmounted(() => {
           </template>
 
           <template v-else-if="detail && tab === 'skill'">
-            <h4>已授权技能<span class="sp" /><button v-write class="btn sm" type="button" @click="openGrant">+ 添加技能</button></h4>
             <table class="t">
               <thead><tr><th>技能</th><th>版本</th><th>依赖工具</th><th>风险</th><th>状态</th></tr></thead>
               <tbody>
@@ -488,12 +522,42 @@ onUnmounted(() => {
                 </tr>
               </tbody>
             </table>
+            <div class="drawer-actions">
+              <button v-write class="btn" type="button" @click="openGrant">+ 添加技能</button>
+              <RouterLink class="btn ghost" to="/tools">技能注册表 →</RouterLink>
+            </div>
             <p class="mut">添加技能不会自动授予依赖工具。工具仍要逐个授权。技能用例会并入这个智能体的评测集。</p>
           </template>
 
           <template v-else-if="detail && tab === 'ch'">
-            <h4>渠道发布<span class="sp" /><button v-write class="btn sm" type="button" @click="addChannel">发布到新渠道</button></h4>
-            <div class="toolbar" style="margin-bottom: 10px">
+            <div class="twrap">
+            <table class="t">
+              <thead><tr><th>渠道</th><th>方式</th><th>用户身份</th><th>白名单</th><th>配额</th><th>近 7 天</th><th>状态</th></tr></thead>
+              <tbody>
+                <tr v-if="!channels.length"><td colspan="7" class="empty">还没有发布到任何渠道</td></tr>
+                <tr v-for="row in channels" :key="row.id">
+                  <td><b>{{ row.kind === 'HOSTED' ? '托管页面' : row.kind === 'EMBED' ? '网页嵌入' : row.kind === 'MINIPROGRAM' ? '微信小程序' : '网页 SDK' }}</b></td>
+                  <td>{{ channelMethod(row.kind) }}</td>
+                  <td style="font-size: 12.5px">{{ identityLabel(row.kind, row.identity) }}</td>
+                  <td class="mono" style="font-size: 12px">{{ row.origin || '—' }}</td>
+                  <td class="mono" style="font-size: 12px">{{ row.quotaPerHour == null ? '—' : `${row.quotaPerHour} 次/时` }}</td>
+                  <td class="mono mut">未接入</td>
+                  <td><span class="pill" :class="row.status === 'ONLINE' ? 'p-ok' : 'p-warn'">{{ row.status === 'ONLINE' ? '已启用' : '待身份接入' }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+            </div>
+            <h4>
+              嵌入代码
+              <span class="sp" />
+              <button class="btn sm" type="button" :disabled="!channels.some(item => item.status === 'ONLINE' && item.kind !== 'MINIPROGRAM' && item.embed)" @click="copyEmbed">复制嵌入代码</button>
+            </h4>
+            <pre v-for="row in channels.filter(item => item.status === 'ONLINE' && item.kind !== 'MINIPROGRAM')" :key="'code-' + row.id" class="code">{{ row.embed }}</pre>
+            <p v-if="channels.some(item => item.identity === 'EXCHANGE')" class="mut">业务网页接入前提供 window.keelChannelToken(agent)，返回面向 keel-api 的用户令牌。</p>
+            <p v-if="channels.some(item => item.kind === 'MINIPROGRAM')" class="mut">小程序下载 /a/miniprogram.js，调用 createKeelClient({ baseUrl, agent, credential, appid, token })；token 返回 auth-gateway 换票令牌，令牌 azp 必须等于登记的客户端 ID。</p>
+            <p v-if="!channels.some(item => item.embed)" class="mut">发布渠道后，这里显示嵌入代码。托管页面在 /a/智能体名，读不到控制台 Cookie。</p>
+            <h4>发布到新渠道</h4>
+            <div class="publish">
               <select v-model="channelKind" class="inp">
                 <option value="HOSTED">托管页面</option>
                 <option value="EMBED">网页嵌入</option>
@@ -505,32 +569,23 @@ onUnmounted(() => {
                 <option value="OPENID" disabled>openid 映射（待身份接入）</option>
                 <option value="ANONYMOUS" :disabled="channelKind === 'MINIPROGRAM'">匿名访客</option>
               </select>
-              <input v-model="channelOrigin" class="inp" :placeholder="channelKind === 'MINIPROGRAM' ? '换票客户端 ID（与小程序 appid 对应）' : '允许的域名，托管页可空'" />
+              <input v-model="channelOrigin" class="inp wide" :placeholder="channelKind === 'MINIPROGRAM' ? '换票客户端 ID（与小程序 appid 对应）' : '允许的域名，托管页可空'" />
               <input v-model.number="channelQuota" class="inp" type="number" min="1" placeholder="每小时配额" />
+              <button v-write class="btn pri" type="button" @click="addChannel">发布</button>
             </div>
-            <table class="t">
-              <thead><tr><th>渠道</th><th>方式</th><th>用户身份</th><th>白名单</th><th>配额</th><th>状态</th></tr></thead>
-              <tbody>
-                <tr v-if="!channels.length"><td colspan="6" class="empty">还没有发布到任何渠道</td></tr>
-                <tr v-for="row in channels" :key="row.id">
-                  <td>{{ row.kind === 'HOSTED' ? '托管页面' : row.kind === 'EMBED' ? '网页嵌入' : row.kind === 'MINIPROGRAM' ? '微信小程序' : '网页 SDK' }}</td>
-                  <td class="mono">{{ row.hostedPath }}</td>
-                  <td>{{ row.identity === 'EXCHANGE' ? '换票' : row.identity === 'OPENID' ? 'openid 映射' : '匿名访客' }}</td>
-                  <td class="mono">{{ row.origin || '—' }}</td>
-                  <td class="mono">{{ row.quotaPerHour ?? '—' }}</td>
-                  <td>{{ row.status === 'ONLINE' ? '已启用' : '待身份接入' }}</td>
-                </tr>
-              </tbody>
-            </table>
-            <h4 style="margin-top: 16px">嵌入代码与托管页面</h4>
-            <pre v-for="row in channels.filter(item => item.status === 'ONLINE' && item.kind !== 'MINIPROGRAM')" :key="'code-' + row.id" class="code">{{ row.embed }}</pre>
-            <p v-if="channels.some(item => item.identity === 'EXCHANGE')" class="mut">业务网页接入前提供 window.keelChannelToken(agent)，返回面向 keel-api 的用户令牌。</p>
-            <p v-if="channels.some(item => item.kind === 'MINIPROGRAM')" class="mut">小程序下载 /a/miniprogram.js，调用 createKeelClient({ baseUrl, agent, credential, appid, token })；token 返回 auth-gateway 换票令牌，令牌 azp 必须等于登记的客户端 ID。</p>
-            <p v-if="!channels.length" class="mut">发布渠道后，这里显示嵌入代码。托管页面在 /a/智能体名，读不到控制台 Cookie。</p>
           </template>
 
           <template v-else-if="tab === 'dev'">
-            <h4>研发记录 <small>生产和改造它的任务</small></h4>
+            <div class="kv">
+              <span>分类</span><b>{{ layer === 'meta' ? '元智能体' : layer === 'dev' ? '研发' : '业务' }}</b>
+              <span>来源</span>
+              <b>
+                <a v-if="detail?.devflowJobId" href="javascript:;" @click.prevent="router.push(`/jobs/${detail.devflowJobId}`)">{{ sourceText }}</a>
+                <template v-else>{{ sourceText }}</template>
+              </b>
+              <span>负责人</span><b>{{ detail?.ownerUser || '—' }}</b>
+            </div>
+            <h4>生产和改造它的任务</h4>
             <table v-if="jobs.length" class="t">
               <tbody>
                 <tr v-for="job in jobs" :key="job.jobId" class="click" @click="router.push(`/jobs/${job.jobId}`)">
@@ -547,6 +602,10 @@ onUnmounted(() => {
               <li>修改自己或上级（{{ cannotChange(layer) }}）</li>
               <li>授予任何工具或知识库权限；读隐藏考题内容</li>
             </ul>
+            <div class="drawer-actions">
+              <button v-if="layer !== 'meta'" v-write class="btn" type="button" @click="router.push({ path: '/agents/new', query: { method: 'devflow', kind: 'CHANGE', agent: name } })">发起改造任务</button>
+              <span v-else class="mut">元智能体只能由人直接改代码。</span>
+            </div>
           </template>
 
           <template v-else-if="detail && tab === 'ver'">
@@ -578,8 +637,6 @@ onUnmounted(() => {
           </template>
           <template v-else>
             <RouterLink v-if="detail && detail.status !== 'DRAFT'" class="btn" :to="`/agents/${encodeURIComponent(name)}/debug`">调试</RouterLink>
-            <button v-if="layer !== 'meta'" v-write class="btn" type="button" @click="router.push({ path: '/agents/new', query: { method: 'devflow', kind: 'CHANGE', agent: name } })">发起改造任务</button>
-            <span v-else class="mut">元智能体只能由人直接改代码。</span>
             <button class="btn ghost" type="button" @click="viewTraces">查看链路</button>
             <button v-if="detail" v-write class="btn danger" type="button" @click="retiring = true">下线</button>
             <button

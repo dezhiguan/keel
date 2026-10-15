@@ -41,6 +41,50 @@ export function memoryRows(memory?: { session?: string; user?: string; task?: st
   ] as const
 }
 
+/** 原型记忆表：关闭、未接入用灰胶囊，候选用人审色，已开启用绿色。 */
+export function memoryTone(value: string) {
+  if (/不允许|不需要|关闭|—|未接入|未声明/.test(value)) return 'p-mute'
+  if (/候选/.test(value)) return 'p-warn'
+  return 'p-ok'
+}
+
+const CORE_ELEMENTS = new Set(['模型自己调工具', 'agent loop', '记忆', '有版本的提示词', '评测'])
+
+/** 原型要素格：通过打勾、缺失打叉、没有运行证据的显示短注。 */
+export function elementCell(item: { name: string; passed?: boolean | null; detail?: string | null }, index: number) {
+  const state = item.passed === true ? 'ok' : item.passed === false ? 'no' : 'mid'
+  const mark = item.passed === true ? '✓' : item.passed === false ? '✗' : '·'
+  return {
+    label: `${index + 1}. ${item.name}`,
+    cls: CORE_ELEMENTS.has(item.name) ? `${state} core` : state,
+    mark,
+    note: item.passed == null ? elementNote(item.detail) : '',
+  }
+}
+
+function elementNote(detail?: string | null) {
+  const text = detail ?? ''
+  if (text.includes('实测')) return '有，未实测'
+  if (text.includes('无高风险')) return '—'
+  if (text.includes('未声明')) return '未声明'
+  if (text.includes('待')) return '待验证'
+  return text
+}
+
+export function channelMethod(kind?: string) {
+  if (kind === 'HOSTED') return '独立成站'
+  if (kind === 'EMBED') return '对话气泡'
+  if (kind === 'MINIPROGRAM') return '小程序 SDK'
+  return '网页 SDK'
+}
+
+export function channelIdentity(kind: string | undefined, identity?: string) {
+  if (identity === 'OPENID') return 'openid 映射'
+  if (identity === 'ANONYMOUS') return '匿名访客'
+  if (kind === 'HOSTED') return '登录用户（换票）'
+  return '业务系统用户（换票）'
+}
+
 export interface VersionRow {
   version: string
   env: string
