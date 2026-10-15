@@ -53,6 +53,11 @@ def test_otlp_http_headers_buffer_and_replay(tmp_path):
     provider.shutdown()
 
 
+def test_loop_step_attribute_matches_contract():
+    assert attrs.LOOP_STEP == "keel.loop.step"
+    assert "| `keel.loop.step` |" in (ROOT / "contracts/trace-attributes.md").read_text()
+
+
 def test_buffer_is_bounded_and_drops_oldest(tmp_path, caplog):
     buffer = TraceBuffer(tmp_path / "traces.jsonl", max_entries=2)
     buffer.append(b"first", trace_id="t1", agent="a")

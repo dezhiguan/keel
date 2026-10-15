@@ -46,6 +46,11 @@ codes:
     retryable: false
     http: 409
 
+  AGENT_MAX_STEPS_EXCEEDED:
+    message: 智能体执行步数已达到上限
+    retryable: false
+    http: 409
+
   # ── keel-gateway ────────────────────────────────────────────────
   GW_QUOTA_EXCEEDED:
     message: 配额已用完

@@ -30,6 +30,11 @@ class AgentManifestKindValue(str, Enum):
     SERVICE = 'Service'
 
 
+class AgentManifestSpecKindValue(str, Enum):
+    AGENT = 'agent'
+    WORKFLOW = 'workflow'
+
+
 class AgentManifestSpecRuntimeTypeValue(str, Enum):
     CODE = 'code'
     DIFY = 'dify'
@@ -112,6 +117,7 @@ class AgentManifestMetadata(KeelModel):
 
 
 class AgentManifestSpec(KeelModel):
+    kind: Optional[AgentManifestSpecKindValue] = None
     runtime: AgentManifestSpecRuntime
     auth: Optional[AgentManifestSpecAuth] = None
     knowledge: Optional[list[AgentManifestSpecKnowledgeItem]] = None

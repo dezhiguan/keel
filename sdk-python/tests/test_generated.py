@@ -34,6 +34,18 @@ def test_dotted_enum_and_error_metadata():
     assert ErrorCode.GW_QUOTA_EXCEEDED.http == 429
 
 
+def test_agent_execution_kind_and_loop_error_are_generated_from_contract():
+    agent = AgentManifest.model_validate({
+        "apiVersion": "keel/v1", "metadata": {"name": "demo-agent"},
+        "spec": {"kind": "agent", "runtime": {"endpoint": "https://example.test"}},
+    })
+    assert agent.spec.kind.value == "agent"
+    assert agent.model_dump()["spec"]["kind"] == "agent"
+    assert ErrorCode.AGENT_MAX_STEPS_EXCEEDED.http == 409
+    assert ErrorCode.AGENT_MAX_STEPS_EXCEEDED.retryable is False
+    assert ErrorCode.PROMPT_VARIABLE_MISSING.http == 400
+
+
 def test_audit_json_matches_java_fixture():
     event = AuditEvent.model_validate(AUDIT)
     canonical = json.dumps(event.model_dump(mode="json"), ensure_ascii=False,

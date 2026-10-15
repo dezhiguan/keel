@@ -29,7 +29,7 @@
 
 | ID | 任务 | 前置 | 验收 |
 |---|---|---|---|
-| R1-1 | 契约：manifest 加 `spec.kind`（agent / workflow）；追踪属性 `keel.loop.step`；错误码 `AGENT_MAX_STEPS_EXCEEDED`、`PROMPT_VARIABLE_MISSING` | — | `contracts/tests` 通过，Python / Java 模型同步生成 |
+| R1-1 | 契约：manifest 加 `spec.kind`（agent / workflow）；追踪属性 `keel.loop.step`；错误码 `AGENT_MAX_STEPS_EXCEEDED`、`PROMPT_VARIABLE_MISSING` | — | `contracts/tests` 通过，Python / Java 模型同步生成 · ✅ r1014-r1-1 |
 | R1-2 | SDK：`ctx.llm.chat` 支持可选 `tools`，返回内容 + tool_calls；现有调用方不变 | — | 原有用例全过；新增用例：模型返回 tool_calls 时能拿到结构化结果 |
 | R1-3 | SDK：`ctx.loop` —— 工具调用循环；停止条件：完成、`maxSteps`、预算、同工具同参数连续 2 次；循环内高风险工具存 checkpoint 后 `suspend`，恢复后接着跑；每步一个 span | R1-1 R1-2 | 用假薄网关的集成测试覆盖四种停止条件和一次挂起恢复；超步数返回 `AGENT_MAX_STEPS_EXCEEDED` 并发 `event: error` |
 | R1-4 | SDK：运行内上下文由 loop 自动累积；会话记忆（按 session，有 TTL）先用 keel-lite 本地实现，接口为 `ctx.memory`；评测流量禁止写入 | R1-3 | 两轮对话第二轮能引用第一轮内容；`eval_run_id` 非空时写入被拒 |

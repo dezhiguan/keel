@@ -1,5 +1,7 @@
 - file: manifest/valid/agent.yaml
   expect: accept
+- file: manifest/valid/agent-kind.yaml
+  expect: accept
 - file: manifest/valid/service.yaml
   expect: accept
 - file: manifest/valid/with-unknown-field.yaml
@@ -18,6 +20,9 @@
 - file: manifest/invalid/unknown-enum.yaml
   expect: reject
   reason: /spec/guardrails/grounding
+- file: manifest/invalid/unknown-spec-kind.yaml
+  expect: reject
+  reason: /spec/kind
 - file: manifest/invalid/embedding-fallback.yaml
   expect: reject
   reason: /spec/models/byPurpose/embedding/fallback

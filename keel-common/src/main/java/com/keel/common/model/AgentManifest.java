@@ -27,6 +27,7 @@ public record AgentManifest(
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record AgentManifestSpec(
+        @JsonProperty("kind") AgentManifestSpecKindValue kind,
         @JsonProperty("runtime") AgentManifestSpecRuntime runtime,
         @JsonProperty("auth") AgentManifestSpecAuth auth,
         @JsonProperty("knowledge") List<AgentManifestSpecKnowledgeItem> knowledge,
@@ -207,6 +208,17 @@ public record AgentManifest(
         @JsonValue public String value() { return value; }
         @JsonCreator public static AgentManifestKindValue fromValue(String value) {
             for (AgentManifestKindValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum AgentManifestSpecKindValue {
+        AGENT("agent"), WORKFLOW("workflow");
+        private final String value;
+        AgentManifestSpecKindValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static AgentManifestSpecKindValue fromValue(String value) {
+            for (AgentManifestSpecKindValue item : values()) if (item.value.equals(value)) return item;
             throw new IllegalArgumentException("Unknown enum value: " + value);
         }
     }

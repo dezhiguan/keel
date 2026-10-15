@@ -1,0 +1,8 @@
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  name: loop-agent
+spec:
+  kind: autonomous
+  runtime:
+    endpoint: http://localhost:8000

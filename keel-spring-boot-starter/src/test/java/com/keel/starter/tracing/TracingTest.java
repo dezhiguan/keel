@@ -95,6 +95,8 @@ class TracingTest {
         Set<String> constants = new HashSet<>();
         for (var field : SpanAttributes.class.getFields()) constants.add((String) field.get(null));
         assertEquals(documented, constants);
+        assertEquals("keel.loop.step", SpanAttributes.LOOP_STEP);
+        assertEquals(409, com.keel.common.error.ErrorCode.AGENT_MAX_STEPS_EXCEEDED.http());
 
         Recording recording = new Recording();
         SdkTracerProvider provider = SdkTracerProvider.builder().addSpanProcessor(recording).build();
