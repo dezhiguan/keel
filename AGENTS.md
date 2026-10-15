@@ -42,6 +42,11 @@ Keel 是智能体平台底座。设计文档在 `docs/` 下按包分类，冲突
 - 错误体统一 `{code, message, trace_id, retryable}`。
 - SSE 出错发 `event: error`，不要直接断连。
 
+### 表结构
+- 新表禁止 `REFERENCES`、`FOREIGN KEY`，也不要写 `ON DELETE CASCADE`。
+- 关联只保存普通列，例如 `agent_name`、`channel_id`，需要查询就建普通索引。
+- 父行是否存在由应用在写入时检查。删除按业务自己定顺序，不交给数据库级联。
+
 ### 写代码的方式
 - 先写重复代码，同一逻辑出现第三次再抽象。
 - 单实现的接口不要建，不允许新增超过一层的继承。
