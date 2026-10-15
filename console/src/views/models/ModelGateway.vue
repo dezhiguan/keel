@@ -155,9 +155,9 @@ watch(() => envStore.env, load, { immediate: true })
     <div class="chipsel" style="margin-bottom: 14px">
       <button :class="{ on: tab === 'model' }" @click="tab = 'model'">模型与渠道 · {{ models.length }}</button>
       <button :class="{ on: tab === 'key' }" @click="tab = 'key'">Key 与配额 · {{ keys.length }}</button>
-      <button :class="{ on: tab === 'route' }" @click="tab = 'route'">路由与降级</button>
+      <button :class="{ on: tab === 'route' }" @click="tab = 'route'">路由与降级 <span class="pill nd p-vio">占位</span></button>
       <button :class="{ on: tab === 'bill' }" @click="tab = 'bill'">账单 · 待计费 {{ data?.pendingCount ?? 0 }}</button>
-      <button :class="{ on: tab === 'alert' }" @click="tab = 'alert'">告警规则</button>
+      <button :class="{ on: tab === 'alert' }" @click="tab = 'alert'">告警规则 <span class="pill nd p-vio">占位</span></button>
     </div>
 
     <div v-if="tab === 'model'" class="card">
@@ -218,12 +218,12 @@ watch(() => envStore.env, load, { immediate: true })
     </div>
 
     <div v-else-if="tab === 'route'" class="card">
-      <h3>路由与降级</h3>
-      <p class="empty">路由策略、降级链和试算尚未接入。</p>
+      <h3>路由与降级 <span class="pill nd p-vio">占位</span></h3>
+      <div class="kv"><span>策略版本</span><b>未接入</b><span>硬约束</span><b>授权、上下文、工具能力、健康度</b><span>降级链</span><b>未接入</b><span>渠道熔断</span><b>未接入</b><span>路由试算</span><b>未接入</b></div>
     </div>
     <div v-else-if="tab === 'alert'" class="card">
-      <h3>告警规则</h3>
-      <p class="empty">告警规则尚未接入。网关用量缺失已进入运行总览的告警与事件。</p>
+      <h3>告警规则 <span class="pill nd p-vio">占位</span></h3>
+      <table class="t"><thead><tr><th>规则</th><th>指标</th><th>阈值</th><th>窗口</th><th>分组</th><th>通知</th><th>状态</th></tr></thead><tbody><tr><td colspan="7" class="empty">告警规则接口尚未接入</td></tr></tbody></table>
     </div>
     <div v-else class="card">
       <h3>账单<small>每次尝试一行 · 同一 requestId 只结算一次</small> <button class="btn sm" type="button" @click="exportBills">导出</button></h3>

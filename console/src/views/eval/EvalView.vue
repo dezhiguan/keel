@@ -177,7 +177,7 @@ watch(agent, () => {
 
     <div class="chipsel" style="margin-bottom: 14px">
       <button :class="{ on: evalTab === 'cmp' }" @click="evalTab = 'cmp'">分维度对比</button>
-      <button :class="{ on: evalTab === 'holdout' }" @click="evalTab = 'holdout'">研发任务门禁（隐藏考题）</button>
+      <button :class="{ on: evalTab === 'holdout' }" @click="evalTab = 'holdout'">研发任务门禁（隐藏考题） <span class="pill nd p-vio">占位</span></button>
       <button :class="{ on: evalTab === 'confirm' }" @click="evalTab = 'confirm'">待评测确认 · {{ pending.length }}</button>
     </div>
 
@@ -189,7 +189,13 @@ watch(agent, () => {
       <span v-else class="mut">无</span>
     </div>
 
-    <template v-if="evalTab !== 'confirm' && result">
+    <div v-if="evalTab === 'holdout'" class="card">
+      <h3>研发任务门禁 <span class="pill nd p-vio">占位</span></h3>
+      <div class="kv"><span>可见用例</span><b>{{ result?.scoreTotal == null ? '未接入' : formatScore(result.scoreTotal) }}</b><span>隐藏考题</span><b>{{ result?.holdout?.score == null ? '未接入' : formatScore(result.holdout.score) }}</b><span>来源任务</span><b>{{ result?.devflowJobId || '未接入' }}</b></div>
+      <p class="mut">独立的研发任务门禁报告尚未接入。隐藏考题内容只对审核人开放。</p>
+    </div>
+
+    <template v-if="evalTab === 'cmp' && result">
       <div class="gate" :class="{ pass: result.passed }">
         <div class="big">{{ formatScore(result.scoreTotal) }}</div>
         <div>
@@ -225,7 +231,7 @@ watch(agent, () => {
         </table>
       </div>
     </template>
-    <template v-else-if="evalTab !== 'confirm'">
+    <template v-else-if="evalTab === 'cmp'">
       <div v-if="progress !== null" class="prog"><i :style="{ width: `${progress * 100}%` }" /></div>
       <div v-if="!loading" class="card empty">{{ agent ? '该智能体还没有评测记录' : '还没有可评测的智能体' }}</div>
     </template>

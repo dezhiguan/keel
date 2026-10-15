@@ -48,13 +48,6 @@ const uncategorized = computed(() => {
 })
 const filtered = computed(() => (overview.value?.agents ?? []).filter((agent) => category.value === 'all' || agentType(agent) === category.value))
 const rows = computed(() => filtered.value.slice((page.value - 1) * size.value, page.value * size.value))
-const layers = computed(() => (['meta', 'dev', 'biz'] as const).map((key) => {
-  const label = key === 'meta' ? '元智能体' : key === 'dev' ? '研发' : '业务'
-  const matched = (overview.value?.agents ?? []).filter((agent) => agentType(agent) === key)
-  const scores = matched.map((agent) => agent.score).filter((score): score is number => score != null)
-  const score = scores.length ? scores.reduce((sum, value) => sum + value, 0) / scores.length : null
-  return { key, label, count: matched.length, score }
-}))
 const bars = computed(() =>
   [...(overview.value?.costByAgent ?? [])]
     .filter((row) => (row.costCny ?? 0) > 0)
@@ -215,7 +208,7 @@ watch([() => envStore.env, range], () => {
       <button :class="{ on: panel === 'agents' }" @click="panel = 'agents'">智能体 · {{ filtered.length }}</button>
       <button :class="{ on: panel === 'alerts' }" @click="panel = 'alerts'">告警与事件 · {{ overview?.alerts?.length ?? 0 }}</button>
       <button :class="{ on: panel === 'cost' }" @click="panel = 'cost'">{{ overviewRangeLabel(range) }}成本</button>
-      <button :class="{ on: panel === 'value' }" @click="panel = 'value'">分层价值</button>
+      <button :class="{ on: panel === 'value' }" @click="panel = 'value'">分层价值 <span class="pill nd p-vio">占位</span></button>
     </div>
 
     <section v-if="panel === 'agents'" class="card">
@@ -279,11 +272,11 @@ watch([() => envStore.env, range], () => {
         </div>
     </section>
     <section v-else class="card">
-      <h3>分层价值</h3>
-      <div v-for="layer in layers" :key="layer.key" class="kv">
-        <span>{{ layer.label }}</span><b>{{ layer.count }}</b>
-        <span>平均评测分</span><b>{{ layer.score == null ? '未接入' : fmtScore(layer.score) }}</b>
-        <span>交付周期 / 接管率</span><b>未接入</b>
+      <h3>分层价值 <span class="pill nd p-vio">占位</span></h3>
+      <div class="grid3">
+        <div class="card"><h3>业务智能体</h3><div class="kv"><span>解决率</span><b>未接入</b><span>转人工率</span><b>未接入</b><span>点踩率</span><b>未接入</b><span>无依据回答率</span><b>未接入</b></div></div>
+        <div class="card"><h3>研发智能体</h3><div class="kv"><span>首次门禁通过率</span><b>未接入</b><span>3 轮内通过率</span><b>未接入</b><span>平均交付周期</span><b>未接入</b><span>人工接管率</span><b>未接入</b></div></div>
+        <div class="card"><h3>元智能体</h3><div class="kv"><span>生产 / 升级研发员工</span><b>未接入</b><span>研发员工门禁均分</span><b>未接入</b><span>人工补写 PR 占比</span><b>未接入</b></div></div>
       </div>
     </section>
   </div>

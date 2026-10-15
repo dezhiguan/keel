@@ -118,7 +118,7 @@ watch(() => envStore.env, () => {
     </div>
     <div class="chipsel" style="margin-bottom: 14px">
       <button :class="{ on: tab === 'tool' }" @click="tab = 'tool'">工具 · {{ result?.total ?? 0 }}</button>
-      <button :class="{ on: tab === 'skill' }" @click="tab = 'skill'">技能 <span class="pill nd p-acc">占位</span></button>
+      <button :class="{ on: tab === 'skill' }" @click="tab = 'skill'">技能 <span class="pill nd p-vio">占位</span></button>
     </div>
     <div v-if="tab === 'tool'" class="toolbar">
       <div class="chipsel">
@@ -150,7 +150,7 @@ watch(() => envStore.env, () => {
       <Pager v-model:page="filter.page" v-model:size="filter.size" :total="result?.total ?? 0" />
     </div>
     <div v-else class="card">
-      <h3>技能注册表 <span class="pill nd p-acc">占位</span></h3>
+      <h3>技能注册表 <span class="pill nd p-vio">占位</span></h3>
       <table class="t"><thead><tr><th>技能</th><th>所有者</th><th>版本</th><th>依赖工具</th><th>风险</th><th>使用方</th><th>来源</th></tr></thead>
         <tbody><tr><td colspan="7" class="empty">技能注册与授权接口尚未接入</td></tr></tbody>
       </table>

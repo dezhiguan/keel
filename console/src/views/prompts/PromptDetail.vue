@@ -22,6 +22,7 @@ const body = ref<PromptBody | null>(null)
 const diff = ref<PromptDiff | null>(null)
 const editing = ref(false)
 const rolling = ref(false)
+const tab = ref<'ver' | 'struct' | 'vars' | 'run'>('ver')
 const commitMessage = ref('')
 const reason = ref('')
 const drafts = ref<{ role: string; content: string }[]>([])
@@ -210,7 +211,13 @@ watch(() => envStore.env, () => {
         <button v-else-if="banner.action?.kind === 'pick'" class="btn sm" type="button" @click="pick(banner.action.version)">{{ banner.action.label }}</button>
       </div>
 
-      <div class="card">
+      <div class="chipsel" style="margin-bottom: 14px">
+        <button :class="{ on: tab === 'ver' }" @click="tab = 'ver'">版本与内容</button>
+        <button :class="{ on: tab === 'struct' }" @click="tab = 'struct'">结构化 <span class="pill nd p-vio">占位</span></button>
+        <button :class="{ on: tab === 'vars' }" @click="tab = 'vars'">变量与输出契约 <span class="pill nd p-vio">占位</span></button>
+        <button :class="{ on: tab === 'run' }" @click="tab = 'run'">试运行 <span class="pill nd p-vio">占位</span></button>
+      </div>
+      <div v-if="tab === 'ver'" class="card">
         <h3>
           版本
           <small>{{ envStore.env === 'all' ? '四个环境的标签都显示' : `只突出 ${envStore.env} 的标签（${PR_LABEL[envStore.env]}）` }}；左侧点一版看内容</small>
@@ -261,6 +268,9 @@ watch(() => envStore.env, () => {
         </div>
         <div class="srcnote">版本只存在 Langfuse；Keel 库只记哪一版在 staging 生效过、回归结果和每次发布的版本号。config 只认 temperature、max_tokens、top_p，模型由 manifest 决定。保存、在各环境生效、发布、回滚都会写 <code>config.change</code> 审计，只有版本号、内容哈希和改动行数，不含提示词原文。</div>
       </div>
+      <div v-else-if="tab === 'struct'" class="card"><h3>结构化提示词 <span class="pill nd p-vio">占位</span></h3><div class="kv"><span>角色</span><b>未接入</b><span>任务</span><b>未接入</b><span>约束</span><b>未接入</b><span>工具</span><b>未接入</b><span>输出</span><b>未接入</b><span>示例</span><b>未接入</b></div><p class="mut">分段内容与删除约束时的评测维度提示，等待结构化提示词接口。</p></div>
+      <div v-else-if="tab === 'vars'" class="card"><h3>变量与输出契约 <span class="pill nd p-vio">占位</span></h3><table class="t"><thead><tr><th>变量</th><th>类型</th><th>来源</th><th>必填</th><th>上限 / 截断</th><th>PII</th></tr></thead><tbody><tr v-for="variable in variables" :key="variable"><td class="mono">{{ braces(variable) }}</td><td colspan="5" class="mut">变量 schema 未接入</td></tr><tr v-if="!variables.length"><td colspan="6" class="empty">当前版本没有变量</td></tr></tbody></table><h3>输出契约</h3><p class="mut">输出契约尚未接入。</p></div>
+      <div v-else class="card"><h3>试运行 <span class="pill nd p-vio">占位</span></h3><p class="mut">版本对比和样例调用接口尚未接入。此处不会发起模型调用。</p></div>
     </template>
 
     <div v-if="editing" class="mask on" @click="editing = false" />

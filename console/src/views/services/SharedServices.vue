@@ -105,7 +105,7 @@ watch(() => envStore.env, load, { immediate: true })
       <button :class="{ on: tab === 'platform' }" @click="tab = 'platform'">平台组件 · {{ platform.rows.length }}</button>
       <button :class="{ on: tab === 'caps' }" @click="tab = 'caps'">能力服务 · {{ data?.capabilities?.length ?? 0 }}</button>
       <button :class="{ on: tab === 'rag' }" @click="tab = 'rag'">rag-forge 知识检索 · {{ rag?.knowledgeBases?.length ?? 0 }} 个知识库</button>
-      <button :class="{ on: tab === 'sandbox' }" @click="tab = 'sandbox'">研发沙箱</button>
+      <button :class="{ on: tab === 'sandbox' }" @click="tab = 'sandbox'">研发沙箱 <span v-if="platform.sandboxPlaceholder" class="pill nd p-vio">占位</span></button>
     </div>
 
     <template v-if="tab === 'platform'">
@@ -146,7 +146,7 @@ watch(() => envStore.env, load, { immediate: true })
       </table>
     </div>
     <div v-else-if="tab === 'sandbox'" class="card">
-      <h3>研发沙箱<small v-if="platform.sandboxPlaceholder">用量尚未接入</small></h3>
+      <h3>研发沙箱<small v-if="platform.sandboxPlaceholder">状态或用量尚未接入 · 占位</small></h3>
       <table class="t">
         <thead><tr><th>组件</th><th>命名空间</th><th>状态</th><th>用量</th><th>说明</th><th>坏了会怎样</th></tr></thead>
         <tbody>

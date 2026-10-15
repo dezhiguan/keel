@@ -32,9 +32,11 @@ const TABS = [
   ['ov', '概览'],
   ['yaml', 'agent.yaml'],
   ['inst', '实例与资源'],
-  ['mem', '记忆'],
   ['ver', '版本'],
   ['dev', '研发记录'],
+  ['skill', '技能'],
+  ['mem', '记忆'],
+  ['ch', '渠道发布'],
 ] as const
 
 type Tab = (typeof TABS)[number][0]
@@ -246,7 +248,7 @@ onUnmounted(() => {
         </div>
         <div class="db">
           <div class="dtabs">
-            <button v-for="[key, label] in TABS" :key="key" type="button" :class="{ on: tab === key }" :style="key === 'dev' ? { color: 'var(--acc)' } : undefined" @click="tab = key">{{ label }}</button>
+            <button v-for="[key, label] in TABS" :key="key" type="button" :class="{ on: tab === key }" @click="tab = key">{{ label }} <span v-if="key === 'skill' || key === 'ch'" class="pill nd p-vio">占位</span></button>
           </div>
           <div v-loading="loading" class="dbody">
 
@@ -355,6 +357,18 @@ onUnmounted(() => {
                 <span>{{ label }}</span><b>{{ value }}</b>
               </template>
             </div>
+            <p class="mut">用户记忆管理尚未接入。<span class="pill nd p-vio">占位</span></p>
+          </template>
+
+          <template v-else-if="detail && tab === 'skill'">
+            <h4>已授权技能 <span class="pill nd p-vio">占位</span></h4>
+            <table class="t"><thead><tr><th>技能</th><th>版本</th><th>依赖工具</th><th>风险</th><th>状态</th></tr></thead><tbody><tr><td colspan="5" class="empty">技能注册与授权接口尚未接入</td></tr></tbody></table>
+          </template>
+
+          <template v-else-if="detail && tab === 'ch'">
+            <h4>渠道发布 <span class="pill nd p-vio">占位</span></h4>
+            <table class="t"><thead><tr><th>渠道</th><th>方式</th><th>用户身份</th><th>白名单</th><th>配额</th><th>状态</th></tr></thead><tbody><tr><td colspan="6" class="empty">渠道列表与发布接口尚未接入</td></tr></tbody></table>
+            <h4>嵌入代码与托管页面</h4><p class="mut">发布渠道后，这里会显示嵌入代码、托管页面设置和发布入口。</p>
           </template>
 
           <template v-else-if="tab === 'dev'">

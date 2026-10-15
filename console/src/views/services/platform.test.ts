@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { platformRows, SANDBOX_USAGE_PLACEHOLDER } from './platform'
+import { platformRows } from './platform'
 
 describe('platformRows', () => {
-  it('keeps probed status and fills sandbox usage only when nothing was measured', () => {
+  it('keeps probed status and marks missing sandbox data without inventing values', () => {
     const { rows, sandboxPlaceholder } = platformRows(undefined, [
       { name: '薄网关', status: 'ONLINE' },
       { name: 'keel-gateway', status: 'DEGRADED' },
@@ -15,8 +15,8 @@ describe('platformRows', () => {
     expect(rows.find((row) => row.name === 'console')?.usage).toBeNull()
     expect(rows.find((row) => row.name === 'keel-devflow-sandbox')).toMatchObject({
       namespace: 'keel-devflow-sandbox',
-      status: 'ONLINE',
-      usage: SANDBOX_USAGE_PLACEHOLDER,
+      status: null,
+      usage: null,
     })
     expect(sandboxPlaceholder).toBe(true)
   })

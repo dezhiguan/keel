@@ -29,8 +29,6 @@ const CATALOG: { name: string; namespace: string; serviceName?: string; note: st
   { name: 'keel-devflow-sandbox', namespace: 'keel-devflow-sandbox', note: '一次性 Job，10 分钟超时，只出包镜像源' },
 ]
 
-export const SANDBOX_USAGE_PLACEHOLDER = '1.5 / 4 核 · 3 / 8Gi · 运行 2 · 排队 0'
-
 function asStatus(status: string | null | undefined): ServiceStatus | null {
   return status === 'ONLINE' || status === 'DEGRADED' || status === 'OFFLINE' ? status : null
 }
@@ -40,7 +38,7 @@ function statusOf(services: ServiceRow[], name?: string): ServiceStatus | null {
   return asStatus(services.find((row) => row.name === name)?.status)
 }
 
-/** Sandbox quota is not on the cluster yet. Fill the prototype numbers only while both status and usage are empty. */
+/** Preserve missing probe and quota data as missing; prototype numbers are layout examples. */
 export function platformRows(
   components: IncomingComponent[] | undefined,
   services: ServiceRow[],
@@ -61,16 +59,5 @@ export function platformRows(
         usage: null,
         note: item.note,
       }))
-  let sandboxPlaceholder = false
-  const shown = rows.map((row) => {
-    if (row.name !== 'keel-devflow-sandbox' || row.usage || row.status) return row
-    sandboxPlaceholder = true
-    return {
-      ...row,
-      status: 'ONLINE' as const,
-      usage: SANDBOX_USAGE_PLACEHOLDER,
-      note: row.note || CATALOG.find((item) => item.name === 'keel-devflow-sandbox')?.note,
-    }
-  })
-  return { rows: shown, sandboxPlaceholder }
+  return { rows, sandboxPlaceholder: rows.some((row) => row.name === 'keel-devflow-sandbox' && !row.usage) }
 }
