@@ -27,7 +27,7 @@ const RAG_CONSOLE = 'https://ragforge.net'
 
 const envStore = useEnvStore()
 const data = ref<SharedServices | null>(null)
-const tab = ref<'health' | 'rag'>('health')
+const tab = ref<'platform' | 'caps' | 'rag' | 'sandbox'>('platform')
 const loading = ref(false)
 const healthPage = ref(1)
 const healthSize = ref<PageSize>(10)
@@ -96,23 +96,23 @@ watch(() => envStore.env, load, { immediate: true })
 <template>
   <div v-loading="loading">
     <div class="vh">
-      <h2>共享服务</h2>
-      <span class="sub">底座组件和被多个智能体共用的服务 · 在线状态来自 K8s 探测，指标来自 Prometheus</span>
+      <h2>平台与能力服务</h2>
+      <span class="sub">平台组件每次调用都会经过；能力服务在 manifest 声明、授权后使用</span>
       <span class="sp"></span>
       <a class="btn" :href="consoleUrl" target="_blank" rel="noopener">rag-forge 控制台 ↗</a>
     </div>
     <div class="chipsel" style="margin-bottom: 14px">
-      <button :class="{ on: tab === 'health' }" @click="tab = 'health'">服务健康 · {{ data?.services?.length ?? 0 }}</button>
-      <button :class="{ on: tab === 'rag' }" @click="tab = 'rag'">
-        rag-forge 知识检索 · {{ rag?.knowledgeBases?.length ?? 0 }} 个知识库
-      </button>
+      <button :class="{ on: tab === 'platform' }" @click="tab = 'platform'">平台组件 · {{ platform.rows.length }}</button>
+      <button :class="{ on: tab === 'caps' }" @click="tab = 'caps'">能力服务 · {{ data?.capabilities?.length ?? 0 }}</button>
+      <button :class="{ on: tab === 'rag' }" @click="tab = 'rag'">rag-forge 知识检索 · {{ rag?.knowledgeBases?.length ?? 0 }} 个知识库</button>
+      <button :class="{ on: tab === 'sandbox' }" @click="tab = 'sandbox'">研发沙箱</button>
     </div>
 
-    <template v-if="tab === 'health'">
+    <template v-if="tab === 'platform'">
       <div class="card">
-        <h3>服务健康</h3>
+        <h3>平台组件</h3>
         <table class="t">
-          <thead><tr><th>服务</th><th>角色</th><th>实例</th><th>P95</th><th>错误率</th><th>状态</th></tr></thead>
+          <thead><tr><th>服务</th><th>角色</th><th>实例</th><th>P95</th><th>错误率</th><th>状态</th><th>坏了会怎样</th></tr></thead>
           <tbody>
             <tr v-for="s in healthRows" :key="s.name">
               <td class="nm"><b>{{ s.name }}</b></td>
@@ -121,29 +121,48 @@ watch(() => envStore.env, load, { immediate: true })
               <td class="mono">{{ s.p95 ?? '—' }}</td>
               <td class="mono">{{ s.errorRate ?? '—' }}</td>
               <td><StatusPill v-bind="agentStatus(s.status)" /></td>
+              <td class="mut">{{ s.impact || '—' }}</td>
             </tr>
           </tbody>
         </table>
         <Pager v-model:page="healthPage" v-model:size="healthSize" :total="services.length" />
       </div>
-      <div class="card">
-        <h3>平台组件<small v-if="platform.sandboxPlaceholder">研发沙箱用量尚未接入，数字为占位</small></h3>
-        <table class="t">
-          <thead><tr><th>组件</th><th>命名空间</th><th>状态</th><th>用量</th><th>说明</th></tr></thead>
-          <tbody>
-            <tr v-for="row in platform.rows" :key="row.name">
-              <td class="mono">{{ row.name }}</td>
-              <td class="mono">{{ row.namespace }}</td>
-              <td><StatusPill v-bind="agentStatus(row.status ?? undefined)" /></td>
-              <td class="mono">{{ row.usage || '—' }}</td>
-              <td class="mut">{{ row.note || '—' }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
     </template>
+    <div v-else-if="tab === 'caps'" class="card">
+      <h3>能力服务</h3>
+      <table class="t">
+        <thead><tr><th>服务</th><th>类型</th><th>提供什么</th><th>谁在用</th><th>manifest 字段</th><th>怎么开通</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr v-for="row in data?.capabilities ?? []" :key="row.name">
+            <td class="nm"><b>{{ row.name }}</b></td>
+            <td>{{ row.type }}</td>
+            <td>{{ row.provides }}</td>
+            <td>{{ row.users || '未接入' }}</td>
+            <td class="mono">{{ row.manifestField }}</td>
+            <td>{{ row.grant }}</td>
+            <td><StatusPill v-if="row.status" v-bind="agentStatus(row.status)" /><span v-else>未接入</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div v-else-if="tab === 'sandbox'" class="card">
+      <h3>研发沙箱<small v-if="platform.sandboxPlaceholder">用量尚未接入</small></h3>
+      <table class="t">
+        <thead><tr><th>组件</th><th>命名空间</th><th>状态</th><th>用量</th><th>说明</th><th>坏了会怎样</th></tr></thead>
+        <tbody>
+          <tr v-for="row in platform.rows.filter((item) => item.name.includes('sandbox'))" :key="row.name">
+            <td class="mono">{{ row.name }}</td>
+            <td class="mono">{{ row.namespace }}</td>
+            <td><StatusPill v-if="row.status" v-bind="agentStatus(row.status)" /><span v-else>未接入</span></td>
+            <td class="mono">{{ row.usage || '未接入' }}</td>
+            <td class="mut">{{ row.note || '—' }}</td>
+            <td class="mut">{{ row.impact || '研发任务无法在沙箱里跑测试' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
-    <template v-else-if="rag">
+    <template v-else-if="tab === 'rag' && rag">
       <div class="kpis">
         <div class="kpi"><div class="l">rag-forge 24h 检索</div><div class="v">{{ fmtN(rag.kpi?.searches24h) }}</div><div v-if="trend" class="d" :class="trend.tone">{{ trend.text }}</div><div v-else class="d">—</div></div>
         <div class="kpi"><div class="l">检索 P95</div><div class="v">{{ seconds(rag.kpi?.p95Seconds) }}</div><div class="d">P50 {{ seconds(rag.kpi?.p50Seconds) }}</div></div>

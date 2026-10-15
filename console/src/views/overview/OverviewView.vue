@@ -24,6 +24,7 @@ const pipeline = ref<PipelineCards>(pipelineCards(null))
 const loading = ref(false)
 const category = ref<Category>('all')
 const range = ref<OverviewRange>('24h')
+const panel = ref<'agents' | 'alerts' | 'cost' | 'value'>('agents')
 const page = ref(1)
 const size = ref<10 | 20 | 50 | 100>(10)
 let loadSequence = 0
@@ -47,6 +48,13 @@ const uncategorized = computed(() => {
 })
 const filtered = computed(() => (overview.value?.agents ?? []).filter((agent) => category.value === 'all' || agentType(agent) === category.value))
 const rows = computed(() => filtered.value.slice((page.value - 1) * size.value, page.value * size.value))
+const layers = computed(() => (['meta', 'dev', 'biz'] as const).map((key) => {
+  const label = key === 'meta' ? '元智能体' : key === 'dev' ? '研发' : '业务'
+  const matched = (overview.value?.agents ?? []).filter((agent) => agentType(agent) === key)
+  const scores = matched.map((agent) => agent.score).filter((score): score is number => score != null)
+  const score = scores.length ? scores.reduce((sum, value) => sum + value, 0) / scores.length : null
+  return { key, label, count: matched.length, score }
+}))
 const bars = computed(() =>
   [...(overview.value?.costByAgent ?? [])]
     .filter((row) => (row.costCny ?? 0) > 0)
@@ -107,7 +115,7 @@ watch([() => envStore.env, range], () => {
 <template>
   <div v-loading="loading">
     <div class="vh">
-      <h2>总览</h2>
+      <h2>运行总览</h2>
       <span class="sub">{{ envLabel }} · {{ overviewRangeLabel(range) }}</span>
       <span class="sp" />
       <div class="chipsel" aria-label="总览时间窗">
@@ -203,7 +211,14 @@ watch([() => envStore.env, range], () => {
     </div>
     <p v-if="pipeline.active == null" class="pipe-note">研发任务账本尚未接入，以上数字为占位。</p>
 
-    <section class="card">
+    <div class="chipsel" style="margin-bottom: 14px">
+      <button :class="{ on: panel === 'agents' }" @click="panel = 'agents'">智能体 · {{ filtered.length }}</button>
+      <button :class="{ on: panel === 'alerts' }" @click="panel = 'alerts'">告警与事件 · {{ overview?.alerts?.length ?? 0 }}</button>
+      <button :class="{ on: panel === 'cost' }" @click="panel = 'cost'">{{ overviewRangeLabel(range) }}成本</button>
+      <button :class="{ on: panel === 'value' }" @click="panel = 'value'">分层价值</button>
+    </div>
+
+    <section v-if="panel === 'agents'" class="card">
       <h3>智能体<small>点击行查看详情</small><span class="sp" /><div class="chipsel">
         <button v-for="[key, label] in CATEGORIES" :key="key" :class="{ on: category === key }" @click="setCategory(key)">{{ label }}</button>
       </div></h3>
@@ -242,8 +257,7 @@ watch([() => envStore.env, range], () => {
       <Pager v-model:page="page" v-model:size="size" :total="filtered.length" />
     </section>
 
-    <div class="row2">
-      <section class="card">
+    <section v-else-if="panel === 'alerts'" class="card">
         <h3>告警与事件</h3>
         <p v-if="!overview?.alerts?.length" class="empty">暂无告警</p>
         <ul v-else class="alerts">
@@ -253,9 +267,9 @@ watch([() => envStore.env, range], () => {
             <span>{{ alert.text }}</span>
           </li>
         </ul>
-      </section>
-      <section class="card">
-        <h3>{{ overviewRangeLabel(range) }}成本<small>按智能体<template v-if="range === '24h'"> / 日预算</template></small></h3>
+    </section>
+    <section v-else-if="panel === 'cost'" class="card">
+        <h3>{{ overviewRangeLabel(range) }}成本<small>按智能体<template v-if="range === '24h' || range === 'today'"> / 日预算</template></small></h3>
         <p v-if="!bars.length" class="empty">{{ overviewRangeLabel(range) }}还没有模型花费</p>
         <div v-else class="bars">
           <div v-for="row in bars" :key="row.agent">
@@ -263,8 +277,15 @@ watch([() => envStore.env, range], () => {
             <div class="bar"><i :style="{ width: `${barWidth(row.costCny, row.dailyBudgetCny)}%`, background: barColor(row.costCny, row.dailyBudgetCny) }" /></div>
           </div>
         </div>
-      </section>
-    </div>
+    </section>
+    <section v-else class="card">
+      <h3>分层价值</h3>
+      <div v-for="layer in layers" :key="layer.key" class="kv">
+        <span>{{ layer.label }}</span><b>{{ layer.count }}</b>
+        <span>平均评测分</span><b>{{ layer.score == null ? '未接入' : fmtScore(layer.score) }}</b>
+        <span>交付周期 / 接管率</span><b>未接入</b>
+      </div>
+    </section>
   </div>
 </template>
 

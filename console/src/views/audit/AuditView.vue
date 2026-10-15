@@ -161,7 +161,7 @@ loadAgents()
 <template>
   <div>
     <div class="vh">
-      <h2>审计中心</h2>
+      <h2>审计留痕</h2>
       <span class="sub">只追加 · 哈希链防篡改 · 字段白名单 · 敏感信息脱敏</span>
       <span class="sp" />
       <button v-write class="btn" :disabled="verifying" @click="verify">{{ verifying ? '校验中…' : '校验哈希链' }}</button>

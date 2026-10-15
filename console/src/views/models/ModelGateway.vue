@@ -22,7 +22,7 @@ const MODEL_STATUS: Record<string, { label: string; tone: StatusTone }> = {
 const envStore = useEnvStore()
 const userStore = useUserStore()
 const data = ref<ModelGateway | null>(null)
-const tab = ref<'model' | 'key' | 'bill'>('model')
+const tab = ref<'model' | 'key' | 'route' | 'bill' | 'alert'>('model')
 const loading = ref(false)
 const saving = ref(false)
 const editing = ref<GatewayKey | null>(null)
@@ -149,13 +149,15 @@ watch(() => envStore.env, load, { immediate: true })
 <template>
   <div v-loading="loading">
     <div class="vh">
-      <h2>模型网关</h2>
+      <h2>模型与成本</h2>
       <span class="sub">后端是自研薄网关 keel-llm · 本页调 keel-server 取数和下发配置</span>
     </div>
     <div class="chipsel" style="margin-bottom: 14px">
-      <button :class="{ on: tab === 'model' }" @click="tab = 'model'">模型 · {{ models.length }}</button>
-      <button :class="{ on: tab === 'key' }" @click="tab = 'key'">虚拟 Key 与日预算 · {{ keys.length }}</button>
+      <button :class="{ on: tab === 'model' }" @click="tab = 'model'">模型与渠道 · {{ models.length }}</button>
+      <button :class="{ on: tab === 'key' }" @click="tab = 'key'">Key 与配额 · {{ keys.length }}</button>
+      <button :class="{ on: tab === 'route' }" @click="tab = 'route'">路由与降级</button>
       <button :class="{ on: tab === 'bill' }" @click="tab = 'bill'">账单 · 待计费 {{ data?.pendingCount ?? 0 }}</button>
+      <button :class="{ on: tab === 'alert' }" @click="tab = 'alert'">告警规则</button>
     </div>
 
     <div v-if="tab === 'model'" class="card">
@@ -215,6 +217,14 @@ watch(() => envStore.env, load, { immediate: true })
       <Pager v-model:page="keyPage" v-model:size="keySize" :total="keys.length" />
     </div>
 
+    <div v-else-if="tab === 'route'" class="card">
+      <h3>路由与降级</h3>
+      <p class="empty">路由策略、降级链和试算尚未接入。</p>
+    </div>
+    <div v-else-if="tab === 'alert'" class="card">
+      <h3>告警规则</h3>
+      <p class="empty">告警规则尚未接入。网关用量缺失已进入运行总览的告警与事件。</p>
+    </div>
     <div v-else class="card">
       <h3>账单<small>每次尝试一行 · 同一 requestId 只结算一次</small> <button class="btn sm" type="button" @click="exportBills">导出</button></h3>
       <table class="t">

@@ -6,6 +6,7 @@ export type PlatformComponent = {
   status?: ServiceStatus | null
   usage?: string | null
   note?: string | null
+  impact?: string | null
 }
 
 type ServiceRow = { name?: string; status?: string | null }
@@ -16,6 +17,7 @@ type IncomingComponent = {
   status?: string | null
   usage?: string | null
   note?: string | null
+  impact?: string | null
 }
 
 const CATALOG: { name: string; namespace: string; serviceName?: string; note: string }[] = [
@@ -50,6 +52,7 @@ export function platformRows(
         status: asStatus(row.status),
         usage: row.usage,
         note: row.note,
+        impact: row.impact,
       }] : [])
     : CATALOG.map((item) => ({
         name: item.name,

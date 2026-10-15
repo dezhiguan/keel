@@ -19,6 +19,7 @@ const envStore = useEnvStore()
 const result = ref<ToolPage | null>(null)
 const loading = ref(false)
 const registering = ref(false)
+const tab = ref<'tool' | 'skill'>('tool')
 const form = reactive({
   name: '',
   description: '',
@@ -110,19 +111,23 @@ watch(() => envStore.env, () => {
 <template>
   <div>
     <div class="vh">
-      <h2>工具</h2>
+      <h2>工具与技能</h2>
       <span class="sub">统一注册，声明读写属性和风险等级。高风险工具的每次调用都会被挂起，送到审批中心</span>
       <span class="sp" />
-      <button v-write class="btn pri" @click="openRegister">+ 注册 MCP 工具</button>
+      <button v-if="tab === 'tool'" v-write class="btn pri" @click="openRegister">+ 注册 MCP 工具</button>
     </div>
-    <div class="toolbar">
+    <div class="chipsel" style="margin-bottom: 14px">
+      <button :class="{ on: tab === 'tool' }" @click="tab = 'tool'">工具 · {{ result?.total ?? 0 }}</button>
+      <button :class="{ on: tab === 'skill' }" @click="tab = 'skill'">技能 <span class="pill nd p-acc">占位</span></button>
+    </div>
+    <div v-if="tab === 'tool'" class="toolbar">
       <div class="chipsel">
         <button :class="{ on: filter.scope === 'all' }" @click="setScope('all')">全部</button>
         <button :class="{ on: filter.scope === 'SHARED' }" @click="setScope('SHARED')">共享</button>
         <button :class="{ on: filter.scope === 'PRIVATE' }" @click="setScope('PRIVATE')">私有</button>
       </div>
     </div>
-    <div v-loading="loading" class="card">
+    <div v-if="tab === 'tool'" v-loading="loading" class="card">
       <table class="t">
         <thead><tr><th>工具</th><th>范围</th><th>所有者</th><th>读写</th><th>风险</th><th>版本</th><th>依赖方</th><th>24h</th><th>状态</th></tr></thead>
         <tbody>
@@ -143,6 +148,12 @@ watch(() => envStore.env, () => {
         </tbody>
       </table>
       <Pager v-model:page="filter.page" v-model:size="filter.size" :total="result?.total ?? 0" />
+    </div>
+    <div v-else class="card">
+      <h3>技能注册表 <span class="pill nd p-acc">占位</span></h3>
+      <table class="t"><thead><tr><th>技能</th><th>所有者</th><th>版本</th><th>依赖工具</th><th>风险</th><th>使用方</th><th>来源</th></tr></thead>
+        <tbody><tr><td colspan="7" class="empty">技能注册与授权接口尚未接入</td></tr></tbody>
+      </table>
     </div>
     <el-dialog v-model="registering" title="注册 MCP 工具" width="480px">
       <el-form label-width="100px">

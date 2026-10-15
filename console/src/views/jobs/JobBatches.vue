@@ -60,7 +60,7 @@ onMounted(load)
 <template>
   <div v-loading="loading">
     <div class="vh">
-      <h2>研发任务</h2>
+      <h2>智能体生产线</h2>
       <span class="tag-new">新页面</span>
       <span class="sub">一张需求表 = 一个批次，每行生产一个业务智能体。先试产 1 条，过门禁后放开整批</span>
       <span class="sp" />

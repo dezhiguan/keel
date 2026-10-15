@@ -188,7 +188,9 @@ public class SharedServiceMonitor {
         } else {
             serviceRows = new ArrayList<>(withPlatform(service));
         }
+        serviceRows.forEach(SharedServiceMonitor::putImpact);
         body.put("services", serviceRows);
+        body.put("capabilities", capabilities(serviceRows));
         body.put("components", platformComponents(serviceRows));
         body.put("ragforge", rag);
         body.put("consoleUrl", "https://ragforge.net");
@@ -222,6 +224,44 @@ public class SharedServiceMonitor {
         row.put("status", status);
         row.put("usage", null);
         row.put("note", note);
+        row.put("impact", IMPACT.get(name));
+        return row;
+    }
+
+    private static final Map<String, String> IMPACT = Map.of(
+            "keel-gateway", "外部流量进不来",
+            "keel-server", "控制台、注册、审批不可用；运行中的调用不受影响",
+            "keel-audit", "高风险动作全部拒绝执行",
+            "auth-gateway", "新登录和换票失败",
+            "薄网关", "所有模型调用失败",
+            "keel-llm", "所有模型调用失败",
+            "Langfuse", "追踪写本地缓冲；提示词用缓存或兜底副本");
+
+    private static void putImpact(Map<String, Object> row) {
+        var impact = IMPACT.get(String.valueOf(row.get("name")));
+        if (impact != null) {
+            row.put("impact", impact);
+        }
+    }
+
+    private static List<Map<String, Object>> capabilities(List<Map<String, Object>> services) {
+        return List.of(
+                capability("rag-forge", "知识", "知识检索、引用", "spec.knowledge", "知识库所有者授权", statusOf(services, "rag-forge")),
+                capability("Git MCP", "工具", "git.repo.create · branch.push · pr.open · pr.merge", "spec.tools", "工具所有者授权", null),
+                capability("CI MCP", "工具", "ci.workflow.dispatch · ci.log.fetch", "spec.tools", "工具所有者授权", null),
+                capability("薄网关 keel-llm", "模型", "OpenAI 兼容调用、虚拟 Key、人民币日预算", "spec.models", "注册时自动开通", statusOf(services, "薄网关")),
+                capability("keel-memory", "记忆", "会话记忆、用户记忆", "spec.memory", "负责人开启", null));
+    }
+
+    private static Map<String, Object> capability(String name, String type, String provides, String field, String grant, Object status) {
+        var row = new LinkedHashMap<String, Object>();
+        row.put("name", name);
+        row.put("type", type);
+        row.put("provides", provides);
+        row.put("users", null);
+        row.put("manifestField", field);
+        row.put("grant", grant);
+        row.put("status", status);
         return row;
     }
 

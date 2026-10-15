@@ -2010,6 +2010,19 @@ export interface components {
                 errorRate?: string;
                 /** @enum {string} */
                 status?: "ONLINE" | "DEGRADED" | "OFFLINE";
+                /** @description 这个组件不可用时会影响什么 */
+                impact?: string | null;
+            }[];
+            /** @description 在 manifest 里声明后使用的能力。状态来自健康探测，没有探测时为空。 */
+            capabilities?: {
+                name?: string;
+                type?: string;
+                provides?: string;
+                users?: string | null;
+                manifestField?: string;
+                grant?: string;
+                /** @enum {string|null} */
+                status?: "ONLINE" | "DEGRADED" | "OFFLINE" | null;
             }[];
             /** @description 平台组件。状态沿用服务健康探测；用量查不到时为空，控制台对研发沙箱显示占位。 */
             components?: {
@@ -2026,6 +2039,8 @@ export interface components {
                 usage?: string | null;
                 /** @example 一次性 Job，10 分钟超时，只出包镜像源 */
                 note?: string | null;
+                /** @description 这个组件不可用时会影响什么 */
+                impact?: string | null;
             }[];
             ragforge?: {
                 kpi?: {

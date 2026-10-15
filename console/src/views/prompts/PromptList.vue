@@ -63,7 +63,7 @@ function pickStatus(value: string) {
 <template>
   <div v-loading="loading">
     <div class="vh">
-      <h2>提示词</h2>
+      <h2>提示词工程</h2>
       <span class="sub">{{ envStore.env === 'all' ? '全部环境' : envStore.env }} · 四个环境共用一个 Langfuse 项目，每个环境一个标签；staging 生效即回归，prod 只经 <code>keel release</code></span>
       <span class="sp" />
       <a v-if="langfuseUrl" class="btn" :href="langfuseUrl" target="_blank" rel="noopener">在 Langfuse 中打开 ↗</a>

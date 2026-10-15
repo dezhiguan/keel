@@ -2939,6 +2939,20 @@ components:
               p95: { type: string, nullable: true, example: 0.78s }
               errorRate: { type: string, example: 0.6%（429） }
               status: { type: string, enum: [ONLINE, DEGRADED, OFFLINE] }
+              impact: { type: string, nullable: true, description: 这个组件不可用时会影响什么 }
+        capabilities:
+          type: array
+          description: 在 manifest 里声明后使用的能力。状态来自健康探测，没有探测时为空。
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              type: { type: string }
+              provides: { type: string }
+              users: { type: string, nullable: true }
+              manifestField: { type: string }
+              grant: { type: string }
+              status: { type: string, nullable: true, enum: [ONLINE, DEGRADED, OFFLINE] }
         components:
           type: array
           description: 平台组件。状态沿用服务健康探测；用量查不到时为空，控制台对研发沙箱显示占位。
@@ -2954,6 +2968,7 @@ components:
                 description: 核数、内存、运行中的 Job 和排队。没有配额数据时为空
                 example: "1.5 / 4 核 · 3 / 8Gi · 运行 2 · 排队 0"
               note: { type: string, nullable: true, example: 一次性 Job，10 分钟超时，只出包镜像源 }
+              impact: { type: string, nullable: true, description: 这个组件不可用时会影响什么 }
         ragforge:
           type: object
           properties:

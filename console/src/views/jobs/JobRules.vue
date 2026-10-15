@@ -50,7 +50,7 @@ onMounted(load)
 <template>
   <div v-loading="loading">
     <div class="vh">
-      <h2>研发任务</h2>
+      <h2>智能体生产线</h2>
       <span class="tag-new">新页面</span>
       <span class="sub">规则仅平台管理员可改，每次保存写 config.change 审计</span>
     </div>

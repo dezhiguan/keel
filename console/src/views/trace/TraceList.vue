@@ -135,7 +135,7 @@ loadJobs()
 <template>
   <div>
     <div class="vh">
-      <h2>链路追踪</h2>
+      <h2>调用链路</h2>
       <span class="sub">数据来自 Langfuse，叠加 Keel 的审计、审批、门禁信息</span>
       <span class="sp" />
       <a v-if="result?.langfuseUrl" class="btn" :href="result.langfuseUrl" target="_blank" rel="noopener">在 Langfuse 中打开 ↗</a>

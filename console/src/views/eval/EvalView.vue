@@ -24,6 +24,7 @@ const userStore = useUserStore()
 const envStore = useEnvStore()
 const approvalsStore = useApprovalsStore()
 
+const evalTab = ref<'cmp' | 'holdout' | 'confirm'>('cmp')
 const agent = ref('')
 const agentOptions = ref<string[]>([])
 const result = ref<EvalResult | null>(null)
@@ -164,7 +165,7 @@ watch(agent, () => {
 <template>
   <div v-loading="loading">
     <div class="vh">
-      <h2>评测中心</h2>
+      <h2>评测与门禁</h2>
       <span class="sub">Langfuse 数据集 {{ result?.dataset ?? (agent || '—') }} · 门禁由 keel-gate 判定</span>
       <span class="sp" />
       <a v-if="result?.langfuseUrl" class="btn" :href="result.langfuseUrl" target="_blank" rel="noopener">在 Langfuse 中打开 ↗</a>
@@ -174,15 +175,21 @@ watch(agent, () => {
       <button v-write class="btn pri" :disabled="!agent || progress !== null" @click="run">▶ 运行回归</button>
     </div>
 
-    <div class="card">
-      <h3>待评测确认<small>和审批中心是同一批待办</small></h3>
+    <div class="chipsel" style="margin-bottom: 14px">
+      <button :class="{ on: evalTab === 'cmp' }" @click="evalTab = 'cmp'">分维度对比</button>
+      <button :class="{ on: evalTab === 'holdout' }" @click="evalTab = 'holdout'">研发任务门禁（隐藏考题）</button>
+      <button :class="{ on: evalTab === 'confirm' }" @click="evalTab = 'confirm'">待评测确认 · {{ pending.length }}</button>
+    </div>
+
+    <div v-if="evalTab === 'confirm'" class="card">
+      <h3>待评测确认<small>和待我处理是同一批待办</small></h3>
       <template v-if="pending.length">
         <RouterLink v-for="item in pending" :key="item.jobId" class="btn sm" :to="reviewPath(item.jobId)">{{ item.jobId }} {{ item.agent }} · 去确认</RouterLink>
       </template>
       <span v-else class="mut">无</span>
     </div>
 
-    <template v-if="result">
+    <template v-if="evalTab !== 'confirm' && result">
       <div class="gate" :class="{ pass: result.passed }">
         <div class="big">{{ formatScore(result.scoreTotal) }}</div>
         <div>
@@ -201,7 +208,7 @@ watch(agent, () => {
       </div>
       <div v-if="progress !== null" class="prog"><i :style="{ width: `${progress * 100}%` }" /></div>
 
-      <div class="card">
+      <div v-if="evalTab === 'cmp'" class="card">
         <h3>分维度对比<small>prod 当前版本 vs 候选版本</small></h3>
         <table class="t">
           <thead><tr><th>维度（用例标签）</th><th>用例数</th><th>prod</th><th>候选</th><th>变化</th><th>判定</th></tr></thead>
@@ -218,7 +225,7 @@ watch(agent, () => {
         </table>
       </div>
     </template>
-    <template v-else>
+    <template v-else-if="evalTab !== 'confirm'">
       <div v-if="progress !== null" class="prog"><i :style="{ width: `${progress * 100}%` }" /></div>
       <div v-if="!loading" class="card empty">{{ agent ? '该智能体还没有评测记录' : '还没有可评测的智能体' }}</div>
     </template>
