@@ -7,6 +7,7 @@ import { deleteAgent, getAgent, getAgentUsage, mergeUsage, retireAgent, recheckA
 import { listDevflowJobs, type DevflowJob } from '@/api/devflow'
 import { grantSkill, listAgentSkills, listSkills, type SkillGrant, type SkillSummary } from '@/api/skills'
 import { deleteMemory, listMemories, type UserMemory } from '@/api/memories'
+import { listChannels, publishChannel, type ChannelRow } from '@/api/channels'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { agentStatus, orDash, fmtCny, RISK } from '@/utils/format'
@@ -61,6 +62,10 @@ const catalog = ref<SkillSummary[]>([])
 const granting = ref(false)
 const grantName = ref('')
 const memories = ref<UserMemory[]>([])
+const channels = ref<ChannelRow[]>([])
+const channelKind = ref<ChannelRow['kind']>('EMBED')
+const channelIdentity = ref<ChannelRow['identity']>('EXCHANGE')
+const channelOrigin = ref('')
 
 function markChecking(agent: string, on: boolean) {
   const rest = checkingAgents.value.filter((item) => item !== agent)
@@ -199,6 +204,29 @@ async function confirmDelete() {
   }
 }
 
+async function loadChannels(agent: string) {
+  try {
+    channels.value = (await listChannels(agent)).items ?? []
+  } catch (error) {
+    ElMessage.error(`加载渠道失败：${toKeelError(error).message}`)
+  }
+}
+
+async function addChannel() {
+  if (!name.value) return
+  try {
+    const saved = await publishChannel(name.value, {
+      kind: channelKind.value,
+      identity: channelIdentity.value,
+      origin: channelOrigin.value.trim() || undefined,
+    })
+    ElMessage.success(saved.status === 'REGISTERED' ? '小程序渠道已登记，流式方案以后再做' : '渠道已发布')
+    await loadChannels(name.value)
+  } catch (error) {
+    ElMessage.error(toKeelError(error).message)
+  }
+}
+
 async function loadUserMemories(agent: string) {
   try {
     memories.value = (await listMemories(agent)).items ?? []
@@ -264,6 +292,7 @@ watch(tab, () => {
   if (!name.value) return
   if (tab.value === 'skill') loadSkills(name.value)
   if (tab.value === 'mem') loadUserMemories(name.value)
+  if (tab.value === 'ch') loadChannels(name.value)
 })
 watch(name, async (agent) => {
   tab.value = 'ov'
@@ -277,6 +306,7 @@ watch(name, async (agent) => {
     jobs.value = []
     agentSkills.value = []
     memories.value = []
+    channels.value = []
     document.body.style.overflow = ''
     return
   }
@@ -313,7 +343,7 @@ onUnmounted(() => {
         </div>
         <div class="db">
           <div class="dtabs">
-            <button v-for="[key, label] in TABS" :key="key" type="button" :class="{ on: tab === key }" @click="tab = key">{{ label }} <span v-if="key === 'ch'" class="pill nd p-vio">占位</span></button>
+            <button v-for="[key, label] in TABS" :key="key" type="button" :class="{ on: tab === key }" @click="tab = key">{{ label }}</button>
           </div>
           <div v-loading="loading" class="dbody">
 
@@ -456,9 +486,37 @@ onUnmounted(() => {
           </template>
 
           <template v-else-if="detail && tab === 'ch'">
-            <h4>渠道发布 <span class="pill nd p-vio">占位</span></h4>
-            <table class="t"><thead><tr><th>渠道</th><th>方式</th><th>用户身份</th><th>白名单</th><th>配额</th><th>状态</th></tr></thead><tbody><tr><td colspan="6" class="empty">渠道列表与发布接口尚未接入</td></tr></tbody></table>
-            <h4>嵌入代码与托管页面</h4><p class="mut">发布渠道后，这里会显示嵌入代码、托管页面设置和发布入口。</p>
+            <h4>渠道发布<span class="sp" /><button v-write class="btn sm" type="button" @click="addChannel">发布到新渠道</button></h4>
+            <div class="toolbar" style="margin-bottom: 10px">
+              <select v-model="channelKind" class="inp">
+                <option value="HOSTED">托管页面</option>
+                <option value="EMBED">网页嵌入</option>
+                <option value="WEB">网页 SDK</option>
+              </select>
+              <select v-model="channelIdentity" class="inp">
+                <option value="EXCHANGE">业务系统用户（换票）</option>
+                <option value="OPENID">openid 映射</option>
+                <option value="ANONYMOUS">匿名访客</option>
+              </select>
+              <input v-model="channelOrigin" class="inp" placeholder="允许的域名，托管页可空" />
+            </div>
+            <table class="t">
+              <thead><tr><th>渠道</th><th>方式</th><th>用户身份</th><th>白名单</th><th>配额</th><th>状态</th></tr></thead>
+              <tbody>
+                <tr v-if="!channels.length"><td colspan="6" class="empty">还没有发布到任何渠道</td></tr>
+                <tr v-for="row in channels" :key="row.id">
+                  <td>{{ row.kind === 'HOSTED' ? '托管页面' : row.kind === 'EMBED' ? '网页嵌入' : '网页 SDK' }}</td>
+                  <td class="mono">{{ row.hostedPath }}</td>
+                  <td>{{ row.identity === 'EXCHANGE' ? '换票' : row.identity === 'OPENID' ? 'openid 映射' : '匿名访客' }}</td>
+                  <td class="mono">{{ row.origin || '—' }}</td>
+                  <td class="mono">{{ row.quotaPerHour ?? '—' }}</td>
+                  <td>{{ row.status === 'REGISTERED' ? '流式方案待定' : row.status }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <h4 style="margin-top: 16px">嵌入代码与托管页面</h4>
+            <pre v-for="row in channels" :key="'code-' + row.id" class="code">{{ row.embed }}</pre>
+            <p v-if="!channels.length" class="mut">发布渠道后，这里显示嵌入代码。托管页面在 /a/智能体名，读不到控制台 Cookie。</p>
           </template>
 
           <template v-else-if="tab === 'dev'">

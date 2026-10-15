@@ -101,6 +101,20 @@
             ]
           }
         },
+        "channels": {
+          "type": "array",
+          "default": [],
+          "description": "对外渠道。发布凭证和域名白名单在渠道表，不在智能体代码里",
+          "items": {
+            "type": "object",
+            "required": ["kind", "identity"],
+            "properties": {
+              "kind": { "enum": ["hosted", "embed", "web"] },
+              "identity": { "enum": ["exchange", "openid", "anonymous"] },
+              "origin": { "type": "string" }
+            }
+          }
+        },
         "skills": {
           "type": "array",
           "default": [],

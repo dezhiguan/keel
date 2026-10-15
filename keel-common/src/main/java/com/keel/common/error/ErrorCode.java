@@ -28,6 +28,7 @@ public enum ErrorCode {
     LLM_BUDGET_EXCEEDED("模型日预算已用完", true, 429),
     LLM_KEY_BLOCKED("虚拟 Key 已停用", false, 401),
     LLM_RATE_LIMITED("虚拟 Key 的请求速率或并发已达上限", true, 429),
+    CHANNEL_ORIGIN_DENIED("这个域名没有登记到该智能体的渠道", false, 403),
     MEMORY_WRITE_DENIED("当前智能体不允许写入这类记忆", false, 403),
     SKILL_NOT_GRANTED("技能未授权或版本与 manifest 不一致", false, 403),
     DELEGATE_NOT_DECLARED("目标智能体未在 manifest 的 delegates 中声明", false, 403),

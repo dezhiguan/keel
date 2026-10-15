@@ -28,6 +28,7 @@ class ErrorCode(str, Enum):
     LLM_BUDGET_EXCEEDED = 'LLM_BUDGET_EXCEEDED'
     LLM_KEY_BLOCKED = 'LLM_KEY_BLOCKED'
     LLM_RATE_LIMITED = 'LLM_RATE_LIMITED'
+    CHANNEL_ORIGIN_DENIED = 'CHANNEL_ORIGIN_DENIED'
     MEMORY_WRITE_DENIED = 'MEMORY_WRITE_DENIED'
     SKILL_NOT_GRANTED = 'SKILL_NOT_GRANTED'
     DELEGATE_NOT_DECLARED = 'DELEGATE_NOT_DECLARED'
@@ -95,6 +96,7 @@ _DETAILS = {
     ErrorCode.LLM_BUDGET_EXCEEDED: ('模型日预算已用完', True, 429),
     ErrorCode.LLM_KEY_BLOCKED: ('虚拟 Key 已停用', False, 401),
     ErrorCode.LLM_RATE_LIMITED: ('虚拟 Key 的请求速率或并发已达上限', True, 429),
+    ErrorCode.CHANNEL_ORIGIN_DENIED: ('这个域名没有登记到该智能体的渠道', False, 403),
     ErrorCode.MEMORY_WRITE_DENIED: ('当前智能体不允许写入这类记忆', False, 403),
     ErrorCode.SKILL_NOT_GRANTED: ('技能未授权或版本与 manifest 不一致', False, 403),
     ErrorCode.DELEGATE_NOT_DECLARED: ('目标智能体未在 manifest 的 delegates 中声明', False, 403),

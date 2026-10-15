@@ -33,6 +33,7 @@ public record AgentManifest(
         @JsonProperty("auth") AgentManifestSpecAuth auth,
         @JsonProperty("knowledge") List<AgentManifestSpecKnowledgeItem> knowledge,
         @JsonProperty("tools") List<AgentManifestSpecToolsItem> tools,
+        @JsonProperty("channels") List<AgentManifestSpecChannelsItem> channels,
         @JsonProperty("skills") List<AgentManifestSpecSkillsItem> skills,
         @JsonProperty("delegates") List<String> delegates,
         @JsonProperty("guardrails") AgentManifestSpecGuardrails guardrails,
@@ -82,6 +83,14 @@ public record AgentManifest(
         @JsonProperty("access") AgentManifestSpecToolsItemAccessValue access,
         @JsonProperty("risk") AgentManifestSpecToolsItemRiskValue risk,
         @JsonProperty("approval") AgentManifestSpecToolsItemApprovalValue approval
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record AgentManifestSpecChannelsItem(
+        @JsonProperty("kind") AgentManifestSpecChannelsItemKindValue kind,
+        @JsonProperty("identity") AgentManifestSpecChannelsItemIdentityValue identity,
+        @JsonProperty("origin") String origin
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -302,6 +311,28 @@ public record AgentManifest(
         @JsonValue public String value() { return value; }
         @JsonCreator public static AgentManifestSpecToolsItemApprovalValue fromValue(String value) {
             for (AgentManifestSpecToolsItemApprovalValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum AgentManifestSpecChannelsItemKindValue {
+        HOSTED("hosted"), EMBED("embed"), WEB("web");
+        private final String value;
+        AgentManifestSpecChannelsItemKindValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static AgentManifestSpecChannelsItemKindValue fromValue(String value) {
+            for (AgentManifestSpecChannelsItemKindValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum AgentManifestSpecChannelsItemIdentityValue {
+        EXCHANGE("exchange"), OPENID("openid"), ANONYMOUS("anonymous");
+        private final String value;
+        AgentManifestSpecChannelsItemIdentityValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static AgentManifestSpecChannelsItemIdentityValue fromValue(String value) {
+            for (AgentManifestSpecChannelsItemIdentityValue item : values()) if (item.value.equals(value)) return item;
             throw new IllegalArgumentException("Unknown enum value: " + value);
         }
     }

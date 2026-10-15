@@ -16,7 +16,8 @@ public final class ConsoleCookies {
 
     public static Names names(boolean localProfile) {
         if (localProfile) return new Names(ACCESS, REFRESH, false);
-        return new Names("__Host-" + ACCESS, "__Host-" + REFRESH, true);
+        // Path=/api cannot use the __Host- prefix. The hosted page lives on /a/ and must not receive this cookie.
+        return new Names(ACCESS, REFRESH, true);
     }
 
     public static String read(HttpServletRequest request, Names names, boolean access) {
@@ -34,7 +35,7 @@ public final class ConsoleCookies {
         response.addHeader(HttpHeaders.SET_COOKIE, ResponseCookie.from(name, value)
                 .httpOnly(true)
                 .secure(secure)
-                .path("/")
+                .path("/api")
                 .sameSite("Strict")
                 .maxAge(Duration.ofSeconds(Math.max(maxAgeSeconds, 0)))
                 .build()

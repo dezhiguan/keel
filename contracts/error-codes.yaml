@@ -159,6 +159,12 @@ codes:
     retryable: true
     http: 429
 
+  # ── 渠道 ────────────────────────────────────────────────────────
+  CHANNEL_ORIGIN_DENIED:
+    message: 这个域名没有登记到该智能体的渠道
+    retryable: false
+    http: 403
+
   # ── 记忆 ────────────────────────────────────────────────────────
   MEMORY_WRITE_DENIED:
     message: 当前智能体不允许写入这类记忆

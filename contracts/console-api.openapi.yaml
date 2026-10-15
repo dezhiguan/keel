@@ -983,6 +983,65 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Envelope" }
 
+  # ---------------------------------------------------------------- 渠道
+  /agents/{name}/channels:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+    get:
+      tags: [agents]
+      operationId: listChannels
+      summary: 已发布的渠道、托管路径和嵌入代码
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+    post:
+      tags: [agents]
+      operationId: publishChannel
+      summary: 发布渠道并签发发布凭证。不发厂商密钥
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, identity]
+              properties:
+                kind: { type: string, enum: [HOSTED, EMBED, WEB] }
+                identity: { type: string, enum: [EXCHANGE, OPENID, ANONYMOUS] }
+                origin: { type: string }
+                quotaPerHour: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+  /agents/{name}/channels/entry:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+    post:
+      tags: [agents]
+      operationId: enterChannel
+      summary: 嵌入页校验域名。未登记返回 CHANNEL_ORIGIN_DENIED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                origin: { type: string }
+                credential: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+
   # ---------------------------------------------------------------- 用户记忆
   /agents/{name}/memories:
     parameters:

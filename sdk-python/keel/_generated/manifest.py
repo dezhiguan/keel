@@ -69,6 +69,18 @@ class AgentManifestSpecToolsItemApprovalValue(str, Enum):
     NONE = 'none'
 
 
+class AgentManifestSpecChannelsItemKindValue(str, Enum):
+    HOSTED = 'hosted'
+    EMBED = 'embed'
+    WEB = 'web'
+
+
+class AgentManifestSpecChannelsItemIdentityValue(str, Enum):
+    EXCHANGE = 'exchange'
+    OPENID = 'openid'
+    ANONYMOUS = 'anonymous'
+
+
 class AgentManifestSpecGuardrailsInputInjectionValue(str, Enum):
     OFF = 'off'
     SHADOW = 'shadow'
@@ -123,6 +135,7 @@ class AgentManifestSpec(KeelModel):
     auth: Optional[AgentManifestSpecAuth] = None
     knowledge: Optional[list[AgentManifestSpecKnowledgeItem]] = None
     tools: Optional[list[AgentManifestSpecToolsItem]] = None
+    channels: Optional[list[AgentManifestSpecChannelsItem]] = None
     skills: Optional[list[AgentManifestSpecSkillsItem]] = None
     delegates: Optional[list[str]] = None
     guardrails: Optional[AgentManifestSpecGuardrails] = None
@@ -162,6 +175,12 @@ class AgentManifestSpecToolsItem(KeelModel):
     access: Optional[AgentManifestSpecToolsItemAccessValue] = None
     risk: Optional[AgentManifestSpecToolsItemRiskValue] = None
     approval: Optional[AgentManifestSpecToolsItemApprovalValue] = None
+
+
+class AgentManifestSpecChannelsItem(KeelModel):
+    kind: AgentManifestSpecChannelsItemKindValue
+    identity: AgentManifestSpecChannelsItemIdentityValue
+    origin: Optional[str] = None
 
 
 class AgentManifestSpecSkillsItem(KeelModel):
@@ -255,5 +274,5 @@ class AgentManifestSpecModelsByPurposeEmbedding(KeelModel):
     default_: Optional[str] = Field(default=None, alias='default')
 
 
-for _model in (AgentManifest, AgentManifestMetadata, AgentManifestSpec, AgentManifestSpecCapabilities, AgentManifestSpecRuntime, AgentManifestSpecAuth, AgentManifestSpecKnowledgeItem, AgentManifestSpecToolsItem, AgentManifestSpecSkillsItem, AgentManifestSpecGuardrails, AgentManifestSpecAudit, AgentManifestSpecPrompts, AgentManifestSpecModels, AgentManifestSpecEval, AgentManifestSpecQuality, AgentManifestSpecInteraction, AgentManifestSpecPromptsItemsItem, AgentManifestSpecModelsBudget, AgentManifestSpecModelsByPurpose, AgentManifestSpecEvalGate, AgentManifestSpecModelsByPurposeRewrite, AgentManifestSpecModelsByPurposeJudge, AgentManifestSpecModelsByPurposeAnswer, AgentManifestSpecModelsByPurposeEmbedding):
+for _model in (AgentManifest, AgentManifestMetadata, AgentManifestSpec, AgentManifestSpecCapabilities, AgentManifestSpecRuntime, AgentManifestSpecAuth, AgentManifestSpecKnowledgeItem, AgentManifestSpecToolsItem, AgentManifestSpecChannelsItem, AgentManifestSpecSkillsItem, AgentManifestSpecGuardrails, AgentManifestSpecAudit, AgentManifestSpecPrompts, AgentManifestSpecModels, AgentManifestSpecEval, AgentManifestSpecQuality, AgentManifestSpecInteraction, AgentManifestSpecPromptsItemsItem, AgentManifestSpecModelsBudget, AgentManifestSpecModelsByPurpose, AgentManifestSpecEvalGate, AgentManifestSpecModelsByPurposeRewrite, AgentManifestSpecModelsByPurposeJudge, AgentManifestSpecModelsByPurposeAnswer, AgentManifestSpecModelsByPurposeEmbedding):
     _model.model_rebuild()

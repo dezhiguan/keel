@@ -20,11 +20,14 @@ class ConsoleAuthRulesTest {
         ConsoleAuthRules.check("authgw", false, false, false);
     }
 
-    @Test void productionCookiesUseTheHostPrefix() {
-        assertThat(ConsoleCookies.names(false).access()).isEqualTo("__Host-keel_console_at");
+    @Test void consoleCookieIsHttpOnlyAndLimitedToTheApiPath() {
+        assertThat(ConsoleCookies.names(false).access()).isEqualTo("keel_console_at");
         assertThat(ConsoleCookies.names(false).secure()).isTrue();
-        assertThat(ConsoleCookies.names(true).access()).isEqualTo("keel_console_at");
         assertThat(ConsoleCookies.names(true).secure()).isFalse();
+        var response = new org.springframework.mock.web.MockHttpServletResponse();
+        ConsoleCookies.write(response, "keel_console_at", "token", true, 60);
+        var header = response.getHeader("Set-Cookie");
+        assertThat(header).contains("HttpOnly").contains("Path=/api").contains("Secure").doesNotContain("Path=/;");
     }
 
     @Test void missingModeOrPreviewFailsStartup() {

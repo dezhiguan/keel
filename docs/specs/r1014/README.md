@@ -69,7 +69,7 @@
 | R4-5 | 结构化提示词：分段、变量 schema、输出契约、试运行。结构信息存 Langfuse 提示词 config 的 `keel` 命名空间，正文仍是编译后的 text / chat。**先实测** `POST /api/public/v2/prompts` 的 config 传法并读回，再改 `external-apis.mdc` 里"config 只认三项"的规则 | — | 实测记录写进 spec；删除一条约束时提示对应评测维度；缺变量报 `PROMPT_VARIABLE_MISSING`；SDK 读到 `keel` 段时不当作模型参数 · ✅ r1014-r4-5 |
 | R4-6 | 技能：注册表与授权（三张表）、manifest `spec.skills`、SDK `ctx.skills` 按需加载 | R1-3 | 加技能不会自动授予工具；技能用例并入使用方回归 · ✅ r1014-r4-6 |
 | R4-7 | 记忆服务 keel-memory（PG + pgvector）：用户记忆、按层策略、可查可删 **【待拍板：合规口径】** | R1-4 | 元智能体写记忆被拒；用户删除后不可再召回 · ✅ r1014-r4-7（会话原文不入库；未做向量召回） |
-| R4-8 | 渠道发布：托管页面 + 嵌入代码 + 网页 SDK；渠道表与发布凭证；外部用户身份三种方式。托管页面先用底座域名的子路径（如 `https://keel.ragforge.net/a/{agent}`），与控制台同域，控制台会话 Cookie 必须限定路径且 HttpOnly，托管页面读不到 | keel-gateway 轻量版 | 业务网页嵌入后能对话、挂起审批、点赞点踩；未登记域名被拒（`CHANNEL_ORIGIN_DENIED`）；托管页面拿不到控制台 Cookie |
+| R4-8 | 渠道发布：托管页面 + 嵌入代码 + 网页 SDK；渠道表与发布凭证；外部用户身份三种方式。托管页面先用底座域名的子路径（如 `https://keel.ragforge.net/a/{agent}`），与控制台同域，控制台会话 Cookie 必须限定路径且 HttpOnly，托管页面读不到 | keel-gateway 轻量版 | 业务网页嵌入后能对话、挂起审批、点赞点踩；未登记域名被拒（`CHANNEL_ORIGIN_DENIED`）；托管页面拿不到控制台 Cookie · ✅ r1014-r4-8 |
 | R4-9 | 小程序 SDK **【先核实小程序流式方案】** | R4-8 | 推迟 · 小程序流式方案以后再核实，本轮不做 |
 
 ---
