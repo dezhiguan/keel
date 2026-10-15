@@ -110,28 +110,64 @@ public class LiteLlmClient {
 
     public List<Spend> spendAll() {
         var rows = new ArrayList<Spend>();
+        String cursor = null;
+        for (int page = 0; page < 500; page++) {
+            var path = "/admin/v1/spend?limit=100" + (cursor == null || cursor.isBlank() ? "" : "&cursor=" + java.net.URLEncoder.encode(cursor, java.nio.charset.StandardCharsets.UTF_8));
+            var body = get(path);
+            var data = body.path("data");
+            if (!data.isArray() || data.isEmpty()) {
+                if (cursor == null && !body.has("nextCursor")) {
+                    return spendByPage();
+                }
+                break;
+            }
+            data.forEach(row -> rows.add(spend(row)));
+            var next = body.path("nextCursor").asText("");
+            if (next.isBlank() || next.equals(cursor)) {
+                if (body.has("nextCursor") || cursor != null) {
+                    break;
+                }
+                return spendByPage();
+            }
+            cursor = next;
+        }
+        return rows;
+    }
+
+    /** Older gateways page with page/size and do not return nextCursor. */
+    private List<Spend> spendByPage() {
+        var rows = new ArrayList<Spend>();
         for (int page = 1; page <= 50; page++) {
             var data = get("/admin/v1/spend?page=" + page + "&size=50").path("data");
             if (!data.isArray() || data.isEmpty()) {
                 break;
             }
-            data.forEach(row -> rows.add(new Spend(
-                    row.path("alias").asText(""),
-                    row.path("model").asText(""),
-                    row.path("costCny").isNull() ? null : row.path("costCny").asDouble(),
-                    row.path("ts").asText(""),
-                    row.has("latencyMs") && !row.path("latencyMs").isNull() ? row.path("latencyMs").asLong() : null,
-                    row.path("timedOut").asBoolean(false),
-                    row.path("requestId").asText(""),
-                    row.path("inputTokens").isNull() ? null : row.path("inputTokens").asInt(),
-                    row.path("outputTokens").isNull() ? null : row.path("outputTokens").asInt(),
-                    row.path("reservedCny").asDouble(),
-                    row.path("status").asText("SETTLED"))));
+            data.forEach(row -> rows.add(spend(row)));
             if (data.size() < 50) {
                 break;
             }
         }
         return rows;
+    }
+
+    private static Spend spend(JsonNode row) {
+        return new Spend(
+                row.path("alias").asText(""),
+                row.path("model").asText(""),
+                row.path("costCny").isNull() ? null : row.path("costCny").asDouble(),
+                row.path("ts").asText(""),
+                row.has("latencyMs") && !row.path("latencyMs").isNull() ? row.path("latencyMs").asLong() : null,
+                row.path("timedOut").asBoolean(false),
+                row.path("requestId").asText(""),
+                row.path("inputTokens").isNull() ? null : row.path("inputTokens").asInt(),
+                row.path("outputTokens").isNull() ? null : row.path("outputTokens").asInt(),
+                row.path("reservedCny").asDouble(),
+                row.path("status").asText("SETTLED"),
+                row.path("attemptId").asText(""),
+                row.path("traceId").asText(""),
+                row.path("priceVersion").asText(""),
+                row.path("routeVersion").asText(""),
+                row.path("cacheTokens").isNull() || row.path("cacheTokens").isMissingNode() ? null : row.path("cacheTokens").asInt());
     }
 
     public List<VirtualKey> keys() {
@@ -143,7 +179,10 @@ public class LiteLlmClient {
                 row.path("spentCny").asDouble(),
                 row.path("reservedCny").asDouble(),
                 row.path("blocked").asBoolean(false),
-                row.path("version").asInt(1))));
+                row.path("version").asInt(1),
+                optionalInt(row.path("rpm")),
+                optionalInt(row.path("tpm")),
+                optionalInt(row.path("concurrency")))));
         return rows;
     }
 
@@ -153,12 +192,15 @@ public class LiteLlmClient {
         if (current.path("blocked").asBoolean(false)) {
             throw new IllegalStateException("已封禁的虚拟 Key 不可轮换");
         }
-        var body = Map.of(
-                "alias", alias,
-                "models", texts(current.path("models")),
-                "fallback", texts(current.path("fallback")),
-                "dailyBudgetCny", current.path("dailyBudgetCny").decimalValue(),
-                "allowFallback", current.path("allowFallback").asBoolean(false));
+        var body = new java.util.LinkedHashMap<String, Object>();
+        body.put("alias", alias);
+        body.put("models", texts(current.path("models")));
+        body.put("fallback", texts(current.path("fallback")));
+        body.put("dailyBudgetCny", current.path("dailyBudgetCny").decimalValue());
+        body.put("allowFallback", current.path("allowFallback").asBoolean(false));
+        if (current.path("rpm").isNumber()) body.put("rpm", current.path("rpm").asInt());
+        if (current.path("tpm").isNumber()) body.put("tpm", current.path("tpm").asInt());
+        if (current.path("concurrency").isNumber()) body.put("concurrency", current.path("concurrency").asInt());
         var created = send("/admin/v1/keys", body);
         var key = created.path("key").asText("");
         if (key.isBlank()) {
@@ -174,7 +216,12 @@ public class LiteLlmClient {
                 row.path("priceConfigured").asBoolean(false),
                 row.path("provider").asText(""),
                 decimal(row.path("inputCnyPerToken")),
-                decimal(row.path("outputCnyPerToken")))));
+                decimal(row.path("outputCnyPerToken")),
+                row.path("priceVersion").asText(""),
+                row.path("cacheCnyPerToken").isNumber() ? row.path("cacheCnyPerToken").asDouble() : null,
+                row.path("embedding").asBoolean(false),
+                row.path("health").asText(""),
+                row.path("drift").asBoolean(false))));
         return rows;
     }
 
@@ -183,9 +230,15 @@ public class LiteLlmClient {
     }
 
     public record VirtualKey(String alias, List<String> models, double dailyBudgetCny, double spentCny,
-                             double reservedCny, boolean blocked, int version) {
+                             double reservedCny, boolean blocked, int version, Integer rpm, Integer tpm,
+                             Integer concurrency) {
         public VirtualKey(String alias, List<String> models, double dailyBudgetCny, double spentCny, boolean blocked) {
-            this(alias, models, dailyBudgetCny, spentCny, 0, blocked, 1);
+            this(alias, models, dailyBudgetCny, spentCny, 0, blocked, 1, null, null, null);
+        }
+
+        public VirtualKey(String alias, List<String> models, double dailyBudgetCny, double spentCny,
+                          double reservedCny, boolean blocked, int version) {
+            this(alias, models, dailyBudgetCny, spentCny, reservedCny, blocked, version, null, null, null);
         }
     }
 
@@ -193,10 +246,19 @@ public class LiteLlmClient {
 
     public record Spend(String alias, String model, Double costCny, String ts, Long latencyMs, boolean timedOut,
                         String requestId, Integer inputTokens, Integer outputTokens, double reservedCny,
-                        String status) {}
+                        String status, String attemptId, String traceId, String priceVersion, String routeVersion,
+                        Integer cacheTokens) {}
 
     public record Model(String name, boolean priceConfigured, String provider,
-                        double inputCnyPerToken, double outputCnyPerToken) {}
+                        double inputCnyPerToken, double outputCnyPerToken, String priceVersion,
+                        Double cacheCnyPerToken, boolean embedding, String health, boolean drift) {}
+
+    private static Integer optionalInt(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        return node.asInt();
+    }
 
     private static double decimal(JsonNode node) {
         if (node == null || node.isMissingNode() || node.isNull()) {

@@ -26,5 +26,6 @@ keel:
         max-output-tokens: 131072
         input-cny-per-token: "0.0000008"
         output-cny-per-token: "0.0000027"
+        price-version: "2026-10-08"
         upstream: ${QWEN_UPSTREAM:https://dashscope.aliyuncs.com/compatible-mode}
         upstream-key: ${QWEN_API_KEY:}

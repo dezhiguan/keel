@@ -1006,6 +1006,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/insight/costs/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 导出当前窗口的账单 */
+        get: operations["exportModelBills"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/insight/costs/keys/{alias}/budget": {
         parameters: {
             query?: never;
@@ -2143,6 +2160,18 @@ export interface components {
             tokens?: number | null;
             /** Format: float */
             costCny?: number | null;
+            /** @description 薄网关对这次模型调用的每次尝试 */
+            attempts?: {
+                attemptId?: string;
+                requestId?: string;
+                model?: string;
+                /** @enum {string} */
+                status?: "SETTLED" | "PENDING" | "FAILED";
+                /** Format: float */
+                costCny?: number | null;
+                priceVersion?: string;
+                routeVersion?: string;
+            }[];
             /** @description Langfuse observation 的 input，没有时用节点名 */
             inputSummary?: string;
             /** @description Langfuse observation 的 output，没有时用节点名 */
@@ -2360,6 +2389,8 @@ export interface components {
         ModelGateway: {
             /** @description 当前窗口待计费调用数 */
             pendingCount?: number;
+            /** @description 账单下一页游标。为空表示没有下一页 */
+            nextCursor?: string | null;
             bills?: {
                 /** Format: date-time */
                 ts?: string;
@@ -2375,6 +2406,11 @@ export interface components {
                 reservedCny?: number | null;
                 /** @enum {string} */
                 status?: "SETTLED" | "PENDING" | "FAILED";
+                attemptId?: string;
+                traceId?: string | null;
+                priceVersion?: string;
+                routeVersion?: string;
+                cacheTokens?: number | null;
             }[];
             models?: {
                 /** @example qwen-plus */
@@ -2400,6 +2436,20 @@ export interface components {
                 status?: "ok" | "warn" | "bad";
                 /** @description 薄网关是否为该模型配置了单价；为 false 时表示配置漂移 */
                 priceConfigured?: boolean;
+                /** @description 当前单价版本 */
+                priceVersion?: string;
+                /**
+                 * Format: float
+                 * @description 缓存命中单价，人民币 / token
+                 */
+                cacheCnyPerToken?: number | null;
+                /**
+                 * @description 已配置、已探测、有真实调用
+                 * @enum {string}
+                 */
+                health?: "CONFIGURED" | "PROBED" | "LIVE";
+                /** @description 最近一条已结算账单的价格版本与当前版本不同 */
+                drift?: boolean;
             }[];
             keys?: {
                 /** @example offshore-wind-prod */
@@ -2420,6 +2470,12 @@ export interface components {
                 reservedCny?: number;
                 /** @enum {string} */
                 status?: "ACTIVE" | "BLOCKED";
+                /** @description 每分钟请求上限。为空表示不限制 */
+                rpm?: number | null;
+                /** @description 每分钟 token 上限。为空表示不限制 */
+                tpm?: number | null;
+                /** @description 并发上限。为空表示不限制 */
+                concurrency?: number | null;
             }[];
             /** @description 由各智能体 manifest 生成，写入薄网关的虚拟 Key */
             routing?: {
@@ -4558,6 +4614,29 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"] & {
                         data?: components["schemas"]["ModelGateway"];
                     };
+                };
+            };
+        };
+    };
+    exportModelBills: {
+        parameters: {
+            query?: {
+                env?: components["parameters"]["Env"];
+                range?: "24h" | "7d" | "30d";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
                 };
             };
         };

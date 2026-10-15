@@ -103,6 +103,11 @@ export function unwrap<T>(body: { code: string; message?: string | null; traceId
   return body.data as T
 }
 
+export async function downloadText(url: string, config?: AxiosRequestConfig): Promise<string> {
+  const response = await instance.get<string>(url, { ...config, responseType: 'text', transformResponse: [(data) => data] })
+  return response.data
+}
+
 export async function get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
   try {
     const response = await instance.get(url, config)

@@ -351,6 +351,181 @@ class GatewayTest {
         assertThat(catalog.require("qwen3.8-flash").priceConfigured()).isTrue();
     }
 
+    @Test void settledCostsMatchTheBudgetAndFailedAttemptsStayOut() throws Exception {
+        var server = server((model, exchange) -> {
+            if ("qwen-plus".equals(model)) {
+                write(exchange, 500, "");
+                return;
+            }
+            write(exchange, 200, usage(model, 1000, 100));
+        });
+        try {
+            var budget = new BudgetCounter();
+            var ledger = new MemorySpendLedger();
+            var gateway = new Gateway(catalog(server), budget, new Upstream(), new KeyDirectory(), new SpendLog(null), ledger, new Admission(null));
+            var key = gateway.create("askdb-dev", List.of("qwen-plus", "deepseek-v3"), List.of("deepseek-v3"), new BigDecimal("30"), true);
+            gateway.complete("Bearer " + key.key(), "/v1/chat/completions", "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2));
+            var settled = ledger.page(null, null, 20).rows().stream()
+                    .filter(row -> "SETTLED".equals(row.status()))
+                    .map(Gateway.Spend::costCny)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            assertThat(settled).isEqualByComparingTo(budget.snapshot("askdb-dev").settledCny());
+            assertThat(ledger.page(null, null, 20).rows()).anySatisfy(row -> {
+                assertThat(row.status()).isEqualTo("FAILED");
+                assertThat(row.costCny()).isEqualByComparingTo("0");
+                assertThat(row.routeVersion()).isEqualTo("primary");
+            });
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test void cursorPageDoesNotMoveWhenANewerBillArrives() {
+        var ledger = new MemorySpendLedger();
+        var older = spendAt("a", "2026-10-15T00:00:00Z");
+        var middle = spendAt("b", "2026-10-15T00:01:00Z");
+        var newest = spendAt("c", "2026-10-15T00:02:00Z");
+        ledger.append(older);
+        ledger.append(middle);
+        ledger.append(newest);
+        var first = ledger.page(null, null, 2);
+        assertThat(first.rows()).extracting(Gateway.Spend::attemptId).containsExactly("c", "b");
+        ledger.append(spendAt("d", "2026-10-15T00:03:00Z"));
+        var second = ledger.page(null, first.nextCursor(), 2);
+        assertThat(second.rows()).extracting(Gateway.Spend::attemptId).containsExactly("a");
+        assertThat(second.nextCursor()).isNull();
+    }
+
+    @Test void cancelledStreamSettlesReceivedUsageAndPendingWithoutIt() throws Exception {
+        var withUsage = server((model, exchange) -> {
+            var bytes = "data: {\"usage\":{\"prompt_tokens\":4,\"completion_tokens\":2}}\n\n".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, 0);
+            exchange.getResponseBody().write(bytes);
+            exchange.getResponseBody().flush();
+            Thread.sleep(2000);
+            exchange.close();
+        });
+        try {
+            var budget = new BudgetCounter();
+            var gateway = new Gateway(catalog(withUsage), budget, new Upstream());
+            var key = gateway.create("echo-dev", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false);
+            var spend = gateway.stream("Bearer " + key.key(), "/v1/chat/completions",
+                    "{\"model\":\"qwen-plus\",\"stream\":true}", Duration.ofSeconds(2), throwingAfter(1), "trace-1");
+            assertThat(spend.status()).isEqualTo("SETTLED");
+            assertThat(spend.costCny()).isEqualByComparingTo("0.000007");
+            assertThat(spend.traceId()).isEqualTo("trace-1");
+            assertThat(lastRequestBody).contains("include_usage");
+            assertThat(budget.snapshot("echo-dev").reservedCny()).isEqualByComparingTo("0");
+        } finally {
+            withUsage.stop(0);
+        }
+        var withoutUsage = server((model, exchange) -> {
+            var bytes = "data: {\"choices\":[]}\n\n".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, 0);
+            exchange.getResponseBody().write(bytes);
+            exchange.getResponseBody().flush();
+            Thread.sleep(2000);
+            exchange.close();
+        });
+        try {
+            var budget = new BudgetCounter();
+            var gateway = new Gateway(catalog(withoutUsage), budget, new Upstream());
+            var key = gateway.create("echo-dev", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false);
+            var spend = gateway.stream("Bearer " + key.key(), "/v1/chat/completions",
+                    "{\"model\":\"qwen-plus\",\"stream\":true}", Duration.ofSeconds(2), throwingAfter(1), "");
+            assertThat(spend.status()).isEqualTo("PENDING");
+            assertThat(spend.costCny()).isNull();
+            assertThat(budget.snapshot("echo-dev").reservedCny()).isGreaterThan(BigDecimal.ZERO);
+        } finally {
+            withoutUsage.stop(0);
+        }
+    }
+
+    @Test void rateLimitRejectsTheSecondCallWithoutReservingMoreBudget() throws Exception {
+        var server = echoServer();
+        try {
+            var budget = new BudgetCounter();
+            var gateway = new Gateway(catalog(server), budget, new Upstream());
+            var key = gateway.create("echo-dev", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false, 1, null, null);
+            gateway.complete("Bearer " + key.key(), "/v1/chat/completions", "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2));
+            var reserved = budget.snapshot("echo-dev").reservedCny();
+            assertThatThrownBy(() -> gateway.complete("Bearer " + key.key(), "/v1/chat/completions",
+                    "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2)))
+                    .extracting(error -> ((Gateway.GatewayException) error).code())
+                    .isEqualTo(ErrorCode.LLM_RATE_LIMITED);
+            assertThat(budget.snapshot("echo-dev").reservedCny()).isEqualByComparingTo(reserved);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test void cacheTokensUseTheCachePrice() throws Exception {
+        var server = server((model, exchange) -> write(exchange, 200,
+                "{\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":1,\"prompt_tokens_details\":{\"cached_tokens\":4}}}"));
+        try {
+            var priced = new ModelCatalog.Model("qwen-plus", new BigDecimal("0.0000008"), new BigDecimal("0.000002"),
+                    "http://127.0.0.1:" + server.getAddress().getPort(), "vendor", 4096, 4096, "v9", new BigDecimal("0.0000001"), false);
+            var gateway = new Gateway(new ModelCatalog(Map.of("qwen-plus", priced)), new BudgetCounter(), new Upstream());
+            var key = gateway.create("echo-dev", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false);
+            var spend = gateway.complete("Bearer " + key.key(), "/v1/chat/completions", "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2)).spend();
+            assertThat(spend.cacheTokens()).isEqualTo(4);
+            assertThat(spend.priceVersion()).isEqualTo("v9");
+            assertThat(spend.costCny()).isEqualByComparingTo("0.000007");
+            assertThat(gateway.reports()).anySatisfy(report -> {
+                assertThat(report.health()).isEqualTo("LIVE");
+                assertThat(report.drift()).isFalse();
+            });
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test void embeddingCallDoesNotFallBack() throws Exception {
+        var calls = new AtomicInteger();
+        var server = server((model, exchange) -> {
+            calls.incrementAndGet();
+            write(exchange, 500, "");
+        });
+        try {
+            var embedding = new ModelCatalog.Model("text-embedding-v3", new BigDecimal("0.0000002"), BigDecimal.ZERO,
+                    "http://127.0.0.1:" + server.getAddress().getPort(), "vendor", 8192, 0, "", null, true);
+            var chat = new ModelCatalog.Model("qwen-plus", new BigDecimal("0.0000008"), new BigDecimal("0.000002"),
+                    "http://127.0.0.1:" + server.getAddress().getPort(), "vendor");
+            var gateway = new Gateway(new ModelCatalog(Map.of(embedding.name(), embedding, chat.name(), chat)), new BudgetCounter(), new Upstream());
+            var key = gateway.create("embed-dev", List.of("text-embedding-v3", "qwen-plus"), List.of("qwen-plus"), new BigDecimal("30"), true);
+            assertThatThrownBy(() -> gateway.complete("Bearer " + key.key(), "/v1/embeddings",
+                    "{\"model\":\"text-embedding-v3\"}", Duration.ofSeconds(2)))
+                    .isInstanceOf(Gateway.GatewayException.class);
+            assertThat(calls.get()).isEqualTo(1);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    private static Gateway.Spend spendAt(String attemptId, String instant) {
+        return new Gateway.Spend("echo-dev", "qwen-plus", 1, 1, BigDecimal.ONE, "request",
+                Instant.parse(instant), 1, false, "SETTLED", BigDecimal.ZERO, attemptId, "", "v", "primary", -1);
+    }
+
+    private static java.io.OutputStream throwingAfter(int writes) {
+        return new java.io.OutputStream() {
+            private int seen;
+
+            @Override
+            public void write(byte[] buffer, int offset, int length) throws java.io.IOException {
+                seen++;
+                if (seen >= writes) {
+                    throw new java.io.IOException("client closed");
+                }
+            }
+
+            @Override
+            public void write(int value) throws java.io.IOException {
+                write(new byte[] {(byte) value}, 0, 1);
+            }
+        };
+    }
+
     private static Gateway gateway(HttpServer server) {
         return new Gateway(catalog(server), new BudgetCounter(), new Upstream());
     }
@@ -371,6 +546,8 @@ class GatewayTest {
         return server((model, exchange) -> write(exchange, 200, usage(model, 1, 1)));
     }
 
+    private static volatile String lastRequestBody;
+
     private static HttpServer server(Handler handler) {
         try {
             var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -378,6 +555,7 @@ class GatewayTest {
             server.createContext("/", exchange -> {
                 try {
                     var body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                    lastRequestBody = body;
                     var model = body.replaceAll(".*\"model\"\\s*:\\s*\"([^\"]+)\".*", "$1");
                     handler.handle(model, exchange);
                 } catch (Exception e) {

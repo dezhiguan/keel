@@ -67,8 +67,9 @@ class LlmClient:
         self.default_model = default_model
         self.trace_id = trace_id
         self.tracer = tracer or trace.get_tracer("keel.llm")
+        headers = {"X-Trace-Id": trace_id} if trace_id else None
         self.client = openai.AsyncOpenAI(base_url=base_url, api_key=api_key, max_retries=0,
-                                         http_client=http_client)
+                                         http_client=http_client, default_headers=headers)
 
     async def chat(self, messages: list[dict], model: str | None = None, prompt=None,
                    tools: list[dict] | None = None) -> str | ChatResult:

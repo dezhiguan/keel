@@ -1577,6 +1577,23 @@ paths:
                     properties:
                       data: { $ref: "#/components/schemas/ModelGateway" }
 
+  /insight/costs/export:
+    get:
+      tags: [models]
+      operationId: exportModelBills
+      summary: 导出当前窗口的账单
+      parameters:
+        - $ref: "#/components/parameters/Env"
+        - name: range
+          in: query
+          schema: { type: string, enum: [24h, 7d, 30d], default: 24h }
+      responses:
+        "200":
+          description: CSV
+          content:
+            text/csv:
+              schema: { type: string }
+
   /insight/costs/keys/{alias}/budget:
     post:
       tags: [models]
@@ -3064,6 +3081,19 @@ components:
         tokensOut: { type: integer, nullable: true }
         tokens: { type: integer, nullable: true }
         costCny: { type: number, format: float, nullable: true }
+        attempts:
+          type: array
+          description: 薄网关对这次模型调用的每次尝试
+          items:
+            type: object
+            properties:
+              attemptId: { type: string }
+              requestId: { type: string }
+              model: { type: string }
+              status: { type: string, enum: [SETTLED, PENDING, FAILED] }
+              costCny: { type: number, format: float, nullable: true }
+              priceVersion: { type: string }
+              routeVersion: { type: string }
         inputSummary: { type: string, description: Langfuse observation 的 input，没有时用节点名 }
         outputSummary: { type: string, description: Langfuse observation 的 output，没有时用节点名 }
         auditIds:
@@ -3283,6 +3313,7 @@ components:
       type: object
       properties:
         pendingCount: { type: integer, description: 当前窗口待计费调用数 }
+        nextCursor: { type: string, nullable: true, description: 账单下一页游标。为空表示没有下一页 }
         bills:
           type: array
           items:
@@ -3298,6 +3329,11 @@ components:
               costCny: { type: number, format: float, nullable: true }
               reservedCny: { type: number, format: float, nullable: true }
               status: { type: string, enum: [SETTLED, PENDING, FAILED] }
+              attemptId: { type: string }
+              traceId: { type: string, nullable: true }
+              priceVersion: { type: string }
+              routeVersion: { type: string }
+              cacheTokens: { type: integer, nullable: true }
         models:
           type: array
           items:
@@ -3317,6 +3353,10 @@ components:
               priceConfigured:
                 type: boolean
                 description: 薄网关是否为该模型配置了单价；为 false 时表示配置漂移
+              priceVersion: { type: string, description: 当前单价版本 }
+              cacheCnyPerToken: { type: number, format: float, nullable: true, description: 缓存命中单价，人民币 / token }
+              health: { type: string, enum: [CONFIGURED, PROBED, LIVE], description: 已配置、已探测、有真实调用 }
+              drift: { type: boolean, description: 最近一条已结算账单的价格版本与当前版本不同 }
         keys:
           type: array
           items:
@@ -3333,6 +3373,9 @@ components:
               spentCny: { type: number, format: float }
               reservedCny: { type: number, format: float, description: 尚未结算的模型请求预留额 }
               status: { type: string, enum: [ACTIVE, BLOCKED] }
+              rpm: { type: integer, nullable: true, description: 每分钟请求上限。为空表示不限制 }
+              tpm: { type: integer, nullable: true, description: 每分钟 token 上限。为空表示不限制 }
+              concurrency: { type: integer, nullable: true, description: 并发上限。为空表示不限制 }
         routing:
           type: array
           description: 由各智能体 manifest 生成，写入薄网关的虚拟 Key

@@ -44,7 +44,10 @@ public class LlmController {
                 strings(body.get("models")),
                 strings(body.get("fallback")),
                 body.get("dailyBudgetCny") == null ? null : new BigDecimal(body.get("dailyBudgetCny").toString()),
-                Boolean.TRUE.equals(body.get("allowFallback")) || "true".equals(String.valueOf(body.get("allowFallback"))));
+                Boolean.TRUE.equals(body.get("allowFallback")) || "true".equals(String.valueOf(body.get("allowFallback"))),
+                integer(body.get("rpm")),
+                integer(body.get("tpm")),
+                integer(body.get("concurrency")));
         return ResponseEntity.status(201).body(Map.of("alias", created.alias(), "key", created.key(), "version", created.version()));
     }
 
@@ -78,6 +81,9 @@ public class LlmController {
             view.put("reservedCny", key.reservedCny());
             view.put("blocked", key.blocked());
             view.put("version", key.version());
+            view.put("rpm", key.rpm());
+            view.put("tpm", key.tpm());
+            view.put("concurrency", key.concurrency());
             return view;
         }).toList();
         return Map.of("data", rows);
@@ -96,51 +102,72 @@ public class LlmController {
         view.put("allowFallback", key.allowFallback());
         view.put("blocked", key.blocked());
         view.put("version", key.version());
+        view.put("rpm", key.rpm());
+        view.put("tpm", key.tpm());
+        view.put("concurrency", key.concurrency());
         return view;
     }
 
     @GetMapping("/admin/v1/spend")
     Map<String, Object> spend(@RequestHeader(value = "Authorization", required = false) String authorization,
                               @RequestParam(required = false) String alias,
+                              @RequestParam(required = false) String cursor,
+                              @RequestParam(required = false) Integer limit,
                               @RequestParam(defaultValue = "1") int page,
                               @RequestParam(defaultValue = "50") int size) {
         admin(authorization);
-        var rows = gateway.spend(alias, page, size).stream().map(row -> {
-            var view = new LinkedHashMap<String, Object>();
-            view.put("alias", row.alias());
-            view.put("model", row.model());
-            view.put("inputTokens", row.inputTokens() < 0 ? null : row.inputTokens());
-            view.put("outputTokens", row.outputTokens() < 0 ? null : row.outputTokens());
-            view.put("costCny", row.costCny());
-            view.put("reservedCny", row.reservedCny());
-            view.put("status", row.status());
-            view.put("requestId", row.requestId());
-            view.put("ts", row.ts().toString());
-            view.put("latencyMs", row.latencyMs());
-            view.put("timedOut", row.timedOut());
-            return view;
-        }).toList();
+        if (cursor != null || limit != null) {
+            var result = gateway.history(alias, cursor, limit == null ? 50 : limit);
+            var body = new LinkedHashMap<String, Object>();
+            body.put("data", result.rows().stream().map(LlmController::spendView).toList());
+            body.put("nextCursor", result.nextCursor());
+            return body;
+        }
+        var rows = gateway.spend(alias, page, size).stream().map(LlmController::spendView).toList();
         return Map.of("data", rows, "page", page, "size", size);
     }
 
     @GetMapping("/admin/v1/models")
     Map<String, Object> models(@RequestHeader(value = "Authorization", required = false) String authorization) {
         admin(authorization);
-        var rows = catalog.models().values().stream().map(model -> Map.of(
-                "name", model.name(),
-                "inputCnyPerToken", model.inputCnyPerToken(),
-                "outputCnyPerToken", model.outputCnyPerToken(),
-                "priceConfigured", model.priceConfigured(),
-                "provider", ModelCatalog.provider(model.upstream()))).toList();
+        var rows = gateway.reports().stream().map(report -> {
+            var model = report.model();
+            var view = new LinkedHashMap<String, Object>();
+            view.put("name", model.name());
+            view.put("inputCnyPerToken", model.inputCnyPerToken());
+            view.put("outputCnyPerToken", model.outputCnyPerToken());
+            view.put("cacheCnyPerToken", model.cacheReadCnyPerToken());
+            view.put("priceVersion", model.version());
+            view.put("priceConfigured", model.priceConfigured());
+            view.put("embedding", model.embedding());
+            view.put("health", report.health());
+            view.put("drift", report.drift());
+            view.put("provider", ModelCatalog.provider(model.upstream()));
+            return view;
+        }).toList();
         return Map.of("data", rows);
     }
 
     @PostMapping({"/v1/chat/completions", "/v1/embeddings"})
-    ResponseEntity<String> complete(HttpServletRequest request,
-                                    @RequestHeader(value = "Authorization", required = false) String authorization,
-                                    @RequestBody String body) {
-        var completion = gateway.complete(authorization, request.getRequestURI(), body, Duration.ofSeconds(45));
-        return ResponseEntity.status(completion.status()).body(completion.body());
+    void complete(HttpServletRequest request, jakarta.servlet.http.HttpServletResponse response,
+                  @RequestHeader(value = "Authorization", required = false) String authorization,
+                  @RequestBody String body) throws java.io.IOException {
+        if (streamRequested(body)) {
+            response.setStatus(200);
+            response.setContentType("text/event-stream");
+            response.setCharacterEncoding("UTF-8");
+            response.setHeader("Cache-Control", "no-cache");
+            response.setHeader("X-Accel-Buffering", "no");
+            gateway.stream(authorization, request.getRequestURI(), body, Duration.ofMinutes(5), response.getOutputStream(), trace(request));
+            return;
+        }
+        var completion = gateway.complete(authorization, request.getRequestURI(), body, Duration.ofSeconds(45), trace(request));
+        response.setStatus(completion.status());
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        if (completion.body() != null) {
+            response.getWriter().write(completion.body());
+        }
     }
 
     @ExceptionHandler(Gateway.GatewayException.class)
@@ -173,6 +200,42 @@ public class LlmController {
     private static String trace(HttpServletRequest request) {
         var header = request.getHeader("X-Trace-Id");
         return header == null || header.isBlank() ? "" : header;
+    }
+
+    private static Map<String, Object> spendView(Gateway.Spend row) {
+        var view = new LinkedHashMap<String, Object>();
+        view.put("alias", row.alias());
+        view.put("model", row.model());
+        view.put("inputTokens", row.inputTokens() < 0 ? null : row.inputTokens());
+        view.put("outputTokens", row.outputTokens() < 0 ? null : row.outputTokens());
+        view.put("cacheTokens", row.cacheTokens() < 0 ? null : row.cacheTokens());
+        view.put("costCny", row.costCny());
+        view.put("reservedCny", row.reservedCny());
+        view.put("status", row.status());
+        view.put("requestId", row.requestId());
+        view.put("attemptId", row.attemptId());
+        view.put("traceId", row.traceId());
+        view.put("priceVersion", row.priceVersion());
+        view.put("routeVersion", row.routeVersion());
+        view.put("ts", row.ts().toString());
+        view.put("latencyMs", row.latencyMs());
+        view.put("timedOut", row.timedOut());
+        return view;
+    }
+
+    private static boolean streamRequested(String body) {
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().readTree(body == null ? "{}" : body).path("stream").asBoolean(false);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static Integer integer(Object value) {
+        if (value == null || String.valueOf(value).isBlank()) {
+            return null;
+        }
+        return Integer.valueOf(value.toString());
     }
 
     private static String text(Object value) {

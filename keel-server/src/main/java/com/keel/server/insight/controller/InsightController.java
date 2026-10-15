@@ -18,6 +18,8 @@ import java.util.Map;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -96,6 +98,10 @@ public class InsightController {
             row.put("costCny", model.costCny());
             row.put("status", model.status());
             row.put("priceConfigured", model.priceConfigured());
+            row.put("priceVersion", model.priceVersion());
+            row.put("cacheCnyPerToken", model.cacheCnyPerToken());
+            row.put("health", model.health());
+            row.put("drift", model.drift());
             return row;
         }).toList();
         var keys = cost.keys().stream()
@@ -110,6 +116,9 @@ public class InsightController {
                     row.put("spentCny", key.spentCny());
                     row.put("reservedCny", key.reservedCny());
                     row.put("status", key.blocked() ? "BLOCKED" : "ACTIVE");
+                    row.put("rpm", key.rpm());
+                    row.put("tpm", key.tpm());
+                    row.put("concurrency", key.concurrency());
                     return row;
                 }).toList();
         var body = new LinkedHashMap<String, Object>();
@@ -130,6 +139,11 @@ public class InsightController {
                     row.put("costCny", bill.costCny());
                     row.put("reservedCny", bill.reservedCny());
                     row.put("status", bill.status());
+                    row.put("attemptId", bill.attemptId());
+                    row.put("traceId", bill.traceId());
+                    row.put("priceVersion", bill.priceVersion());
+                    row.put("routeVersion", bill.routeVersion());
+                    row.put("cacheTokens", bill.cacheTokens());
                     return row;
                 }).toList());
         var devflowCost = devflow.cost();
@@ -137,6 +151,31 @@ public class InsightController {
             body.put("devflowCost", devflowCost);
         }
         return R.ok(body);
+    }
+
+    @GetMapping(value = "/costs/export", produces = "text/csv")
+    public ResponseEntity<String> exportCosts(
+            @RequestParam(defaultValue = "all") @Pattern(regexp = "all|dev|test|staging|prod") String env,
+            @RequestParam(defaultValue = "24h") @Pattern(regexp = "24h|7d|30d") String range) {
+        var csv = new StringBuilder("ts,attemptId,requestId,alias,model,status,inputTokens,outputTokens,cacheTokens,costCny,priceVersion,routeVersion,traceId\n");
+        for (var bill : costs.cost(env, range).bills()) {
+            csv.append(csvCell(bill.ts())).append(',')
+                    .append(csvCell(bill.attemptId())).append(',')
+                    .append(csvCell(bill.requestId())).append(',')
+                    .append(csvCell(bill.alias())).append(',')
+                    .append(csvCell(bill.model())).append(',')
+                    .append(csvCell(bill.status())).append(',')
+                    .append(bill.inputTokens() == null ? "" : bill.inputTokens()).append(',')
+                    .append(bill.outputTokens() == null ? "" : bill.outputTokens()).append(',')
+                    .append(bill.cacheTokens() == null ? "" : bill.cacheTokens()).append(',')
+                    .append(bill.costCny() == null ? "" : bill.costCny()).append(',')
+                    .append(csvCell(bill.priceVersion())).append(',')
+                    .append(csvCell(bill.routeVersion())).append(',')
+                    .append(csvCell(bill.traceId())).append('\n');
+        }
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=bills.csv")
+                .body(csv.toString());
     }
 
     @PostMapping("/costs/keys/{alias}/budget")
@@ -149,6 +188,13 @@ public class InsightController {
         var budget = new BigDecimal(raw.toString());
         costs.updateBudget(alias, budget);
         return R.ok(Map.of("alias", alias, "dailyBudgetCny", budget));
+    }
+
+    private static String csvCell(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return "\"" + value.replace("\"", "\"\"") + "\"";
     }
 
     @GetMapping("/services")

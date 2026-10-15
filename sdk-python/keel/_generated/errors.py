@@ -27,6 +27,7 @@ class ErrorCode(str, Enum):
     GUARD_INJECTION_BLOCKED = 'GUARD_INJECTION_BLOCKED'
     LLM_BUDGET_EXCEEDED = 'LLM_BUDGET_EXCEEDED'
     LLM_KEY_BLOCKED = 'LLM_KEY_BLOCKED'
+    LLM_RATE_LIMITED = 'LLM_RATE_LIMITED'
     DELEGATE_NOT_DECLARED = 'DELEGATE_NOT_DECLARED'
     PROMPT_NOT_DECLARED = 'PROMPT_NOT_DECLARED'
     PROMPT_UNAVAILABLE = 'PROMPT_UNAVAILABLE'
@@ -91,6 +92,7 @@ _DETAILS = {
     ErrorCode.GUARD_INJECTION_BLOCKED: ('输入被提示词注入检测拦截', False, 400),
     ErrorCode.LLM_BUDGET_EXCEEDED: ('模型日预算已用完', True, 429),
     ErrorCode.LLM_KEY_BLOCKED: ('虚拟 Key 已停用', False, 401),
+    ErrorCode.LLM_RATE_LIMITED: ('虚拟 Key 的请求速率或并发已达上限', True, 429),
     ErrorCode.DELEGATE_NOT_DECLARED: ('目标智能体未在 manifest 的 delegates 中声明', False, 403),
     ErrorCode.PROMPT_NOT_DECLARED: ('提示词未在 manifest 中声明', False, 404),
     ErrorCode.PROMPT_UNAVAILABLE: ('当前环境的提示词不可用', True, 503),

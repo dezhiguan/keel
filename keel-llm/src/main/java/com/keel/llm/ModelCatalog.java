@@ -10,14 +10,36 @@ import java.util.Map;
 /** Prices are CNY per token. A missing or non-positive price refuses startup. */
 public final class ModelCatalog {
     public record Model(String name, BigDecimal inputCnyPerToken, BigDecimal outputCnyPerToken, String upstream, String upstreamKey,
-                        int maxInputTokens, int maxOutputTokens) {
+                        int maxInputTokens, int maxOutputTokens, String priceVersion, BigDecimal cacheReadCnyPerToken,
+                        boolean embedding) {
         public Model(String name, BigDecimal inputCnyPerToken, BigDecimal outputCnyPerToken, String upstream, String upstreamKey) {
-            this(name, inputCnyPerToken, outputCnyPerToken, upstream, upstreamKey, 1_000_000, 262_144);
+            this(name, inputCnyPerToken, outputCnyPerToken, upstream, upstreamKey, 1_000_000, 262_144, "", null, false);
+        }
+
+        public Model(String name, BigDecimal inputCnyPerToken, BigDecimal outputCnyPerToken, String upstream, String upstreamKey,
+                     int maxInputTokens, int maxOutputTokens) {
+            this(name, inputCnyPerToken, outputCnyPerToken, upstream, upstreamKey, maxInputTokens, maxOutputTokens, "", null, false);
         }
 
         public boolean priceConfigured() {
-            return inputCnyPerToken.signum() > 0 && outputCnyPerToken.signum() > 0
-                    && maxInputTokens > 0 && maxOutputTokens > 0;
+            if (inputCnyPerToken.signum() <= 0 || maxInputTokens <= 0) {
+                return false;
+            }
+            if (cacheReadCnyPerToken != null && cacheReadCnyPerToken.signum() <= 0) {
+                return false;
+            }
+            if (embedding) {
+                return outputCnyPerToken.signum() >= 0;
+            }
+            return outputCnyPerToken.signum() > 0 && maxOutputTokens > 0;
+        }
+
+        public String version() {
+            if (priceVersion != null && !priceVersion.isBlank()) {
+                return priceVersion;
+            }
+            var cache = cacheReadCnyPerToken == null ? "" : cacheReadCnyPerToken.toPlainString();
+            return inputCnyPerToken.toPlainString() + "/" + outputCnyPerToken.toPlainString() + "/" + cache;
         }
     }
 

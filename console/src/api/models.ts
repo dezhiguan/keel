@@ -1,4 +1,4 @@
-import { get, post } from './http'
+import { downloadText, get, post } from './http'
 import type { components, operations } from './schema'
 
 export type ModelGateway = components['schemas']['ModelGateway']
@@ -12,6 +12,10 @@ export function updateModelBudget(alias: string, dailyBudgetCny: number) {
   return post<{ alias: string; dailyBudgetCny: number }>(`/insight/costs/keys/${encodeURIComponent(alias)}/budget`, {
     dailyBudgetCny,
   })
+}
+
+export function exportModelBills(query: ModelGatewayQuery) {
+  return downloadText('/insight/costs/export', { params: query })
 }
 
 export function rotateModelKey(alias: string) {

@@ -3,7 +3,8 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
-import { getModelGateway, rotateModelKey, updateModelBudget, type ModelGateway } from '@/api/models'
+import { exportModelBills, getModelGateway, rotateModelKey, updateModelBudget, type ModelGateway } from '@/api/models'
+import { billStatusLabel, healthLabel, limitLabel, priceLabel } from './modelBill'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { useUserStore } from '@/stores/user'
@@ -127,6 +128,21 @@ async function confirmRotation() {
   }
 }
 
+async function exportBills() {
+  try {
+    const csv = await exportModelBills({ env: envStore.env, range: '24h' })
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'bills.csv'
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    ElMessage.error(`导出失败：${toKeelError(error).message}`)
+  }
+}
+
 watch(() => envStore.env, load, { immediate: true })
 </script>
 
@@ -145,19 +161,21 @@ watch(() => envStore.env, load, { immediate: true })
     <div v-if="tab === 'model'" class="card">
       <h3>模型</h3>
       <table class="t">
-        <thead><tr><th>模型</th><th>提供方</th><th>用途</th><th>24h 调用</th><th>P95</th><th>超时率</th><th>成本</th><th>状态</th></tr></thead>
+        <thead><tr><th>模型</th><th>提供方</th><th>用途</th><th>价格版本</th><th>健康</th><th>24h 调用</th><th>P95</th><th>超时率</th><th>成本</th><th>状态</th></tr></thead>
         <tbody>
           <tr v-for="m in modelRows" :key="m.model">
             <td class="mono">{{ m.model }}<span v-if="m.priceConfigured === false" class="pill nd p-bad" style="margin-left: 6px">未配单价</span></td>
             <td>{{ orDash(m.provider) }}</td>
             <td>{{ orDash(m.role) }}</td>
+            <td class="mono">{{ priceLabel(m.priceVersion, m.cacheCnyPerToken) }}<span v-if="m.drift" class="pill p-warn" style="margin-left: 6px">配置漂移</span></td>
+            <td>{{ healthLabel(m.health) }}</td>
             <td class="mono">{{ fmtN(m.calls) }}</td>
             <td class="mono">{{ orDash(m.p95) }}</td>
             <td class="mono" :style="timeoutStyle(m.status)">{{ fmtTimeout(m.errorRate) }}</td>
             <td class="mono">{{ m.priceConfigured === false || m.costCny == null ? '—' : yuan(m.costCny) }}</td>
             <td><StatusPill v-bind="MODEL_STATUS[m.status ?? 'ok']" /></td>
           </tr>
-          <tr v-if="!modelRows.length"><td colspan="8" class="empty">这个环境还没有模型</td></tr>
+          <tr v-if="!modelRows.length"><td colspan="10" class="empty">这个环境还没有模型</td></tr>
         </tbody>
       </table>
       <Pager v-model:page="modelPage" v-model:size="modelSize" :total="models.length" />
@@ -166,12 +184,13 @@ watch(() => envStore.env, load, { immediate: true })
     <div v-else-if="tab === 'key'" class="card">
       <h3>虚拟 Key 与日预算<small>keel register 自动创建，keel retire 自动吊销</small></h3>
       <table class="t">
-        <thead><tr><th>智能体</th><th>Key 别名 · 版本</th><th>可用模型</th><th style="width: 34%">已结算 + 预留 / 日预算</th><th>状态</th><th /></tr></thead>
+        <thead><tr><th>智能体</th><th>Key 别名 · 版本</th><th>可用模型</th><th>RPM / TPM / 并发</th><th style="width: 28%">已结算 + 预留 / 日预算</th><th>状态</th><th /></tr></thead>
         <tbody>
           <tr v-for="k in keyRows" :key="k.alias">
             <td>{{ k.agent }}</td>
             <td class="mono">{{ k.alias }} · v{{ k.version ?? 1 }}</td>
             <td class="mono">{{ k.models?.length }}</td>
+            <td class="mono">{{ limitLabel(k.rpm) }} / {{ limitLabel(k.tpm) }} / {{ limitLabel(k.concurrency) }}</td>
             <td>
               <div style="display: flex; justify-content: space-between; font-size: 12px">
                 <span class="mono">{{ yuan(k.spentCny) }} + {{ yuan(k.reservedCny) }}</span><span class="mono mut">¥{{ k.dailyBudgetCny }}</span>
@@ -190,27 +209,29 @@ watch(() => envStore.env, load, { immediate: true })
               </template>
             </td>
           </tr>
-          <tr v-if="!keyRows.length"><td colspan="6" class="empty">这个环境还没有虚拟 Key</td></tr>
+          <tr v-if="!keyRows.length"><td colspan="7" class="empty">这个环境还没有虚拟 Key</td></tr>
         </tbody>
       </table>
       <Pager v-model:page="keyPage" v-model:size="keySize" :total="keys.length" />
     </div>
 
     <div v-else class="card">
-      <h3>账单<small>最近 50 条 · 同一 requestId 只结算一次</small></h3>
+      <h3>账单<small>每次尝试一行 · 同一 requestId 只结算一次</small> <button class="btn sm" type="button" @click="exportBills">导出</button></h3>
       <table class="t">
-        <thead><tr><th>时间</th><th>requestId</th><th>智能体</th><th>模型</th><th>tokens</th><th>费用</th><th>状态</th></tr></thead>
+        <thead><tr><th>时间</th><th>尝试</th><th>智能体</th><th>模型</th><th>价格版本</th><th>tokens</th><th>费用</th><th>状态</th><th>链路</th></tr></thead>
         <tbody>
-          <tr v-for="(bill, index) in bills" :key="`${bill.requestId}-${index}`">
+          <tr v-for="(bill, index) in bills" :key="`${bill.attemptId || bill.requestId}-${index}`">
             <td class="mono">{{ bill.ts ? new Date(bill.ts).toLocaleString('zh-CN') : '—' }}</td>
-            <td class="mono">{{ orDash(bill.requestId) }}</td>
+            <td class="mono">{{ orDash(bill.attemptId || bill.requestId) }}</td>
             <td>{{ orDash(bill.agent) }}</td>
             <td class="mono">{{ orDash(bill.model) }}</td>
+            <td class="mono">{{ orDash(bill.priceVersion) }}<template v-if="bill.routeVersion"> · {{ bill.routeVersion }}</template></td>
             <td class="mono">{{ bill.inputTokens == null || bill.outputTokens == null ? '—' : fmtN(bill.inputTokens + bill.outputTokens) }}</td>
             <td class="mono">{{ bill.costCny == null ? '—' : yuan(bill.costCny) }}</td>
-            <td><span class="pill" :class="bill.status === 'PENDING' ? 'p-warn' : bill.status === 'FAILED' ? 'p-bad' : 'p-ok'">{{ bill.status === 'PENDING' ? '待计费' : bill.status === 'FAILED' ? '失败' : '已结算' }}</span></td>
+            <td><span class="pill" :class="bill.status === 'PENDING' ? 'p-warn' : bill.status === 'FAILED' ? 'p-bad' : 'p-ok'">{{ billStatusLabel(bill.status) }}</span></td>
+            <td><RouterLink v-if="bill.traceId" :to="`/traces/${encodeURIComponent(bill.traceId)}`">查看</RouterLink><template v-else>—</template></td>
           </tr>
-          <tr v-if="!bills.length"><td colspan="7" class="empty">当前窗口没有账单</td></tr>
+          <tr v-if="!bills.length"><td colspan="9" class="empty">当前窗口没有账单</td></tr>
         </tbody>
       </table>
     </div>

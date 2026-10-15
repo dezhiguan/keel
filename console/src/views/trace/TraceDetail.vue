@@ -140,6 +140,16 @@ watch(() => route.params.id, load, { immediate: true })
           <div><span>tokens{{ node.aggregated ? '（含子节点）' : '' }}</span><b>{{ showTokens(tokensOf) }}</b></div>
           <div><span>成本{{ node.aggregated ? '（含子节点）' : '' }}</span><b>{{ fmtCny(node.costCny) }}</b></div>
           <div v-if="node.model" class="full"><span>模型网关</span><b>经薄网关<template v-if="node.llmKeyAlias"> · 虚拟 Key {{ node.llmKeyAlias }}</template> · 花费计入该智能体的日预算</b></div>
+          <div v-if="node.attempts?.length" class="full">
+            <span>网关尝试</span>
+            <b>
+              <span v-for="attempt in node.attempts" :key="attempt.attemptId" style="display: block">
+                {{ attempt.model }} · {{ attempt.status }} · {{ attempt.costCny == null ? '待计费' : fmtCny(attempt.costCny) }}
+                · {{ attempt.priceVersion || '未标版本' }} · {{ attempt.routeVersion || 'primary' }}
+                · {{ attempt.requestId }}
+              </span>
+            </b>
+          </div>
           <div class="full"><span>输入摘要</span><b style="white-space: pre-wrap">{{ node.inputSummary }}</b></div>
           <div class="full"><span>输出摘要</span><b style="white-space: pre-wrap">{{ node.outputSummary }}</b></div>
           <div v-if="node.promptFallback" class="full">

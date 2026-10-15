@@ -96,7 +96,8 @@ public class CostService {
         var keys = gateway.keys().stream()
                 .filter(key -> inEnv(key.alias(), env))
                 .map(key -> new Key(key.alias(), agentOf(key.alias()), envOf(key.alias()), key.models(),
-                        key.dailyBudgetCny(), key.spentCny(), key.reservedCny(), key.blocked(), key.version()))
+                        key.dailyBudgetCny(), key.spentCny(), key.reservedCny(), key.blocked(), key.version(),
+                        key.rpm(), key.tpm(), key.concurrency()))
                 .toList();
         var stats = stats(gateway.models(), rows, keys, env, since, now);
         int pending = (int) rows.stream().filter(row -> "PENDING".equals(row.status())).count();
@@ -160,6 +161,11 @@ public class CostService {
         for (var name : names) {
             var count = calls.getOrDefault(name, 0);
             Double rate = instrumented && count > 0 ? timeouts.getOrDefault(name, 0) / (double) count : null;
+            var catalogModel = catalog.stream().filter(model -> name.equals(model.name())).findFirst().orElse(null);
+            var latest = rows.stream().filter(row -> name.equals(row.model()) && "SETTLED".equals(row.status())).findFirst().orElse(null);
+            var version = catalogModel == null ? "" : catalogModel.priceVersion();
+            var drift = latest != null && !latest.priceVersion().isBlank() && !latest.priceVersion().equals(version);
+            var health = latest != null ? "LIVE" : (catalogModel != null && catalogModel.priceConfigured() ? "CONFIGURED" : "");
             stats.add(new ModelStat(
                     name,
                     providers.getOrDefault(name, provider("", name)),
@@ -169,7 +175,11 @@ public class CostService {
                     rate,
                     cost.getOrDefault(name, 0d),
                     statusOf(rate),
-                    priced.getOrDefault(name, true)));
+                    priced.getOrDefault(name, true),
+                    version,
+                    catalogModel == null ? null : catalogModel.cacheCnyPerToken(),
+                    health,
+                    drift || (catalogModel != null && catalogModel.drift())));
         }
         return stats;
     }
@@ -332,10 +342,12 @@ public class CostService {
     }
 
     public record Key(String alias, String agent, String env, List<String> models, double dailyBudgetCny,
-                      double spentCny, double reservedCny, boolean blocked, int version) {}
+                      double spentCny, double reservedCny, boolean blocked, int version,
+                      Integer rpm, Integer tpm, Integer concurrency) {}
 
     public record ModelStat(String name, String provider, String role, int calls, String p95, Double timeoutRate,
-                            double costCny, String status, boolean priceConfigured) {}
+                            double costCny, String status, boolean priceConfigured, String priceVersion,
+                            Double cacheCnyPerToken, String health, boolean drift) {}
 
     public record Result(double totalCny, int calls, Map<String, Double> byAgent, Map<String, Double> byModel,
                          List<LiteLlmClient.Model> models, List<Key> keys, List<ModelStat> stats,

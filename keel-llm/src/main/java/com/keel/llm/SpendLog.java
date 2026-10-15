@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 /** Recent model calls, shared by every gateway replica. Redis keeps them across restarts. */
-public final class SpendLog {
+public final class SpendLog implements SpendLedger {
     static final String KEY = "keel-llm:spend";
     static final String PENDING_KEY = "keel-llm:pending-spend";
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -28,6 +28,7 @@ public final class SpendLog {
         this.redis = redisUri == null || redisUri.isBlank() ? null : RedisClient.create(redisUri).connect().sync();
     }
 
+    @Override
     public void append(Gateway.Spend row) {
         var encoded = encode(row);
         if (redis != null) {
@@ -78,6 +79,16 @@ public final class SpendLog {
         return rows;
     }
 
+    @Override
+    public SpendCursor.Page page(String alias, String cursor, int limit) {
+        return SpendCursor.page(all(), alias, cursor, limit);
+    }
+
+    @Override
+    public List<Gateway.Spend> latestSettledByModel() {
+        return MemorySpendLedger.newestSettled(all());
+    }
+
     private static String encode(Gateway.Spend row) {
         ObjectNode node = JSON.createObjectNode();
         node.put("alias", row.alias());
@@ -89,6 +100,11 @@ public final class SpendLog {
         node.put("status", row.status());
         node.put("reservedCny", row.reservedCny().toPlainString());
         node.put("requestId", row.requestId());
+        node.put("attemptId", row.attemptId());
+        node.put("traceId", row.traceId());
+        node.put("priceVersion", row.priceVersion());
+        node.put("routeVersion", row.routeVersion());
+        node.put("cacheTokens", row.cacheTokens());
         node.put("ts", row.ts().toString());
         node.put("latencyMs", row.latencyMs());
         node.put("timedOut", row.timedOut());
@@ -109,7 +125,12 @@ public final class SpendLog {
                     node.path("latencyMs").asLong(),
                     node.path("timedOut").asBoolean(false),
                     node.path("status").asText("SETTLED"),
-                    new BigDecimal(node.path("reservedCny").asText("0")));
+                    new BigDecimal(node.path("reservedCny").asText("0")),
+                    node.path("attemptId").asText(""),
+                    node.path("traceId").asText(""),
+                    node.path("priceVersion").asText(""),
+                    node.path("routeVersion").asText(""),
+                    node.path("cacheTokens").asInt(-1));
         } catch (Exception e) {
             return null;
         }

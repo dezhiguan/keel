@@ -33,8 +33,10 @@ alwaysApply: true
 
 不要再写 LiteLLM 的 `/key/generate`、`/spend/logs`、美元 `max_budget`、每 Pod 4Gi。
 
-- 调用：`POST /v1/chat/completions`、`POST /v1/embeddings`，Bearer 虚拟 Key。
+- 调用：`POST /v1/chat/completions`、`POST /v1/embeddings`，Bearer 虚拟 Key。请求带 `X-Trace-Id` 时，账单行记下这个 trace。`stream: true` 时响应是 SSE，网关会补上 `stream_options.include_usage=true`。客户端断开后，已经解析到的 usage 按该用量结算；没有 usage 则记 `PENDING`，费用不是 0。
 - 管理：`POST /admin/v1/keys`、`POST /admin/v1/keys/{alias}/block`、`GET /admin/v1/keys/{alias}`、`GET /admin/v1/spend`、`GET /admin/v1/models`。下线只 block。
+- `POST /admin/v1/keys` 可选 `rpm`、`tpm`、`concurrency`。缺省不限制。超限返回 `LLM_RATE_LIMITED`（429，可重试）。
+- `GET /admin/v1/spend?limit=&cursor=` 按创建时间从新到旧。`nextCursor` 为空表示没有下一页。每一行是一次尝试，带 `attemptId`、`requestId`、`traceId`、`priceVersion`、`routeVersion`（`primary` 或 `fallback`）、`status`。配置了 `KEEL_LLM_JDBC_URL` 时这些行写入库 `keel_llm` 的表 `llm_spend`；没配置时游标仍读近期账单。
 - 别名 `{agent}-{env}`，必须匹配 `^[a-z][a-z0-9-]{1,38}[a-z0-9]-(dev|test|staging|prod)$`。
 - **预算按人民币计**，字段 `dailyBudgetCny`，与 manifest 的 `budget.dailyCny` 相同，开通时原样下发。
 - 单价写在网关配置里。缺单价拒绝启动，不允许成本静默记 0。Langfuse Model Definitions 配同一组价格；控制台金额以网关的 `costCny` 为准。

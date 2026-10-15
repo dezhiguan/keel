@@ -83,6 +83,9 @@ public final class KeyDirectory {
         node.put("allowFallback", key.allowFallback());
         node.put("blocked", key.blocked());
         node.put("version", key.version());
+        if (key.rpm() != null) node.put("rpm", key.rpm());
+        if (key.tpm() != null) node.put("tpm", key.tpm());
+        if (key.concurrency() != null) node.put("concurrency", key.concurrency());
         return node.toString();
     }
 
@@ -100,10 +103,20 @@ public final class KeyDirectory {
                     new BigDecimal(node.path("dailyBudgetCny").asText("0")),
                     node.path("allowFallback").asBoolean(false),
                     node.path("blocked").asBoolean(false),
-                    node.path("version").asInt(1));
+                    node.path("version").asInt(1),
+                    optionalInt(node.path("rpm")),
+                    optionalInt(node.path("tpm")),
+                    optionalInt(node.path("concurrency")));
         } catch (Exception e) {
             throw new IllegalStateException("虚拟 Key 无法读取", e);
         }
+    }
+
+    private static Integer optionalInt(com.fasterxml.jackson.databind.JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        return node.asInt();
     }
 
     private static List<String> texts(com.fasterxml.jackson.databind.JsonNode node) {
@@ -136,7 +149,7 @@ public final class KeyDirectory {
                 var next = decode(value);
                 var rotated = new Gateway.VirtualKey(next.alias(), next.token(), next.models(), next.fallback(),
                         next.dailyBudgetCny(), next.allowFallback(), next.blocked(),
-                        current == null ? 1 : current.version() + 1);
+                        current == null ? 1 : current.version() + 1, next.rpm(), next.tpm(), next.concurrency());
                 var encoded = encode(rotated);
                 data.put(tokenKey, alias);
                 data.put(aliasKey, encoded);

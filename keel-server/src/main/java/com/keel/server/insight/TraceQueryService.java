@@ -395,6 +395,7 @@ public class TraceQueryService {
         } catch (RuntimeException e) {
             var local = saved.detail(traceId);
             if (local != null) {
+                attachAttempts(local, traceId);
                 return local;
             }
             throw e;
@@ -414,6 +415,45 @@ public class TraceQueryService {
             throw new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message());
         }
         TraceAssembly.attach(detail, saved.context(traceId));
+        attachAttempts(detail, traceId);
         return detail;
+    }
+
+    private void attachAttempts(Map<String, Object> detail, String traceId) {
+        List<LiteLlmClient.Spend> matched;
+        try {
+            matched = pricesSource.spendAll().stream().filter(row -> traceId.equals(row.traceId())).toList();
+        } catch (RuntimeException error) {
+            return;
+        }
+        if (matched.isEmpty() || !(detail.get("nodes") instanceof List<?> nodes)) {
+            return;
+        }
+        for (var node : nodes) {
+            if (!(node instanceof Map<?, ?> raw) || raw.get("model") == null) {
+                continue;
+            }
+            var model = String.valueOf(raw.get("model"));
+            var attempts = new ArrayList<Map<String, Object>>();
+            for (var row : matched) {
+                if (!model.equals(row.model())) {
+                    continue;
+                }
+                var attempt = new LinkedHashMap<String, Object>();
+                attempt.put("attemptId", row.attemptId());
+                attempt.put("requestId", row.requestId());
+                attempt.put("model", row.model());
+                attempt.put("status", row.status());
+                attempt.put("costCny", row.costCny());
+                attempt.put("priceVersion", row.priceVersion());
+                attempt.put("routeVersion", row.routeVersion());
+                attempts.add(attempt);
+            }
+            if (!attempts.isEmpty()) {
+                @SuppressWarnings("unchecked")
+                var writable = (Map<String, Object>) raw;
+                writable.put("attempts", attempts);
+            }
+        }
     }
 }

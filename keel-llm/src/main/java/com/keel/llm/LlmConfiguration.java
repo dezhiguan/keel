@@ -27,7 +27,10 @@ public class LlmConfiguration {
                 model.getUpstream(),
                 model.getUpstreamKey(),
                 model.getMaxInputTokens(),
-                model.getMaxOutputTokens())));
+                model.getMaxOutputTokens(),
+                model.getPriceVersion() == null ? "" : model.getPriceVersion(),
+                decimalOrNull(model.getCacheCnyPerToken()),
+                model.isEmbedding())));
         return new ModelCatalog(models);
     }
 
@@ -39,7 +42,11 @@ public class LlmConfiguration {
     @Bean
     Gateway gateway(ModelCatalog catalog, BudgetCounter budget, LlmProperties properties) {
         var redis = properties.getRedis();
-        return new Gateway(catalog, budget, new Upstream(), new KeyDirectory(redis), new SpendLog(redis));
+        SpendLedger history = null;
+        if (properties.getJdbcUrl() != null && !properties.getJdbcUrl().isBlank()) {
+            history = new JdbcSpendLedger(properties.getJdbcUrl(), properties.getJdbcUsername(), properties.getJdbcPassword());
+        }
+        return new Gateway(catalog, budget, new Upstream(), new KeyDirectory(redis), new SpendLog(redis), history, new Admission(redis));
     }
 
     @Bean
@@ -58,15 +65,31 @@ public class LlmConfiguration {
         return new BigDecimal(raw);
     }
 
+    private static BigDecimal decimalOrNull(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        return new BigDecimal(raw);
+    }
+
     public static final class LlmProperties {
         private String adminKey = "";
         private String redis = "";
+        private String jdbcUrl = "";
+        private String jdbcUsername = "";
+        private String jdbcPassword = "";
         private Map<String, ModelProperties> models = new LinkedHashMap<>();
 
         public String getAdminKey() { return adminKey; }
         public void setAdminKey(String adminKey) { this.adminKey = adminKey; }
         public String getRedis() { return redis; }
         public void setRedis(String redis) { this.redis = redis; }
+        public String getJdbcUrl() { return jdbcUrl; }
+        public void setJdbcUrl(String jdbcUrl) { this.jdbcUrl = jdbcUrl; }
+        public String getJdbcUsername() { return jdbcUsername; }
+        public void setJdbcUsername(String jdbcUsername) { this.jdbcUsername = jdbcUsername; }
+        public String getJdbcPassword() { return jdbcPassword; }
+        public void setJdbcPassword(String jdbcPassword) { this.jdbcPassword = jdbcPassword; }
         public Map<String, ModelProperties> getModels() { return models; }
         public void setModels(Map<String, ModelProperties> models) { this.models = models; }
     }
@@ -74,6 +97,9 @@ public class LlmConfiguration {
     public static final class ModelProperties {
         private String inputCnyPerToken = "";
         private String outputCnyPerToken = "";
+        private String cacheCnyPerToken = "";
+        private String priceVersion = "";
+        private boolean embedding;
         private String upstream = "";
         private String upstreamKey = "";
         private int maxInputTokens;
@@ -83,6 +109,12 @@ public class LlmConfiguration {
         public void setInputCnyPerToken(String inputCnyPerToken) { this.inputCnyPerToken = inputCnyPerToken; }
         public String getOutputCnyPerToken() { return outputCnyPerToken; }
         public void setOutputCnyPerToken(String outputCnyPerToken) { this.outputCnyPerToken = outputCnyPerToken; }
+        public String getCacheCnyPerToken() { return cacheCnyPerToken; }
+        public void setCacheCnyPerToken(String cacheCnyPerToken) { this.cacheCnyPerToken = cacheCnyPerToken; }
+        public String getPriceVersion() { return priceVersion; }
+        public void setPriceVersion(String priceVersion) { this.priceVersion = priceVersion; }
+        public boolean isEmbedding() { return embedding; }
+        public void setEmbedding(boolean embedding) { this.embedding = embedding; }
         public String getUpstream() { return upstream; }
         public void setUpstream(String upstream) { this.upstream = upstream; }
         public String getUpstreamKey() { return upstreamKey; }
