@@ -18,13 +18,14 @@ _TTL_SECONDS = 60
 
 
 class Prompt:
-    def __init__(self, name: str, version: int | None, type: str, fallback: bool, config: dict, body):
+    def __init__(self, name: str, version: int | None, type: str, fallback: bool, config: dict, body, structure: dict | None = None):
         self.name = name
         self.version = version
         self.type = type
         self.fallback = fallback
         self.config = config
         self.body = body
+        self.structure = structure or {}
 
     def compile(self, **variables):
         if self.type == "chat":
@@ -34,8 +35,11 @@ class Prompt:
                     "role": message.get("role") or "user",
                     "content": _fill(message.get("content") or "", variables),
                 })
+            _require_schema(self.structure, variables)
             return messages
-        return _fill(self.body if isinstance(self.body, str) else "", variables)
+        text = _fill(self.body if isinstance(self.body, str) else "", variables)
+        _require_schema(self.structure, variables)
+        return text
 
 
 class PromptClient:
@@ -87,7 +91,8 @@ class PromptClient:
             raise KeelError(ErrorCode.PROMPT_UNAVAILABLE) from exc
         if remote["type"] != declared:
             raise KeelError(ErrorCode.PROMPT_TYPE_MISMATCH)
-        return Prompt(full_name, int(remote["version"]), declared, False, _config(remote.get("config")), remote["prompt"])
+        raw_config = remote.get("config")
+        return Prompt(full_name, int(remote["version"]), declared, False, _config(raw_config), remote["prompt"], _structure(raw_config))
 
 
 def _declared(manifest, short_name: str) -> str | None:
@@ -149,6 +154,25 @@ def _config(raw) -> dict:
     if "model" in raw:
         logger.warning("prompt config.model is ignored; the model comes from the manifest")
     return {key: raw[key] for key in _CONFIG_KEYS if key in raw}
+
+
+def _structure(raw) -> dict:
+    if not isinstance(raw, dict):
+        return {}
+    keel = raw.get("keel")
+    return keel if isinstance(keel, dict) else {}
+
+
+def _require_schema(structure: dict, variables: dict) -> None:
+    missing = []
+    for item in structure.get("variables") or []:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name")
+        if item.get("required", True) and name and name not in variables:
+            missing.append(name)
+    if missing:
+        raise KeelError(ErrorCode.PROMPT_VARIABLE_MISSING)
 
 
 def _fill(text: str, variables: dict) -> str:

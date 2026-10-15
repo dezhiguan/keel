@@ -13,6 +13,7 @@ from keel.audit.reporter import AuditReporter
 from keel.context import Context
 from keel.knowledge import KnowledgeClient
 from keel.llm.client import ChatResult, LlmClient, ToolCall
+from keel.prompts import Prompt
 from keel.manifest import AgentManifest
 from keel.protocol.errors import ErrorCode, KeelError
 
@@ -62,6 +63,38 @@ def test_litellm_request_generation_span_and_zero_cost_warning(monkeypatch, capl
     assert span.attributes["langfuse.observation.output"] == "hello"
     assert span.attributes["gen_ai.usage.input_tokens"] == 3
     assert "zero cost" in caplog.text
+    provider.shutdown()
+
+
+def test_chat_does_not_send_the_keel_namespace(monkeypatch):
+    monkeypatch.setenv("KEEL_LLM_BASE_URL", "https://gateway.test/v1")
+    monkeypatch.setenv("KEEL_LLM_KEY", "test-virtual-key")
+    requests = []
+
+    def handle(request):
+        requests.append(json.loads(request.content))
+        return httpx.Response(200, json={
+            "id": "chatcmpl-keel", "object": "chat.completion", "created": 1,
+            "model": "qwen-plus", "choices": [{"index": 0,
+            "message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        })
+
+    provider = TracerProvider()
+    client = LlmClient("hello-agent", "qwen-plus", "trace-keel", provider.get_tracer("test"),
+                       httpx.AsyncClient(transport=httpx.MockTransport(handle)))
+    prompt = Prompt("hello-agent/answer", 2, "text", False,
+                    {"temperature": 0.2, "keel": {"sections": [{"kind": "role", "text": "值班"}]}},
+                    "你好", {"sections": [{"kind": "role", "text": "值班"}]})
+
+    async def scenario():
+        result = await client.chat([{"role": "user", "content": "你好"}], prompt=prompt)
+        await client.aclose()
+        return result
+
+    assert run(scenario()) == "ok"
+    assert requests[0]["temperature"] == 0.2
+    assert "keel" not in requests[0]
     provider.shutdown()
 
 

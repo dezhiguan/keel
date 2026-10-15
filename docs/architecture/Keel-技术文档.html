@@ -665,7 +665,7 @@ X-Keel-Eval-Run: &lt;run_id&gt;                 <span class="c"># 评测流量�
       <tr><td><code>PATCH /api/public/v2/prompts/{name}/versions/{version}</code></td><td>挪标签：body <code>{"newLabels":[…]}</code>。一个标签同时只在一个版本上，挪过去旧版本自动失去它；<code>latest</code> 由 Langfuse 维护，不能手动设</td></tr>
       <tr><td><code>GET /api/public/v2/prompts/{name}?label=</code> · <code>?version=</code></td><td>SDK 运行时取提示词、keel-server 复制前读原文。<code>label</code> 和 <code>version</code> 互斥；标签不存在返回 404，不会退回 production。名字带 <code>/</code> 时整体 URL 编码</td></tr>
       <tr><td><code>GET /api/public/v2/prompts</code></td><td>列表：每个提示词的 versions、labels（不含内容），支持 name、label、page、limit</td></tr>
-      <tr><td><code>POST /api/public/v2/prompts</code></td><td>新建版本：同名即追加版本。body 有 type（text / chat，建了不能改）、name、prompt，可带 labels。响应里有 config、commitMessage，请求里怎么传以 API 参考为准，P2-16 开工时核对</td></tr>
+      <tr><td><code>POST /api/public/v2/prompts</code></td><td>新建版本：同名即追加版本。body 有 type（text / chat，建了不能改）、name、prompt、config、commitMessage，可带 labels。config 是对象，可含 temperature、max_tokens、top_p 和嵌套对象 keel。2026-10-15 实测：POST 201，GET <code>?version=</code> 200，config 与 commitMessage 原样读回，commitMessage 与 config 平级。未传 labels 时响应含 latest</td></tr>
       <tr><td rowspan="5">auth-gateway</td><td><code>GET /.well-known/jwks.json</code></td><td>验签；响应缓存 1 小时</td></tr>
       <tr><td><code>POST /auth/login/password</code> · <code>/auth/login/mobile</code>（表单） · <code>POST /auth/sms/send</code>（JSON） · <code>GET /auth/captcha</code></td><td>控制台登录，只由 keel-server 调。字段 <code>target_aud=keel-console</code> + <code>client_id</code> / <code>client_assertion_type</code> / <code>client_assertion</code>；<code>remember</code> 固定 false。发码 <code>{phone, scene:"login", app:"keel"}</code>。密码错 5 次要图形验证码（423），15 次锁 15 分钟</td></tr>
       <tr><td><code>POST /auth/token/refresh</code>（表单） · <code>POST /auth/logout</code>（Bearer）</td><td>控制台续期与登出；会话按 <code>target_audience</code> 分开，只影响控制台自己的会话</td></tr>
@@ -1144,7 +1144,7 @@ keel eval run --dataset code-review/findings <span class="c"># 和 CI 同一套�
       <tr><td>薄网关下线</td><td>自研接口由 P1-2 定义</td><td>P1-2</td><td>只实现 <code>POST /admin/v1/keys/{alias}/block</code></td></tr>
       <tr><td>keel-gateway / keel-server / keel-audit 资源</td><td>自研服务，没有官方数据</td><td>P2 网关轻量版完成后</td><td>压测：100 个并发 SSE 会话、每秒 50 次调用，看 CPU、内存、P95</td></tr>
       <tr><td>Langfuse Cloud 套餐</td><td>Hobby 的 Metrics API 每天 100 次，扛不住 5 分钟对账</td><td>生产对账打开前</td><td>升 Core，或 Hobby 上 Langfuse 流量查询每天一次</td></tr>
-      <tr><td>提示词接口的实测行为</td><td>只看了文档：<code>POST /v2/prompts</code> 里 config、commitMessage 的传法，提示词接口的限流，v2 observations 返回的提示词字段名</td><td>P2-15 / P2-16 开工时</td><td>在共用项目里用一个测试提示词实测建版本、挪标签、带 prompt 属性上报一条 generation 后读回</td></tr>
+      <tr><td>提示词接口尚未实测的部分</td><td>config、commitMessage 已于 2026-10-15 实测。限流，以及 v2 observations 返回的提示词字段名，仍只看了文档</td><td>用到限流或观测字段名之前</td><td>在共用项目里打一次被限流的请求；带 prompt 属性上报一条 generation 后读回 observations</td></tr>
       <tr><td>auth-gateway 改造方案评审</td><td>涉及现有 careermate、rag-forge 的登录链路</td><td>P0 第 1 周</td><td>改造后跑 auth-gateway 现有测试，careermate、rag-forge 登录和换票回归一遍</td></tr>
       <tr><td>控制台登录（P1-21）的实测行为</td><td>只读了 auth-gateway 源码：<code>keel-console</code> 受众和 <code>keel-console-backend</code> 客户端还没建；官德志在 auth-gateway 的 <code>user_id</code>、手机号未知；短信服务商对 <code>app=keel</code> 的短信模板是否要单独报备未知</td><td>P1-21 开工时</td><td>在 auth-gateway 建客户端和官德志账号后，用两种方式各登录一次，回填 <code>ConsoleUsers</code> 的 <code>user_id</code>；careermate、rag-forge 登录回归一遍</td></tr>
     </tbody>

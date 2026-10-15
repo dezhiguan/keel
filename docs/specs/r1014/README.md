@@ -66,7 +66,7 @@
 | R4-2 | keel-server `metering/` + `usage_daily`；总览加"累计"和时间窗；指标显示口径与来源；未接入显示"未接入" | R4-1 R0-5 | 累计值 = 已封账日汇总 + 今日实时；与网关账单一致 · ✅ r1014-r4-2 |
 | R4-3 | 控制台按原型第 3 版改造：菜单名称、各页 tab 化、平台与能力服务、模型与成本五个 tab、链路详情显示网关尝试、智能体详情的运行方式 / 要素检查 | R4-1 R1-8 | 页面与原型一致；`vitest related` 通过；数据全部走 keel-server 接口 · ✅ r1014-r4-3 |
 | R4-4 | 薄网关 P2：路由策略（硬约束过滤 + 均衡 / 成本 / 延迟）与试算、按渠道熔断、策略版本与回滚、告警规则进总览。**先把新管理接口写进技术文档和 `external-apis.mdc`** | R4-1 | 故障注入只切换一次；鉴权失败、预算不足不降级；试算结果与实际路由一致 · ✅ r1014-r4-4 |
-| R4-5 | 结构化提示词：分段、变量 schema、输出契约、试运行。结构信息存 Langfuse 提示词 config 的 `keel` 命名空间，正文仍是编译后的 text / chat。**先实测** `POST /api/public/v2/prompts` 的 config 传法并读回，再改 `external-apis.mdc` 里"config 只认三项"的规则 | — | 实测记录写进 spec；删除一条约束时提示对应评测维度；缺变量报 `PROMPT_VARIABLE_MISSING`；SDK 读到 `keel` 段时不当作模型参数 |
+| R4-5 | 结构化提示词：分段、变量 schema、输出契约、试运行。结构信息存 Langfuse 提示词 config 的 `keel` 命名空间，正文仍是编译后的 text / chat。**先实测** `POST /api/public/v2/prompts` 的 config 传法并读回，再改 `external-apis.mdc` 里"config 只认三项"的规则 | — | 实测记录写进 spec；删除一条约束时提示对应评测维度；缺变量报 `PROMPT_VARIABLE_MISSING`；SDK 读到 `keel` 段时不当作模型参数 · ✅ r1014-r4-5 |
 | R4-6 | 技能：注册表与授权（三张表）、manifest `spec.skills`、SDK `ctx.skills` 按需加载 | R1-3 | 加技能不会自动授予工具；技能用例并入使用方回归 |
 | R4-7 | 记忆服务 keel-memory（PG + pgvector）：用户记忆、按层策略、可查可删 **【待拍板：合规口径】** | R1-4 | 元智能体写记忆被拒；用户删除后不可再召回 |
 | R4-8 | 渠道发布：托管页面 + 嵌入代码 + 网页 SDK；渠道表与发布凭证；外部用户身份三种方式。托管页面先用底座域名的子路径（如 `https://keel.ragforge.net/a/{agent}`），与控制台同域，控制台会话 Cookie 必须限定路径且 HttpOnly，托管页面读不到 | keel-gateway 轻量版 | 业务网页嵌入后能对话、挂起审批、点赞点踩；未登记域名被拒（`CHANNEL_ORIGIN_DENIED`）；托管页面拿不到控制台 Cookie |

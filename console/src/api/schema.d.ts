@@ -596,6 +596,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agents/{name}/prompts/{prompt}/trial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                prompt: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 用变量编译这一版提示词，不调用模型 */
+        post: operations["trialPrompt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agents/{name}/prompts/{prompt}/promote": {
         parameters: {
             query?: never;
@@ -1932,7 +1952,21 @@ export interface components {
             config?: {
                 [key: string]: unknown;
             };
+            /** @description Langfuse config.keel。分段、变量 schema、输出契约和样例 */
+            structure?: {
+                [key: string]: unknown;
+            };
+            checks?: {
+                ok?: boolean;
+                text?: string;
+            }[];
             variables?: string[];
+        };
+        PromptConstraint: {
+            id?: string;
+            text?: string;
+            /** @description 这条约束对应的评测维度 */
+            dimension?: string;
         };
         PromptDiff: {
             added?: number;
@@ -1942,6 +1976,7 @@ export interface components {
                 op?: "same" | "add" | "del";
                 text?: string;
             }[];
+            removedConstraints?: components["schemas"]["PromptConstraint"][];
         };
         /** @description 向导表单；后端据此生成 agent.yaml。字段与 manifest.schema.json 一一对应。 */
         RegisterRequest: {
@@ -3921,6 +3956,12 @@ export interface operations {
                      * @enum {string}
                      */
                     env?: "dev" | "test" | "staging" | "prod";
+                    /** @description 为真时用 config.keel.sections 编译正文 */
+                    fromSections?: boolean;
+                    config?: {
+                        [key: string]: unknown;
+                    };
+                    commitMessage?: string;
                 };
             };
         };
@@ -3931,7 +3972,50 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope"];
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            version?: number;
+                            sha256?: string;
+                            removedConstraints?: components["schemas"]["PromptConstraint"][];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    trialPrompt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                prompt: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    variables?: {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            version?: number;
+                            compiled?: unknown;
+                        };
+                    };
                 };
             };
         };

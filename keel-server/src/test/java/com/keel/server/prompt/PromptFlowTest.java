@@ -102,6 +102,46 @@ class PromptFlowTest {
                 """);
     }
 
+    @Test void deletingAConstraintNamesItsEvalDimension() throws Exception {
+        mvc.perform(post("/api/v1/agents/prompt-agent/prompts/answer/versions")
+                        .contentType("application/json")
+                        .content("""
+                                {"commitMessage":"first","fromSections":true,"config":{"keel":{"sections":[
+                                  {"kind":"role","text":"你是值班员"},
+                                  {"kind":"task","text":"回答 {{question}}"},
+                                  {"kind":"constraint","text":"不要编造","dimension":"拒答 / 无法确认"}
+                                ],"variables":[{"name":"question","required":true}]}}}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.removedConstraints.length()").value(0));
+        mvc.perform(post("/api/v1/agents/prompt-agent/prompts/answer/versions")
+                        .contentType("application/json")
+                        .content("""
+                                {"commitMessage":"drop","fromSections":true,"config":{"keel":{"sections":[
+                                  {"kind":"role","text":"你是值班员"}
+                                ]}}}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.removedConstraints[0].text").value("不要编造"))
+                .andExpect(jsonPath("$.data.removedConstraints[0].dimension").value("拒答 / 无法确认"));
+        mvc.perform(get("/api/v1/agents/prompt-agent/prompts/answer/versions/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.structure.sections[2].dimension").value("拒答 / 无法确认"))
+                .andExpect(jsonPath("$.data.prompt").value(org.hamcrest.Matchers.containsString("不要编造")));
+        mvc.perform(get("/api/v1/agents/prompt-agent/prompts/answer/diff").param("from", "1").param("to", "2"))
+                .andExpect(jsonPath("$.data.removedConstraints[0].dimension").value("拒答 / 无法确认"));
+        mvc.perform(post("/api/v1/agents/prompt-agent/prompts/answer/trial")
+                        .contentType("application/json")
+                        .content("{\"version\":1}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("PROMPT_VARIABLE_MISSING"));
+        mvc.perform(post("/api/v1/agents/prompt-agent/prompts/answer/trial")
+                        .contentType("application/json")
+                        .content("{\"version\":1,\"variables\":{\"question\":\"你好\"}}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.compiled").value(org.hamcrest.Matchers.containsString("你好")));
+    }
+
     @Test void savePostsAVersionAndKeepsTheTextOutOfAudit() throws Exception {
         save("answer", "UNIQUE_PROMPT_TEXT_ZX");
         assertThat(CALLS).anyMatch(call -> call.startsWith("POST "));
@@ -406,7 +446,11 @@ class PromptFlowTest {
             var version = versions.stream().mapToInt(item -> item.version).max().orElse(0) + 1;
             var labels = new ArrayList<String>();
             body.path("labels").forEach(label -> labels.add(label.asText()));
-            var stored = new Ver(version, body.path("type").asText("text"), body.get("prompt"), labels,
+            var config = body.get("config");
+            if (config == null || !config.isObject()) {
+                config = JSON.createObjectNode();
+            }
+            var stored = new Ver(version, body.path("type").asText("text"), body.get("prompt"), config, labels,
                     body.path("commitMessage").asText(""), Instant.now().toString());
             versions.add(stored);
             return stored.json().toString();
@@ -470,14 +514,16 @@ class PromptFlowTest {
         final int version;
         final String type;
         final JsonNode prompt;
+        final JsonNode config;
         final List<String> labels;
         final String commitMessage;
         final String createdAt;
 
-        Ver(int version, String type, JsonNode prompt, List<String> labels, String commitMessage, String createdAt) {
+        Ver(int version, String type, JsonNode prompt, JsonNode config, List<String> labels, String commitMessage, String createdAt) {
             this.version = version;
             this.type = type;
             this.prompt = prompt;
+            this.config = config;
             this.labels = labels;
             this.commitMessage = commitMessage;
             this.createdAt = createdAt;
@@ -489,7 +535,7 @@ class PromptFlowTest {
             body.put("version", version);
             body.put("type", type);
             body.set("prompt", prompt);
-            body.putObject("config");
+            body.set("config", config);
             var arr = body.putArray("labels");
             labels.forEach(arr::add);
             body.put("commitMessage", commitMessage);

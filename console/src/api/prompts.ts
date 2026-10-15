@@ -1,5 +1,5 @@
 import { get, post } from './http'
-import type { EnvFilter, PromptDetailModel, PromptState } from '@/views/prompts/promptView'
+import type { EnvFilter, PromptConfig, PromptDetailModel, PromptState, PromptStructure } from '@/views/prompts/promptView'
 
 export interface PromptSummary {
   agent: string
@@ -22,18 +22,32 @@ export interface PromptList {
   items?: PromptSummary[]
 }
 
+export interface PromptCheck {
+  ok?: boolean
+  text?: string
+}
+
 export interface PromptBody {
   version: number
   type: string
   prompt: string | { role: string; content: string }[]
-  config?: Record<string, number | string>
+  config?: PromptConfig
+  structure?: PromptStructure
+  checks?: PromptCheck[]
   variables?: string[]
+}
+
+export interface PromptConstraintNote {
+  id?: string
+  text: string
+  dimension?: string
 }
 
 export interface PromptDiff {
   added?: number
   removed?: number
   lines?: { op: 'same' | 'add' | 'del'; text: string }[]
+  removedConstraints?: PromptConstraintNote[]
 }
 
 export function listPrompts(env: EnvFilter, agent?: string) {
@@ -56,9 +70,17 @@ export function savePromptVersion(agent: string, name: string, body: {
   prompt: string | { role: string; content: string }[]
   commitMessage: string
   env?: 'dev' | 'test' | 'staging' | 'prod'
-  config?: Record<string, number | string>
+  config?: PromptConfig
+  fromSections?: boolean
 }) {
-  return post<{ version?: number }>(`/agents/${encodeURIComponent(agent)}/prompts/${encodeURIComponent(name)}/versions`, body)
+  return post<{ version?: number; removedConstraints?: PromptConstraintNote[] }>(`/agents/${encodeURIComponent(agent)}/prompts/${encodeURIComponent(name)}/versions`, body)
+}
+
+export function trialPrompt(agent: string, name: string, version: number, variables: Record<string, string>) {
+  return post<{ version?: number; compiled?: string | { role: string; content: string }[] }>(
+    `/agents/${encodeURIComponent(agent)}/prompts/${encodeURIComponent(name)}/trial`,
+    { version, variables },
+  )
 }
 
 export function promotePrompt(agent: string, name: string, env: 'dev' | 'test' | 'staging', version: number) {

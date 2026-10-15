@@ -22,7 +22,8 @@ alwaysApply: true
 - staging、production 两个标签只由 keel-server 挪（staging 触发回归，production 只经 `keel release` 和回滚）。dev、test 标签控制台随时挪。
 - generation 关联提示词：`langfuse.observation.prompt.name`（字符串）和 `langfuse.observation.prompt.version`（整数）。用兜底副本时不写这两项，写 `keel.prompt.fallback=true`。
 - 保护标签只有 Enterprise 有，Hobby / Core 都没有。production 标签靠 `PromptDriftJob` 守。
-- 以上提示词行为 2026-10-07 按官方文档核实，未实测；`POST` 里 config、commitMessage 的传法未核实。
+- 2026-10-15 从跳板机实测 Cloud 日本节点（Server 3 能解析域名但 TCP 超时；项目 Key 在 Secret `keel-system/keel-server`）。`POST /api/public/v2/prompts` 返回 201，body 用 `name`、`type`、`prompt`、`config`、`commitMessage`。`config` 是对象，`temperature`、`max_tokens`、`top_p` 和嵌套对象 `keel` 会原样保存。`GET /api/public/v2/prompts/{name}?version=` 返回 200，`config` 与 `commitMessage` 和写入一致；`commitMessage` 与 `config` 平级。未传 labels 时响应 `labels` 含 `latest`。GET 比 POST 多 `resolutionGraph`。模型参数只认那三项；`keel` 是结构信息，不能当成模型参数。`config.model` 仍然不写。
+- 标签、404 不回退、四环境共用一个项目，2026-10-07 按官方文档核实。提示词接口限流仍未实测。
 - Python SDK 锁 `>= 4.7.0`，低于这个版本数据在 v4 服务端会延迟约 15 分钟。
 - generation span 只由 Keel SDK 上报一次。薄网关不向 Langfuse 上报，否则一次调用记两条。
 - 在线评估器配成 observation 级（挂在根 agent 节点上）。v4 不再运行 trace 级评估器。

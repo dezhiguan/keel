@@ -138,6 +138,8 @@ public class PromptService {
         body.put("type", remote.type());
         body.put("prompt", json.convertValue(remote.prompt(), Object.class));
         body.put("config", configMap(remote.config()));
+        body.put("structure", structureMap(remote.config()));
+        body.put("checks", PromptTexts.checks(remote.prompt(), remote.type(), keelNode(remote.config())));
         body.put("variables", PromptTexts.variables(remote.prompt(), remote.type()));
         return body;
     }
@@ -146,7 +148,30 @@ public class PromptService {
         var item = resolve(agent, name);
         var left = one(item.fullName(), from);
         var right = one(item.fullName(), to);
-        return PromptTexts.diff(left.prompt(), left.type(), right.prompt(), right.type());
+        var body = new LinkedHashMap<String, Object>();
+        body.putAll(PromptTexts.diff(left.prompt(), left.type(), right.prompt(), right.type()));
+        body.put("removedConstraints", PromptTexts.removedConstraints(left.config(), right.config()));
+        return body;
+    }
+
+    public Map<String, Object> trial(String agent, String name, JsonNode body) {
+        var item = resolve(agent, name);
+        requireLangfuse();
+        if (!body.path("version").canConvertToInt()) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "version 必须是整数");
+        }
+        var remote = one(item.fullName(), body.path("version").asInt());
+        var variables = body.get("variables");
+        if (variables == null || variables.isNull()) {
+            variables = json.createObjectNode();
+        }
+        if (!variables.isObject()) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "variables 必须是对象");
+        }
+        var result = new LinkedHashMap<String, Object>();
+        result.put("version", remote.version());
+        result.put("compiled", PromptTexts.applyVariables(remote.prompt(), remote.type(), keelNode(remote.config()), variables));
+        return result;
     }
 
     public Map<String, Object> save(String agent, String name, JsonNode body) {
@@ -161,8 +186,17 @@ public class PromptService {
         if (message.isBlank()) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "保存必须带提交说明");
         }
-        var prompt = PromptTexts.asPrompt(body.get("prompt"), item.type());
         var config = PromptTexts.config(body.get("config"));
+        JsonNode prompt;
+        if (body.path("fromSections").asBoolean(false)) {
+            var sections = config.path("keel").path("sections");
+            if (!sections.isArray() || sections.isEmpty()) {
+                throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "至少保留一个分段");
+            }
+            prompt = PromptTexts.compileSections(sections, item.type(), body.get("prompt"));
+        } else {
+            prompt = PromptTexts.asPrompt(body.get("prompt"), item.type());
+        }
         var existing = load(item.fullName());
         var created = langfuse.createPrompt(item.fullName(), item.type(), prompt, config, message, List.of());
         var version = created.path("version").asInt();
@@ -175,7 +209,14 @@ public class PromptService {
         }
         writeAudit(agent, editEnv, "low", item, payload(version, sha, diffLines, null, text(body, "gitSha"), null));
         invalidateListCache();
-        return Map.of("version", version, "sha256", sha);
+        var removed = existing.isEmpty()
+                ? List.<Map<String, String>>of()
+                : PromptTexts.removedConstraints(existing.getLast().config(), config);
+        var result = new LinkedHashMap<String, Object>();
+        result.put("version", version);
+        result.put("sha256", sha);
+        result.put("removedConstraints", removed);
+        return result;
     }
 
     public Map<String, Object> promote(String agent, String name, JsonNode body) {
@@ -623,10 +664,25 @@ public class PromptService {
             config.fields().forEachRemaining(entry -> {
                 if (Set.of("temperature", "max_tokens", "top_p").contains(entry.getKey())) {
                     copy.put(entry.getKey(), entry.getValue().isNumber() ? entry.getValue().numberValue() : entry.getValue().asText());
+                } else if ("keel".equals(entry.getKey()) && entry.getValue().isObject()) {
+                    copy.put("keel", json.convertValue(entry.getValue(), Map.class));
                 }
             });
         }
         return copy;
+    }
+
+    private Map<String, Object> structureMap(JsonNode config) {
+        var keel = keelNode(config);
+        if (keel == null) {
+            return Map.of();
+        }
+        return json.convertValue(keel, new com.fasterxml.jackson.core.type.TypeReference<LinkedHashMap<String, Object>>() {});
+    }
+
+    private JsonNode keelNode(JsonNode config) {
+        var keel = config == null ? null : config.get("keel");
+        return keel != null && keel.isObject() ? keel : null;
     }
 
     private void writeAudit(String agent, String env, String risk, Item item, Map<String, Object> payload) {

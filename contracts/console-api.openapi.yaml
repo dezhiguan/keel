@@ -872,12 +872,62 @@ paths:
               type: object
               properties:
                 env: { type: string, enum: [dev, test, staging, prod], default: dev }
+                fromSections: { type: boolean, description: 为真时用 config.keel.sections 编译正文 }
+                config: { type: object, additionalProperties: true }
+                commitMessage: { type: string }
       responses:
         "200":
           description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Envelope" }
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          version: { type: integer }
+                          sha256: { type: string }
+                          removedConstraints:
+                            type: array
+                            items: { $ref: "#/components/schemas/PromptConstraint" }
+  /agents/{name}/prompts/{prompt}/trial:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+      - { name: prompt, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [prompts]
+      operationId: trialPrompt
+      summary: 用变量编译这一版提示词，不调用模型
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version: { type: integer }
+                variables:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          version: { type: integer }
+                          compiled: {}
   /agents/{name}/prompts/{prompt}/promote:
     parameters:
       - $ref: "#/components/parameters/AgentName"
@@ -2834,9 +2884,26 @@ components:
         type: { type: string, enum: [text, chat] }
         prompt: {}
         config: { type: object, additionalProperties: true }
+        structure:
+          type: object
+          additionalProperties: true
+          description: Langfuse config.keel。分段、变量 schema、输出契约和样例
+        checks:
+          type: array
+          items:
+            type: object
+            properties:
+              ok: { type: boolean }
+              text: { type: string }
         variables:
           type: array
           items: { type: string }
+    PromptConstraint:
+      type: object
+      properties:
+        id: { type: string }
+        text: { type: string }
+        dimension: { type: string, description: 这条约束对应的评测维度 }
     PromptDiff:
       type: object
       properties:
@@ -2849,6 +2916,9 @@ components:
             properties:
               op: { type: string, enum: [same, add, del] }
               text: { type: string }
+        removedConstraints:
+          type: array
+          items: { $ref: "#/components/schemas/PromptConstraint" }
 
     RegisterRequest:
       type: object

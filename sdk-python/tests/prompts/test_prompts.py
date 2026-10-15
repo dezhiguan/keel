@@ -137,6 +137,53 @@ def test_dev_404_uses_the_local_copy_and_staging_does_not(tmp_path, monkeypatch)
         server.shutdown()
 
 
+def test_keel_namespace_is_not_a_model_parameter(tmp_path):
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    import os
+    import threading
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = json.dumps({
+                "name": "prompt-lab/answer", "version": 4, "type": "text",
+                "prompt": "问题：{{question}}",
+                "config": {
+                    "temperature": 0.2,
+                    "keel": {"sections": [{"kind": "task", "text": "问题：{{question}}"}]},
+                },
+            }).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format, *args):
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    os.environ["LANGFUSE_HOST"] = f"http://127.0.0.1:{server.server_address[1]}"
+    os.environ["LANGFUSE_PUBLIC_KEY"] = "pk"
+    os.environ["LANGFUSE_SECRET_KEY"] = "sk"
+    try:
+        prompt = run(PromptClient(Manifest(Prompts([Item("answer", "text")])), "dev", tmp_path)
+                     .get("prompt-lab", "answer", "trace-1"))
+        assert prompt.config == {"temperature": 0.2}
+        assert "keel" not in prompt.config
+        assert prompt.structure["sections"][0]["kind"] == "task"
+        with pytest.raises(KeelError) as exc:
+            prompt.compile()
+        assert exc.value.code is ErrorCode.PROMPT_VARIABLE_MISSING
+        schema = Prompt("a/answer", 1, "text", False, {"temperature": 0.2}, "固定正文",
+                        {"variables": [{"name": "city", "required": True}]})
+        with pytest.raises(KeelError) as missing:
+            schema.compile()
+        assert missing.value.code is ErrorCode.PROMPT_VARIABLE_MISSING
+        assert schema.compile(city="上海") == "固定正文"
+    finally:
+        server.shutdown()
+
+
 def test_missing_variable_and_undeclared_name(tmp_path):
     prompt = Prompt("a/answer", 1, "text", False, {}, "你好 {{name}}")
     with pytest.raises(KeelError) as exc:

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { banners, canEdit, canRollback, configPayload, draftError, editingDrafts, formatWhen, matchesStatus, promotableEnvs, unchangedPrompt, type PromptDetailModel } from './promptView'
+import { banners, canEdit, canRollback, configPayload, draftError, editingDrafts, formatWhen, matchesStatus, promotableEnvs, removedConstraintMessage, removedConstraints, unchangedPrompt, type PromptDetailModel } from './promptView'
 
 const detail: PromptDetailModel = {
   agent: 'offshore-wind',
@@ -57,5 +57,16 @@ describe('prompt page rules', () => {
     const next = [{ role: 'user', content: '{{question}}' }]
     expect(unchangedPrompt(next, { temperature: 0.2 }, next, { temperature: 0.2 })).toBe(true)
     expect(unchangedPrompt(null, {}, next, {})).toBe(false)
+  })
+
+  it('names the eval dimension when a constraint is removed', () => {
+    const message = removedConstraintMessage(removedConstraints(
+      [{ kind: 'constraint', id: 'c-1', text: '不要编造', dimension: '拒答 / 无法确认' }, { kind: 'role', text: '值班员' }],
+      [{ kind: 'role', text: '值班员' }],
+    ))
+    expect(message).toContain('不要编造')
+    expect(message).toContain('拒答 / 无法确认')
+    expect(message).toContain('staging 回归')
+    expect(removedConstraints([{ kind: 'role', text: '值班员' }], [])).toEqual([])
   })
 })

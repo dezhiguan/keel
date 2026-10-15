@@ -51,6 +51,11 @@ public class PromptController {
         return R.ok(prompts.save(name, prompt, body));
     }
 
+    @PostMapping("/agents/{name}/prompts/{prompt}/trial")
+    public R<Map<String, Object>> trial(@PathVariable String name, @PathVariable String prompt, @RequestBody JsonNode body) {
+        return R.ok(prompts.trial(name, prompt, body));
+    }
+
     @PostMapping("/agents/{name}/prompts/{prompt}/promote")
     public R<Map<String, Object>> promote(@PathVariable String name, @PathVariable String prompt, @RequestBody JsonNode body) {
         return R.ok(prompts.promote(name, prompt, body));

@@ -50,6 +50,50 @@ export interface PromptRelease {
   gate?: string | null
 }
 
+export interface PromptSection {
+  kind: string
+  text: string
+  id?: string
+  dimension?: string
+}
+
+export interface PromptVariableSchema {
+  name: string
+  type?: string
+  source?: string
+  required?: boolean
+  limit?: string
+  pii?: boolean
+}
+
+export interface PromptSample {
+  name: string
+  variables?: Record<string, string>
+}
+
+export interface PromptStructure {
+  sections?: PromptSection[]
+  variables?: PromptVariableSchema[]
+  outputContract?: Record<string, unknown> | null
+  samples?: PromptSample[]
+}
+
+export interface PromptConfig {
+  temperature?: number | string
+  max_tokens?: number | string
+  top_p?: number | string
+  keel?: PromptStructure
+}
+
+export const SECTION_LABEL: Record<string, string> = {
+  role: '角色',
+  task: '任务',
+  constraint: '约束',
+  tool: '工具',
+  output: '输出',
+  example: '示例',
+}
+
 export interface PromptDetailModel {
   agent: string
   name: string
@@ -63,7 +107,7 @@ export interface PromptDetailModel {
   states?: PromptState[]
   releases?: PromptRelease[]
   versions?: PromptVersion[]
-  config?: Record<string, string | number>
+  config?: PromptConfig
   langfuseUrl?: string | null
   metricsUrl?: string | null
 }
@@ -259,7 +303,24 @@ export function draftError(type: string, drafts: PromptDraft[]) {
   return drafts[0]?.content.trim() ? '' : '提示词不能为空'
 }
 
-export function configDraft(config?: Record<string, string | number> | null): ConfigDraft {
+export function structureOf(config?: PromptConfig | null): PromptStructure {
+  return config?.keel && typeof config.keel === 'object' ? config.keel : {}
+}
+
+export function removedConstraints(previous?: PromptSection[], next?: PromptSection[]) {
+  const kept = new Set((next ?? []).filter((item) => item.kind === 'constraint').map((item) => item.text))
+  return (previous ?? [])
+    .filter((item) => item.kind === 'constraint' && item.text && !kept.has(item.text))
+    .map((item) => ({ id: item.id ?? '', text: item.text, dimension: item.dimension ?? '' }))
+}
+
+export function removedConstraintMessage(items: { text: string; dimension?: string }[]) {
+  if (!items.length) return ''
+  const parts = items.map((item) => `「${item.text}」（${item.dimension || '未标维度'}）`)
+  return `删除了约束：${parts.join('；')}。staging 回归重点看这些维度。`
+}
+
+export function configDraft(config?: PromptConfig | null): ConfigDraft {
   return {
     temperature: config?.temperature == null || config.temperature === '' ? '' : String(config.temperature),
     maxTokens: config?.max_tokens == null || config.max_tokens === '' ? '' : String(config.max_tokens),
@@ -275,7 +336,7 @@ function readNumber(raw: string, label: string, min: number, max: number): { err
   return { value }
 }
 
-export function configPayload(draft: ConfigDraft): { error: string } | { config: Record<string, number> } {
+export function configPayload(draft: ConfigDraft, keel?: PromptStructure | null): { error: string } | { config: PromptConfig } {
   const temperature = readNumber(draft.temperature, 'temperature', 0, 2)
   if ('error' in temperature) return temperature
   const topP = readNumber(draft.topP, 'top_p', 0, 1)
@@ -286,16 +347,17 @@ export function configPayload(draft: ConfigDraft): { error: string } | { config:
     if (!/^[1-9]\d*$/.test(tokens)) return { error: 'max_tokens 要是正整数' }
     maxTokens = Number(tokens)
   }
-  const config: Record<string, number> = {}
+  const config: PromptConfig = {}
   if (temperature.value != null) config.temperature = temperature.value
   if (maxTokens != null) config.max_tokens = maxTokens
   if (topP.value != null) config.top_p = topP.value
+  if (keel && Object.keys(keel).length) config.keel = keel
   return { config }
 }
 
-export function unchangedPrompt(currentPrompt: unknown, currentConfig: Record<string, string | number> | null | undefined, nextPrompt: unknown, nextConfig: Record<string, number>) {
+export function unchangedPrompt(currentPrompt: unknown, currentConfig: PromptConfig | null | undefined, nextPrompt: unknown, nextConfig: PromptConfig) {
   if (currentPrompt == null) return false
-  const current = configPayload(configDraft(currentConfig))
+  const current = configPayload(configDraft(currentConfig), currentConfig?.keel)
   const stored = 'config' in current ? current.config : {}
   return JSON.stringify(currentPrompt) === JSON.stringify(nextPrompt) && JSON.stringify(stored) === JSON.stringify(nextConfig)
 }
