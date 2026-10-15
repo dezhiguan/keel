@@ -116,6 +116,8 @@ class Context:
                           if ((tool_specs and tool_functions) or audit_spec) and env else None)
         self.tools = (_ToolClient(tool_functions or {}, manifest, self)
                       if manifest else _UnimplementedClient("tools"))
+        from keel.skills import SkillClient
+        self.skills = SkillClient(manifest, agent, env) if manifest else _UnimplementedClient("skills")
         self._prompts = PromptClient(manifest, env) if manifest else None
         self.memory = LiteMemory(LiteStore(".") if session_id else None, agent, session_id, eval_run_id)
 

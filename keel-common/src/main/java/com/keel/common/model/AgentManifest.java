@@ -33,6 +33,7 @@ public record AgentManifest(
         @JsonProperty("auth") AgentManifestSpecAuth auth,
         @JsonProperty("knowledge") List<AgentManifestSpecKnowledgeItem> knowledge,
         @JsonProperty("tools") List<AgentManifestSpecToolsItem> tools,
+        @JsonProperty("skills") List<AgentManifestSpecSkillsItem> skills,
         @JsonProperty("delegates") List<String> delegates,
         @JsonProperty("guardrails") AgentManifestSpecGuardrails guardrails,
         @JsonProperty("audit") AgentManifestSpecAudit audit,
@@ -81,6 +82,13 @@ public record AgentManifest(
         @JsonProperty("access") AgentManifestSpecToolsItemAccessValue access,
         @JsonProperty("risk") AgentManifestSpecToolsItemRiskValue risk,
         @JsonProperty("approval") AgentManifestSpecToolsItemApprovalValue approval
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record AgentManifestSpecSkillsItem(
+        @JsonProperty("name") String name,
+        @JsonProperty("version") Integer version
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)

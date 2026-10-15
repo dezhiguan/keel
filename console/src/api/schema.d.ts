@@ -673,6 +673,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 技能注册表 */
+        get: operations["listSkills"];
+        put?: never;
+        /** 发布技能的一个新版本，不授予任何工具 */
+        post: operations["publishSkill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{name}/skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        /** 已授权给这个智能体的技能 */
+        get: operations["listAgentSkills"];
+        put?: never;
+        /** 授权一版技能。不写工具授权，用例并入评测数据集 */
+        post: operations["grantSkill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{name}/skills/{skill}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                skill: string;
+            };
+            cookie?: never;
+        };
+        /** SDK 按需读取已授权技能的说明和示例 */
+        get: operations["getAgentSkill"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tools/{name}/invoke": {
         parameters: {
             query?: never;
@@ -2310,6 +2368,43 @@ export interface components {
             } | null;
             /** @description 深链 {langfuse}/project/{id}/datasets/{datasetId}/experiments。数据集 id 缺失时落到该项目的数据集列表 */
             langfuseUrl?: string | null;
+        };
+        SkillSummary: {
+            name?: string;
+            version?: number;
+            ownerOrg?: string;
+            description?: string;
+            /** @enum {string} */
+            source?: "AUTHORED" | "EXPERIENCE";
+            tools?: string[];
+            /** @enum {string} */
+            risk?: "LOW" | "MID" | "HIGH";
+            users?: string[];
+        };
+        SkillGrant: {
+            name?: string;
+            version?: number;
+            description?: string;
+            tools?: string[];
+            /** @enum {string} */
+            risk?: "LOW" | "MID" | "HIGH";
+            /** @enum {string} */
+            status?: "GRANTED";
+        };
+        SkillPublishRequest: {
+            name: string;
+            ownerOrg: string;
+            description: string;
+            /** @enum {string} */
+            source?: "AUTHORED" | "EXPERIENCE";
+            instructions: string;
+            tools?: string[];
+            examples?: string[];
+            cases?: {
+                id?: string;
+                input: string;
+                expectedOutput?: string;
+            }[];
         };
         ToolSummary: {
             /** @example work_order_create */
@@ -4086,6 +4181,140 @@ export interface operations {
                 "application/json": Record<string, never>;
             };
         };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    listSkills: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            items?: components["schemas"]["SkillSummary"][];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    publishSkill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SkillPublishRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    listAgentSkills: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            items?: components["schemas"]["SkillGrant"][];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    grantSkill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    version: number;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            name?: string;
+                            version?: number;
+                            /** @description 始终为空。技能授权不授予工具 */
+                            toolsGranted?: string[];
+                            casesMerged?: number;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    getAgentSkill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                skill: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {

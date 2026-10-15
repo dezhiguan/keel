@@ -159,6 +159,12 @@ codes:
     retryable: true
     http: 429
 
+  # ── 技能 ────────────────────────────────────────────────────────
+  SKILL_NOT_GRANTED:
+    message: 技能未授权或版本与 manifest 不一致
+    retryable: false
+    http: 403
+
   # ── 委派 ────────────────────────────────────────────────────────
   DELEGATE_NOT_DECLARED:
     message: 目标智能体未在 manifest 的 delegates 中声明

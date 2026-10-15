@@ -983,6 +983,115 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Envelope" }
 
+  # ---------------------------------------------------------------- 技能
+  /skills:
+    get:
+      tags: [tools]
+      operationId: listSkills
+      summary: 技能注册表
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items: { $ref: "#/components/schemas/SkillSummary" }
+    post:
+      tags: [tools]
+      operationId: publishSkill
+      summary: 发布技能的一个新版本，不授予任何工具
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SkillPublishRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+  /agents/{name}/skills:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+    get:
+      tags: [tools]
+      operationId: listAgentSkills
+      summary: 已授权给这个智能体的技能
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items: { $ref: "#/components/schemas/SkillGrant" }
+    post:
+      tags: [tools]
+      operationId: grantSkill
+      summary: 授权一版技能。不写工具授权，用例并入评测数据集
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, version]
+              properties:
+                name: { type: string }
+                version: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          name: { type: string }
+                          version: { type: integer }
+                          toolsGranted:
+                            type: array
+                            items: { type: string }
+                            description: 始终为空。技能授权不授予工具
+                          casesMerged: { type: integer }
+  /agents/{name}/skills/{skill}:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+      - { name: skill, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [tools]
+      operationId: getAgentSkill
+      summary: SDK 按需读取已授权技能的说明和示例
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+
   # ---------------------------------------------------------------- 工具
   /tools/{name}/invoke:
     parameters:
@@ -3269,6 +3378,56 @@ components:
           description: "深链 {langfuse}/project/{id}/datasets/{datasetId}/experiments。数据集 id 缺失时落到该项目的数据集列表"
 
     # ------------------------------------------------------------ 工具
+    SkillSummary:
+      type: object
+      properties:
+        name: { type: string }
+        version: { type: integer }
+        ownerOrg: { type: string }
+        description: { type: string }
+        source: { type: string, enum: [AUTHORED, EXPERIENCE] }
+        tools:
+          type: array
+          items: { type: string }
+        risk: { type: string, enum: [LOW, MID, HIGH] }
+        users:
+          type: array
+          items: { type: string }
+    SkillGrant:
+      type: object
+      properties:
+        name: { type: string }
+        version: { type: integer }
+        description: { type: string }
+        tools:
+          type: array
+          items: { type: string }
+        risk: { type: string, enum: [LOW, MID, HIGH] }
+        status: { type: string, enum: [GRANTED] }
+    SkillPublishRequest:
+      type: object
+      required: [name, ownerOrg, description, instructions]
+      properties:
+        name: { type: string }
+        ownerOrg: { type: string }
+        description: { type: string }
+        source: { type: string, enum: [AUTHORED, EXPERIENCE] }
+        instructions: { type: string }
+        tools:
+          type: array
+          items: { type: string }
+        examples:
+          type: array
+          items: { type: string }
+        cases:
+          type: array
+          items:
+            type: object
+            required: [input]
+            properties:
+              id: { type: string }
+              input: { type: string }
+              expectedOutput: { type: string }
     ToolSummary:
       type: object
       properties:

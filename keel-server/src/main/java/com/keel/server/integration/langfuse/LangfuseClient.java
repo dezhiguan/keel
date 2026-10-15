@@ -148,6 +148,37 @@ public class LangfuseClient {
         return id;
     }
 
+    /** One skill case in the agent's eval dataset. The same skill version and case key are not inserted twice. */
+    public String addSkillCase(String dataset, String skill, int version, String caseKey, String input, String expected) {
+        if (baseUrl.isBlank() || authorization.isBlank()) {
+            throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
+        }
+        post("/api/public/datasets", json.createObjectNode().put("name", dataset), true);
+        String id;
+        try {
+            id = sha256(dataset + "\nskill\n" + skill + "\n" + version + "\n" + caseKey);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        var existing = new HashSet<String>();
+        datasetItems(dataset).path("data").forEach(item -> existing.add(item.path("id").asText()));
+        if (existing.contains(id)) {
+            return id;
+        }
+        var body = json.createObjectNode();
+        body.put("id", id);
+        body.put("datasetName", dataset);
+        body.put("input", input == null ? "" : input);
+        body.put("expectedOutput", expected == null ? "" : expected);
+        var metadata = json.createObjectNode();
+        metadata.put("source", "skill");
+        metadata.put("skill", skill);
+        metadata.put("version", version);
+        body.set("metadata", metadata);
+        post("/api/public/dataset-items", body, true);
+        return id;
+    }
+
     public void deleteDataset(String dataset) {
         send("DELETE", "/api/public/datasets/" + dataset, null, true);
     }

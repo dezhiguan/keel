@@ -30,6 +30,9 @@ spec:
       access: write
       risk: high
       approval: required            # risk: high 必须有这一行
+  skills:
+    - name: cite-from-kb
+      version: 1
   delegates: []
   guardrails:
     inputInjection: enforce

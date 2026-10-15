@@ -5,9 +5,10 @@ import { ElMessage } from 'element-plus'
 import StatusPill from '@/components/StatusPill.vue'
 import { deleteAgent, getAgent, getAgentUsage, mergeUsage, retireAgent, recheckAgent, type AgentDetail } from '@/api/agents'
 import { listDevflowJobs, type DevflowJob } from '@/api/devflow'
+import { grantSkill, listAgentSkills, listSkills, type SkillGrant, type SkillSummary } from '@/api/skills'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
-import { agentStatus, orDash, fmtCny } from '@/utils/format'
+import { agentStatus, orDash, fmtCny, RISK } from '@/utils/format'
 import {
   avatarColor,
   avatarLetter,
@@ -54,6 +55,10 @@ const retireInput = ref('')
 const deleting = ref(false)
 const deleteInput = ref('')
 const checkingAgents = ref<string[]>([])
+const agentSkills = ref<SkillGrant[]>([])
+const catalog = ref<SkillSummary[]>([])
+const granting = ref(false)
+const grantName = ref('')
 
 function markChecking(agent: string, on: boolean) {
   const rest = checkingAgents.value.filter((item) => item !== agent)
@@ -192,16 +197,51 @@ async function confirmDelete() {
   }
 }
 
+async function loadSkills(agent: string) {
+  try {
+    agentSkills.value = (await listAgentSkills(agent)).items ?? []
+  } catch (error) {
+    ElMessage.error(`加载技能失败：${toKeelError(error).message}`)
+  }
+}
+
+async function openGrant() {
+  grantName.value = ''
+  try {
+    catalog.value = (await listSkills()).items ?? []
+    granting.value = true
+  } catch (error) {
+    ElMessage.error(toKeelError(error).message)
+  }
+}
+
+async function confirmGrant() {
+  const chosen = catalog.value.find((item) => item.name === grantName.value)
+  if (!chosen || !name.value) return
+  try {
+    const saved = await grantSkill(name.value, chosen.name, chosen.version)
+    granting.value = false
+    ElMessage.success(`已授权 ${chosen.name} v${chosen.version}。依赖工具没有自动授予。并入 ${saved.casesMerged ?? 0} 条回归用例`)
+    await loadSkills(name.value)
+  } catch (error) {
+    ElMessage.error(toKeelError(error).message)
+  }
+}
+
 function onKey(event: KeyboardEvent) {
   if (event.key !== 'Escape' || !name.value) return
-  if (retiring.value || deleting.value) {
+  if (retiring.value || deleting.value || granting.value) {
     retiring.value = false
     deleting.value = false
+    granting.value = false
     return
   }
   close()
 }
 
+watch(tab, () => {
+  if (tab.value === 'skill' && name.value) loadSkills(name.value)
+})
 watch(name, async (agent) => {
   tab.value = 'ov'
   retiring.value = false
@@ -212,6 +252,7 @@ watch(name, async (agent) => {
   if (!agent) {
     detail.value = null
     jobs.value = []
+    agentSkills.value = []
     document.body.style.overflow = ''
     return
   }
@@ -248,7 +289,7 @@ onUnmounted(() => {
         </div>
         <div class="db">
           <div class="dtabs">
-            <button v-for="[key, label] in TABS" :key="key" type="button" :class="{ on: tab === key }" @click="tab = key">{{ label }} <span v-if="key === 'skill' || key === 'ch'" class="pill nd p-vio">占位</span></button>
+            <button v-for="[key, label] in TABS" :key="key" type="button" :class="{ on: tab === key }" @click="tab = key">{{ label }} <span v-if="key === 'ch'" class="pill nd p-vio">占位</span></button>
           </div>
           <div v-loading="loading" class="dbody">
 
@@ -361,8 +402,21 @@ onUnmounted(() => {
           </template>
 
           <template v-else-if="detail && tab === 'skill'">
-            <h4>已授权技能 <span class="pill nd p-vio">占位</span></h4>
-            <table class="t"><thead><tr><th>技能</th><th>版本</th><th>依赖工具</th><th>风险</th><th>状态</th></tr></thead><tbody><tr><td colspan="5" class="empty">技能注册与授权接口尚未接入</td></tr></tbody></table>
+            <h4>已授权技能<span class="sp" /><button v-write class="btn sm" type="button" @click="openGrant">+ 添加技能</button></h4>
+            <table class="t">
+              <thead><tr><th>技能</th><th>版本</th><th>依赖工具</th><th>风险</th><th>状态</th></tr></thead>
+              <tbody>
+                <tr v-if="!agentSkills.length"><td colspan="5" class="empty">还没有技能</td></tr>
+                <tr v-for="skill in agentSkills" :key="skill.name">
+                  <td class="nm"><b class="mono">{{ skill.name }}</b><small>{{ skill.description }}</small></td>
+                  <td class="mono">v{{ skill.version }}</td>
+                  <td><span v-for="tool in skill.tools ?? []" :key="tool" class="chip">{{ tool }}</span><span v-if="!(skill.tools ?? []).length" class="mut">无</span></td>
+                  <td><span v-if="skill.risk" class="pill nd" :class="RISK[skill.risk].cls">{{ RISK[skill.risk].label }}</span></td>
+                  <td><span class="pill p-ok">已授权</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="mut">添加技能不会自动授予依赖工具。工具仍要逐个授权。技能用例会并入这个智能体的评测集。</p>
           </template>
 
           <template v-else-if="detail && tab === 'ch'">
@@ -436,6 +490,24 @@ onUnmounted(() => {
           </template>
         </div>
       </aside>
+
+      <div v-if="granting" class="modal on" role="dialog" aria-label="添加技能">
+        <div class="mh">添加技能</div>
+        <div class="mb">
+          <p class="mut">只锁定这一版。依赖工具不会一起授权，仍要到工具注册表逐个授权。</p>
+          <div class="field">
+            <label>技能</label>
+            <select v-model="grantName" class="inp">
+              <option value="">选择技能</option>
+              <option v-for="skill in catalog" :key="skill.name" :value="skill.name">{{ skill.name }} · v{{ skill.version }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="mf">
+          <button class="btn" type="button" @click="granting = false">取消</button>
+          <button v-write class="btn pri" type="button" :disabled="!grantName" @click="confirmGrant">授权</button>
+        </div>
+      </div>
 
       <div v-if="retiring" class="modal on" role="dialog" aria-label="下线智能体">
         <div class="mh">下线智能体</div>

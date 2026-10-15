@@ -6,9 +6,11 @@ import Pager from '@/components/Pager.vue'
 import ToolDrawer from './ToolDrawer.vue'
 import ToolStatusPill from './ToolStatusPill.vue'
 import { listTools, registerTool as createTool, type ListToolsQuery, type ToolPage } from '@/api/tools'
+import { listSkills, publishSkill, type SkillSummary } from '@/api/skills'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { RISK, fmtN } from '@/utils/format'
+import { sourceLabel, splitList } from './skillView'
 
 const ACCESS = { READ: '读', WRITE: '写', EXEC: '执行' } as const
 const SCOPE = { PRIVATE: '私有', SHARED: '共享' } as const
@@ -20,6 +22,19 @@ const result = ref<ToolPage | null>(null)
 const loading = ref(false)
 const registering = ref(false)
 const tab = ref<'tool' | 'skill'>('tool')
+const skills = ref<SkillSummary[]>([])
+const publishing = ref(false)
+const skillForm = reactive({
+  name: '',
+  ownerOrg: '',
+  description: '',
+  instructions: '',
+  tools: '',
+  example: '',
+  caseInput: '',
+  caseOutput: '',
+  source: 'AUTHORED' as 'AUTHORED' | 'EXPERIENCE',
+})
 const form = reactive({
   name: '',
   description: '',
@@ -35,6 +50,51 @@ const filter = reactive<{ scope: NonNullable<ListToolsQuery['scope']>; page: num
   page: 1,
   size: 10,
 })
+
+async function loadSkills() {
+  try {
+    skills.value = (await listSkills()).items ?? []
+  } catch (error) {
+    ElMessage.error(`加载技能失败：${toKeelError(error).message}`)
+  }
+}
+
+function openPublish() {
+  skillForm.name = ''
+  skillForm.ownerOrg = ''
+  skillForm.description = ''
+  skillForm.instructions = ''
+  skillForm.tools = ''
+  skillForm.example = ''
+  skillForm.caseInput = ''
+  skillForm.caseOutput = ''
+  skillForm.source = 'AUTHORED'
+  publishing.value = true
+}
+
+async function submitSkill() {
+  if (!skillForm.name.trim() || !skillForm.ownerOrg.trim() || !skillForm.description.trim() || !skillForm.instructions.trim()) {
+    ElMessage.warning('技能名、所有者、说明和正文都不能为空')
+    return
+  }
+  try {
+    const saved = await publishSkill({
+      name: skillForm.name.trim(),
+      ownerOrg: skillForm.ownerOrg.trim(),
+      description: skillForm.description.trim(),
+      instructions: skillForm.instructions.trim(),
+      source: skillForm.source,
+      tools: splitList(skillForm.tools),
+      examples: splitList(skillForm.example),
+      cases: skillForm.caseInput.trim() ? [{ input: skillForm.caseInput.trim(), expectedOutput: skillForm.caseOutput.trim() }] : [],
+    })
+    publishing.value = false
+    ElMessage.success(`已发布 ${skillForm.name.trim()} v${saved.version}，没有授予工具`)
+    await loadSkills()
+  } catch (error) {
+    ElMessage.error(toKeelError(error).message)
+  }
+}
 
 async function load() {
   loading.value = true
@@ -101,6 +161,9 @@ async function submitRegister() {
   }
 }
 
+watch(tab, () => {
+  if (tab.value === 'skill') loadSkills()
+})
 watch(() => [filter.page, filter.size], load)
 watch(() => envStore.env, () => {
   if (filter.page === 1) load()
@@ -115,10 +178,11 @@ watch(() => envStore.env, () => {
       <span class="sub">统一注册，声明读写属性和风险等级。高风险工具的每次调用都会被挂起，送到审批中心</span>
       <span class="sp" />
       <button v-if="tab === 'tool'" v-write class="btn pri" @click="openRegister">+ 注册 MCP 工具</button>
+      <button v-else v-write class="btn pri" @click="openPublish">+ 发布技能</button>
     </div>
     <div class="chipsel" style="margin-bottom: 14px">
       <button :class="{ on: tab === 'tool' }" @click="tab = 'tool'">工具 · {{ result?.total ?? 0 }}</button>
-      <button :class="{ on: tab === 'skill' }" @click="tab = 'skill'">技能 <span class="pill nd p-vio">占位</span></button>
+      <button :class="{ on: tab === 'skill' }" @click="tab = 'skill'">技能 · {{ skills.length }}</button>
     </div>
     <div v-if="tab === 'tool'" class="toolbar">
       <div class="chipsel">
@@ -150,9 +214,20 @@ watch(() => envStore.env, () => {
       <Pager v-model:page="filter.page" v-model:size="filter.size" :total="result?.total ?? 0" />
     </div>
     <div v-else class="card">
-      <h3>技能注册表 <span class="pill nd p-vio">占位</span></h3>
-      <table class="t"><thead><tr><th>技能</th><th>所有者</th><th>版本</th><th>依赖工具</th><th>风险</th><th>使用方</th><th>来源</th></tr></thead>
-        <tbody><tr><td colspan="7" class="empty">技能注册与授权接口尚未接入</td></tr></tbody>
+      <table class="t">
+        <thead><tr><th>技能</th><th>所有者</th><th>版本</th><th>依赖工具</th><th>风险</th><th>使用方</th><th>来源</th></tr></thead>
+        <tbody>
+          <tr v-if="!skills.length"><td colspan="7" class="empty">还没有技能</td></tr>
+          <tr v-for="skill in skills" :key="skill.name">
+            <td class="nm"><b class="mono">{{ skill.name }}</b><small>{{ skill.description }}</small></td>
+            <td>{{ skill.ownerOrg }}</td>
+            <td class="mono">v{{ skill.version }}</td>
+            <td><span v-for="tool in skill.tools ?? []" :key="tool" class="chip">{{ tool }}</span><span v-if="!(skill.tools ?? []).length" class="mut">无</span></td>
+            <td><span v-if="skill.risk" class="pill nd" :class="RISK[skill.risk].cls">{{ RISK[skill.risk].label }}</span></td>
+            <td><span v-for="user in skill.users ?? []" :key="user" class="chip">{{ user }}</span><span v-if="!(skill.users ?? []).length" class="mut">无</span></td>
+            <td>{{ sourceLabel(skill.source) }}</td>
+          </tr>
+        </tbody>
       </table>
     </div>
     <el-dialog v-model="registering" title="注册 MCP 工具" width="480px">
@@ -186,6 +261,28 @@ watch(() => envStore.env, () => {
       <template #footer>
         <button class="btn" @click="registering = false">取消</button>
         <button v-write class="btn pri" style="margin-left: 8px" @click="submitRegister">确认注册</button>
+      </template>
+    </el-dialog>
+    <el-dialog v-model="publishing" title="发布技能" width="520px">
+      <el-form label-width="100px">
+        <el-form-item label="技能名"><el-input v-model="skillForm.name" placeholder="如 cite-from-kb" /></el-form-item>
+        <el-form-item label="所有者"><el-input v-model="skillForm.ownerOrg" /></el-form-item>
+        <el-form-item label="说明"><el-input v-model="skillForm.description" /></el-form-item>
+        <el-form-item label="正文"><el-input v-model="skillForm.instructions" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item label="依赖工具"><el-input v-model="skillForm.tools" placeholder="逗号分隔，须已注册" /></el-form-item>
+        <el-form-item label="示例"><el-input v-model="skillForm.example" /></el-form-item>
+        <el-form-item label="用例输入"><el-input v-model="skillForm.caseInput" /></el-form-item>
+        <el-form-item label="期望输出"><el-input v-model="skillForm.caseOutput" /></el-form-item>
+        <el-form-item label="来源">
+          <el-select v-model="skillForm.source" style="width: 100%">
+            <el-option label="人工编写" value="AUTHORED" />
+            <el-option label="经验沉淀" value="EXPERIENCE" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <button class="btn" @click="publishing = false">取消</button>
+        <button v-write class="btn pri" style="margin-left: 8px" @click="submitSkill">发布</button>
       </template>
     </el-dialog>
     <ToolDrawer @changed="load" />
