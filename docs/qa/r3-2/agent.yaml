@@ -1,0 +1,23 @@
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  name: qa-r3-2
+  displayName: 挂起恢复验收
+  owner: 研发效能组 / amy
+spec:
+  kind: workflow
+  runtime:
+    type: code
+    language: python
+    endpoint: http://127.0.0.1:8000
+  models:
+    default: qwen-plus
+    budget:
+      dailyCny: 1
+  tools:
+    - name: export_report
+      access: write
+      risk: high
+      approval: required
+  audit:
+    captureFields: [text]
