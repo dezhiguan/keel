@@ -47,8 +47,9 @@ keel-server/src/test/java/com/keel/server/archunit/ArchitectureTest.java
 - 控制台 Cookie：`HttpOnly`、`SameSite=Strict`、`Path=/api`。不再用 `__Host-` 前缀，因为该前缀要求 `Path=/`，托管页 `/a/{agent}` 就会带上会话。
 - `GET /a/{agent}` 托管页，不写 Cookie。
 - `POST /agents/{name}/channels` 发布并返回嵌入代码。
-- `POST /agents/{name}/channels/entry` 校验域名。未登记返回 `CHANNEL_ORIGIN_DENIED`。
-- 网页脚本 `/a/widget.js` 负责对话、识别 `event: suspend`、点赞点踩。
+- `POST /a/api/{name}/entry` 按请求 `Origin` 和发布凭证校验渠道；不能用 body 自报 origin。未登记返回 `CHANNEL_ORIGIN_DENIED`。换票渠道还须用 auth-gateway JWKS 验证 `aud=keel-api` 的用户令牌。
+- `POST /a/api/{name}/invoke` 先原子扣渠道每小时配额，再透传智能体真实 SSE；`POST /a/api/{name}/feedback` 保存链路点赞点踩供质量中心使用。
+- 网页脚本 `/a/widget.js` 负责对话、识别 `event: suspend`、点赞点踩。业务网页通过 `window.keelChannelToken(agent)` 提供用户令牌。
 
 ## 界面对齐
 
@@ -59,7 +60,7 @@ keel-server/src/test/java/com/keel/server/archunit/ArchitectureTest.java
 ## 实现要点
 
 - 匿名渠道在 manifest 有 `risk: high` 工具时拒绝发布。
-- `OPENID` 只登记，状态是 `REGISTERED`，不实现小程序流式。
+- `OPENID` 只登记，状态是 `REGISTERED`；可信映射依赖业务身份系统接入。小程序换票方式在 R4-9 中实现。
 - 托管页 HTML 不出现 `keel_console` 或 `document.cookie`。
 
 ## 验收标准

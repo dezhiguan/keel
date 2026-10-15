@@ -3,6 +3,7 @@
 import os
 
 import httpx
+from keel.auth.client_assertion import ASSERTION_TYPE, sign_client_assertion
 
 from keel.protocol.errors import ErrorCode, KeelError
 
@@ -33,8 +34,14 @@ class UserMemory:
         if not base:
             raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "KEEL_SERVER_URL 未配置")
         url = f"{base}/api/v1/agents/{self.agent}/memories{suffix}"
+        audience = os.environ.get("KEEL_SERVICE_AUDIENCE", "")
+        key = os.environ.get("KEEL_CLIENT_PRIVATE_KEY", "")
+        if not audience or not key:
+            raise KeelError(ErrorCode.AUTH_UNAUTHENTICATED, "记忆服务需要智能体服务身份")
+        headers = {"X-Client-Id": self.agent, "X-Client-Assertion-Type": ASSERTION_TYPE,
+                   "X-Client-Assertion": sign_client_assertion(self.agent, audience, key)}
         async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.request(method, url, json=payload)
+            response = await client.request(method, url, json=payload, headers=headers)
         if response.status_code == 403:
             raise KeelError(ErrorCode.MEMORY_WRITE_DENIED)
         if response.status_code >= 400:

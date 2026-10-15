@@ -6,7 +6,9 @@ public final class CatalogAccess {
 
     public static boolean serviceAccessible(String method, String uri) {
         return readable(method, uri) || ("POST".equals(method) && uri != null
-                && uri.matches("/api/v1/tools/[a-z][a-z0-9.-]+/invoke"));
+                && uri.matches("/api/v1/tools/[a-z][a-z0-9.-]+/invoke"))
+                || (uri != null && uri.matches("/api/v1/agents/[a-z][a-z0-9-]*/memories(?:/recall|/[0-9]+)?")
+                    && ("GET".equals(method) || "POST".equals(method) || "DELETE".equals(method)));
     }
 
     public static boolean readable(String method, String uri) {

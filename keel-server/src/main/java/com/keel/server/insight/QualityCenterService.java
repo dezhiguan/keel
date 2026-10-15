@@ -7,6 +7,7 @@ import com.keel.server.integration.langfuse.LangfuseClient;
 import com.keel.server.registry.service.AgentRegistryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,19 +22,29 @@ import java.util.function.Function;
 public class QualityCenterService {
     private final LangfuseClient langfuse;
     private final Function<String, String> datasetOf;
+    private final JdbcTemplate jdbc;
 
     @Autowired
+    public QualityCenterService(LangfuseClient langfuse, AgentRegistryService registry, JdbcTemplate jdbc) {
+        this(langfuse, agent -> dataset(registry, agent), jdbc);
+    }
+
     public QualityCenterService(LangfuseClient langfuse, AgentRegistryService registry) {
-        this(langfuse, agent -> dataset(registry, agent));
+        this(langfuse, agent -> dataset(registry, agent), null);
     }
 
     QualityCenterService(LangfuseClient langfuse, Function<String, String> datasetOf) {
+        this(langfuse, datasetOf, null);
+    }
+
+    QualityCenterService(LangfuseClient langfuse, Function<String, String> datasetOf, JdbcTemplate jdbc) {
         this.langfuse = langfuse;
         this.datasetOf = datasetOf;
+        this.jdbc = jdbc;
     }
 
     public Report report(String agent) {
-        if (!langfuse.configured()) {
+        if (!langfuse.configured() && jdbc == null) {
             return new Report(false, 0, 0, null, List.of());
         }
         var filter = agent == null ? "" : agent.trim();
@@ -88,15 +99,22 @@ public class QualityCenterService {
     }
 
     private List<JsonNode> feedbackRows() {
-        if (!langfuse.configured()) {
-            return List.of();
-        }
         var rows = new ArrayList<JsonNode>();
-        langfuse.scores().path("data").forEach(row -> {
-            if ("user-feedback".equals(row.path("name").asText())) {
-                rows.add(row);
-            }
+        if (langfuse.configured()) langfuse.scores().path("data").forEach(row -> {
+            if ("user-feedback".equals(row.path("name").asText())) rows.add(row);
         });
+        if (jdbc != null) {
+            rows.addAll(jdbc.query("SELECT agent_name,trace_id,value,created_at FROM channel_feedback ORDER BY created_at DESC LIMIT 1000",
+                    (rs, n) -> {
+                        var row = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+                        row.put("name", "user-feedback");
+                        row.put("traceId", rs.getString("trace_id"));
+                        row.put("value", rs.getInt("value"));
+                        row.put("createdAt", rs.getTimestamp("created_at").toInstant().toString());
+                        row.putObject("metadata").put("keel.agent", rs.getString("agent_name"));
+                        return row;
+                    }));
+        }
         return rows;
     }
 

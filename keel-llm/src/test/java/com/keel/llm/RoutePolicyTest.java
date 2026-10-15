@@ -21,4 +21,18 @@ class RoutePolicyTest {
         assertThat(policy.open("http://qwen")).isTrue();
         assertThat(policy.plan(key, "qwen-plus", false, catalog)).containsExactly("deepseek-v3");
     }
+
+    @Test void latencyObjectiveUsesMeasuredChannelLatency() {
+        var policy = new RoutePolicy();
+        var catalog = new ModelCatalog(Map.of(
+                "primary", new ModelCatalog.Model("primary", new BigDecimal("0.000001"), new BigDecimal("0.000001"), "http://primary", "k"),
+                "slow", new ModelCatalog.Model("slow", new BigDecimal("0.000001"), new BigDecimal("0.000001"), "http://slow", "k"),
+                "fast", new ModelCatalog.Model("fast", new BigDecimal("0.000001"), new BigDecimal("0.000001"), "http://fast", "k")));
+        var key = new Gateway.VirtualKey("askdb-dev", "token", List.of("primary", "slow", "fast"),
+                List.of("slow", "fast"), new BigDecimal("30"), true, false, 1);
+        policy.observe("http://slow", false, 500);
+        policy.observe("http://fast", false, 20);
+        policy.publish("latency");
+        assertThat(policy.plan(key, "primary", false, catalog)).containsExactly("primary", "fast");
+    }
 }

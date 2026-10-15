@@ -704,7 +704,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 嵌入页校验域名。未登记返回 CHANNEL_ORIGIN_DENIED */
+        /** 按 Origin 或小程序客户端 ID 校验已发布渠道。未登记返回 CHANNEL_ORIGIN_DENIED */
         post: operations["enterChannel"];
         delete?: never;
         options?: never;
@@ -4307,7 +4307,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    kind: "HOSTED" | "EMBED" | "WEB";
+                    kind: "HOSTED" | "EMBED" | "WEB" | "MINIPROGRAM";
                     /** @enum {string} */
                     identity: "EXCHANGE" | "OPENID" | "ANONYMOUS";
                     origin?: string;
@@ -4339,7 +4339,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    origin?: string;
                     credential?: string;
                 };
             };

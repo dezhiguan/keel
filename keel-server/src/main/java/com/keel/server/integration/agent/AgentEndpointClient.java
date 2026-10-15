@@ -8,6 +8,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.io.OutputStream;
 
 /** Calls an agent's own /v1/health, /v1/manifest, /v1/invoke, and /v1/runs/{id}/resume. */
 @Component
@@ -43,6 +44,33 @@ public class AgentEndpointClient {
 
     public Answer probe(String endpoint, String agent, String env) {
         return invoke(endpoint, "probe", null, agent, env, null, "self-check");
+    }
+
+    /** Relay agent SSE unchanged so token, suspend and error events retain their meaning. */
+    public void stream(String endpoint, String text, String bridgeToken, String agent, String env,
+                       String channel, String userId, String ragToken, String ragKbIds, OutputStream client) {
+        try {
+            var payload = json.createObjectNode();
+            payload.putObject("input").put("text", text);
+            var context = payload.putObject("context").put("channel", channel);
+            if (userId != null && !userId.isBlank()) context.put("user_id", userId);
+            var builder = HttpRequest.newBuilder(URI.create(trim(endpoint) + "/v1/invoke"))
+                    .timeout(Duration.ofMinutes(5)).header("Content-Type", "application/json")
+                    .header("Accept", "text/event-stream").header("X-Keel-Agent", agent).header("X-Keel-Env", env);
+            if (bridgeToken != null && !bridgeToken.isBlank()) builder.header("X-Keel-Bridge", bridgeToken);
+            if (ragToken != null && !ragToken.isBlank()) builder.header("X-Keel-Rag-Token", ragToken);
+            if (ragKbIds != null && !ragKbIds.isBlank()) builder.header("X-Keel-Rag-Kb-Ids", ragKbIds);
+            var response = http.send(builder.POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(payload))).build(),
+                    HttpResponse.BodyHandlers.ofInputStream());
+            if (response.statusCode() >= 300) throw new IllegalStateException("智能体返回 HTTP " + response.statusCode());
+            try (var input = response.body()) { input.transferTo(client); }
+        } catch (java.io.IOException error) {
+            // Client cancellation closes the response stream; do not replay a paid invoke.
+            throw new IllegalStateException("渠道流式调用中断", error);
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("渠道流式调用中断", error);
+        }
     }
 
     private Answer invoke(String endpoint, String text, String bridgeToken, String agent, String env, String userId, String evalRun) {

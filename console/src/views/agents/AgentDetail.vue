@@ -66,6 +66,11 @@ const channels = ref<ChannelRow[]>([])
 const channelKind = ref<ChannelRow['kind']>('EMBED')
 const channelIdentity = ref<ChannelRow['identity']>('EXCHANGE')
 const channelOrigin = ref('')
+const channelQuota = ref(30)
+watch(channelKind, (kind) => {
+  if (kind === 'HOSTED') channelIdentity.value = 'ANONYMOUS'
+  if (kind === 'MINIPROGRAM') channelIdentity.value = 'EXCHANGE'
+})
 
 function markChecking(agent: string, on: boolean) {
   const rest = checkingAgents.value.filter((item) => item !== agent)
@@ -219,8 +224,9 @@ async function addChannel() {
       kind: channelKind.value,
       identity: channelIdentity.value,
       origin: channelOrigin.value.trim() || undefined,
+      quotaPerHour: channelQuota.value,
     })
-    ElMessage.success('渠道已发布')
+    ElMessage.success(channelIdentity.value === 'OPENID' ? '已登记，待身份接入后启用' : '渠道已发布')
     await loadChannels(name.value)
   } catch (error) {
     ElMessage.error(toKeelError(error).message)
@@ -492,30 +498,34 @@ onUnmounted(() => {
                 <option value="HOSTED">托管页面</option>
                 <option value="EMBED">网页嵌入</option>
                 <option value="WEB">网页 SDK</option>
+                <option value="MINIPROGRAM">微信小程序</option>
               </select>
               <select v-model="channelIdentity" class="inp">
                 <option value="EXCHANGE">业务系统用户（换票）</option>
-                <option value="OPENID">openid 映射</option>
-                <option value="ANONYMOUS">匿名访客</option>
+                <option value="OPENID" disabled>openid 映射（待身份接入）</option>
+                <option value="ANONYMOUS" :disabled="channelKind === 'MINIPROGRAM'">匿名访客</option>
               </select>
-              <input v-model="channelOrigin" class="inp" placeholder="允许的域名，托管页可空" />
+              <input v-model="channelOrigin" class="inp" :placeholder="channelKind === 'MINIPROGRAM' ? '换票客户端 ID（与小程序 appid 对应）' : '允许的域名，托管页可空'" />
+              <input v-model.number="channelQuota" class="inp" type="number" min="1" placeholder="每小时配额" />
             </div>
             <table class="t">
               <thead><tr><th>渠道</th><th>方式</th><th>用户身份</th><th>白名单</th><th>配额</th><th>状态</th></tr></thead>
               <tbody>
                 <tr v-if="!channels.length"><td colspan="6" class="empty">还没有发布到任何渠道</td></tr>
                 <tr v-for="row in channels" :key="row.id">
-                  <td>{{ row.kind === 'HOSTED' ? '托管页面' : row.kind === 'EMBED' ? '网页嵌入' : '网页 SDK' }}</td>
+                  <td>{{ row.kind === 'HOSTED' ? '托管页面' : row.kind === 'EMBED' ? '网页嵌入' : row.kind === 'MINIPROGRAM' ? '微信小程序' : '网页 SDK' }}</td>
                   <td class="mono">{{ row.hostedPath }}</td>
                   <td>{{ row.identity === 'EXCHANGE' ? '换票' : row.identity === 'OPENID' ? 'openid 映射' : '匿名访客' }}</td>
                   <td class="mono">{{ row.origin || '—' }}</td>
                   <td class="mono">{{ row.quotaPerHour ?? '—' }}</td>
-                  <td>{{ row.status }}</td>
+                  <td>{{ row.status === 'ONLINE' ? '已启用' : '待身份接入' }}</td>
                 </tr>
               </tbody>
             </table>
             <h4 style="margin-top: 16px">嵌入代码与托管页面</h4>
-            <pre v-for="row in channels" :key="'code-' + row.id" class="code">{{ row.embed }}</pre>
+            <pre v-for="row in channels.filter(item => item.status === 'ONLINE' && item.kind !== 'MINIPROGRAM')" :key="'code-' + row.id" class="code">{{ row.embed }}</pre>
+            <p v-if="channels.some(item => item.identity === 'EXCHANGE')" class="mut">业务网页接入前提供 window.keelChannelToken(agent)，返回面向 keel-api 的用户令牌。</p>
+            <p v-if="channels.some(item => item.kind === 'MINIPROGRAM')" class="mut">小程序下载 /a/miniprogram.js，调用 createKeelClient({ baseUrl, agent, credential, appid, token })；token 返回 auth-gateway 换票令牌，令牌 azp 必须等于登记的客户端 ID。</p>
             <p v-if="!channels.length" class="mut">发布渠道后，这里显示嵌入代码。托管页面在 /a/智能体名，读不到控制台 Cookie。</p>
           </template>
 

@@ -39,6 +39,8 @@ class BudgetCounterTest {
         var budget = new BudgetCounter(clock);
         assertThat(budget.reserve("echo-dev", "2026-10-15@stale", new BigDecimal("0.01"), new BigDecimal("0.01"))).isTrue();
         instant.set(instant.get().plusSeconds(121));
+        assertThat(budget.snapshot("echo-dev").reservedCny()).isEqualByComparingTo("0.01");
+        instant.set(instant.get().plusMillis(BudgetCounter.RESERVATION_MILLIS));
         assertThat(budget.snapshot("echo-dev").reservedCny()).isEqualByComparingTo("0");
         assertThatThrownBy(() -> budget.settle("echo-dev", "2026-10-15@stale", BigDecimal.ONE))
                 .isInstanceOf(IllegalStateException.class);
@@ -57,7 +59,7 @@ class BudgetCounterTest {
         assertThat(budget.reserve("echo-dev", id, new BigDecimal("0.006"), new BigDecimal("0.01"))).isTrue();
         assertThat(budget.markPending("echo-dev", id)).isTrue();
         assertThat(budget.markPending("echo-dev", id)).isFalse();
-        instant.set(instant.get().plusSeconds(121));
+        instant.set(instant.get().plusMillis(BudgetCounter.RESERVATION_MILLIS + 1));
         budget.release("echo-dev", id);
         assertThat(budget.snapshot("echo-dev").reservedCny()).isEqualByComparingTo("0.006");
         assertThat(budget.reserve("echo-dev", "2026-10-15@other", new BigDecimal("0.006"),

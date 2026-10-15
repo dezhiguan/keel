@@ -14,6 +14,7 @@ import com.keel.server.insight.SavedTraces;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.io.OutputStream;
 
 /** Forwards one user turn to the registered agent process and records the invoke. */
 @Service
@@ -89,6 +90,28 @@ public class AgentChatService {
         body.put("text", answer.text());
         body.put("traceId", answer.traceId());
         return body;
+    }
+
+    public void channelStream(String name, String text, String channel, String userId, OutputStream output) {
+        if (text == null || text.isBlank()) throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "输入不能为空");
+        var detail = registry.detail(name);
+        if (detail.summary().status() != com.keel.server.registry.model.enums.AgentStatus.ONLINE) {
+            throw new KeelException(ErrorCode.GW_AGENT_OFFLINE, "智能体未上线");
+        }
+        var endpoint = registry.invokeEndpoint(name);
+        if (!"echo".equals(name) && endpoint.contains("//echo-agent.")) {
+            throw new KeelException(ErrorCode.GW_AGENT_OFFLINE, "智能体没有独立运行服务");
+        }
+        var bridge = "careermate".equals(name) ? careerMateToken : null;
+        var rag = secrets == null ? null : secrets.knowledgeCredential(name);
+        try {
+            endpoints.stream(endpoint, text, bridge, name, detail.summary().env(), channel, userId,
+                    rag == null ? null : rag.token(), rag == null ? null : rag.kbIds(), output);
+            audits.append(name, detail.summary().env(), "invoke", "low", "allowed", name, null);
+        } catch (RuntimeException error) {
+            audits.append(name, detail.summary().env(), "invoke", "low", "error", name, null);
+            throw error;
+        }
     }
 
     /** Display name when the console user has one. Preview sessions are not an operator. */

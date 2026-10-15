@@ -18,7 +18,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class BudgetCounter implements AutoCloseable {
     static final ZoneId SHANGHAI = ZoneId.of("Asia/Shanghai");
     private static final BigDecimal SCALE = new BigDecimal("1000000");
-    private static final long RESERVATION_MILLIS = 120_000;
+    // The controller allows a five-minute upstream stream. Keep its reservation
+    // throughout that call, including client read time and one fallback attempt.
+    static final long RESERVATION_MILLIS = 3_600_000;
     private static final int RETENTION_SECONDS = 172_800;
     private static final int PENDING_RETENTION_SECONDS = 2_592_000;
     private static final String PREFIX = "keel-llm:budget:v2:";

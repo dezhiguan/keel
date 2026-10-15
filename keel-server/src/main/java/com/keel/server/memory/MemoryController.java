@@ -39,11 +39,17 @@ public class MemoryController {
 
     @PostMapping
     public R<Map<String, Object>> write(@PathVariable String name, @RequestBody JsonNode body) {
-        return R.ok(memories.write(name, body, ConsolePrincipal.requireUsername()));
+        return R.ok(memories.write(name, body, actor()));
     }
 
     @DeleteMapping("/{id}")
     public R<Map<String, Object>> delete(@PathVariable String name, @PathVariable long id) {
-        return R.ok(memories.delete(name, id, ConsolePrincipal.requireUsername()));
+        return R.ok(memories.delete(name, id, actor()));
+    }
+
+    private static String actor() {
+        var principal = ConsolePrincipal.current();
+        if (principal != null && "SERVICE".equals(principal.mode())) return principal.username();
+        return ConsolePrincipal.requireUsername();
     }
 }

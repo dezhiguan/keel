@@ -64,9 +64,15 @@ class ChannelFlowTest {
                             return request;
                         }))
                 .andExpect(status().isBadRequest());
+        jdbc.update("UPDATE agent_version SET manifest_json='{" + "\"spec\":{}" + "}'::jsonb WHERE agent_name='careermate'");
+        mvc.perform(post("/api/v1/agents/careermate/channels").contentType("application/json")
+                        .content("{\"kind\":\"HOSTED\",\"identity\":\"ANONYMOUS\"}")
+                        .with(request -> { ConsolePrincipal.set(request, ConsolePrincipal.dev()); return request; }))
+                .andExpect(status().isOk());
         mvc.perform(get("/a/careermate").cookie(new jakarta.servlet.http.Cookie("keel_console_at", "secret")))
                 .andExpect(status().isOk())
                 .andExpect(header().doesNotExist("Set-Cookie"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-credential=\"ch_")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("keel_console"))));
     }
 }

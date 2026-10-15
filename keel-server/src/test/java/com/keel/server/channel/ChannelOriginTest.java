@@ -20,13 +20,12 @@ class ChannelOriginTest {
     }
 
     @Test void hostedPageDoesNotMentionTheConsoleCookie() throws Exception {
-        var html = HostedPage.html("careermate");
+        var html = HostedPage.html("careermate", "ch_test");
         assertThat(html).contains("/a/widget.js").contains("data-agent=\"careermate\"");
+        assertThat(html).contains("data-credential=\"ch_test\"");
         assertThat(html).doesNotContain("keel_console").doesNotContain("document.cookie");
         var widget = new String(ChannelOriginTest.class.getResourceAsStream("/static/a/widget.js").readAllBytes(), StandardCharsets.UTF_8);
-        assertThat(widget).contains("CHANNEL_ORIGIN_DENIED").contains("event: suspend").contains("feedback");
-        assertThat(MiniprogramStream.chunks("abcdefghij")).isEqualTo("abcdefgh\nij\n");
-        assertThat(MiniprogramStream.chunks("hi")).doesNotContain("event:");
+        assertThat(widget).contains("type === \"suspend\"").contains("feedback");
         assertThat(widget).doesNotContain("keel_console");
     }
 }

@@ -49,6 +49,8 @@ alwaysApply: true
 
 ## auth-gateway
 
+- 渠道小程序只接受 `aud=keel-api`、`principal_type=user` 且 `azp` 等于渠道登记客户端 ID 的换票令牌。业务后端负责登录和 openid 映射；小程序 SDK 的 `token()` 提供换票令牌。`wx.request` 开 `enableChunked` 接收 `/a/api/{agent}/invoke` 的真实 SSE 分块，并送 `X-Keel-Miniapp-Id`；该头仅用于定位渠道，身份依赖已验签的 `azp`。
+
 - Token Exchange：`POST /oauth/token-exchange`，表单字段是 **`requested_audience`、`requested_scopes`**，不是 RFC 8693 的 `audience` / `scope`。
 - 用户 token 的 aud 统一为 `keel-api`。网关按 roles / scopes 准入后**换票**成目标智能体的 aud。不要写「检查 JWT 的 aud 是否等于目标智能体」，用户 token 不可能同时是 10 个智能体的 aud。
 - 客户端认证只接受 private_key_jwt（RS256），从客户端的 `jwks_uri` 取公钥；assertion 有效期 ≤ 10 分钟，jti 不可重放。

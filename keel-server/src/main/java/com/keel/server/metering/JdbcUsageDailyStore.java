@@ -15,10 +15,13 @@ public final class JdbcUsageDailyStore implements UsageDailyStore {
 
     @Override
     public void replaceOpen(LocalDate day, String env, UsageMath.Slice slice) {
-        jdbc.update("DELETE FROM usage_daily WHERE day=? AND env=? AND NOT closed", Date.valueOf(day), env);
         jdbc.update("""
                 INSERT INTO usage_daily(day, env, agent, calls, tokens, cost_cny, users, closed)
                 VALUES (?,?,'*',?,?,?,?,FALSE)
+                ON CONFLICT (day, env, agent) DO UPDATE SET
+                  calls=EXCLUDED.calls, tokens=EXCLUDED.tokens,
+                  cost_cny=EXCLUDED.cost_cny, users=EXCLUDED.users
+                WHERE NOT usage_daily.closed
                 """, Date.valueOf(day), env, slice.calls(), slice.tokens(), slice.costCny(), slice.users());
     }
 

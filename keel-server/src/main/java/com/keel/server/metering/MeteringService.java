@@ -31,23 +31,48 @@ public class MeteringService {
     @Scheduled(cron = "0 5 * * * *", zone = "Asia/Shanghai")
     public void hourly() {
         var now = Instant.now();
+        var today = LocalDate.ofInstant(now, SHANGHAI);
+        var yesterday = today.minusDays(1);
+        for (var env : List.of("all", "dev", "test", "staging", "prod")) {
+            // Finalize the previous calendar day before sealing it. The 23:05
+            // snapshot cannot include calls made during the last 55 minutes.
+            rollupDay(env, costs.cost(env, "all"), yesterday);
+        }
+        store.closeBefore(today);
         for (var env : List.of("all", "dev", "test", "staging", "prod")) {
             rollup(env, costs.cost(env, "today"), now);
         }
     }
 
+    void rollupDay(String env, CostService.Result history, LocalDate day) {
+        var bills = history.bills().stream().filter(bill -> {
+            try {
+                return LocalDate.ofInstant(Instant.parse(bill.ts()), SHANGHAI).equals(day);
+            } catch (RuntimeException ignored) {
+                return false;
+            }
+        }).toList();
+        if (bills.isEmpty()) return;
+        store.replaceOpen(day, env, slice(bills));
+    }
+
     public UsageMath.Slice rollup(String env, CostService.Result todayBills, Instant now) {
         var day = LocalDate.ofInstant(now, SHANGHAI);
-        store.closeBefore(day);
         if (todayBills.models().isEmpty() && todayBills.keys().isEmpty() && todayBills.bills().isEmpty()) {
             var open = store.open(env, day);
             var closed = store.sumClosed(env);
             return UsageMath.cumulative(closed, open == null ? UsageMath.Slice.unknown() : open, store.distinctUsers(env));
         }
+        var today = slice(todayBills.bills());
+        store.replaceOpen(day, env, today);
+        return UsageMath.cumulative(store.sumClosed(env), today, store.distinctUsers(env));
+    }
+
+    private static UsageMath.Slice slice(List<com.keel.server.integration.litellm.LiteLlmClient.Spend> bills) {
         long tokens = 0;
         var cost = BigDecimal.ZERO;
         var requests = new java.util.HashSet<String>();
-        for (var bill : todayBills.bills()) {
+        for (var bill : bills) {
             if (!"SETTLED".equals(bill.status()) || bill.costCny() == null) continue;
             cost = cost.add(BigDecimal.valueOf(bill.costCny()));
             int input = bill.inputTokens() == null ? 0 : bill.inputTokens();
@@ -55,9 +80,7 @@ public class MeteringService {
             tokens += (long) input + output;
             if (bill.requestId() != null && !bill.requestId().isBlank()) requests.add(bill.requestId());
         }
-        var today = new UsageMath.Slice((long) requests.size(), tokens, cost, null);
-        store.replaceOpen(day, env, today);
-        return UsageMath.cumulative(store.sumClosed(env), today, store.distinctUsers(env));
+        return new UsageMath.Slice((long) requests.size(), tokens, cost, null);
     }
 
     public UsageMath.Slice today(String env, Instant now) {

@@ -3,6 +3,7 @@ package com.keel.server.memory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.keel.common.error.ErrorCode;
 import com.keel.server.common.KeelException;
+import com.keel.server.auth.ConsolePrincipal;
 import com.keel.server.integration.audit.AuditStore;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,7 @@ public class MemoryService {
         if (row == null) {
             throw new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message());
         }
+        authorize(agent, row.ownerOrg(), owner, true);
         MemoryPolicy.requireWritable(row.layer(), agent, body.path("evalRunId").asText(""));
         var embedding = body.get("embedding") == null || body.get("embedding").isNull() ? null : body.get("embedding").toString();
         var id = jdbc.queryForObject("""
@@ -52,8 +54,8 @@ public class MemoryService {
     }
 
     public Map<String, Object> list(String agent, String ownerUser, String layer) {
-        requireAgent(agent);
         var owner = ownerUser == null ? "" : ownerUser.trim();
+        authorize(agent, requireAgent(agent).ownerOrg(), owner, false);
         var wanted = layer == null ? "" : layer.trim();
         var items = jdbc.query("""
                 SELECT id, owner_user, content, layer, created_at FROM user_memory
@@ -64,7 +66,7 @@ public class MemoryService {
     }
 
     public Map<String, Object> recall(String agent, String ownerUser, String layer, List<Double> query) {
-        requireAgent(agent);
+        authorize(agent, requireAgent(agent).ownerOrg(), ownerUser, false);
         var rows = jdbc.query("""
                 SELECT id, owner_user, content, layer, embedding::text, created_at FROM user_memory
                 WHERE agent_name = ? AND owner_user = ? AND layer = ?
@@ -91,12 +93,13 @@ public class MemoryService {
     }
 
     public Map<String, Object> delete(String agent, long id, String actor) {
-        requireAgent(agent);
-        var found = jdbc.query("SELECT id FROM user_memory WHERE agent_name = ? AND id = ?",
-                (rs, n) -> rs.getLong(1), agent, id);
+        var row = requireAgent(agent);
+        var found = jdbc.query("SELECT owner_user FROM user_memory WHERE agent_name = ? AND id = ?",
+                (rs, n) -> rs.getString(1), agent, id);
         if (found.isEmpty()) {
             throw new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message());
         }
+        authorize(agent, row.ownerOrg(), found.getFirst(), true);
         audit.append(agent, "prod", "memory.delete", "low", "allowed", "memory:" + id, null, actor,
                 Map.of("count", 1, "category", "USER"));
         jdbc.update("DELETE FROM user_memory WHERE agent_name = ? AND id = ?", agent, id);
@@ -127,17 +130,38 @@ public class MemoryService {
         return values;
     }
 
-    private void requireAgent(String agent) {
-        if (agent(agent) == null) {
+    private AgentRow requireAgent(String agent) {
+        var row = agent(agent);
+        if (row == null) {
             throw new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message());
+        }
+        return row;
+    }
+
+    static void authorize(String agent, String ownerOrg, String ownerUser, boolean writing) {
+        var principal = ConsolePrincipal.current();
+        if (principal == null || "PREVIEW".equals(principal.mode())
+                || ("SERVICE".equals(principal.mode()) && !agent.equals(principal.userId()))) {
+            throw new KeelException(ErrorCode.AUTH_CONSOLE_FORBIDDEN, ErrorCode.AUTH_CONSOLE_FORBIDDEN.message());
+        }
+        if ("SERVICE".equals(principal.mode())) {
+            if (!writing && (ownerUser == null || ownerUser.isBlank())) {
+                throw new KeelException(ErrorCode.AUTH_CONSOLE_FORBIDDEN, "智能体读取记忆时必须指定用户");
+            }
+            return;
+        }
+        if (principal.readOnly() || (!"ADMIN".equals(principal.platformRole())
+                && !java.util.Objects.equals(ownerOrg, principal.org())
+                && (ownerUser == null || !ownerUser.equals(principal.userId())))) {
+            throw new KeelException(ErrorCode.AUTH_CONSOLE_FORBIDDEN, ErrorCode.AUTH_CONSOLE_FORBIDDEN.message());
         }
     }
 
     private AgentRow agent(String agent) {
-        var rows = jdbc.query("SELECT layer FROM agent WHERE name = ?",
-                (rs, n) -> new AgentRow(rs.getString("layer")), agent);
+        var rows = jdbc.query("SELECT layer, owner_org FROM agent WHERE name = ?",
+                (rs, n) -> new AgentRow(rs.getString("layer"), rs.getString("owner_org")), agent);
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
-    private record AgentRow(String layer) {}
+    private record AgentRow(String layer, String ownerOrg) {}
 }

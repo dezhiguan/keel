@@ -27,8 +27,8 @@ public final class Gateway {
     private final SpendLog spendLog;
     private final SpendLedger history;
     private final Admission admission;
-    private final RoutePolicy routes = new RoutePolicy();
-    private final List<AlertRule> alertRules = new ArrayList<>();
+    private final RoutePolicy routes;
+    private final AlertRules alertRules;
     private final ProbeMarks probed;
 
     public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream) {
@@ -50,6 +50,16 @@ public final class Gateway {
 
     public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream, KeyDirectory keys, SpendLog spendLog,
                    SpendLedger history, Admission admission, ProbeMarks probed) {
+        this(catalog, budget, upstream, keys, spendLog, history, admission, probed, new RoutePolicy());
+    }
+
+    public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream, KeyDirectory keys, SpendLog spendLog,
+                   SpendLedger history, Admission admission, ProbeMarks probed, RoutePolicy routes) {
+        this(catalog, budget, upstream, keys, spendLog, history, admission, probed, routes, new AlertRules(null));
+    }
+
+    public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream, KeyDirectory keys, SpendLog spendLog,
+                   SpendLedger history, Admission admission, ProbeMarks probed, RoutePolicy routes, AlertRules alertRules) {
         this.catalog = catalog;
         this.budget = budget;
         this.upstream = upstream;
@@ -58,6 +68,8 @@ public final class Gateway {
         this.history = history;
         this.admission = admission == null ? new Admission(null) : admission;
         this.probed = probed == null ? new ProbeMarks(null) : probed;
+        this.routes = routes;
+        this.alertRules = alertRules;
     }
 
     public synchronized Created create(String alias, List<String> models, List<String> fallback, BigDecimal dailyBudgetCny, boolean allowFallback) {
@@ -196,12 +208,24 @@ public final class Gateway {
             for (int i = 0; i < attempts.size(); i++) {
                 used = attempts.get(i);
                 var model = catalog.require(used);
+                if (!routes.allowAttempt(model.upstream())) {
+                    if (i < attempts.size() - 1) continue;
+                    throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "可用模型渠道已熔断");
+                }
                 var forwarded = forwarding.deepCopy().put("model", used).toString();
                 var started = System.nanoTime();
-                result = upstream.post(model.upstream(), model.upstreamKey(), path, forwarded, timeout);
+                try {
+                    result = upstream.post(model.upstream(), model.upstreamKey(), path, forwarded, timeout);
+                } catch (RuntimeException error) {
+                    observe(used, true, 0);
+                    line(key.alias(), used, 0, 0, BigDecimal.ZERO, requestId, 0, true,
+                            "FAILED", BigDecimal.ZERO, traceId, route(i), -1);
+                    if (i < attempts.size() - 1) continue;
+                    throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "上游失败");
+                }
                 latencyMs = Math.max(0L, (System.nanoTime() - started) / 1_000_000L);
                 if (result.retryable()) {
-                    observe(used, true);
+                    observe(used, true, latencyMs);
                     line(key.alias(), used, 0, 0, BigDecimal.ZERO, requestId, latencyMs, result.status() == 504,
                             "FAILED", BigDecimal.ZERO, traceId, route(i), -1);
                     if (i < attempts.size() - 1) {
@@ -216,6 +240,7 @@ public final class Gateway {
             }
             var route = route(attempts.indexOf(used));
             if (result.status() >= 400) {
+                observe(used, false, latencyMs);
                 line(key.alias(), used, 0, 0, BigDecimal.ZERO, requestId, latencyMs, false,
                         "FAILED", BigDecimal.ZERO, traceId, route, -1);
                 return new Completion(result.status(), result.body(), null);
@@ -229,7 +254,7 @@ public final class Gateway {
             var node = read(result.body());
             var cost = costOf(used, node);
             budget.settle(key.alias, requestId, cost);
-            observe(used, false);
+            observe(used, false, latencyMs);
             int input = tokens(node, "prompt_tokens");
             int output = tokens(node, "completion_tokens");
             tokensUsed = input + output;
@@ -267,12 +292,17 @@ public final class Gateway {
             for (int i = 0; i < attempts.size(); i++) {
                 var used = attempts.get(i);
                 var model = catalog.require(used);
+                if (!routes.allowAttempt(model.upstream())) {
+                    if (i < attempts.size() - 1) continue;
+                    throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "可用模型渠道已熔断");
+                }
                 var forwarded = forwarding.deepCopy().put("model", used).toString();
                 var started = System.nanoTime();
                 Upstream.Stream opened;
                 try {
                     opened = upstream.open(model.upstream(), model.upstreamKey(), path, forwarded, timeout);
                 } catch (RuntimeException error) {
+                    observe(used, true, 0);
                     line(key.alias(), used, 0, 0, BigDecimal.ZERO, requestId, 0, true, "FAILED", BigDecimal.ZERO, traceId, route(i), -1);
                     if (i < attempts.size() - 1) continue;
                     throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "上游失败");
@@ -280,6 +310,7 @@ public final class Gateway {
                 long latencyMs = Math.max(0L, (System.nanoTime() - started) / 1_000_000L);
                 if (opened.retryable()) {
                     opened.close();
+                    observe(used, true, latencyMs);
                     line(key.alias(), used, 0, 0, BigDecimal.ZERO, requestId, latencyMs, opened.status() == 504,
                             "FAILED", BigDecimal.ZERO, traceId, route(i), -1);
                     if (i < attempts.size() - 1) continue;
@@ -287,6 +318,7 @@ public final class Gateway {
                 }
                 if (opened.status() >= 400) {
                     opened.close();
+                    observe(used, false, latencyMs);
                     line(key.alias(), used, 0, 0, BigDecimal.ZERO, requestId, latencyMs, false, "FAILED", BigDecimal.ZERO, traceId, route(i), -1);
                     return null;
                 }
@@ -313,6 +345,7 @@ public final class Gateway {
                 latencyMs = Math.max(0L, (System.nanoTime() - started) / 1_000_000L);
                 var usage = usageText(captured.toString());
                 billableResponse = true;
+                observe(used, false, latencyMs);
                 if (!validUsage(usage)) {
                     budget.markPending(key.alias, requestId);
                     return line(key.alias(), used, -1, -1, null, requestId, latencyMs, false, "PENDING", maxCost, traceId, route(i), -1);
@@ -412,21 +445,21 @@ public final class Gateway {
         if (!"budget".equals(metric) && !"usage_missing".equals(metric) && !"channel_failure".equals(metric)) {
             throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "metric 只能是 budget、usage_missing 或 channel_failure");
         }
-        var rule = new AlertRule("rule-" + (alertRules.size() + 1), name, metric, threshold, window == null ? "" : window, groupBy == null ? "" : groupBy);
-        alertRules.add(rule);
-        return rule;
+        return alertRules.add(name, metric, threshold, window == null ? "" : window, groupBy == null ? "" : groupBy);
     }
 
     public List<AlertRule> alertRules() {
-        return List.copyOf(alertRules);
+        return alertRules.list();
     }
 
     private List<String> attempts(VirtualKey key, String requested, boolean embedding) {
-        return routes.plan(key, requested, embedding, catalog);
+        var planned = routes.plan(key, requested, embedding, catalog);
+        if (planned.isEmpty()) throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "可用模型渠道已熔断");
+        return planned;
     }
 
-    private void observe(String model, boolean failed) {
-        routes.observe(catalog.require(model).upstream(), failed);
+    private void observe(String model, boolean failed, long latencyMs) {
+        routes.observe(catalog.require(model).upstream(), failed, latencyMs);
     }
 
     private VirtualKey virtualKey(String bearer) {

@@ -2,7 +2,7 @@ import { get, post } from './http'
 
 export interface ChannelRow {
   id: number
-  kind: 'HOSTED' | 'EMBED' | 'WEB'
+  kind: 'HOSTED' | 'EMBED' | 'WEB' | 'MINIPROGRAM'
   identity: 'EXCHANGE' | 'OPENID' | 'ANONYMOUS'
   origin?: string | null
   quotaPerHour?: number | null

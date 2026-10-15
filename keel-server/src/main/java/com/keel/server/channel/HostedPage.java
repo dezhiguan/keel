@@ -4,13 +4,13 @@ package com.keel.server.channel;
 public final class HostedPage {
     private HostedPage() {}
 
-    public static String html(String agent) {
+    public static String html(String agent, String credential) {
         return """
                 <!doctype html>
                 <html lang="zh"><head><meta charset="utf-8"><title>%s</title></head>
                 <body>
-                <script src="/a/widget.js" data-agent="%s" data-kind="hosted"></script>
+                <script src="/a/widget.js" data-agent="%s" data-credential="%s" data-kind="hosted"></script>
                 </body></html>
-                """.formatted(agent, agent);
+                """.formatted(agent, agent, credential);
     }
 }

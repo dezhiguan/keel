@@ -1009,7 +1009,7 @@ paths:
               type: object
               required: [kind, identity]
               properties:
-                kind: { type: string, enum: [HOSTED, EMBED, WEB] }
+                kind: { type: string, enum: [HOSTED, EMBED, WEB, MINIPROGRAM] }
                 identity: { type: string, enum: [EXCHANGE, OPENID, ANONYMOUS] }
                 origin: { type: string }
                 quotaPerHour: { type: integer }
@@ -1025,7 +1025,7 @@ paths:
     post:
       tags: [agents]
       operationId: enterChannel
-      summary: 嵌入页校验域名。未登记返回 CHANNEL_ORIGIN_DENIED
+      summary: 按 Origin 或小程序客户端 ID 校验已发布渠道。未登记返回 CHANNEL_ORIGIN_DENIED
       requestBody:
         required: true
         content:
@@ -1033,7 +1033,6 @@ paths:
             schema:
               type: object
               properties:
-                origin: { type: string }
                 credential: { type: string }
       responses:
         "200":
