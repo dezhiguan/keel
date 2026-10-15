@@ -112,6 +112,26 @@ class AgentDetailTest {
         assertThat(AgentDetail.of(agent(), null, null, List.of(), null, List.of()).execution()).isNull();
     }
 
+    @Test void detailShowsTwelveElementsWithoutTreatingDeclarationsAsRuntimeProof() throws Exception {
+        var manifest = json.readTree("""
+                {"apiVersion":"keel/v1","spec":{"kind":"agent",
+                "capabilities":{"toolCalling":true,"loop":true,"memory":true},
+                "tools":[{"name":"echo"}],"eval":{"dataset":"demo/seed"}}}
+                """);
+        var detail = AgentDetail.of(agent(), null, null, List.of(), manifest, List.of());
+        assertThat(detail.elements().kind()).isEqualTo("agent");
+        assertThat(detail.elements().items()).hasSize(12);
+        assertThat(detail.elements().missing()).containsExactly("有版本的提示词");
+        assertThat(detail.elements().items().getFirst().passed()).isNull();
+        assertThat(detail.elements().items().getFirst().detail()).contains("待门禁验证");
+        assertThat(detail.elements().items().get(3).passed()).isFalse();
+        var workflow = json.readTree("""
+                {"spec":{"kind":"workflow"}}
+                """);
+        assertThat(AgentDetail.of(agent(), null, null, List.of(), workflow, List.of()).elements().kind())
+                .isEqualTo("workflow");
+    }
+
     private static Agent agent() {
         var agent = new Agent();
         agent.setName("meta-agent");

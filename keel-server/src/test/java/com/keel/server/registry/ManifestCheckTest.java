@@ -14,11 +14,33 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ManifestCheckTest {
     private final ObjectMapper json = new ObjectMapper();
     private final ManifestValidator validator = new ManifestValidator();
+
+    @Test void explicitAgentRequiresAllFiveCoreDeclarationsBeforeRegistration() throws Exception {
+        var manifest = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree("""
+                {"apiVersion":"keel/v1","metadata":{"name":"agent-demo","owner":"QA / amy"},
+                 "spec":{"kind":"agent","runtime":{"endpoint":"http://agent-demo"},
+                 "capabilities":{"toolCalling":true,"loop":true,"memory":true},
+                 "tools":[{"name":"echo"}],"eval":{"dataset":"agent-demo/seed"}}}
+                """);
+        assertThatThrownBy(() -> validator.validate(manifest, Set.of()))
+                .isInstanceOf(KeelException.class).hasMessageContaining("有版本的提示词");
+        var spec = (com.fasterxml.jackson.databind.node.ObjectNode) manifest.path("spec");
+        spec.set("prompts", json.readTree("""
+                {"source":"langfuse","items":[{"name":"role","type":"text"}]}
+                """));
+        assertThatCode(() -> validator.validate(manifest, Set.of())).doesNotThrowAnyException();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) spec.path("capabilities")).put("loop", false);
+        assertThatThrownBy(() -> validator.validate(manifest, Set.of()))
+                .isInstanceOf(KeelException.class).hasMessageContaining("agent loop");
+        spec.put("kind", "workflow");
+        assertThatCode(() -> validator.validate(manifest, Set.of())).doesNotThrowAnyException();
+    }
 
     @Test void rejectsHighRiskWithoutApproval() throws Exception {
         var manifest = json.readTree("""

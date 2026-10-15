@@ -2621,6 +2621,7 @@ components:
               type: array
               items: { type: string }
             selfCheck: { $ref: "#/components/schemas/SelfCheckReport" }
+            elements: { $ref: "#/components/schemas/AgentElements" }
             instanceList:
               type: array
               items:
@@ -2650,6 +2651,26 @@ components:
               type: array
               description: 对账发现的问题
               items: { $ref: "#/components/schemas/Alert" }
+
+    AgentElements:
+      type: object
+      required: [kind, items, missing]
+      properties:
+        kind: { type: string, enum: [agent, workflow] }
+        items:
+          type: array
+          minItems: 12
+          maxItems: 12
+          items:
+            type: object
+            required: [name]
+            properties:
+              name: { type: string }
+              passed: { type: boolean, nullable: true }
+              detail: { type: string, nullable: true }
+        missing:
+          type: array
+          items: { type: string }
 
     SelfCheckReport:
       type: object

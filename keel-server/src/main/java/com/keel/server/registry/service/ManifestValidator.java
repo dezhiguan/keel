@@ -3,6 +3,7 @@ package com.keel.server.registry.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.keel.common.error.ErrorCode;
 import com.keel.server.common.KeelException;
+import com.keel.server.registry.model.dto.AgentElements;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
@@ -25,6 +26,10 @@ public class ManifestValidator {
         var endpoint = manifest.path("spec").path("runtime").path("endpoint").asText("");
         if (endpoint.isBlank()) {
             throw invalid("缺少 endpoint");
+        }
+        var elements = AgentElements.of(manifest);
+        if ("agent".equals(elements.kind()) && !elements.missing().isEmpty()) {
+            throw invalid("智能体缺少要素：" + String.join("、", elements.missing()));
         }
         var granted = grantedSharedTools == null ? Set.<String>of() : grantedSharedTools;
         for (var tool : manifest.path("spec").path("tools")) {

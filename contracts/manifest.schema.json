@@ -33,6 +33,15 @@
           "enum": ["agent", "workflow"],
           "description": "执行形态；缺省兼容已有 manifest，显式 agent 在注册时接受智能体要素检查"
         },
+        "capabilities": {
+          "type": "object",
+          "description": "显式 agent 的能力声明；真实行为仍需运行测试和门禁证明",
+          "properties": {
+            "toolCalling": { "type": "boolean" },
+            "loop": { "type": "boolean" },
+            "memory": { "type": "boolean" }
+          }
+        },
         "runtime": {
           "type": "object",
           "required": ["endpoint"],

@@ -269,6 +269,17 @@ onUnmounted(() => {
                 <span>{{ label }}</span><b>{{ value }}</b>
               </template>
             </div>
+            <template v-if="detail.elements">
+              <h4>要素检查 <span class="pill" :class="detail.elements.kind === 'agent' ? 'p-ok' : 'p-warn'">{{ detail.elements.kind === 'agent' ? '智能体 · 待行为验证' : '工作流型' }}</span></h4>
+              <p v-if="detail.elements.missing.length" class="mut">缺：{{ detail.elements.missing.join('、') }}</p>
+              <ul class="checks">
+                <li v-for="(item, index) in detail.elements.items" :key="item.name">
+                  <span class="ic" :class="item.passed === true ? 'ok' : item.passed === false ? 'no' : ''">{{ item.passed === true ? '✓' : item.passed === false ? '✗' : '·' }}</span>
+                  {{ index + 1 }}. {{ item.name }}
+                  <small>{{ item.detail }}</small>
+                </li>
+              </ul>
+            </template>
             <h4>接入自检</h4>
             <button v-if="detail.status !== 'RETIRED' && detail.status !== 'DRAFT'" class="btn" :disabled="checking" @click="recheck">{{ checking ? '自检中…' : '重新自检' }}</button>
             <p v-if="detail.selfCheck?.checkedAt" class="mut">最近自检：{{ new Date(detail.selfCheck.checkedAt).toLocaleString() }}</p>

@@ -28,6 +28,7 @@ public record AgentManifest(
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record AgentManifestSpec(
         @JsonProperty("kind") AgentManifestSpecKindValue kind,
+        @JsonProperty("capabilities") AgentManifestSpecCapabilities capabilities,
         @JsonProperty("runtime") AgentManifestSpecRuntime runtime,
         @JsonProperty("auth") AgentManifestSpecAuth auth,
         @JsonProperty("knowledge") List<AgentManifestSpecKnowledgeItem> knowledge,
@@ -40,6 +41,14 @@ public record AgentManifest(
         @JsonProperty("eval") AgentManifestSpecEval eval,
         @JsonProperty("quality") AgentManifestSpecQuality quality,
         @JsonProperty("interaction") AgentManifestSpecInteraction interaction
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record AgentManifestSpecCapabilities(
+        @JsonProperty("toolCalling") Boolean toolCalling,
+        @JsonProperty("loop") Boolean loop,
+        @JsonProperty("memory") Boolean memory
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)

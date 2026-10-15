@@ -22,6 +22,7 @@ public record AgentDetail(
         List<String> models,
         List<String> delegates,
         CheckReport selfCheck,
+        AgentElements elements,
         List<InstanceRow> instanceList,
         List<ResourceRow> resources,
         List<Object> versions,
@@ -41,6 +42,7 @@ public record AgentDetail(
                 modelNames,
                 delegates(manifest),
                 checks(summary, modelNames, manifest, bound, instanceList),
+                AgentElements.of(manifest),
                 instanceList,
                 bound, List.of(), List.of());
     }
@@ -239,12 +241,12 @@ public record AgentDetail(
 
     public AgentDetail withSummary(AgentSummary summary) {
         return new AgentDetail(summary, manifestYaml, manifestHash, execution, memory, knowledgeBases, tools, models, delegates,
-                selfCheck, instanceList, resources, versions, findings);
+                selfCheck, elements, instanceList, resources, versions, findings);
     }
 
     public AgentDetail withSelfCheck(CheckReport report) {
         return new AgentDetail(summary, manifestYaml, manifestHash, execution, memory, knowledgeBases, tools, models, delegates,
-                report, instanceList, resources, versions, findings);
+                report, elements, instanceList, resources, versions, findings);
     }
 
     public record InstanceRow(String instanceId, String source, String version, boolean ready, String lastSeenAt) {

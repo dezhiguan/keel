@@ -1760,6 +1760,7 @@ export interface components {
             models?: string[];
             delegates?: string[];
             selfCheck?: components["schemas"]["SelfCheckReport"];
+            elements?: components["schemas"]["AgentElements"];
             instanceList?: {
                 instanceId?: string;
                 /** @enum {string} */
@@ -1782,6 +1783,16 @@ export interface components {
             versions?: components["schemas"]["ReleaseRecord"][];
             /** @description 对账发现的问题 */
             findings?: components["schemas"]["Alert"][];
+        };
+        AgentElements: {
+            /** @enum {string} */
+            kind: "agent" | "workflow";
+            items: {
+                name: string;
+                passed?: boolean | null;
+                detail?: string | null;
+            }[];
+            missing: string[];
         };
         SelfCheckReport: {
             passed?: boolean;
