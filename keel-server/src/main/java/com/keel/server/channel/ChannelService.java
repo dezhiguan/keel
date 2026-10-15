@@ -110,10 +110,10 @@ public class ChannelService {
         var row = allowed.getFirst();
         if ("OPENID".equals(row.identity())) throw denied();
         if ("ANONYMOUS".equals(row.identity()) && highRisk(agent)) throw denied();
-        if ("EXCHANGE".equals(row.identity())) identities.user(authorization,
-                "MINIPROGRAM".equals(row.kind()) ? row.origin() : null);
         if ("HOSTED".equals(row.kind())) ChannelOrigin.require(requestOrigin, List.of("https://keel.ragforge.net"));
         else ChannelOrigin.require(requestOrigin, List.of(row.origin() == null ? "" : row.origin()));
+        if ("EXCHANGE".equals(row.identity())) identities.user(authorization,
+                "MINIPROGRAM".equals(row.kind()) ? row.origin() : null);
         return Map.of(
                 "invokeUrl", "/a/api/" + agent + "/invoke",
                 "feedbackUrl", "/a/api/" + agent + "/feedback");
