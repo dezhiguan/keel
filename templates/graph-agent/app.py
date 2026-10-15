@@ -1,6 +1,6 @@
 from keel import Agent
 
-from tools.checkpoint import advance, load, save, start
+from tools.checkpoint import advance, load, start
 
 agent = Agent.from_manifest("agent.yaml")
 
@@ -13,8 +13,7 @@ async def run(request, ctx):
     else:
         state = advance(start(text))
     if state["step"] != "done":
-        ref = save(state)
-        return ctx.suspend("input_required", ref=ref, prompt="继续起草?")
+        return ctx.suspend("input_required", ref=state["ref"], prompt="继续起草?")
     return ctx.final(state["notes"][-1])
 
 

@@ -1,0 +1,2 @@
+{"input":"repeat hello","expected":"hello","tags":["tool"]}
+{"input":"say ready","expected":"ready","tags":["completion"]}

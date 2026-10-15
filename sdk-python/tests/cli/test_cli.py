@@ -54,13 +54,14 @@ def _span_payload() -> bytes:
 
 
 def test_new_project_matches_schema_and_ignores_local_state(tmp_path):
-    project = create_project("hello-agent", root=tmp_path)
+    project = create_project("hello-agent", template="hello-agent", root=tmp_path)
     for relative in LAYOUT:
         assert (project / relative).is_file(), relative
     assert ".keel/" in (project / ".gitignore").read_text().splitlines()
     manifest = __import__("yaml").safe_load((project / "agent.yaml").read_text())
     jsonschema.Draft202012Validator(MANIFEST).validate(manifest)
     assert manifest["metadata"]["name"] == "hello-agent"
+    assert manifest["spec"]["kind"] == "workflow"
     assert "ctx.step('greet')" in (project / "app.py").read_text()
     assert list((project / "vendor").glob("keel_sdk-*.whl"))
     assert "pip install keel-sdk" not in (project / "Dockerfile").read_text()
@@ -118,6 +119,7 @@ def test_main_dispatches_new_and_rejects_later_commands(tmp_path, monkeypatch, c
     main(["new", "hello-agent"])
     assert (tmp_path / "hello-agent" / "agent.yaml").is_file()
     assert "keel dev" in capsys.readouterr().out
+    assert "ctx.loop" in (tmp_path / "hello-agent" / "app.py").read_text()
     with pytest.raises(SystemExit) as caught:
         main(["retire"])
     assert caught.value.code == 2
@@ -250,7 +252,7 @@ def _frames(response):
 
 
 def test_dev_serves_sse_keeps_approval_across_reload_and_prints_local_trace(tmp_path):
-    project = create_project("hello-agent", root=tmp_path)
+    project = create_project("hello-agent", template="hello-agent", root=tmp_path)
     port = _free_port_pair()
     env = os.environ.copy()
     for key in LANGFUSE_KEYS:

@@ -9,8 +9,8 @@ def main(argv=None) -> None:
     new = commands.add_parser("new", help="Create an agent project")
     new.add_argument("name", nargs="?")
     new.add_argument("--from-spec", help="Build the project from a confirmed spec.json and its agent.yaml")
-    new.add_argument("--template", default="hello-agent",
-                     choices=("hello-agent", "chat-rag", "tool-agent", "graph-agent",
+    new.add_argument("--template", default="loop-agent",
+                     choices=("loop-agent", "hello-agent", "chat-rag", "tool-agent", "graph-agent",
                               "supervisor", "java-spring"))
     dev = commands.add_parser("dev", help="Run an agent with local audit and approvals")
     dev.add_argument("--port", type=int, default=8000)

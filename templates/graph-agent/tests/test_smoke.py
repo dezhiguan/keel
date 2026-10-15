@@ -1,7 +1,9 @@
 import json
+import asyncio
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 from tools.checkpoint import advance, load, save, start
 
@@ -74,7 +76,20 @@ def test_gitignore():
 
 
 def test_app_suspends_mid_graph():
-    assert 'ctx.suspend("input_required"' in (ROOT / "app.py").read_text()
+    from app import run
+
+    class Context:
+        def suspend(self, reason, *, ref, prompt):
+            return {"reason": reason, "ref": ref, "prompt": prompt}
+
+        def final(self, answer):
+            return {"answer": answer}
+
+    paused = asyncio.run(run(SimpleNamespace(input={"text": "风机"}), Context()))
+    assert paused["reason"] == "input_required"
+    assert load(paused["ref"])["step"] == "draft"
+    completed = asyncio.run(run(SimpleNamespace(input={"text": "resume " + paused["ref"]}), Context()))
+    assert completed == {"answer": "answer:风机"}
 
 
 def test_platform_is_not_asked_to_store_the_state_body():

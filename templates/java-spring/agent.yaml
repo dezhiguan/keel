@@ -3,6 +3,7 @@ kind: Agent
 metadata:
   name: {{name}}
 spec:
+  kind: workflow
   runtime:
     language: java
     endpoint: http://127.0.0.1:8080

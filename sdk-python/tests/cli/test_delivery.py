@@ -22,7 +22,7 @@ def _serve(handler):
 
 
 def _project(tmp_path, monkeypatch):
-    project = create_project("hello-agent", root=tmp_path)
+    project = create_project("hello-agent", template="hello-agent", root=tmp_path)
     (project / "evals" / "seed.jsonl").write_text(
         '{"input":"ping","expected":"ping","tags":["read"]}\n', encoding="utf-8")
     (project / "evals" / "scorers.py").write_text(

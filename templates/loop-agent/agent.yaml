@@ -1,0 +1,25 @@
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  name: {{name}}
+spec:
+  kind: agent
+  runtime:
+    endpoint: http://127.0.0.1:8000
+  models:
+    default: qwen-plus
+    budget:
+      maxSteps: 4
+  tools:
+    - name: echo
+      access: read
+      risk: low
+      approval: none
+  prompts:
+    source: local
+    items:
+      - name: assistant
+        type: text
+  eval:
+    dataset: {{name}}/smoke
+    evaluators: [exact]

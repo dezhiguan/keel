@@ -11,7 +11,7 @@ from pathlib import Path
 from keel.manifest import load_manifest
 
 
-TEMPLATES = ("chat-rag", "tool-agent", "graph-agent", "supervisor", "java-spring")
+TEMPLATES = ("loop-agent", "chat-rag", "tool-agent", "graph-agent", "supervisor", "java-spring")
 
 
 def template_dir(name: str) -> Path:
@@ -41,7 +41,7 @@ def create_from_spec(spec_file: str | Path, *, root: str | Path = ".") -> Path:
     return project
 
 
-def create_project(name: str, *, template: str = "hello-agent", root: str | Path = ".") -> Path:
+def create_project(name: str, *, template: str = "loop-agent", root: str | Path = ".") -> Path:
     if not re.fullmatch(r"[a-z][a-z0-9-]{1,38}[a-z0-9]", name):
         raise ValueError("Agent name must match the keel/v1 metadata.name pattern")
     if template not in ("hello-agent", *TEMPLATES):
@@ -59,7 +59,7 @@ def create_project(name: str, *, template: str = "hello-agent", root: str | Path
     target.mkdir(parents=True)
     files = {
         "agent.yaml": ("apiVersion: keel/v1\nkind: Agent\nmetadata:\n"
-                       f"  name: {name}\nspec:\n  runtime:\n"
+                       f"  name: {name}\nspec:\n  kind: workflow\n  runtime:\n"
                        "    endpoint: http://127.0.0.1:8000\n"),
         "app.py": ("from keel import Agent\n\n"
                    "agent = Agent.from_manifest('agent.yaml')\n\n"
