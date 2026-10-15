@@ -92,6 +92,23 @@ class AgentDetailTest {
         assertThat(detail.models()).isEmpty();
     }
 
+    @Test void executionDescriptionComesFromSavedManifest() throws Exception {
+        var agentManifest = json.readTree("""
+                {"apiVersion":"keel/v1","spec":{"kind":"agent","models":{"budget":{"maxSteps":4}}}}
+                """);
+        var detail = AgentDetail.of(agent(), null, null, List.of(), agentManifest, List.of());
+        assertThat(detail.execution().current()).isEqualTo("声明为智能体");
+        assertThat(detail.execution().target()).contains("ctx.loop");
+        assertThat(detail.execution().constraints()).contains("maxSteps 4");
+
+        var workflow = json.readTree("""
+                {"apiVersion":"keel/v1","spec":{"kind":"workflow"}}
+                """);
+        assertThat(AgentDetail.of(agent(), null, null, List.of(), workflow, List.of()).execution().target())
+                .isEqualTo("确定性代码流程");
+        assertThat(AgentDetail.of(agent(), null, null, List.of(), null, List.of()).execution()).isNull();
+    }
+
     private static Agent agent() {
         var agent = new Agent();
         agent.setName("meta-agent");

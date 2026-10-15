@@ -15,6 +15,7 @@ public record AgentDetail(
         @JsonUnwrapped AgentSummary summary,
         String manifestYaml,
         String manifestHash,
+        Execution execution,
         List<String> knowledgeBases,
         List<String> tools,
         List<String> models,
@@ -32,6 +33,7 @@ public record AgentDetail(
         var instanceList = rows.stream().map(InstanceRow::of).toList();
         var modelNames = models(manifest);
         return new AgentDetail(summary, ManifestYaml.of(manifest), latest == null ? null : latest.getManifestHash(),
+                execution(manifest),
                 texts(manifest, "knowledge", "kb"),
                 toolLabels(manifest),
                 modelNames,
@@ -213,13 +215,28 @@ public record AgentDetail(
         return values;
     }
 
+    private static Execution execution(JsonNode manifest) {
+        if (manifest == null) return null;
+        var spec = manifest.path("spec");
+        var kind = spec.path("kind").asText("");
+        if ("agent".equals(kind)) {
+            var steps = spec.path("models").path("budget").path("maxSteps").asInt(6);
+            return new Execution("声明为智能体", "ctx.loop（运行时由 SDK 执行）",
+                    "maxSteps " + steps + " · 运行预算 · 重复工具检测 · 高风险工具挂起审批");
+        }
+        if ("workflow".equals(kind)) {
+            return new Execution("声明为工作流", "确定性代码流程", "工具权限与模型预算按 manifest 执行");
+        }
+        return new Execution("未声明", "未声明", "以 agent.yaml 为准");
+    }
+
     public AgentDetail withSummary(AgentSummary summary) {
-        return new AgentDetail(summary, manifestYaml, manifestHash, knowledgeBases, tools, models, delegates,
+        return new AgentDetail(summary, manifestYaml, manifestHash, execution, knowledgeBases, tools, models, delegates,
                 selfCheck, instanceList, resources, versions, findings);
     }
 
     public AgentDetail withSelfCheck(CheckReport report) {
-        return new AgentDetail(summary, manifestYaml, manifestHash, knowledgeBases, tools, models, delegates,
+        return new AgentDetail(summary, manifestYaml, manifestHash, execution, knowledgeBases, tools, models, delegates,
                 report, instanceList, resources, versions, findings);
     }
 
@@ -229,6 +246,8 @@ public record AgentDetail(
                     row.getLastSeenAt() == null ? null : row.getLastSeenAt().toString());
         }
     }
+
+    public record Execution(String current, String target, String constraints) {}
 
     public record ResourceRow(String type, String externalId, String status) {}
 

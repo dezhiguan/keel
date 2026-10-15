@@ -2,10 +2,12 @@
 
 import asyncio
 import inspect
+import json
 import os
 import secrets
 import re
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from opentelemetry import trace
@@ -13,6 +15,7 @@ from opentelemetry import trace
 from keel.audit.reporter import AuditReporter
 from keel.knowledge import KnowledgeClient
 from keel.llm.client import LlmClient
+from keel.llm.client import ChatResult
 from keel.prompts import PromptClient
 from keel.protocol.errors import ErrorCode, KeelError
 from keel.tracing import attrs
@@ -142,13 +145,12 @@ class Context:
                             trace_id=self.trace_id)
 
     async def suspend_for_approval(self, tool: str, kwargs: dict) -> SuspendEvent:
-        import json
-        from pathlib import Path
         import httpx
         folder = Path(".keel/checkpoints")
         folder.mkdir(parents=True, exist_ok=True)
         ref = f"ckpt_{self.run_id}"
-        (folder / ref).write_text(json.dumps({"tool": tool, "kwargs": kwargs}), encoding="utf-8")
+        if not (folder / ref).exists():
+            (folder / ref).write_text(json.dumps({"tool": tool, "kwargs": kwargs}), encoding="utf-8")
         url = os.environ.get("KEEL_AUDIT_URL")
         token = os.environ.get("KEEL_AUDIT_TOKEN")
         if not url or not token:
@@ -169,6 +171,101 @@ class Context:
         self.pending = {"tool": tool, "kwargs": kwargs, "checkpoint_ref": ref,
                         "approval_id": approval_id, "input_text": kwargs.get("title") or kwargs.get("text")}
         return event
+
+    async def loop(self, messages: list[dict], tools: list[dict], *,
+                   max_steps: int | None = None) -> FinalEvent | SuspendEvent:
+        configured = getattr(getattr(getattr(self.manifest.spec, "models", None), "budget", None),
+                             "maxSteps", None) if self.manifest else None
+        limit = min(max_steps if max_steps is not None else configured or 6,
+                    int(self.budget.get("steps", 8)))
+        if limit < 1:
+            raise KeelError(ErrorCode.AGENT_MAX_STEPS_EXCEEDED)
+        checkpoint = Path(".keel/checkpoints") / f"ckpt_{self.run_id}"
+        history = list(messages)
+        step = 0
+        last_call = None
+        if self.resuming:
+            try:
+                state = json.loads(checkpoint.read_text(encoding="utf-8"))
+                history = state["messages"]
+                step = state["step"]
+                limit = min(limit, state["limit"])
+                last_call = state["last_call"]
+                pending = state["pending_calls"]
+                if state["agent"] != self.agent or not pending:
+                    raise ValueError("checkpoint does not match run")
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                raise KeelError(ErrorCode.RUN_NOT_RESUMABLE) from exc
+            for index, call in enumerate(pending):
+                if index > 0 and call["signature"] == last_call:
+                    raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型连续重复调用同一工具")
+                if index > 0 and self._requires_approval(call["name"]):
+                    self._save_loop(checkpoint, history, step, limit, last_call, pending[index:])
+                outcome = await self.tools.call(call["name"], **call["arguments"])
+                if index == 0:
+                    self.resuming = False
+                if isinstance(outcome, SuspendEvent):
+                    self._save_loop(checkpoint, history, step, limit, last_call, pending[index:])
+                    return outcome
+                history.append({"role": "tool", "tool_call_id": call["id"],
+                                "content": json.dumps(outcome, ensure_ascii=False, default=str)})
+                last_call = call["signature"]
+            checkpoint.unlink(missing_ok=True)
+
+        while True:
+            if self.budget.get("cny", 0) <= 0:
+                raise KeelError(ErrorCode.GW_QUOTA_EXCEEDED)
+            if step >= limit:
+                raise KeelError(ErrorCode.AGENT_MAX_STEPS_EXCEEDED)
+            step += 1
+            with self._tracer.start_as_current_span("agent.loop.step", attributes={
+                attrs.OBSERVATION_TYPE: "agent", attrs.AGENT: self.agent,
+                attrs.RUN_ID: self.run_id, attrs.LOOP_STEP: step, attrs.STATUS: "ok",
+            }) as span:
+                try:
+                    result = await self.llm.chat(history, tools=tools)
+                    if not isinstance(result, ChatResult):
+                        raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型没有返回结构化工具结果")
+                    if not result.tool_calls:
+                        checkpoint.unlink(missing_ok=True)
+                        return self.final(result.content)
+                    calls = [{"id": call.id, "name": call.name, "arguments": call.arguments,
+                              "signature": json.dumps([call.name, call.arguments], ensure_ascii=False, sort_keys=True)}
+                             for call in result.tool_calls]
+                    history.append({"role": "assistant", "content": result.content,
+                                    "tool_calls": [{"id": call["id"], "type": "function",
+                                                    "function": {"name": call["name"],
+                                                                 "arguments": json.dumps(call["arguments"], ensure_ascii=False)}}
+                                                   for call in calls]})
+                    for index, call in enumerate(calls):
+                        if call["signature"] == last_call:
+                            raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型连续重复调用同一工具")
+                        if self._requires_approval(call["name"]):
+                            self._save_loop(checkpoint, history, step, limit, last_call, calls[index:])
+                        outcome = await self.tools.call(call["name"], **call["arguments"])
+                        if isinstance(outcome, SuspendEvent):
+                            self._save_loop(checkpoint, history, step, limit, last_call, calls[index:])
+                            return outcome
+                        history.append({"role": "tool", "tool_call_id": call["id"],
+                                        "content": json.dumps(outcome, ensure_ascii=False, default=str)})
+                        last_call = call["signature"]
+                except Exception:
+                    span.set_attribute(attrs.STATUS, "failed")
+                    raise
+
+    def _save_loop(self, path: Path, messages: list[dict], step: int, limit: int,
+                   last_call: str | None, pending_calls: list[dict]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps({"agent": self.agent, "messages": messages, "step": step,
+                                         "limit": limit, "last_call": last_call,
+                                         "pending_calls": pending_calls}, ensure_ascii=False), encoding="utf-8")
+        temporary.replace(path)
+
+    def _requires_approval(self, name: str) -> bool:
+        declared = next((tool for tool in (self.manifest.spec.tools or []) if tool.name == name), None)
+        return bool(declared and declared.risk and declared.risk.value == "high"
+                    and declared.approval and declared.approval.value == "required" and not self.resuming)
 
     async def delegate(self, name: str, text: str):
         declared = list(self.manifest.spec.delegates or []) if self.manifest else []

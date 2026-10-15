@@ -24,6 +24,14 @@ export interface DrawerAgent {
   versions?: DrawerVersion[]
 }
 
+export function executionRows(execution?: { current?: string; target?: string; constraints?: string } | null) {
+  return [
+    ['现在', execution?.current || '未声明'],
+    ['目标', execution?.target || '未声明'],
+    ['约束', execution?.constraints || '以 agent.yaml 为准'],
+  ] as const
+}
+
 export interface VersionRow {
   version: string
   env: string

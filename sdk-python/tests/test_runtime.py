@@ -11,6 +11,7 @@ import keel
 from keel import Agent
 from keel.asgi import mount_to
 from keel.protocol.errors import ErrorCode
+from keel.llm.client import ChatResult, ToolCall
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -91,6 +92,110 @@ def test_runtime_error_is_sse_and_suspend_ends_stream(tmp_path):
                                 json={"input": {"text": "hello"}}))
     assert [frame["event"] for frame in frames(response)] == ["step", "suspend"]
     assert frames(response)[-1]["data"]["resume_token"]
+
+
+def test_loop_step_limit_is_sent_as_sse_error(tmp_path, monkeypatch):
+    path = agent_file(tmp_path, models=True)
+    path.write_text(path.read_text() + "  tools:\n    - name: lookup\n")
+    agent = Agent.from_manifest(path)
+    for key, value in {"KEEL_LLM_BASE_URL": "https://gateway.test", "KEEL_LLM_KEY": "test-key",
+                       "KEEL_AUDIT_URL": "https://audit.test", "KEEL_AUDIT_TOKEN": "test-token",
+                       "KEEL_AUDIT_SPOOL_PATH": str(tmp_path / "audit.jsonl"), "KEEL_ENV": "dev"}.items():
+        monkeypatch.setenv(key, value)
+
+    class FakeLlm:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def chat(self, messages, tools):
+            return ChatResult("", (ToolCall("call-1", "lookup", {}),))
+
+        async def aclose(self):
+            pass
+
+    monkeypatch.setattr("keel.context.LlmClient", FakeLlm)
+
+    @agent.tool(name="lookup")
+    async def lookup():
+        return "ok"
+
+    @agent.entry
+    async def handle(req, ctx):
+        return await ctx.loop([{"role": "user", "content": req.input["text"]}],
+                              [{"type": "function", "function": {"name": "lookup", "parameters": {"type": "object"}}}],
+                              max_steps=1)
+
+    response = asyncio.run(call(agent.asgi(), "POST", "/v1/invoke", json={"input": {"text": "go"}}))
+    assert [frame["event"] for frame in frames(response)] == ["error"]
+    assert frames(response)[0]["data"]["code"] == ErrorCode.AGENT_MAX_STEPS_EXCEEDED.value
+
+
+def test_loop_approval_resume_keeps_run_and_prior_tool_results(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("KEEL_RUN_STORE", str(tmp_path / "runs.json"))
+    path = agent_file(tmp_path, models=True)
+    path.write_text(path.read_text() + "  tools:\n    - name: lookup\n      risk: high\n      approval: required\n")
+    agent = Agent.from_manifest(path)
+    for key, value in {"KEEL_LLM_BASE_URL": "https://gateway.test", "KEEL_LLM_KEY": "test-key",
+                       "KEEL_AUDIT_URL": "https://audit.test", "KEEL_AUDIT_TOKEN": "test-token",
+                       "KEEL_AUDIT_SPOOL_PATH": str(tmp_path / "audit.jsonl"), "KEEL_ENV": "dev"}.items():
+        monkeypatch.setenv(key, value)
+    responses = [ChatResult("", (ToolCall("call-1", "lookup", {"n": 1}),)), ChatResult("done", ())]
+    seen = []
+
+    class FakeLlm:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def chat(self, messages, tools):
+            if len(responses) == 1:
+                assert messages[-1]["role"] == "tool"
+            return responses.pop(0)
+
+        async def aclose(self):
+            pass
+
+    class FakeAudit:
+        async def record(self, *args, **kwargs):
+            pass
+
+        async def aclose(self):
+            pass
+
+    async def fake_suspend(ctx, tool, kwargs):
+        ctx.pending = {"tool": tool, "kwargs": kwargs, "checkpoint_ref": f"ckpt_{ctx.run_id}",
+                       "approval_id": "approval-1"}
+        return ctx.suspend("approval", ref="approval-1")
+
+    async def approved(record):
+        return True
+
+    monkeypatch.setattr("keel.context.LlmClient", FakeLlm)
+    monkeypatch.setattr("keel.context.AuditReporter", lambda *args, **kwargs: FakeAudit())
+    monkeypatch.setattr("keel.context.Context.suspend_for_approval", fake_suspend)
+    monkeypatch.setattr("keel.asgi._approval_granted", approved)
+
+    @agent.tool(name="lookup")
+    async def lookup(n):
+        seen.append(n)
+        return {"value": n}
+
+    @agent.entry
+    async def handle(req, ctx):
+        return await ctx.loop([{"role": "user", "content": req.input["text"]}],
+                              [{"type": "function", "function": {"name": "lookup", "parameters": {"type": "object"}}}])
+
+    app = agent.asgi()
+    first = frames(asyncio.run(call(app, "POST", "/v1/invoke", json={"input": {"text": "go"}})))[-1]
+    assert first["event"] == "suspend"
+    assert seen == []
+    run_id = first["data"]["run_id"]
+    second = frames(asyncio.run(call(app, "POST", f"/v1/runs/{run_id}/resume", json={
+        "resume_token": first["data"]["resume_token"], "decision": "approve"})))[-1]
+    assert second["event"] == "final"
+    assert second["data"]["run_id"] == run_id
+    assert second["data"]["answer"] == "done"
+    assert seen == [1]
 
 
 def test_mount_preserves_routes_and_rejects_collision(tmp_path):

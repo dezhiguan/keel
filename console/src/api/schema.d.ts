@@ -1731,6 +1731,12 @@ export interface components {
         AgentDetail: components["schemas"]["AgentSummary"] & {
             manifestYaml?: string;
             manifestHash?: string;
+            /** @description 根据已保存 manifest 描述的执行形态与约束；未声明时字段可为空 */
+            execution?: {
+                current?: string;
+                target?: string;
+                constraints?: string;
+            };
             /** @description manifest spec.interaction。缺省或没有 mode 时按 chat */
             interaction?: {
                 /** @enum {string} */

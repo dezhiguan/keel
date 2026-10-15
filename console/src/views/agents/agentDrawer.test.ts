@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { avatarLetter, canRelease, cardChips, cardCost, highlightYaml, isSelfChecking, kindLine, readyPill, resourceStatus, scoreText, toolChip, versionRows, withEvalGate } from './agentDrawer'
+import { avatarLetter, canRelease, cardChips, cardCost, executionRows, highlightYaml, isSelfChecking, kindLine, readyPill, resourceStatus, scoreText, toolChip, versionRows, withEvalGate } from './agentDrawer'
 
 describe('agent drawer', () => {
+  it('renders execution data returned by the agent detail API', () => {
+    expect(executionRows({ current: '声明为智能体', target: 'ctx.loop', constraints: 'maxSteps 4' })).toEqual([
+      ['现在', '声明为智能体'], ['目标', 'ctx.loop'], ['约束', 'maxSteps 4'],
+    ])
+    expect(executionRows(null)[0]).toEqual(['现在', '未声明'])
+  })
   it('matches the registry card chips', () => {
     expect(cardChips({ category: 'biz', language: 'java', env: 'prod', version: 'v2.4.1' })).toEqual(['业务', 'Java', 'prod', 'v2.4.1'])
     expect(cardChips({ category: 'dev', language: 'python', runtime: 'code', delegateCount: 2 })).toEqual([

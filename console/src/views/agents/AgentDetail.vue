@@ -21,6 +21,7 @@ import {
   toolChip,
   isSelfChecking,
   withEvalGate,
+  executionRows,
   sourceLabel,
   versionRows,
 } from './agentDrawer'
@@ -258,6 +259,12 @@ onUnmounted(() => {
                 <b>
                   <a v-for="item in detail.delegates" :key="item" href="javascript:;" @click.prevent="openAgent(item)">{{ item }}</a>
                 </b>
+              </template>
+            </div>
+            <h4>运行方式</h4>
+            <div class="kv">
+              <template v-for="[label, value] in executionRows(detail.execution)" :key="label">
+                <span>{{ label }}</span><b>{{ value }}</b>
               </template>
             </div>
             <h4>接入自检</h4>
