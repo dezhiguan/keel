@@ -1387,6 +1387,54 @@ paths:
           description: 执行已不处于可恢复状态（RUN_NOT_RESUMABLE / RUN_EXPIRED）
           $ref: "#/components/responses/Error"
 
+  # ---------------------------------------------------------------- 质量中心
+  /quality:
+    get:
+      tags: [quality]
+      operationId: getQuality
+      summary: 用户反馈与点踩案例
+      parameters:
+        - name: agent
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/QualityReport" }
+  /quality/cases:
+    post:
+      tags: [quality]
+      operationId: addQualityCase
+      summary: 把点踩调用加入智能体评测集
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agent, traceId]
+              properties:
+                agent: { type: string }
+                traceId: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/QualityCaseAdded" }
+
   # ---------------------------------------------------------------- 审计
   /audit/events:
     get:
@@ -2366,6 +2414,35 @@ components:
 
   schemas:
     # ------------------------------------------------------------ 通用
+    QualityReport:
+      type: object
+      required: [connected, feedbackCount, downCount, cases]
+      properties:
+        connected: { type: boolean }
+        feedbackCount: { type: integer }
+        downCount: { type: integer }
+        downRate: { type: number, nullable: true, description: 点踩数 / 反馈数；没有反馈时为空 }
+        cases:
+          type: array
+          items: { $ref: "#/components/schemas/QualityCase" }
+    QualityCase:
+      type: object
+      required: [traceId, agent, added]
+      properties:
+        traceId: { type: string }
+        agent: { type: string }
+        input: { type: string }
+        output: { type: string }
+        comment: { type: string, nullable: true }
+        createdAt: { type: string, nullable: true }
+        added: { type: boolean }
+    QualityCaseAdded:
+      type: object
+      required: [dataset, itemId, traceId]
+      properties:
+        dataset: { type: string }
+        itemId: { type: string }
+        traceId: { type: string }
     Envelope:
       type: object
       required: [code, traceId]

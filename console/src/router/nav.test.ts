@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isNavActive } from './nav'
+import { isNavActive, NAV } from './nav'
 
 describe('sidebar active item', () => {
   it('keeps 链路追踪 selected on a trace detail route', () => {
@@ -16,5 +16,6 @@ describe('sidebar active item', () => {
     expect(isNavActive('/jobs', '/jobs/DF-0019')).toBe(true)
     expect(isNavActive('/jobs', '/jobs/batches')).toBe(true)
     expect(isNavActive('/eval', '/evaluation')).toBe(false)
+    expect(NAV.some((item) => item.path === '/quality' && item.title === '质量中心')).toBe(true)
   })
 })

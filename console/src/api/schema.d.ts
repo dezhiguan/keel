@@ -901,6 +901,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 用户反馈与点踩案例 */
+        get: operations["getQuality"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/quality/cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 把点踩调用加入智能体评测集 */
+        post: operations["addQualityCase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/audit/events": {
         parameters: {
             query?: never;
@@ -1534,6 +1568,28 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        QualityReport: {
+            connected: boolean;
+            feedbackCount: number;
+            downCount: number;
+            /** @description 点踩数 / 反馈数；没有反馈时为空 */
+            downRate?: number | null;
+            cases: components["schemas"]["QualityCase"][];
+        };
+        QualityCase: {
+            traceId: string;
+            agent: string;
+            input?: string;
+            output?: string;
+            comment?: string | null;
+            createdAt?: string | null;
+            added: boolean;
+        };
+        QualityCaseAdded: {
+            dataset: string;
+            itemId: string;
+            traceId: string;
+        };
         Envelope: {
             /**
              * @description 成功固定为 OK，失败为 contracts/error-codes.yaml 里的错误码
@@ -4323,6 +4379,59 @@ export interface operations {
             };
             /** @description 执行已不处于可恢复状态（RUN_NOT_RESUMABLE / RUN_EXPIRED） */
             409: components["responses"]["Error"];
+        };
+    };
+    getQuality: {
+        parameters: {
+            query?: {
+                agent?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["QualityReport"];
+                    };
+                };
+            };
+        };
+    };
+    addQualityCase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    agent: string;
+                    traceId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["QualityCaseAdded"];
+                    };
+                };
+            };
         };
     };
     listAuditEvents: {
