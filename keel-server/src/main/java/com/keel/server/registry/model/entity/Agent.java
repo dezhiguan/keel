@@ -26,6 +26,7 @@ public class Agent {
     private OffsetDateTime updatedAt;
     private String layer;
     private String devflowJobId;
+    private boolean removed;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -55,4 +56,6 @@ public class Agent {
     public void setLayer(String layer) { this.layer = layer; }
     public String getDevflowJobId() { return devflowJobId; }
     public void setDevflowJobId(String devflowJobId) { this.devflowJobId = devflowJobId; }
+    public boolean isRemoved() { return removed; }
+    public void setRemoved(boolean removed) { this.removed = removed; }
 }

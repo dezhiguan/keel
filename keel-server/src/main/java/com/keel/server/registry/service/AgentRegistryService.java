@@ -171,7 +171,7 @@ public class AgentRegistryService {
 
     private Agent require(String name) {
         var agent = agentMapper.selectOne(new LambdaQueryWrapper<Agent>().eq(Agent::getName, name));
-        if (agent == null || !Agent.KIND_AGENT.equals(agent.getKind())) {
+        if (agent == null || !Agent.KIND_AGENT.equals(agent.getKind()) || agent.isRemoved()) {
             throw new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message());
         }
         return agent;
@@ -189,6 +189,6 @@ public class AgentRegistryService {
     }
 
     private static LambdaQueryWrapper<Agent> agentsOnly() {
-        return new LambdaQueryWrapper<Agent>().eq(Agent::getKind, Agent.KIND_AGENT);
+        return new LambdaQueryWrapper<Agent>().eq(Agent::getKind, Agent.KIND_AGENT).eq(Agent::isRemoved, false);
     }
 }

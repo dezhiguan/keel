@@ -69,6 +69,7 @@ public class LifecycleService {
         var approvedGrants = approvedDevflowGrants(name, selected, manifest, env);
         var existing = agents.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Agent>()
                 .eq(Agent::getName, name));
+        rejectRemovedName(existing);
         if (existing != null && ledger.hasActive(name, env)) {
             throw new KeelException(ErrorCode.AGENT_NAME_TAKEN, ErrorCode.AGENT_NAME_TAKEN.message());
         }
@@ -232,6 +233,30 @@ public class LifecycleService {
         existing.setStatus(AgentStatus.RETIRED);
         agents.updateById(existing);
         jdbc.update("INSERT INTO route_snapshot (changed_agent) VALUES (?)", name);
+    }
+
+    static void rejectRemovedName(Agent existing) {
+        if (existing != null && existing.isRemoved()) {
+            throw new KeelException(ErrorCode.AGENT_NAME_TAKEN, ErrorCode.AGENT_NAME_TAKEN.message());
+        }
+    }
+
+    /** Hide a retired agent from the registry. The row, audit events and traces stay. */
+    public void delete(String name) {
+        var existing = agents.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Agent>()
+                .eq(Agent::getName, name).eq(Agent::getKind, Agent.KIND_AGENT));
+        agents.updateById(markRemoved(existing));
+    }
+
+    static Agent markRemoved(Agent existing) {
+        if (existing == null || existing.isRemoved()) {
+            throw new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message());
+        }
+        if (existing.getStatus() != AgentStatus.RETIRED) {
+            throw new KeelException(ErrorCode.AGENT_NOT_RETIRED, ErrorCode.AGENT_NOT_RETIRED.message());
+        }
+        existing.setRemoved(true);
+        return existing;
     }
 
     private void insertAgent(JsonNode manifest) {

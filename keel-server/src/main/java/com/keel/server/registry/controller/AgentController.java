@@ -14,6 +14,7 @@ import com.keel.server.registry.service.LifecycleService;
 import com.keel.server.registry.service.SelfCheckService;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -78,6 +79,12 @@ public class AgentController {
     @PostMapping("/{name}/chat")
     public R<java.util.Map<String, Object>> chat(@PathVariable String name, @RequestBody JsonNode body) {
         return R.ok(chats.chat(name, body.path("text").asText("")));
+    }
+
+    @DeleteMapping("/{name}")
+    public R<java.util.Map<String, Object>> delete(@PathVariable String name) {
+        lifecycleService.delete(name);
+        return R.ok(java.util.Map.of("name", name));
     }
 
     @PostMapping("/{name}/retire")
