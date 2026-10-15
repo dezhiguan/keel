@@ -612,6 +612,25 @@ class GatewayTest {
         return "{\"model\":\"" + model + "\",\"usage\":{\"prompt_tokens\":" + input + ",\"completion_tokens\":" + output + "}}";
     }
 
+    @Test void aProbeIsVisibleOnAnotherGatewaySharingTheMarkStore() throws Exception {
+        var server = echoServer();
+        try {
+            var marks = new ProbeMarks(null);
+            var first = new Gateway(catalog(server), new BudgetCounter(), new Upstream(), new KeyDirectory(),
+                    new SpendLog(null), null, new Admission(null), marks);
+            var second = new Gateway(catalog(server), new BudgetCounter(), new Upstream(), new KeyDirectory(),
+                    new SpendLog(null), null, new Admission(null), marks);
+            first.probe("qwen-plus");
+            assertThat(second.reports()).anySatisfy(report -> {
+                if ("qwen-plus".equals(report.model().name())) {
+                    assertThat(report.health()).isEqualTo("PROBED");
+                }
+            });
+        } finally {
+            server.stop(0);
+        }
+    }
+
     @Test void aProbeMarksTheModelBeforeAnySettledCall() throws Exception {
         var server = echoServer();
         try {

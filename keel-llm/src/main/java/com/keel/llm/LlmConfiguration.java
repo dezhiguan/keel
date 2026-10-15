@@ -46,7 +46,8 @@ public class LlmConfiguration {
         if (properties.getJdbcUrl() != null && !properties.getJdbcUrl().isBlank()) {
             history = new JdbcSpendLedger(properties.getJdbcUrl(), properties.getJdbcUsername(), properties.getJdbcPassword());
         }
-        return new Gateway(catalog, budget, new Upstream(), new KeyDirectory(redis), new SpendLog(redis), history, new Admission(redis));
+        return new Gateway(catalog, budget, new Upstream(), new KeyDirectory(redis), new SpendLog(redis), history,
+                new Admission(redis), new ProbeMarks(redis));
     }
 
     @Bean

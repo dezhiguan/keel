@@ -65,11 +65,11 @@
 | R4-1 | 薄网关 P1：账单落 PG `keel_llm.llm_spend`（每次尝试一行，带 requestId / attemptId / traceId / 价格版本），稳定游标分页；真实 SSE 流式及取消时结算；RPM / TPM / 并发上限 | 阶段 0 | 账单可全量拉取并与预算对账；流式请求可取消且费用正确 · ✅ r1014-r4-1 |
 | R4-2 | keel-server `metering/` + `usage_daily`；总览加"累计"和时间窗；指标显示口径与来源；未接入显示"未接入" | R4-1 R0-5 | 累计值 = 已封账日汇总 + 今日实时；与网关账单一致 · ✅ r1014-r4-2 |
 | R4-3 | 控制台按原型第 3 版改造：菜单名称、各页 tab 化、平台与能力服务、模型与成本五个 tab、链路详情显示网关尝试、智能体详情的运行方式 / 要素检查 | R4-1 R1-8 | 页面与原型一致；`vitest related` 通过；数据全部走 keel-server 接口 · ✅ r1014-r4-3 |
-| R4-4 | 薄网关 P2：路由策略（硬约束过滤 + 均衡 / 成本 / 延迟）与试算、按渠道熔断、策略版本与回滚、告警规则进总览。**先把新管理接口写进技术文档和 `external-apis.mdc`** | R4-1 | 故障注入只切换一次；鉴权失败、预算不足不降级；试算结果与实际路由一致 · ✅ r1014-r4-4 |
+| R4-4 | 薄网关 P2：路由策略（硬约束过滤 + 均衡 / 成本 / 延迟）与试算、按渠道熔断、策略版本与回滚、告警规则进总览。**先把新管理接口写进技术文档和 `external-apis.mdc`** | R4-1 | 故障注入只切换一次；鉴权失败、预算不足不降级；试算结果与实际路由一致。探测记在 Redis，副本之间读到同一健康状态 · ✅ r1014-r4-4 |
 | R4-5 | 结构化提示词：分段、变量 schema、输出契约、试运行。结构信息存 Langfuse 提示词 config 的 `keel` 命名空间，正文仍是编译后的 text / chat。**先实测** `POST /api/public/v2/prompts` 的 config 传法并读回，再改 `external-apis.mdc` 里"config 只认三项"的规则 | — | 实测记录写进 spec；删除一条约束时提示对应评测维度；缺变量报 `PROMPT_VARIABLE_MISSING`；SDK 读到 `keel` 段时不当作模型参数 · ✅ r1014-r4-5 |
 | R4-6 | 技能：注册表与授权（三张表）、manifest `spec.skills`、SDK `ctx.skills` 按需加载 | R1-3 | 加技能不会自动授予工具；技能用例并入使用方回归 · ✅ r1014-r4-6 |
 | R4-7 | 记忆服务 keel-memory（PG + pgvector）：用户记忆、按层策略、可查可删 **【待拍板：合规口径】** | R1-4 | 元智能体写记忆被拒；用户删除后不可再召回 · ✅ r1014-r4-7（会话原文不入库；用户 / 任务 / 经验按余弦召回。当前 Postgres 镜像没有 pgvector 扩展，向量存 JSON） |
-| R4-8 | 渠道发布：托管页面 + 嵌入代码 + 网页 SDK；渠道表与发布凭证；外部用户身份三种方式。托管页面先用底座域名的子路径（如 `https://keel.ragforge.net/a/{agent}`），与控制台同域，控制台会话 Cookie 必须限定路径且 HttpOnly，托管页面读不到 | keel-gateway 轻量版 | 业务网页嵌入后能对话、挂起审批、点赞点踩；未登记域名被拒（`CHANNEL_ORIGIN_DENIED`）；托管页面拿不到控制台 Cookie · ✅ r1014-r4-8 |
+| R4-8 | 渠道发布：托管页面 + 嵌入代码 + 网页 SDK；渠道表与发布凭证；外部用户身份三种方式。托管页面先用底座域名的子路径（如 `https://keel.ragforge.net/a/{agent}`），与控制台同域，控制台会话 Cookie 必须限定路径且 HttpOnly，托管页面读不到 | keel-gateway 轻量版 | 业务网页嵌入后能对话、挂起审批、点赞点踩；未登记域名被拒（`CHANNEL_ORIGIN_DENIED`）；托管页面拿不到控制台 Cookie。控制台 nginx 把 `/a/` 转到 keel-server · ✅ r1014-r4-8 |
 | R4-9 | 小程序 SDK **【先核实小程序流式方案】** | R4-8 | 小程序不支持 EventSource，流式用分块请求 `enableChunked` · ✅ r1014-r4-9 |
 
 ---

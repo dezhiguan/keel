@@ -12,9 +12,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -31,7 +29,7 @@ public final class Gateway {
     private final Admission admission;
     private final RoutePolicy routes = new RoutePolicy();
     private final List<AlertRule> alertRules = new ArrayList<>();
-    private final Set<String> probed = new HashSet<>();
+    private final ProbeMarks probed;
 
     public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream) {
         this(catalog, budget, upstream, new KeyDirectory());
@@ -47,6 +45,11 @@ public final class Gateway {
 
     public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream, KeyDirectory keys, SpendLog spendLog,
                    SpendLedger history, Admission admission) {
+        this(catalog, budget, upstream, keys, spendLog, history, admission, new ProbeMarks(null));
+    }
+
+    public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream, KeyDirectory keys, SpendLog spendLog,
+                   SpendLedger history, Admission admission, ProbeMarks probed) {
         this.catalog = catalog;
         this.budget = budget;
         this.upstream = upstream;
@@ -54,6 +57,7 @@ public final class Gateway {
         this.spendLog = spendLog;
         this.history = history;
         this.admission = admission == null ? new Admission(null) : admission;
+        this.probed = probed == null ? new ProbeMarks(null) : probed;
     }
 
     public synchronized Created create(String alias, List<String> models, List<String> fallback, BigDecimal dailyBudgetCny, boolean allowFallback) {
