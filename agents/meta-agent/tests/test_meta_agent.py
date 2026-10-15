@@ -82,10 +82,15 @@ def test_draft_then_confirm_writes_a_loadable_manifest(gateway):
     loaded = load_manifest(folder / "agent.yaml")
     assert loaded.metadata.name == "spec-agent"
     assert loaded.spec.runtime.endpoint == "http://spec-agent.agents.svc.cluster.local:8000"
+    assert loaded.spec.prompts.items[0].name == "role"
+    assert loaded.spec.knowledge == []
+    assert loaded.spec.guardrails.inputInjection.value == "enforce"
     assert json.loads((folder / "spec.json").read_text(encoding="utf-8"))["title"] == "需求分析师"
     skeleton = load_manifest(folder / "spec-agent" / "agent.yaml")
     assert skeleton.metadata.name == "spec-agent"
     assert (folder / "spec-agent" / "app.py").is_file()
+    assert (folder / "spec-agent" / "prompts/role.md").is_file()
+    assert 'ctx.prompt("role")' in (folder / "spec-agent" / "app.py").read_text(encoding="utf-8")
     assert "骨架" in final["answer"]
     assert "仓库未建" in final["answer"]
     assert "任务账本未写" in final["answer"]

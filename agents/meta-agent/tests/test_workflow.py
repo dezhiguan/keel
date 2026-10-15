@@ -22,11 +22,11 @@ def work():
 def test_bootstrap_code_review_is_bound_to_snapshot_and_fails_closed():
     from workflow import review_candidate
     files = [{"path": path, "content": "pass\n"} for path in
-             ("role.py", "app.py", "agent.yaml", "tests/test_role.py")]
+             ("role.py", "app.py", "agent.yaml", "prompts/role.md", "tests/test_role.py")]
     request = {**work(), "action": "REVIEW", "delivery": {"sha": "a" * 40},
                "snapshot": {"sha": "a" * 40, "files": files}}
     checks = {name: True for name in ("modelAccess", "toolAuthorization", "audit",
-              "visibleCaseOverfit", "releaseApproval", "behaviorTests")}
+              "visibleCaseOverfit", "releaseApproval", "behaviorTests", "hardcodedPrompt")}
 
     class Llm:
         async def chat(self, *args, **kwargs):
@@ -52,6 +52,9 @@ def test_workflow_drafts_and_revises_without_an_sdk_resume_token(gateway):
     draft = json.loads(event["answer"])
     assert draft["manifest"]["spec"]["models"]["budget"]["dailyCny"] == 7
     assert draft["manifest"]["metadata"]["owner"] == "QA"
+    assert draft["manifest"]["spec"]["prompts"]["items"] == [{"name": "role", "type": "text"}]
+    assert draft["manifest"]["spec"]["knowledge"] == []
+    assert draft["manifest"]["spec"]["guardrails"]["inputInjection"] == "enforce"
     assert isinstance(draft["spec"]["pending"], list)
     assert "language: python" in draft["manifestYaml"]
     revised = {**work(), "draft": draft, "feedback": "增加失败场景", "version": 2}
@@ -103,6 +106,7 @@ def test_workflow_delivery_preserves_edits_and_does_not_repeat_git_writes(gatewa
     assert json.loads(files["spec.json"])["users"] == "人工确认后的使用者"
     assert files["agent.yaml"] == draft["manifestYaml"]
     assert "app.py" in files
+    assert "prompts/role.md" in files
     assert "create_work_order" not in files["app.py"]
     assert files["evals/seed.jsonl"] == ""
     assert "manifest.schema.json" in files

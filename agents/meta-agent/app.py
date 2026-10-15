@@ -23,7 +23,8 @@ RULES = """1. 只生成研发智能体（为 Keel 研发流程服务的智能体
 3. risk 为 high 的工具必须写 approval: required。
 4. 工具只能从目录里选；目录为空时只能用需求里列出的工具。风险等级不得低于目录登记值。
 5. audit.captureFields 不得包含用户原文、手机号、身份证号等个人信息字段。
-6. 不要写任何 API Key、密码；runtime.endpoint 由平台按约定填写，不要写。"""
+6. 不要写任何 API Key、密码；runtime.endpoint 由平台按约定填写，不要写。
+7. 岗位代码用 ctx.prompt("role") 读取提示词；manifest 声明 prompts.items、knowledge 和 guardrails。"""
 ENDPOINT = "http://{name}.agents.svc.cluster.local:8000"
 
 agent = Agent.from_manifest(Path(__file__).with_name("agent.yaml"))
@@ -151,7 +152,12 @@ def _parse(reply: str | None) -> tuple[dict, list[str]]:
         return {}, ["manifest 的 metadata 和 spec 必须为对象"]
     name = manifest["metadata"].get("name")
     if isinstance(name, str) and NAME.match(name) and isinstance(manifest.get("spec"), dict):
-        runtime = manifest["spec"].setdefault("runtime", {})
+        spec = manifest["spec"]
+        spec["kind"] = "workflow"
+        spec["knowledge"] = []
+        spec["guardrails"] = {"inputInjection": "enforce", "grounding": "off", "pii": "mask"}
+        spec["prompts"] = {"source": "langfuse", "items": [{"name": "role", "type": "text"}]}
+        runtime = spec.setdefault("runtime", {})
         if isinstance(runtime, dict):
             runtime["endpoint"] = ENDPOINT.format(name=name)
     return {"spec": data["spec"], "manifest": manifest}, []
@@ -173,6 +179,8 @@ def _finish(ctx, state: dict):
     from keel.cli.repo import open_draft
     from keel.cli.server import ServerRejected
     project = create_from_spec(folder / "spec.json", root=folder)
+    from workflow import write_prompt_scaffold
+    write_prompt_scaffold(project, state["spec"])
     title = str(state["spec"].get("title") or state["target_agent"])
     try:
         opened = open_draft(project, title=title, body=str(state["spec"].get("goal") or ""))

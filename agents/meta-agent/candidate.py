@@ -21,14 +21,17 @@ async def generate(work: dict, ctx) -> dict:
     confirmed = work["draft"]["spec"]
     prompt = (
         "你是 Keel 的 meta-agent，正在为研发数字员工编写实际岗位代码。"
-        "只返回 JSON 对象，含 role.py 与 tests/test_role.py 两个 UTF-8 文件的源码："
-        '{"files":[{"path":"role.py","content":"..."},{"path":"tests/test_role.py","content":"..."}]}。'
+        "只返回 JSON 对象，含 role.py、prompts/role.md 与 tests/test_role.py 三个 UTF-8 文件："
+        '{"files":[{"path":"role.py","content":"..."},{"path":"prompts/role.md","content":"..."},'
+        '{"path":"tests/test_role.py","content":"..."}]}。'
         f"岗位 {name}，模板 {role}，职责：{purpose}\n"
         f"人工 H1 已确认的需求：{json.dumps(confirmed, ensure_ascii=False)}\n"
         f"已选工具：{json.dumps(requirement.get('tools') or [], ensure_ascii=False)}。"
         f"H2 可见评测用例：{json.dumps(work.get('visibleSeeds') or [], ensure_ascii=False)}。"
         "role.py 必须有 async def execute(data: dict, ctx) -> dict，处理非平凡输入并返回结构化结果。"
         "模型推理只能 ctx.llm.chat，外部工具只能 ctx.tools.call，委派只能 ctx.delegate。"
+        "role.py 必须调用 await ctx.prompt(\"role\") 取得提示词，再调用 prompt.compile(input=...)；"
+        "完整岗位指令只写在 prompts/role.md，源码里不得硬编码大段提示词。"
         "绝不自行授予工具、访问隐藏考题、自动合并或发布；缺少人工审批或可信门禁时返回 BLOCKED。"
         "不导入网络、文件、进程或厂商 SDK；role.py 只能导入 json/re/typing/collections/datetime。"
         "tests/test_role.py 至少包含一个覆盖岗位正常输入和一个拒绝/失败场景的 test_ 函数，"
@@ -54,8 +57,8 @@ def parse(reply: str | None) -> tuple[dict, list[str]]:
     except json.JSONDecodeError:
         return {}, ["JSON 解析失败"]
     files = data.get("files") if isinstance(data, dict) else None
-    if not isinstance(files, list) or len(files) != 2:
-        return {}, ["必须且只能有 role.py 和 tests/test_role.py"]
+    if not isinstance(files, list) or len(files) != 3:
+        return {}, ["必须且只能有 role.py、prompts/role.md 和 tests/test_role.py"]
     mapping = {}
     for item in files:
         if not isinstance(item, dict) or not isinstance(item.get("path"), str) or not isinstance(item.get("content"), str):
@@ -63,11 +66,14 @@ def parse(reply: str | None) -> tuple[dict, list[str]]:
         if item["path"] in mapping:
             return {}, ["文件路径重复"]
         mapping[item["path"]] = item["content"]
-    if set(mapping) != {"role.py", "tests/test_role.py"}:
-        return {}, ["只允许 role.py 与 tests/test_role.py"]
+    if set(mapping) != {"role.py", "prompts/role.md", "tests/test_role.py"}:
+        return {}, ["只允许 role.py、prompts/role.md 与 tests/test_role.py"]
+    if not mapping["prompts/role.md"].strip() or len(mapping["prompts/role.md"].encode("utf-8")) > 40_000:
+        return {}, ["岗位提示词不能为空或超过 40KB"]
     errors = []
     trees = {}
-    for path, source in mapping.items():
+    for path in ("role.py", "tests/test_role.py"):
+        source = mapping[path]
         if len(source.encode("utf-8")) > 40_000:
             errors.append(path + " 超过 40KB")
             continue
@@ -80,7 +86,15 @@ def parse(reply: str | None) -> tuple[dict, list[str]]:
     role = trees["role.py"]
     if not any(isinstance(node, ast.AsyncFunctionDef) and node.name == "execute" for node in role.body):
         errors.append("role.py 缺少 async execute")
+    if not any(isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+               and node.func.attr == "prompt" and isinstance(node.func.value, ast.Name)
+               and node.func.value.id == "ctx" and len(node.args) == 1
+               and isinstance(node.args[0], ast.Constant) and node.args[0].value == "role"
+               for node in ast.walk(role)):
+        errors.append("role.py 必须调用 ctx.prompt(\"role\")")
     for node in ast.walk(role):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and len(node.value) > 160:
+            errors.append("role.py 不得硬编码大段提示词")
         if isinstance(node, ast.Import):
             if any(alias.name.split(".")[0] not in ALLOWED_IMPORTS for alias in node.names):
                 errors.append("role.py 导入了未经允许的模块")

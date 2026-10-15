@@ -2,6 +2,7 @@ package com.keel.server.devflow;
 
 import com.keel.server.auth.ConsolePrincipal;
 import com.keel.server.common.KeelException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -12,6 +13,20 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.*;
 
 class MetaAgentRulesTest {
+    @Test void reviewRequiresHardcodedPromptCheck() throws Exception {
+        var json = new ObjectMapper();
+        var report = json.readTree("""
+                {"approved":true,"checks":{"modelAccess":true,"toolAuthorization":true,"audit":true,
+                "visibleCaseOverfit":true,"releaseApproval":true,"behaviorTests":true}}
+                """);
+        assertThatThrownBy(() -> MetaAgentExecution.validateReviewChecks(report))
+                .isInstanceOf(KeelException.class).hasMessageContaining("维度不完整");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) report.path("checks")).put("hardcodedPrompt", false);
+        assertThatThrownBy(() -> MetaAgentExecution.validateReviewChecks(report))
+                .isInstanceOf(KeelException.class).hasMessageContaining("分项结果冲突");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) report.path("checks")).put("hardcodedPrompt", true);
+        assertThatCode(() -> MetaAgentExecution.validateReviewChecks(report)).doesNotThrowAnyException();
+    }
     @AfterEach void clear() { RequestContextHolder.resetRequestAttributes(); }
     @Test void requiresAnActualWritableAdministrator() {
         assertThatThrownBy(MetaAgentExecution::requireAdmin).isInstanceOf(KeelException.class);

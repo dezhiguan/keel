@@ -219,13 +219,7 @@ public class MetaAgentExecution {
                     || !report.path("checks").isObject() || !report.path("findings").isArray()) {
                 throw invalid("模型代码评审结果与候选提交不一致");
             }
-            for (var check : List.of("modelAccess", "toolAuthorization", "audit", "visibleCaseOverfit",
-                    "releaseApproval", "behaviorTests")) {
-                if (!report.path("checks").path(check).isBoolean()) throw invalid("代码评审维度不完整");
-                if (report.path("approved").asBoolean() && !report.path("checks").path(check).asBoolean()) {
-                    throw invalid("模型代码评审结论与分项结果冲突");
-                }
-            }
+            validateReviewChecks(report);
             for (var finding : report.path("findings")) {
                 if (finding.path("severity").asText().matches("HIGH|MID") && report.path("approved").asBoolean()) {
                     throw invalid("模型代码评审结论与风险发现冲突");
@@ -253,6 +247,16 @@ public class MetaAgentExecution {
             throw error;
         } catch (Exception error) {
             throw invalid("代码评审服务不可用或未返回可信结果");
+        }
+    }
+
+    static void validateReviewChecks(JsonNode report) {
+        for (var check : List.of("modelAccess", "toolAuthorization", "audit", "visibleCaseOverfit",
+                "releaseApproval", "behaviorTests", "hardcodedPrompt")) {
+            if (!report.path("checks").path(check).isBoolean()) throw invalid("代码评审维度不完整");
+            if (report.path("approved").asBoolean() && !report.path("checks").path(check).asBoolean()) {
+                throw invalid("模型代码评审结论与分项结果冲突");
+            }
         }
     }
 
