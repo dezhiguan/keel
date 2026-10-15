@@ -598,6 +598,7 @@ public class MetaAgentExecution {
         return tx.execute(status -> {
             var state = lock(id);
             if (!"FAILED".equals(state.path("phase").asText())) throw invalid("只有失败的执行可以重试");
+            if (state.path("sandboxAttempts").size() >= 3) throw invalid("沙箱修复已达到三轮上限");
             state.put("phase", "QUEUED"); state.remove("error");
             String action = !state.has("confirmedVersion") ? "DRAFT" : state.has("acceptedAgentCount") ? "DELIVER" : "EVAL";
             save(id, state, action);
@@ -677,11 +678,38 @@ public class MetaAgentExecution {
                             if ("RUNNING".equals(run.status()) || "QUEUED".equals(run.status())) return;
                             var sha = state.path("delivery").path("sha").asText();
                             boolean passed = "DONE".equals(run.status()) && run.report().contains("sha=" + sha + " snapshot=ok tests=PASS");
-                            state.put("sandboxStatus", passed ? "PASS" : "FAILED").put("phase", passed ? "WAITING_REVIEW" : "FAILED");
-                            if (!passed) state.put("error", "隔离沙箱未通过；请查看任务报告并修复 PR");
-                            save(id, state, "DELIVER");
-                            jobs.progress(id, passed ? "WAIT" : "FAIL", passed ? "REVIEW" : "BUILD",
-                                    passed ? "隔离沙箱已通过，等待 code-review 与人工 PR review" : "隔离沙箱测试失败，岗位候选不可上岗");
+                            int attempt = state.path("sandboxAttempts").size() + 1;
+                            var attempts = state.withArray("sandboxAttempts");
+                            attempts.addObject().put("attempt", attempt).put("sha", sha).put("runId", run.runId())
+                                    .put("status", passed ? "PASS" : "FAILED").put("report", run.report());
+                            state.put("sandboxStatus", passed ? "PASS" : "FAILED");
+                            if (passed) {
+                                state.put("phase", "WAITING_REVIEW");
+                                state.remove("repair");
+                                save(id, state, "DELIVER");
+                                jobs.progress(id, "WAIT", "REVIEW", "第 " + attempt + " 轮沙箱通过，等待 code-review 与人工 PR review");
+                            } else if (repairableSandbox(run.status(), run.report(), sha, attempt) && git != null) {
+                                var repo = state.path("delivery").path("repo").asText().replaceFirst("^[^/]+/", "");
+                                var snapshot = read(git.fetch(id, repo, sha));
+                                var previous = json.createObjectNode();
+                                var files = previous.putArray("files");
+                                var needed = Set.of("role.py", "prompts/role.md", "tests/test_role.py");
+                                for (var file : snapshot.path("files")) {
+                                    if (needed.contains(file.path("path").asText())) files.add(file);
+                                }
+                                if (files.size() != needed.size()) throw invalid("上轮候选快照缺少修复所需文件");
+                                var repair = state.putObject("repair");
+                                repair.put("attempt", attempt + 1).put("failedSha", sha).put("report", run.report());
+                                repair.set("previousCandidate", previous);
+                                state.put("phase", "QUEUED");
+                                save(id, state, "DELIVER");
+                                jobs.progress(id, "QUEUED", "BUILD", "第 " + attempt + " 轮沙箱测试失败，准备第 " + (attempt + 1) + " 轮修复");
+                            } else {
+                                state.put("phase", "FAILED").put("error", attempt >= 3
+                                        ? "三轮隔离沙箱测试仍未通过，岗位候选不可交付" : "隔离沙箱未完成岗位测试，候选不可交付");
+                                save(id, state, "DELIVER");
+                                jobs.progress(id, "FAIL", "BUILD", "第 " + attempt + " 轮沙箱失败，修复循环已停止");
+                            }
                         } catch (RuntimeException error) {
                             state.put("phase", "FAILED").put("sandboxStatus", "FAILED").put("error", "隔离沙箱结果读取失败或超时");
                             save(id, state, "DELIVER");
@@ -694,6 +722,11 @@ public class MetaAgentExecution {
                         "sandbox progression failed trace_id= agent=meta-agent job={} error={}", id, error.getClass().getSimpleName());
             }
         }
+    }
+
+    static boolean repairableSandbox(String status, String report, String sha, int attempt) {
+        return attempt < 3 && "FAILED".equals(status) && report != null
+                && report.startsWith("sha=" + sha + " snapshot=ok tests=FAIL\n");
     }
 
     private void complete(Work work, String lease, ObjectNode output, String traceId, String error) {
@@ -718,7 +751,11 @@ public class MetaAgentExecution {
             } else {
                 if (output.path("number").asInt() <= 0 || !output.path("sha").asText().matches("[0-9a-f]{40}")
                         || blank(output.path("url").asText()) || blank(output.path("repo").asText())) throw invalid("Git 交付缺少 PR 或精确 commit");
+                if (state.has("repair") && output.path("sha").asText().equals(state.path("repair").path("failedSha").asText())) {
+                    throw invalid("修复候选必须生成新的 Git 提交");
+                }
                 state.set("delivery", output); state.put("phase", "SANDBOX_PENDING");
+                state.remove(List.of("sandboxRunId", "sandboxStatus"));
                 jobs.progress(work.id, "RUN", "BUILD", "岗位代码候选 PR 已交付，等待隔离沙箱执行实际代码测试");
             }
             save(work.id, state, work.action);
@@ -749,7 +786,7 @@ public class MetaAgentExecution {
 
     private ObjectNode publicState(ObjectNode state) {
         var result = state.deepCopy();
-        result.remove(List.of("catalog", "feedback", "confirmedVersion", "humanSeeds", "evalDraft"));
+        result.remove(List.of("catalog", "feedback", "confirmedVersion", "humanSeeds", "evalDraft", "repair"));
         if (state.has("acceptedAgentCount")) {
             var grants = jdbc.query("SELECT tool_name, version_range, granted_by FROM devflow_tool_grant WHERE job_id=? ORDER BY tool_name",
                     (rs, n) -> Map.of("toolName", rs.getString(1), "versionRange", rs.getString(2),

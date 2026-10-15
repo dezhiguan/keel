@@ -2626,6 +2626,14 @@ export interface components {
             sandboxRunId?: string;
             /** @enum {string} */
             sandboxStatus?: "PASS" | "FAILED";
+            sandboxAttempts?: {
+                attempt: number;
+                sha: string;
+                runId: string;
+                /** @enum {string} */
+                status: "PASS" | "FAILED";
+                report: string;
+            }[];
             toolGrants?: {
                 toolName: string;
                 versionRange: string;

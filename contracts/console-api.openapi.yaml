@@ -3516,6 +3516,17 @@ components:
         traceId: { type: string }
         sandboxRunId: { type: string }
         sandboxStatus: { type: string, enum: [PASS, FAILED] }
+        sandboxAttempts:
+          type: array
+          items:
+            type: object
+            required: [attempt, sha, runId, status, report]
+            properties:
+              attempt: { type: integer, minimum: 1, maximum: 3 }
+              sha: { type: string, pattern: "^[0-9a-f]{40}$" }
+              runId: { type: string }
+              status: { type: string, enum: [PASS, FAILED] }
+              report: { type: string }
         toolGrants:
           type: array
           items:

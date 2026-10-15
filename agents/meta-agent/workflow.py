@@ -5,6 +5,7 @@ import httpx
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 
 import yaml
@@ -179,6 +180,30 @@ def _deliver(work):
     root.mkdir(parents=True, exist_ok=True)
     checkpoint = root / "delivery.json"
     state = json.loads(checkpoint.read_text()) if checkpoint.exists() else {}
+    repair = work.get("repair") or {}
+    attempt = int(repair.get("attempt") or 1)
+    if attempt < 1 or attempt > 3:
+        raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "沙箱修正轮次无效")
+    if attempt > 1:
+        failed_sha = repair.get("failedSha")
+        fresh = not state
+        current = attempt - 1 if fresh else int(state.get("attempt", 1))
+        if (not isinstance(failed_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", failed_sha)
+                or (fresh and parse_candidate(json.dumps(repair.get("previousCandidate")))[1])
+                or (not fresh and attempt == current + 1 and state.get("push", {}).get("sha") != failed_sha)
+                or (attempt == current and state.get("expectedSha") != failed_sha)
+                or attempt not in (current, current + 1)):
+            raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "沙箱修复提交与上一轮不一致")
+        if current < attempt:
+            candidate = work.get("candidate")
+            if not isinstance(candidate, dict) or parse_candidate(json.dumps(candidate))[1]:
+                raise KeelError(ErrorCode.AGENT_MANIFEST_INVALID, "修复后的岗位候选无效")
+            state["candidate"] = candidate
+            state["attempt"] = attempt
+            state["expectedSha"] = failed_sha
+            state.pop("push", None)
+            state.pop("result", None)
+            _save(checkpoint, state)
     if state.get("result"):
         return state["result"]
     functional = (requirement["target_agent"] in ROLES
@@ -217,9 +242,12 @@ def _deliver(work):
             state["repo"] = _post(base, "git.repo.create", {"name": name, "jobId": job_id})
             _save(checkpoint, state)
         if not state.get("push"):
-            state["push"] = _post(base, "git.branch.push", {"repo": name, "branch": "draft", "jobId": job_id,
+            push_body = {"repo": name, "branch": "draft", "jobId": job_id,
                 "message": f"Keel {'build' if functional else 'scaffold'} {job_id}: {requirement['title']}",
-                "files": _files(project)})
+                "files": _files(project)}
+            if state.get("expectedSha"):
+                push_body["expectedSha"] = state["expectedSha"]
+            state["push"] = _post(base, "git.branch.push", push_body)
             _save(checkpoint, state)
         opened = _post(base, "git.pr.open", {"repo": name, "head": "draft", "base": "main", "jobId": job_id,
             "title": requirement["title"], "body": f"任务 {job_id}\n\n{requirement['goal']}\n\n"

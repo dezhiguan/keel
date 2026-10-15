@@ -252,6 +252,14 @@ onUnmounted(() => {
             <template v-if="execution.sandboxRunId"><span>隔离沙箱</span><span class="mono">{{ execution.sandboxRunId }} · {{ execution.sandboxStatus || 'RUNNING' }}</span></template>
             <span>下一步</span><span>补齐 H2/H3、沙箱、人工 PR review 与门禁证据；未完成前不可发布。</span>
           </div>
+          <div v-if="execution.sandboxAttempts?.length" class="card">
+            <h3>隔离沙箱修正轮次 · {{ execution.sandboxAttempts.length }}/3</h3>
+            <div v-for="attempt in execution.sandboxAttempts" :key="attempt.runId" class="kv">
+              <span>第 {{ attempt.attempt }} 轮</span><b>{{ attempt.status === 'PASS' ? '通过' : '失败' }} · {{ attempt.runId }}</b>
+              <span>候选提交</span><span class="mono">{{ attempt.sha }}</span>
+              <span>测试报告</span><pre class="code">{{ attempt.report }}</pre>
+            </div>
+          </div>
           <div v-if="execution.phase === 'WAITING_REVIEW'" class="kv">
             <span>S4 人工评审</span>
             <button v-write class="btn sm" type="button" :disabled="busy" @click="refreshHumanReview">核验 PR review</button>

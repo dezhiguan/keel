@@ -35,7 +35,7 @@
 | R1-4 | SDK：运行内上下文由 loop 自动累积；会话记忆（按 session，有 TTL）先用 keel-lite 本地实现，接口为 `ctx.memory`；评测流量禁止写入 | R1-3 | 两轮对话第二轮能引用第一轮内容；`eval_run_id` 非空时写入被拒 · ✅ r1014-r1-4 |
 | R1-5 | 模板：新增 `loop-agent` 并设为默认；`graph-agent` 改成真实 LangGraph 示例；普通代码模板 manifest 写 `kind: workflow` | R1-3 | `keel new` 默认生成 loop-agent，自带冒烟用例能跑通 · ✅ r1014-r1-5 |
 | R1-6 | 元智能体产出修正：生成的 manifest 声明 `prompts.items`、knowledge、guardrails；交付保留 `prompts/`；生成代码只能用 `ctx.prompt()`；code-review 检查项加"硬编码提示词" | — | 新交付的项目注册后，提示词出现在 Langfuse 和控制台提示词页；源码里没有大段提示词字符串 · ✅ r1014-r1-6（本地验收；云端写入待人工） |
-| R1-7 | 元智能体：交付时"生成 → `sandbox.run` 跑测试 → 按报错修改"有界循环，最多 3 轮 | DF-3 沙箱 | 故意给一个会失败的需求，能看到修正轮次；3 轮不过则任务失败而不是交付 |
+| R1-7 | 元智能体：交付时"生成 → `sandbox.run` 跑测试 → 按报错修改"有界循环，最多 3 轮 | DF-3 沙箱 | 故意给一个会失败的需求，能看到修正轮次；3 轮不过则任务失败而不是交付 · ✅ r1014-r1-7 |
 | R1-8 | keel-server 注册自检加"智能体要素检查"：`kind: agent` 缺工具调用 / loop / 提示词 / 评测之一则拒绝注册 | R1-1 R1-3 | agent 型缺提示词时注册被拒并给出缺项；workflow 型可注册 |
 
 ## 阶段 2 · 独立成库

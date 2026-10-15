@@ -13,6 +13,16 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.*;
 
 class MetaAgentRulesTest {
+    @Test void sandboxRepairsOnlyActualTestFailuresBeforeThirdAttempt() {
+        var sha = "a".repeat(40);
+        var report = "sha=" + sha + " snapshot=ok tests=FAIL\ntest_normal failed";
+        assertThat(MetaAgentExecution.repairableSandbox("FAILED", report, sha, 1)).isTrue();
+        assertThat(MetaAgentExecution.repairableSandbox("FAILED", report, sha, 2)).isTrue();
+        assertThat(MetaAgentExecution.repairableSandbox("FAILED", report, sha, 3)).isFalse();
+        assertThat(MetaAgentExecution.repairableSandbox("FAILED", report, "b".repeat(40), 1)).isFalse();
+        assertThat(MetaAgentExecution.repairableSandbox("TIMEOUT", report, sha, 1)).isFalse();
+        assertThat(MetaAgentExecution.repairableSandbox("FAILED", "snapshot=invalid tests=NOT_RUN", sha, 1)).isFalse();
+    }
     @Test void reviewRequiresHardcodedPromptCheck() throws Exception {
         var json = new ObjectMapper();
         var report = json.readTree("""
