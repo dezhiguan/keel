@@ -19,12 +19,14 @@ def _is_template(root: Path) -> bool:
 
 
 def template_dir(name: str) -> Path:
-    if os.environ.get("KEEL_TEMPLATES_DIR"):
-        root = Path(os.environ["KEEL_TEMPLATES_DIR"]) / name
-    else:
-        checkout = Path(__file__).resolve().parents[3] / "templates" / name
-        packaged = Path(__file__).resolve().parents[1] / "_templates" / name
-        root = checkout if _is_template(checkout) else packaged
+    configured = os.environ.get("KEEL_TEMPLATES_DIR", "").strip()
+    if configured:
+        root = Path(configured) / name
+        if _is_template(root):
+            return root
+    checkout = Path(__file__).resolve().parents[3] / "templates" / name
+    packaged = Path(__file__).resolve().parents[1] / "_templates" / name
+    root = checkout if _is_template(checkout) else packaged
     if not _is_template(root):
         raise FileNotFoundError(f"Template {name} is not installed")
     return root

@@ -53,7 +53,6 @@ print(json.dumps({'key':r.json()['key']}))
         "KEEL_TRACE_BUFFER_PATH": ".keel/traces", "KEEL_AUDIT_URL": "http://keel-audit.keel-system.svc.cluster.local:8080",
         "KEEL_AUDIT_TOKEN": secrets.token_urlsafe(32), "KEEL_AUDIT_SPOOL_PATH": ".keel/audit-spool.jsonl",
         "KEEL_GIT_CI_URL": "http://git-ci.keel-system.svc.cluster.local:8000",
-        "KEEL_TEMPLATES_DIR": "/src/templates",
     })
 print("Meta-agent Secrets ready; existing keys were preserved")
 
