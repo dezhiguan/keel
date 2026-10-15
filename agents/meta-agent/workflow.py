@@ -346,7 +346,7 @@ Keel 研发任务：{job_id}。
 manifest 中选择的共享工具尚需平台授权和调用适配。运行配置由平台 Secret 注入，不在项目中存放密钥。
 
 `.github/workflows/keel.yml` 会在首次推送时触发。CI 触发不等于业务评测通过。seed.jsonl 为空，待人提供真实用例。
-本地开发先从 Keel 仓库安装 SDK（pip install -e /path/to/keel/sdk-python），再使用 keel dev。
+本地开发安装已发布的 keel-sdk 后使用 keel dev。
 业务测试和评测通过后，按平台流程构建运行镜像、登记、自检和申请发布。
 ''', encoding="utf-8")
 

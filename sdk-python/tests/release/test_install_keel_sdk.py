@@ -101,6 +101,21 @@ def test_missing_token_does_not_download(monkeypatch):
         main([])
 
 
+def test_meta_agent_image_does_not_copy_platform_source():
+    root = ROOT
+    dockerfile = (root / "agents/meta-agent/Dockerfile").read_text(encoding="utf-8")
+    workflow = (root / ".github/workflows/keel-cd.yml").read_text(encoding="utf-8")
+    assert "context: agents/meta-agent" in workflow
+    assert "file: agents/meta-agent/Dockerfile" in workflow
+    assert "COPY sdk-python" not in dockerfile
+    assert "COPY contracts" not in dockerfile
+    assert "COPY templates" not in dockerfile
+    example = (root / "examples/meta-agent/agent.yaml").read_text(encoding="utf-8")
+    deploy = (root / "deploy/k3s/services/meta-agent.yaml").read_text(encoding="utf-8")
+    assert "example-meta" in example
+    assert "example-meta" not in deploy
+
+
 def test_release_workflow_publishes_only_the_starter_line():
     workflow = (ROOT / ".github/workflows/release-sdk.yml").read_text(encoding="utf-8")
     assert "sdk-v1.*" in workflow
@@ -126,4 +141,6 @@ def test_release_wheel_carries_the_contract_schemas():
     assert wheel.name == "keel_sdk-1.0.0-py3-none-any.whl"
     with zipfile.ZipFile(wheel) as archive:
         assert archive.testzip() is None
-        assert "keel/_schemas/manifest.schema.json" in archive.namelist()
+        names = archive.namelist()
+        assert "keel/_schemas/manifest.schema.json" in names
+        assert "keel/_templates/loop-agent/agent.yaml" in names

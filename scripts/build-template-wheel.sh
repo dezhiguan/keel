@@ -33,7 +33,14 @@ for source in (sdk / "keel").rglob("*"):
 config = tomllib.loads((sdk / "pyproject.toml").read_text(encoding="utf-8"))
 included = config["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
 for source, destination in included.items():
-    files[destination] = (sdk / source).read_bytes()
+    origin = sdk / source
+    if origin.is_dir():
+        for file in origin.rglob("*"):
+            if file.is_file() and "__pycache__" not in file.parts and file.suffix not in {".pyc", ".pyo"}:
+                relative = file.relative_to(origin).as_posix()
+                files[f"{destination}/{relative}"] = file.read_bytes()
+    else:
+        files[destination] = origin.read_bytes()
 
 metadata = [
     "Metadata-Version: 2.1",

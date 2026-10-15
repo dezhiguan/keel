@@ -14,9 +14,18 @@ CONTRACTS = ("manifest.schema.json", "sse-events.schema.json", "invoke.openapi.y
 PYTHON_LOCK = "httpx==0.28.1\npytest==9.1.1\nuvicorn==0.54.0\n"
 
 
+def _is_template(root: Path) -> bool:
+    return (root / "agent.yaml").is_file() or any(root.glob("*.yaml"))
+
+
 def template_dir(name: str) -> Path:
-    root = Path(os.environ["KEEL_TEMPLATES_DIR"]) / name if os.environ.get("KEEL_TEMPLATES_DIR") else Path(__file__).resolve().parents[3] / "templates" / name
-    if not (root / "agent.yaml").is_file() and not any(root.glob("*.yaml")):
+    if os.environ.get("KEEL_TEMPLATES_DIR"):
+        root = Path(os.environ["KEEL_TEMPLATES_DIR"]) / name
+    else:
+        checkout = Path(__file__).resolve().parents[3] / "templates" / name
+        packaged = Path(__file__).resolve().parents[1] / "_templates" / name
+        root = checkout if _is_template(checkout) else packaged
+    if not _is_template(root):
         raise FileNotFoundError(f"Template {name} is not installed")
     return root
 

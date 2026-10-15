@@ -18,6 +18,7 @@ venv/
 *.egg-info/
 dist/
 build/
+agents/meta-agent/vendor/
 
 # Node / 前端
 node_modules/
