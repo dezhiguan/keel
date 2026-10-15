@@ -1,23 +1,25 @@
 # Keel 元智能体生产第一名研发员工
 
-日期：待执行。站点：由操作者的 `KEEL_SERVER_URL` 决定。
+日期：2026-10-15。站点：https://keel.ragforge.net。
 
 ## 结论
 
-**未执行。** 脚本和清单已准备。没有创建 `spec-agent`，没有发布，也没有 7 天观察记录。
-
-计划岗位是 `spec-agent`，模板 `graph-agent`，由 meta-agent 以人机协作生产。
+**未通过。** 已在控制台创建 `DF-0002`（`spec-agent` / `graph-agent` / COLLAB）。H1 已确认，H2 已上传 30 条人工种子并确认 10 条扩充用例。生成岗位代码失败，阶段停在 `BUILD` / `FAILED`。没有 H4，没有 prod 发布，也没有 7 天观察。
 
 ## 实测结果
 
 | 环节 | 结果 | 证据 |
 | --- | --- | --- |
-| 创建研发任务 | 未执行 | `evidence/create.json`，jobId： |
-| H1 至 H4 与 prod 发布 | 未执行 | 控制台任务阶段： |
-| 7 天观察 | 未执行 | `evidence/execution.json`，phase：，watchDays： |
-| 目录来源 | 未执行 | `evidence/agents.json`，应为 meta-agent · jobId |
-| 本月上线 | 未执行 | `evidence/verdict.txt` 的 doneCount： |
+| 创建研发任务 | 已创建 | jobId：`DF-0002`，traceId：`9ab8bdfa10464c91876533167f4f6bde` |
+| H1 | 已确认 | 审批页 `/approvals/devflow/DF-0002`，随后阶段为 `H2` |
+| H2 | 已确认 | 人工用例 30 条，扩充用例采纳 10 条，隐藏考题由服务端切分 |
+| 生成岗位代码 | 失败 | 18:53 与 18:55 两次均为「元智能体执行失败，请检查运行服务和 Git 服务后重试」。链路 `20ac6ad06e80c01eda81e37840ae6e65` |
+| H3 | 未完成 | 页面仍有 `devflow.catalog.search`、`devflow.stage.report` 待批准 |
+| H4 与 prod 发布 | 未执行 | 代码未交付，不能申请 H4 |
+| 7 天观察 | 未执行 | phase：`FAILED`，watchDays：无 |
+| 目录来源 | 未执行 | `spec-agent` 尚未进入目录 |
+| 本月上线 | 未执行 | doneCount 未采集 |
 
 ## 仍需操作者执行
 
-按 `docs/qa/r3-5/checklist.md` 运行 `docs/qa/r3-5/run-first-employee.sh`。人工关口和 7 天观察完成前，不要把上表改成通过。
+Git 服务恢复后，在 `DF-0002` 上重试生成代码，再批准两个工具、完成 PR 评审和 H4。未满 7 个健康日不要把观察写成通过。
