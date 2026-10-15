@@ -244,6 +244,7 @@ onUnmounted(() => {
           <h3>岗位代码候选</h3>
           <div v-if="execution.delivery.protection === 'UNAVAILABLE'" class="banner warn">当前 GitHub 套餐不支持此私有仓库的分支保护。人工 PR approve 无法强制，发布关口阻塞。</div>
           <div v-if="execution.delivery.checks === 'MANUAL'" class="banner warn">此仓库的自动检查尚未启用。工作流模板在 ci/keel.yml，需有工作流写入权限的维护者安装到 .github/workflows 后运行。</div>
+          <p v-else-if="execution.delivery.checks === 'ENABLED'" class="mut">工作流在 .github/workflows/keel.yml，首次推送会触发 CI。这不代表测试或门禁已经通过。</p>
           <div class="kv">
             <span>Pull Request</span><a :href="execution.delivery.url" target="_blank" rel="noopener noreferrer">{{ execution.delivery.repo }} #{{ execution.delivery.number }} ↗</a>
             <span>分支</span><span class="mono">{{ execution.delivery.branch }}</span>

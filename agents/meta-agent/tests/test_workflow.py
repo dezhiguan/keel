@@ -110,9 +110,10 @@ def test_workflow_delivery_preserves_edits_and_does_not_repeat_git_writes(gatewa
     assert "create_work_order" not in files["app.py"]
     assert files["evals/seed.jsonl"] == ""
     assert "manifest.schema.json" in files
-    assert "ci/keel.yml" in files
-    assert ".github/workflows/keel.yml" not in files
-    assert json.loads(event["answer"])["checks"] == "MANUAL"
+    assert ".github/workflows/keel.yml" in files
+    assert "ci/keel.yml" not in files
+    assert "on: [push, pull_request]" in files[".github/workflows/keel.yml"]
+    assert json.loads(event["answer"])["checks"] == "ENABLED"
     import subprocess, sys
     checked = subprocess.run([sys.executable, "-m", "pytest", "tests", "-q"],
                              cwd=tmp_path / "DF-9001/spec-agent", capture_output=True, text=True)
@@ -144,7 +145,7 @@ def test_model_cannot_add_unselected_tools_or_change_identity(gateway):
     assert result["spec"]["goal"] == request["requirement"]["goal"]
     assert result["manifest"]["metadata"]["name"] == "spec-agent"
     assert result["manifest"]["spec"]["tools"] == []
-    assert "knowledge" not in result["manifest"]["spec"]
+    assert result["manifest"]["spec"]["knowledge"] == []
     assert len(gateway.requests) == 1
 
 

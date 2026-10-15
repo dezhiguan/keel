@@ -63,6 +63,7 @@ class GitHub:
     def create_repo(self, name: str) -> dict:
         self._create_repo({"name": name, "private": True, "auto_init": True})
         self.request("PUT", f"/repos/{self.org}/{name}/branches/main/protection", PROTECTION)
+        self.enable_actions(name)
         return {"repo": f"{self.org}/{name}", "defaultBranch": "main"}
 
     def _create_repo(self, payload: dict):
@@ -92,7 +93,17 @@ class GitHub:
             if exc.status != 403 or "Upgrade to GitHub Pro" not in str(exc):
                 raise
             protection = "UNAVAILABLE"
+        self.enable_actions(name)
         return {"repo": f"{self.org}/{name}", "defaultBranch": "main", "protection": protection}
+
+    def enable_actions(self, name: str) -> None:
+        """Turn Actions on before the first workflow commit so that push can start CI."""
+        root = f"/repos/{self.org}/{name}/actions/permissions"
+        self.request("PUT", root, {"enabled": True, "allowed_actions": "all"})
+        self.request("PUT", root + "/workflow", {
+            "default_workflow_permissions": "read",
+            "can_approve_pull_request_reviews": False,
+        })
 
     def push_scaffold(self, repo: str, job_id: str, message: str, files: list[dict],
                       expected_sha: str | None = None) -> dict:
@@ -123,11 +134,7 @@ class GitHub:
     def _push_from_parent(self, repo: str, branch: str, message: str, files: list[dict],
                           parent_sha: str, tree_sha: str) -> dict:
         path = f"/repos/{self.org}/{repo}"
-        tree = []
-        for item in files:
-            blob = self.request("POST", path + "/git/blobs", {"content": item["content"], "encoding": "utf-8"})
-            tree.append({"path": item["path"], "mode": "100644", "type": "blob", "sha": blob["sha"]})
-        built = self.request("POST", path + "/git/trees", {"base_tree": tree_sha, "tree": tree})
+        built = self._tree(repo, files, tree_sha)
         created = self.request("POST", path + "/git/commits",
                                {"message": message, "tree": built["sha"], "parents": [parent_sha]})
         self.request("PATCH", path + f"/git/refs/heads/{branch}", {"sha": created["sha"], "force": False})
@@ -146,13 +153,7 @@ class GitHub:
         parent = self.request("GET", f"/repos/{self.org}/{repo}/git/ref/heads/main")
         commit_sha = parent["object"]["sha"]
         commit = self.request("GET", f"/repos/{self.org}/{repo}/git/commits/{commit_sha}")
-        tree = []
-        for item in files:
-            blob = self.request("POST", f"/repos/{self.org}/{repo}/git/blobs",
-                                {"content": item["content"], "encoding": "utf-8"})
-            tree.append({"path": item["path"], "mode": "100644", "type": "blob", "sha": blob["sha"]})
-        built = self.request("POST", f"/repos/{self.org}/{repo}/git/trees",
-                             {"base_tree": commit["tree"]["sha"], "tree": tree})
+        built = self._tree(repo, files, commit["tree"]["sha"])
         created = self.request("POST", f"/repos/{self.org}/{repo}/git/commits",
                                {"message": message, "tree": built["sha"], "parents": [commit_sha]})
         if self.status("GET", f"/repos/{self.org}/{repo}/git/ref/heads/{branch}") == 404:
@@ -161,6 +162,19 @@ class GitHub:
         else:
             self.request("PATCH", f"/repos/{self.org}/{repo}/git/refs/heads/{branch}", {"sha": created["sha"]})
         return {"repo": f"{self.org}/{repo}", "branch": branch, "sha": created["sha"]}
+
+    def _tree(self, repo: str, files: list[dict], base_tree: str) -> dict:
+        root = f"/repos/{self.org}/{repo}"
+        tree = []
+        for item in files:
+            blob = self.request("POST", root + "/git/blobs", {"content": item["content"], "encoding": "utf-8"})
+            tree.append({"path": item["path"], "mode": "100644", "type": "blob", "sha": blob["sha"]})
+        try:
+            return self.request("POST", root + "/git/trees", {"base_tree": base_tree, "tree": tree})
+        except GitHubError as exc:
+            if exc.status == 404 and any(str(item.get("path", "")).startswith(".github/workflows/") for item in files):
+                raise GitHubError(403, "GitHub refused .github/workflows; KEEL_GITHUB_TOKEN needs the workflow scope") from exc
+            raise
 
     def open_pr(self, repo: str, head: str, base: str, title: str, body: str, *, draft: bool = False) -> dict:
         opened = self.request("POST", f"/repos/{self.org}/{repo}/pulls",

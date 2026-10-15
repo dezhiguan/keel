@@ -243,6 +243,37 @@ class Handler(BaseHTTPRequestHandler):
         return
 
 
+def test_missing_workflow_scope_is_reported_when_github_hides_the_tree():
+    class Hidden(GitHub):
+        def request(self, method, path, payload=None, **kwargs):
+            if path.endswith("/git/trees") and any(
+                    item.get("path", "").startswith(".github/workflows/")
+                    for item in (payload or {}).get("tree", [])):
+                raise GitHubError(404, "Not Found")
+            if path.endswith("/git/blobs"):
+                return {"sha": "blob-1"}
+            if path.endswith("/git/trees"):
+                return {"sha": "tree-1"}
+            raise AssertionError(path)
+
+    client = Hidden("http://unused", "test")
+    with pytest.raises(GitHubError, match="workflow scope") as caught:
+        client._tree("qa", [{"path": ".github/workflows/keel.yml", "content": "name: keel\n"}], "base")
+    assert caught.value.status == 403
+
+    class Missing(GitHub):
+        def request(self, method, path, payload=None, **kwargs):
+            if path.endswith("/git/trees"):
+                raise GitHubError(404, "Not Found")
+            if path.endswith("/git/blobs"):
+                return {"sha": "blob-1"}
+            raise AssertionError(path)
+
+    with pytest.raises(GitHubError, match="Not Found") as plain:
+        Missing("http://unused", "test")._tree("qa", [{"path": "README.md", "content": "hi"}], "base")
+    assert plain.value.status == 404
+
+
 def test_tools_stay_inside_keel_agents_and_protect_main():
     Handler.seen = []
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
@@ -277,6 +308,11 @@ def test_tools_stay_inside_keel_agents_and_protect_main():
     assert created["repo"] == "keel-agents/release-notes"
     assert ("POST", "/orgs/keel-agents/repos") in paths
     assert ("PUT", "/repos/keel-agents/release-notes/branches/main/protection") in paths
+    assert ("PUT", "/repos/keel-agents/release-notes/actions/permissions") in paths
+    workflow_permission = json.loads(next(body for method, path, body, _accept in Handler.seen
+                                          if path.endswith("/actions/permissions/workflow")))
+    assert workflow_permission["default_workflow_permissions"] == "read"
+    assert workflow_permission["can_approve_pull_request_reviews"] is False
     protection = json.loads(next(body for method, path, body, _accept in Handler.seen
                                  if path.endswith("/protection")))
     assert protection["required_pull_request_reviews"]["required_approving_review_count"] == 1

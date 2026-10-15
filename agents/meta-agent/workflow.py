@@ -254,7 +254,7 @@ def _deliver(work):
                 + ("模型生成岗位代码候选，测试、人工评审、门禁和发布尚未完成。" if functional
                    else "骨架交付，待人工开发、评测和发布。")})
         result = {**opened, "sha": state["push"]["sha"], "branch": "draft",
-                  "checks": "MANUAL",
+                  "checks": "ENABLED",
                   "capabilityStatus": "UNVERIFIED" if functional else "SCAFFOLD",
                   "gateStatus": "NOT_RUN",
                   "url": opened.get("url") or f"https://github.com/{opened['repo']}/pull/{opened['number']}"}
@@ -333,21 +333,6 @@ def test_entry_is_valid_python_and_has_an_async_entry():
 ''', encoding="utf-8")
 
 
-    (project / ".github/workflows/keel.yml").unlink(missing_ok=True)
-    (project / "ci").mkdir(exist_ok=True)
-    (project / "ci/keel.yml").write_text('''name: scaffold checks
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-      - run: pip install pytest jsonschema PyYAML
-      - run: pytest -q
-''', encoding="utf-8")
     if candidate is not None:
         return
     (project / "README.md").write_text(f'''# {project.name}
@@ -360,7 +345,7 @@ Keel 研发任务：{job_id}。
 当前 app.py 从 ctx.prompt 取确认需求生成的初版提示词；请按需求实现实际岗位逻辑。模型调用使用 ctx.llm，工具调用使用 ctx.tools.call。
 manifest 中选择的共享工具尚需平台授权和调用适配。运行配置由平台 Secret 注入，不在项目中存放密钥。
 
-`ci/keel.yml` 是可安装的 GitHub Actions 工作流模板。当前 Git 服务凭证无法写入 `.github/workflows`，需有该权限的维护者移入该目录后才会自动运行。可先在本地执行 `pytest -q` 检查 manifest 契约与 Python 语法；这不代表业务评测通过。seed.jsonl 为空，待人提供真实用例。
+`.github/workflows/keel.yml` 会在首次推送时触发。CI 触发不等于业务评测通过。seed.jsonl 为空，待人提供真实用例。
 本地开发先从 Keel 仓库安装 SDK（pip install -e /path/to/keel/sdk-python），再使用 keel dev。
 业务测试和评测通过后，按平台流程构建运行镜像、登记、自检和申请发布。
 ''', encoding="utf-8")

@@ -2618,10 +2618,10 @@ export interface components {
                  */
                 protection?: "ENFORCED" | "UNAVAILABLE";
                 /**
-                 * @description 工作流模板已交付但需人工安装；当前凭证无法写入 GitHub Actions 工作流目录
+                 * @description ENABLED 表示 .github/workflows/keel.yml 已随交付提交，首次推送会触发 CI。MANUAL 只用于旧记录
                  * @enum {string}
                  */
-                checks?: "MANUAL";
+                checks?: "MANUAL" | "ENABLED";
                 /**
                  * @description 候选代码尚未通过岗位行为验证
                  * @enum {string}

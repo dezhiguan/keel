@@ -3531,7 +3531,7 @@ components:
             url: { type: string, format: uri }
             branch: { type: string }
             protection: { type: string, enum: [ENFORCED, UNAVAILABLE], description: 私有仓库分支保护；UNAVAILABLE 时平台拒绝合并和发布 }
-            checks: { type: string, enum: [MANUAL], description: 工作流模板已交付但需人工安装；当前凭证无法写入 GitHub Actions 工作流目录 }
+            checks: { type: string, enum: [MANUAL, ENABLED], description: ENABLED 表示 .github/workflows/keel.yml 已随交付提交，首次推送会触发 CI。MANUAL 只用于旧记录 }
             capabilityStatus: { type: string, enum: [UNVERIFIED, SCAFFOLD], description: 候选代码尚未通过岗位行为验证 }
             gateStatus: { type: string, enum: [NOT_RUN], description: staging 门禁尚未执行 }
         traceId: { type: string }
