@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import AgentName from '@/components/AgentName.vue'
 import { listAgents } from '@/api/agents'
 import { addQualityCase, getQuality, type QualityReport } from '@/api/quality'
 import { toKeelError } from '@/api/http'
 
 const agent = ref('')
-const agents = ref<string[]>([])
+const agents = ref<{ name: string; displayName: string }[]>([])
 const report = ref<QualityReport | null>(null)
 const loading = ref(false)
 const adding = ref('')
@@ -45,7 +46,7 @@ async function add(traceId: string, owner: string) {
 onMounted(async () => {
   try {
     const page = await listAgents({ page: 1, size: 100 })
-    agents.value = (page.items ?? []).map((item) => item.name).filter((name): name is string => !!name)
+    agents.value = (page.items ?? []).flatMap((item) => item.name ? [{ name: item.name, displayName: item.displayName || item.name }] : [])
   } catch {
     agents.value = []
   }
@@ -62,7 +63,7 @@ watch(agent, () => { void load() })
     <span class="sp" />
     <select v-model="agent" class="sel">
       <option value="">全部智能体</option>
-      <option v-for="name in agents" :key="name" :value="name">{{ name }}</option>
+      <option v-for="item in agents" :key="item.name" :value="item.name">{{ item.displayName }} · {{ item.name }}</option>
     </select>
   </div>
   <div v-if="report && !report.connected" class="banner warn">Langfuse 未接入，反馈和点踩率显示为未接入。</div>
@@ -78,7 +79,7 @@ watch(agent, () => { void load() })
       </thead>
       <tbody>
         <tr v-for="row in report?.cases ?? []" :key="row.traceId">
-          <td class="mono">{{ row.agent || '—' }}</td>
+          <td><AgentName :id="row.agent" /></td>
           <td>{{ row.input || '—' }}</td>
           <td>{{ row.output || '—' }}</td>
           <td>{{ row.comment || '—' }}</td>

@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import AgentName from '@/components/AgentName.vue'
 import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import { listAgents } from '@/api/agents'
@@ -10,8 +11,7 @@ import { listTraces, type ListTracesQuery, type TracePage } from '@/api/traces'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { ago, fmtCny, fmtMs, nodeStatus } from '@/utils/format'
-import { avatarColor } from '@/views/agents/agentDrawer'
-import { agentChain, humanWait, showTokens, sourceText, traceJobPlaceholders, traceWindow, userLine, type TraceRange } from './traceView'
+import { humanWait, showTokens, sourceText, traceJobPlaceholders, traceWindow, userLine, type TraceRange } from './traceView'
 
 const RANGES: [TraceRange, string][] = [['1h', '近 1 小时'], ['24h', '近 24 小时'], ['7d', '近 7 天']]
 const STATUSES: [ListTracesQuery['status'] | undefined, string][] = [
@@ -25,7 +25,7 @@ const STATUSES: [ListTracesQuery['status'] | undefined, string][] = [
 
 const router = useRouter()
 const envStore = useEnvStore()
-const agents = ref<string[]>([])
+const agents = ref<{ name: string; displayName: string }[]>([])
 const jobs = ref<{ jobId: string; title?: string }[]>([])
 const result = ref<TracePage | null>(null)
 const loading = ref(false)
@@ -62,7 +62,7 @@ const placeholders = computed(() => {
 async function loadAgents() {
   try {
     const page = await listAgents({ env: envStore.env, page: 1, size: 100 })
-    agents.value = (page.items ?? []).map((item) => item.name).filter((name): name is string => !!name)
+    agents.value = (page.items ?? []).flatMap((item) => item.name ? [{ name: item.name, displayName: item.displayName || item.name }] : [])
   } catch {
     agents.value = []
   }
@@ -143,7 +143,7 @@ loadJobs()
     <div class="toolbar">
       <select v-model="filter.agent" class="inp" @change="search">
         <option value="">全部智能体</option>
-        <option v-for="a in agents" :key="a" :value="a">{{ a }}</option>
+        <option v-for="a in agents" :key="a.name" :value="a.name">{{ a.displayName }} · {{ a.name }}</option>
       </select>
       <select v-model="filter.jobId" class="inp" @change="search">
         <option value="">全部研发任务</option>
@@ -179,14 +179,9 @@ loadJobs()
               <small class="mono">{{ t.traceId }}<template v-if="userLine(t.userId, t.userRole)"> · {{ userLine(t.userId, t.userRole) }}</template></small>
             </td>
             <td>
-              <template v-if="t.multiAgent && (t.agents?.length ?? 0) > 1">
-                <span class="pill nd p-acc">多智能体 · {{ t.agents?.length }}</span>
-                <div class="mut" style="font-size: 11px; margin-top: 2px">{{ agentChain(t.agents) }}</div>
-              </template>
-              <template v-else-if="t.rootAgent">
-                <span class="dot" :style="{ background: avatarColor(t.rootAgent) }" /> {{ t.rootAgent }}
-              </template>
-              <template v-else>—</template>
+              <span v-if="t.multiAgent && (t.agents?.length ?? 0) > 1" class="pill nd p-acc">多智能体 · {{ t.agents?.length }}</span>
+              <AgentName v-for="name in (t.agents?.length ? t.agents : t.rootAgent ? [t.rootAgent] : [])" :key="name" :id="name" />
+              <template v-if="!t.rootAgent && !t.agents?.length">—</template>
             </td>
             <td @click.stop>
               <RouterLink v-if="t.devflowJobId" :to="`/jobs/${t.devflowJobId}`">{{ sourceText(t.devflowJobId, t.devflowLabel) }}</RouterLink>
@@ -214,7 +209,7 @@ loadJobs()
           </tr>
           <tr v-for="row in placeholders" :key="row.traceId">
             <td class="nm"><b class="mut">占位</b><small class="mono">{{ row.traceId }}</small></td>
-            <td><span class="dot" :style="{ background: avatarColor(row.rootAgent) }" /> {{ row.rootAgent }}</td>
+            <td><AgentName :id="row.rootAgent" /></td>
             <td>
               <RouterLink :to="`/jobs/${row.jobId}`">{{ sourceText(row.jobId, row.label) }}</RouterLink>
             </td>

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import AgentName from '@/components/AgentName.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import { getEvalRun, getLatestEval, runEval, type EvalResult } from '@/api/eval'
 import { listSuspendedRuns, openApproval } from '@/api/approvals'
@@ -26,7 +27,7 @@ const approvalsStore = useApprovalsStore()
 
 const evalTab = ref<'cmp' | 'holdout' | 'confirm'>('cmp')
 const agent = ref('')
-const agentOptions = ref<string[]>([])
+const agentOptions = ref<{ name: string; displayName: string }[]>([])
 const result = ref<EvalResult | null>(null)
 const pending = ref<{ jobId: string; agent: string }[]>([])
 const gap = computed(() => holdoutGap(result.value?.scoreTotal, result.value?.holdout?.score))
@@ -146,8 +147,9 @@ async function loadPending() {
 async function loadAgents() {
   try {
     const page = await listAgents({ env: envStore.env, size: 100 })
-    const names = (page.items ?? []).filter((a) => a.status !== 'DRAFT' && a.name).map((a) => a.name!)
-    agentOptions.value = names
+    const items = (page.items ?? []).flatMap((a) => a.status !== 'DRAFT' && a.name ? [{ name: a.name, displayName: a.displayName || a.name }] : [])
+    const names = items.map((item) => item.name)
+    agentOptions.value = items
     if (!names.includes(agent.value)) {
       agent.value = names[0] ?? ''
       if (!agent.value) result.value = null
@@ -170,7 +172,7 @@ watch(agent, () => {
       <span class="sp" />
       <a v-if="result?.langfuseUrl" class="btn" :href="result.langfuseUrl" target="_blank" rel="noopener">在 Langfuse 中打开 ↗</a>
       <select v-model="agent" class="inp">
-        <option v-for="a in agentOptions" :key="a" :value="a">{{ a }}</option>
+        <option v-for="a in agentOptions" :key="a.name" :value="a.name">{{ a.displayName }} · {{ a.name }}</option>
       </select>
       <button v-write class="btn pri" :disabled="!agent || progress !== null" @click="run">▶ 运行回归</button>
     </div>
@@ -184,7 +186,7 @@ watch(agent, () => {
     <div v-if="evalTab === 'confirm'" class="card">
       <h3>待评测确认<small>和待我处理是同一批待办</small></h3>
       <template v-if="pending.length">
-        <RouterLink v-for="item in pending" :key="item.jobId" class="btn sm" :to="reviewPath(item.jobId)">{{ item.jobId }} {{ item.agent }} · 去确认</RouterLink>
+        <RouterLink v-for="item in pending" :key="item.jobId" class="btn sm" :to="reviewPath(item.jobId)">{{ item.jobId }} <AgentName :id="item.agent" /> · 去确认</RouterLink>
       </template>
       <span v-else class="mut">无</span>
     </div>

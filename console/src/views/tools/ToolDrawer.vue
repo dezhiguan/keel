@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import AgentName from '@/components/AgentName.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import ToolStatusPill from './ToolStatusPill.vue'
 import {
@@ -323,7 +324,7 @@ onUnmounted(() => {
                   class="click"
                   @click="openAgent(item.agent)"
                 >
-                  <td>{{ item.agent }}</td>
+                  <td><AgentName :id="item.agent" /></td>
                   <td>{{ item.env }}</td>
                   <td>{{ item.calls30d ?? '—' }}</td>
                   <td><StatusPill v-bind="agentStatus(item.agentStatus)" /></td>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import AgentName from '@/components/AgentName.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import type { TraceDetail } from '@/api/traces'
 import { fmtCny, fmtMs, nodeStatus } from '@/utils/format'
@@ -29,7 +30,7 @@ const rootId = computed(() => (props.detail.nodes ?? []).find((n) => n.aggregate
         <span v-if="n.aggregated && n.id !== rootId" class="xsvc">跨服务</span>
       </span>
       <span><span class="ot" :class="`ot-${n.type}`">{{ n.type }}</span></span>
-      <span><span class="dot" :style="{ background: agents[n.agentKey!]?.color }" /> {{ agents[n.agentKey!]?.name }}</span>
+      <span><AgentName :id="agents[n.agentKey!]?.name" /></span>
       <span class="mono">{{ n.humanWaitLabel ?? fmtMs(n.durationMs) }}</span>
       <span class="mono">{{ fmtCny(n.costCny) }}</span>
       <span><StatusPill v-bind="nodeStatus(n.status)" /></span>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AgentName from '@/components/AgentName.vue'
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { answerSuspendedRun, decideApproval, listApprovals, listSuspendedRuns, type Approval, type SuspendedRun } from '@/api/approvals'
@@ -149,7 +150,7 @@ watch(() => envStore.env, load, { immediate: true })
           <button v-write class="btn sm" @click="decide(a, 'REJECT')">驳回</button>
           <span class="sp" />
           <small class="mut">
-            {{ a.agent }} · {{ a.policyName }} ·
+            <AgentName :id="a.agent" /> · {{ a.policyName }} ·
             <RouterLink v-if="a.runId && a.traceId" :to="`/traces/${a.traceId}`" style="color: var(--soft)">run {{ a.runId }} 挂起中 →</RouterLink>
             <template v-else>由人发起，无执行在等</template>
           </small>
@@ -170,7 +171,7 @@ watch(() => envStore.env, load, { immediate: true })
           <button v-write class="btn sm" @click="terminate(r)">{{ RUN_REASON[r.reason!].no }}</button>
           <span class="sp" />
           <small class="mut">
-            {{ r.agent }} · 发起用户 {{ r.actorUser }} ·
+            <AgentName :id="r.agent" /> · 发起用户 {{ r.actorUser }} ·
             <RouterLink :to="`/traces/${r.traceId}`" style="color: var(--soft)">查看链路 →</RouterLink>
           </small>
         </div>

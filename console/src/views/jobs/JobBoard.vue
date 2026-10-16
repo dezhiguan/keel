@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import AgentName from '@/components/AgentName.vue'
 import { listDevflowJobs, type DevflowJob, type DevflowJobList } from '@/api/devflow'
 import { toKeelError } from '@/api/http'
 import JobStatus from './JobStatus.vue'
@@ -134,7 +135,7 @@ function open(job: DevflowJob) {
           <tr v-for="job in finished" :key="job.jobId" class="click" @click="open(job)">
             <td class="nm"><b>{{ job.title }}</b><small class="mono">{{ job.jobId }}</small></td>
             <td><span class="ly" :class="layerClass(job.layer)">{{ layerShort(job.layer) }}</span></td>
-            <td class="mono">{{ job.targetAgent }}</td>
+            <td><AgentName :id="job.targetAgent" /></td>
             <td><JobStatus :job="job" /></td>
             <td class="mono">{{ cny(job.spentCny) }}</td>
           </tr>

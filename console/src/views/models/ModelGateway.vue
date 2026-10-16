@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import AgentName from '@/components/AgentName.vue'
 import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import { createAlertRule, exportModelBills, getModelGateway, probeModel, rotateModelKey, updateModelBudget, type ModelGateway } from '@/api/models'
@@ -214,7 +215,7 @@ watch(() => envStore.env, load, { immediate: true })
         <thead><tr><th>智能体</th><th>Key 别名 · 版本</th><th>可用模型</th><th>RPM / TPM / 并发</th><th style="width: 28%">已结算 + 预留 / 日预算</th><th>状态</th><th /></tr></thead>
         <tbody>
           <tr v-for="k in keyRows" :key="k.alias">
-            <td>{{ k.agent }}</td>
+            <td><AgentName :id="k.agent" /></td>
             <td class="mono">{{ k.alias }} · v{{ k.version ?? 1 }}</td>
             <td class="mono">{{ k.models?.length }}</td>
             <td class="mono">{{ limitLabel(k.rpm) }} / {{ limitLabel(k.tpm) }} / {{ limitLabel(k.concurrency) }}</td>
@@ -285,7 +286,7 @@ watch(() => envStore.env, load, { immediate: true })
           <tr v-for="(bill, index) in bills" :key="`${bill.attemptId || bill.requestId}-${index}`">
             <td class="mono">{{ bill.ts ? new Date(bill.ts).toLocaleString('zh-CN') : '—' }}</td>
             <td class="mono">{{ orDash(bill.attemptId || bill.requestId) }}</td>
-            <td>{{ orDash(bill.agent) }}</td>
+            <td><AgentName :id="bill.agent" /></td>
             <td class="mono">{{ orDash(bill.model) }}</td>
             <td class="mono">{{ orDash(bill.priceVersion) }}<template v-if="bill.routeVersion"> · {{ bill.routeVersion }}</template></td>
             <td class="mono">{{ bill.inputTokens == null || bill.outputTokens == null ? '—' : fmtN(bill.inputTokens + bill.outputTokens) }}</td>

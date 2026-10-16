@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import AgentName from '@/components/AgentName.vue'
 import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import { listDevflowJobs } from '@/api/devflow'
@@ -225,7 +226,7 @@ watch([() => envStore.env, range], () => {
         <tbody>
           <tr v-if="!rows.length"><td colspan="11" class="empty">当前环境没有智能体</td></tr>
           <tr v-for="agent in rows" :key="agent.name" class="click" @click="open(agent.name)">
-            <td class="nm"><b>{{ agent.displayName }}</b><small class="mono">{{ agent.name }}</small></td>
+            <td><AgentName :id="agent.name" :display-name="agent.displayName" /></td>
             <td>
               <span v-if="agentType(agent) === 'meta'" class="pill nd p-acc">元智能体</span>
               <span v-else-if="agentType(agent) === 'biz'" class="pill nd p-teal">业务</span>
@@ -266,7 +267,7 @@ watch([() => envStore.env, range], () => {
         <p v-if="!bars.length" class="empty">{{ overviewRangeLabel(range) }}还没有模型花费</p>
         <div v-else class="bars">
           <div v-for="row in bars" :key="row.agent">
-            <div class="h"><span>{{ row.agent }}</span><span class="mono">{{ fmtMoney(row.costCny) }}<template v-if="row.dailyBudgetCny != null"> / {{ fmtMoney(row.dailyBudgetCny) }}</template></span></div>
+            <div class="h"><AgentName :id="row.agent" /><span class="mono">{{ fmtMoney(row.costCny) }}<template v-if="row.dailyBudgetCny != null"> / {{ fmtMoney(row.dailyBudgetCny) }}</template></span></div>
             <div class="bar"><i :style="{ width: `${barWidth(row.costCny, row.dailyBudgetCny)}%`, background: barColor(row.costCny, row.dailyBudgetCny) }" /></div>
           </div>
         </div>

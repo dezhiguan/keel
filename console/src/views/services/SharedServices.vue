@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import AgentName from '@/components/AgentName.vue'
 import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import { getSharedServices, type SharedServices } from '@/api/services'
@@ -186,7 +187,7 @@ watch(() => envStore.env, load, { immediate: true })
           <p v-if="!callers.length" class="empty">这个环境还没有带来源标记的检索</p>
           <div v-else class="bars">
             <div v-for="c in callers" :key="c.agent">
-              <div class="h"><span>{{ c.agent }}</span><span class="mono">{{ fmtN(c.calls) }}</span></div>
+              <div class="h"><AgentName :id="c.agent" /><span class="mono">{{ fmtN(c.calls) }}</span></div>
               <div class="bar"><i :style="{ width: `${((c.calls ?? 0) / callerMax) * 100}%`, background: CALLER_COLORS[c.agent!] ?? 'var(--soft)' }" /></div>
             </div>
           </div>

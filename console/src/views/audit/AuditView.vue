@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import AgentName from '@/components/AgentName.vue'
 import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import { listAgents } from '@/api/agents'
@@ -21,7 +22,7 @@ const DECISION: Record<NonNullable<AuditEvent['decision']>, { label: string; ton
 
 const envStore = useEnvStore()
 const router = useRouter()
-const agents = ref<string[]>([])
+const agents = ref<{ name: string; displayName: string }[]>([])
 const result = ref<AuditPage | null>(null)
 const loading = ref(false)
 const verifying = ref(false)
@@ -49,7 +50,7 @@ const rows = computed(() => filterAuditPage(result.value?.items ?? [], filter.ac
 async function loadAgents() {
   try {
     const page = await listAgents({ env: envStore.env, page: 1, size: 100 })
-    agents.value = (page.items ?? []).map((item) => item.name).filter((name): name is string => !!name)
+    agents.value = (page.items ?? []).flatMap((item) => item.name ? [{ name: item.name, displayName: item.displayName || item.name }] : [])
   } catch {
     agents.value = []
   }
@@ -170,7 +171,7 @@ loadAgents()
     <div class="toolbar">
       <select v-model="filter.agent" class="inp" @change="search">
         <option :value="undefined">全部智能体</option>
-        <option v-for="a in agents" :key="a" :value="a">{{ a }}</option>
+        <option v-for="a in agents" :key="a.name" :value="a.name">{{ a.displayName }} · {{ a.name }}</option>
       </select>
       <select v-model="filter.action" class="inp" @change="onAction">
         <option :value="undefined">全部动作</option>
@@ -194,7 +195,7 @@ loadAgents()
         <tbody>
           <tr v-for="e in rows" :key="e.eventId" class="click" @click="selected = e">
             <td class="mono">{{ hms(e.ts) }}</td>
-            <td>{{ e.agent }}</td>
+            <td><AgentName :id="e.agent" /></td>
             <td>{{ e.actor?.userId }}</td>
             <td class="mono">{{ e.action }} <span v-if="eventKind(e.payload)">{{ eventKind(e.payload) }}</span></td>
             <td>{{ e.resource }}</td>

@@ -3,12 +3,14 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import Pager from '@/components/Pager.vue'
+import { useAgentCatalog } from '@/stores/agentCatalog'
 import { listPrompts, type PromptSummary } from '@/api/prompts'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { formatWhen, matchesStatus, STATUS_FILTERS, visibleEnvs, type EnvName } from './promptView'
 
 const router = useRouter()
+const catalog = useAgentCatalog()
 const envStore = useEnvStore()
 const rows = ref<PromptSummary[]>([])
 const langfuseUrl = ref('')
@@ -44,7 +46,7 @@ async function load() {
   }
 }
 
-onMounted(load)
+onMounted(() => { void catalog.ensure(); void load() })
 watch(() => envStore.env, () => {
   page.value = 1
 })
@@ -71,7 +73,7 @@ function pickStatus(value: string) {
     <div class="toolbar">
       <select class="inp" :value="agent" @change="pickAgent">
         <option value="">全部智能体</option>
-        <option v-for="name in agents" :key="name" :value="name">{{ name }}</option>
+        <option v-for="name in agents" :key="name" :value="name">{{ catalog.title(name) }} · {{ name }}</option>
       </select>
       <div class="chipsel">
         <button v-for="[value, label] in STATUS_FILTERS" :key="value" type="button" :class="{ on: status === value }" @click="pickStatus(value)">{{ label }}</button>
@@ -92,7 +94,7 @@ function pickStatus(value: string) {
         <tbody>
           <tr v-if="!paged.length"><td :colspan="envs.length + 4" class="empty">{{ error || '没有符合条件的提示词' }}</td></tr>
           <tr v-for="row in paged" :key="`${row.agent}/${row.name}`" class="click" @click="router.push(`/prompts/${row.agent}/${row.name}`)">
-            <td class="nm"><b class="mono">{{ row.agent }}/{{ row.name }}</b><small>{{ row.summary || (row.declared === false ? '已不在 manifest 中' : '还没有版本') }}</small></td>
+            <td class="nm"><b>{{ catalog.title(row.agent) }} · {{ row.name }}</b><small class="mono">{{ row.agent }}/{{ row.name }}<template v-if="row.summary"> · {{ row.summary }}</template></small></td>
             <td><span class="pill nd p-soft">{{ row.type }}</span></td>
             <td v-for="env in envs" :key="env">
               <template v-if="versionOf(row, env)">
