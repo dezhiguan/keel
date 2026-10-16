@@ -40,6 +40,7 @@ jobs:
       echo: ${{ steps.scope.outputs.echo }}
       sandbox: ${{ steps.scope.outputs.sandbox }}
       qa_agent: ${{ steps.scope.outputs.qa_agent }}
+      qa_mainflow: ${{ steps.scope.outputs.qa_mainflow }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -421,6 +422,87 @@ jobs:
           ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
           KEEL_NAMESPACE: agents
         run: bash deploy/ci/rollout-service.sh qa-lifecycle-1016 deploy/k3s/services/qa-lifecycle-1016.yaml PLACEHOLDER_QA_AGENT_IMAGE keel-qa-lifecycle-1016
+
+  test-qa-mainflow:
+    name: 测试五个主流程智能体
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [changes]
+    if: needs.changes.outputs.qa_mainflow == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -e ./sdk-python 'langfuse==4.17.0' pytest
+      - run: PYTHONPATH="$PWD/sdk-python" pytest agents/qa-mainflow/tests -q
+
+  build-qa-mainflow:
+    name: 构建五个主流程智能体镜像
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [changes, test-qa-mainflow]
+    if: needs.changes.outputs.qa_mainflow == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - id: image
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+        run: bash deploy/ci/resolve-image.sh qa-mainflow
+      - name: Stage SDK wheel
+        run: |
+          scripts/build-template-wheel.sh
+          mkdir -p agents/qa-mainflow/vendor
+          cp sdk-python/dist/keel_sdk-*.whl agents/qa-mainflow/vendor/
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.image.outputs.server }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: agents/qa-mainflow
+          file: agents/qa-mainflow/Dockerfile
+          push: true
+          provenance: false
+          tags: ${{ steps.image.outputs.push_image }}
+
+  deploy-qa-mainflow:
+    name: 部署五个主流程智能体
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [changes, build-qa-mainflow, deploy-server]
+    if: >-
+      always() &&
+      needs.changes.outputs.qa_mainflow == 'true' &&
+      needs.build-qa-mainflow.result == 'success' &&
+      (needs.deploy-server.result == 'success' || needs.deploy-server.result == 'skipped') &&
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: 配置 SSH
+        env:
+          SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
+          JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+        run: bash deploy/ci/configure-ssh.sh
+      - name: 发布五个服务
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+          KEEL_NAMESPACE: agents
+          KEEL_IMAGE_NAME: qa-mainflow
+        run: |
+          for agent in qa-policy-advisor-1017 qa-devops-investigator-1017 qa-incident-planner-1017 qa-workflow-coordinator-1017 qa-release-knowledge-1017; do
+            KEEL_AGENT_NAME="${agent}" KEEL_MANIFEST_OUTPUT="/tmp/${agent}-agent.yaml" python3 agents/qa-mainflow/manifest.py
+            scp -F ~/.ssh/config "/tmp/${agent}-agent.yaml" "keel-app:/tmp/${agent}-agent.yaml"
+            ssh -T -o BatchMode=yes keel-app "kubectl -n agents create configmap qa-mainflow-${agent}-manifest --from-file=agent.yaml=/tmp/${agent}-agent.yaml --dry-run=client -o yaml | kubectl apply -f -"
+            sed "s/PLACEHOLDER_AGENT/${agent}/g" deploy/k3s/services/qa-mainflow.yaml.tpl > "/tmp/${agent}-template.yaml"
+            bash deploy/ci/rollout-service.sh "${agent}" "/tmp/${agent}-template.yaml" PLACEHOLDER_QA_MAINFLOW_IMAGE "keel-${agent}"
+          done
 
   deploy-echo:
     name: 部署 echo-agent

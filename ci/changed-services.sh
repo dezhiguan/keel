@@ -11,6 +11,7 @@ write() {
   echo "echo=${echo}" >> "${GITHUB_OUTPUT}"
   echo "sandbox=${sandbox}" >> "${GITHUB_OUTPUT}"
   echo "qa_agent=${qa_agent}" >> "${GITHUB_OUTPUT}"
+  echo "qa_mainflow=${qa_mainflow}" >> "${GITHUB_OUTPUT}"
 }
 
 llm=false
@@ -21,6 +22,7 @@ console=false
 echo=false
 sandbox=false
 qa_agent=false
+qa_mainflow=false
 
 if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
   llm=true
@@ -31,6 +33,7 @@ if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
   echo=true
   sandbox=true
   qa_agent=true
+  qa_mainflow=true
   write
   exit 0
 fi
@@ -47,6 +50,7 @@ else
     console=true
     echo=true
     qa_agent=true
+    qa_mainflow=true
     write
     exit 0
   fi
@@ -74,8 +78,10 @@ while IFS= read -r file; do
       echo=true ;;
     agents/qa-lifecycle-1016/*|deploy/k3s/services/qa-lifecycle-1016.yaml)
       qa_agent=true ;;
+    agents/qa-mainflow/*|deploy/k3s/services/qa-mainflow.yaml.tpl)
+      qa_mainflow=true ;;
     sdk-python/keel/*)
-      echo=true; sandbox=true; server=true; qa_agent=true ;;
+      echo=true; sandbox=true; server=true; qa_agent=true; qa_mainflow=true ;;
     services/sandbox-sidecar/*|deploy/k3s/sandbox/*)
       sandbox=true; server=true ;;
   esac

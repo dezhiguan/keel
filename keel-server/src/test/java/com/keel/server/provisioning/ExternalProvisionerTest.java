@@ -40,7 +40,7 @@ class ExternalProvisionerTest {
         var provisioner = new LangfuseProvisioner(new LangfuseClient(base, "pk-lf", "sk-lf"), "evals/seed.jsonl");
         provisioner.provision("qa-policy-advisor-1017", "dev",
                 json.readTree("{\"spec\":{\"eval\":{\"dataset\":\"qa-policy-advisor-1017/smoke\"}}}"));
-        assertThat(imported).hasSize(1);
+        assertThat(imported).hasSize(6);
         assertThat(json.readTree(imported.getFirst()).path("expectedOutput").asText()).isEqualTo("probe ok");
     }
 

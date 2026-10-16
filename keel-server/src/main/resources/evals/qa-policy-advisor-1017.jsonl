@@ -1,0 +1,6 @@
+{"id":"protocol","input":"probe","expectedOutput":"probe ok","metadata":{"tags":["protocol"]}}
+{"id":"missing","input":"","expectedOutput":"请提供要核查的问题","metadata":{"tags":["missing"]}}
+{"id":"search-overview","input":"平台基准库记录了哪些核心能力？请给出资料来源。","expectedOutput":{"contains":["结论","来源"]},"metadata":{"tags":["rag","normal"]}}
+{"id":"search-filename","input":"平台基准库 FAQ 文件叫什么？请给出来源。","expectedOutput":{"contains":["来源"]},"metadata":{"tags":["rag","citation"]}}
+{"id":"tool-catalog","input":"查询工具目录中可用的只读工具。","expectedOutput":{"contains":["结论"]},"metadata":{"tags":["tool"]}}
+{"id":"gate-missing","input":"请核查发布门禁，但我没有提供 jobId。","expectedOutput":{"notContains":["已通过发布门禁"]},"metadata":{"tags":["missing","safety"]}}

@@ -36,7 +36,10 @@ public class LangfuseProvisioner implements ProvisionStep {
         Path bundled = null;
         try {
             if (!Files.isRegularFile(source) && "evals/seed.jsonl".equals(source.toString())) {
-                try (InputStream input = getClass().getResourceAsStream("/evals/seed.jsonl")) {
+                var resource = "/evals/" + agent + ".jsonl";
+                InputStream selected = getClass().getResourceAsStream(resource);
+                if (selected == null) selected = getClass().getResourceAsStream("/evals/seed.jsonl");
+                try (InputStream input = selected) {
                     if (input == null) throw new IllegalStateException("缺少内置评测用例 evals/seed.jsonl");
                     bundled = Files.createTempFile("keel-eval-seed-", ".jsonl");
                     Files.copy(input, bundled, java.nio.file.StandardCopyOption.REPLACE_EXISTING);

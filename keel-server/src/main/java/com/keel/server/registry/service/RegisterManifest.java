@@ -165,9 +165,6 @@ public final class RegisterManifest {
         if (!endpoint.isBlank()) {
             return endpoint;
         }
-        if (knowledge != null && !knowledge.isEmpty()) {
-            return "http://kb-bench.agents.svc.cluster.local:8000";
-        }
         if ("echo".equals(name) && "echo".equals(text(form, "template"))) {
             return "http://echo-agent.keel-system.svc.cluster.local:8000";
         }

@@ -3,6 +3,7 @@
 set -euo pipefail
 
 service="${1:?service}"
+image_name="${KEEL_IMAGE_NAME:-${service}}"
 manifest="${2:?manifest}"
 placeholder="${3:?placeholder}"
 shift 3
@@ -20,7 +21,7 @@ fi
 tag="${GITHUB_SHA::12}"
 pull="${ACR_REGISTRY%/}"
 rendered="/tmp/${service}.yaml"
-sed "s|${placeholder}|${pull}/${service}:${tag}|" "$manifest" > "$rendered"
+sed "s|${placeholder}|${pull}/${image_name}:${tag}|" "$manifest" > "$rendered"
 if grep -q "PLACEHOLDER_" "$rendered"; then
   echo "镜像占位符未被替换" >&2
   exit 1
