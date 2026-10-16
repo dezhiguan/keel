@@ -1880,6 +1880,37 @@ export interface components {
                 source?: string;
                 connected?: boolean;
             }[];
+            /** @description 分层价值。分母为 0 的指标为空，页面显示未接入。无依据回答率没有落库来源，保持为空。 */
+            layers?: {
+                biz?: {
+                    /** Format: float */
+                    resolutionPct?: number | null;
+                    /** Format: float */
+                    handoffPct?: number | null;
+                    /** Format: float */
+                    downvotePct?: number | null;
+                    /** Format: float */
+                    ungroundedPct?: number | null;
+                };
+                dev?: {
+                    /** Format: float */
+                    firstPassPct?: number | null;
+                    /** Format: float */
+                    withinRoundsPct?: number | null;
+                    /** Format: float */
+                    avgDeliveryDays?: number | null;
+                    /** Format: float */
+                    takeoverPct?: number | null;
+                };
+                meta?: {
+                    produced?: number | null;
+                    upgraded?: number | null;
+                    /** Format: float */
+                    avgGateScore?: number | null;
+                    /** Format: float */
+                    humanPrPct?: number | null;
+                };
+            };
         };
         OverviewKpi: {
             /** @example 7 */

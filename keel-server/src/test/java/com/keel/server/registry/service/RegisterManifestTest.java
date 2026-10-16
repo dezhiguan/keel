@@ -11,11 +11,12 @@ class RegisterManifestTest {
     @Test void rawManifestKeepsToolAndKnowledgeSelectionsForProvisioning() throws Exception {
         var manifest = json.readTree("""
                 {"apiVersion":"keel/v1","metadata":{"name":"qa-lifecycle-1016"},
-                 "spec":{"kind":"agent","tools":[{"name":"shift.policy"}],
+                 "spec":{"kind":"agent","tools":[{"name":"shift.policy"},{"name":"local.lookup"}],
                          "knowledge":[{"kb":"平台基准库·v1"}]}}
                 """);
-        var selection = LifecycleService.selectionForm(json, manifest);
+        var selection = LifecycleService.selectionForm(json, manifest, java.util.Set.of("shift.policy"));
         assertThat(selection.path("tools").get(0).asText()).isEqualTo("shift.policy");
+        assertThat(selection.path("tools").size()).isEqualTo(1);
         assertThat(selection.path("knowledgeBases").get(0).asText()).isEqualTo("平台基准库·v1");
     }
 

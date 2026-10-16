@@ -101,6 +101,28 @@ const BLANK_PIPELINE: PipelineCards = {
   alerts: [],
 }
 
+export function layerPct(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) return '未接入'
+  const rounded = Math.round(value * 10) / 10
+  return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}%`
+}
+
+export function layerDays(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) return '未接入'
+  const rounded = Math.round(value * 10) / 10
+  return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)} 天`
+}
+
+export function layerPair(produced: number | null | undefined, upgraded: number | null | undefined) {
+  if (produced == null || upgraded == null) return '未接入'
+  return `${produced} / ${upgraded}`
+}
+
+export function layerScore(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) return '未接入'
+  return value.toFixed(2)
+}
+
 export function pipelineMoney(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—'
   return `¥${Math.round(value)}`

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { OVERVIEW_RANGES, fmtMoney, fmtScore, fmtSeconds, metricValue, overviewRangeLabel, pipelineCards, pipelineMoney, techLabel, trendText } from './overviewFormat'
+import { OVERVIEW_RANGES, fmtMoney, fmtScore, fmtSeconds, layerDays, layerPair, layerPct, layerScore, metricValue, overviewRangeLabel, pipelineCards, pipelineMoney, techLabel, trendText } from './overviewFormat'
 
 describe('overview format', () => {
   it('offers the three server supported time windows', () => {
@@ -67,6 +67,18 @@ describe('overview format', () => {
       { at: '17:41', jobId: 'DF-0019', text: 'DF-0019 发布说明生成：第 1 轮门禁未通过，进入修复（1/3）' },
       { at: '10:53', jobId: 'DF-0021', text: 'DF-0021 等人工 review' },
     ])
+  })
+
+  it('prints layer cards and leaves an empty denominator unconnected', () => {
+    expect(layerPct(82)).toBe('82%')
+    expect(layerPct(6.4)).toBe('6.4%')
+    expect(layerPct(null)).toBe('未接入')
+    expect(layerDays(2.6)).toBe('2.6 天')
+    expect(layerDays(null)).toBe('未接入')
+    expect(layerPair(7, 1)).toBe('7 / 1')
+    expect(layerPair(null, null)).toBe('未接入')
+    expect(layerScore(0.85)).toBe('0.85')
+    expect(layerScore(null)).toBe('未接入')
   })
 
   it('omits a trend when the previous window is unknown', () => {

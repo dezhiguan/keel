@@ -2888,6 +2888,31 @@ components:
               definition: { type: string }
               source: { type: string }
               connected: { type: boolean }
+        layers:
+          type: object
+          description: 分层价值。分母为 0 的指标为空，页面显示未接入。无依据回答率没有落库来源，保持为空。
+          properties:
+            biz:
+              type: object
+              properties:
+                resolutionPct: { type: number, format: float, nullable: true }
+                handoffPct: { type: number, format: float, nullable: true }
+                downvotePct: { type: number, format: float, nullable: true }
+                ungroundedPct: { type: number, format: float, nullable: true }
+            dev:
+              type: object
+              properties:
+                firstPassPct: { type: number, format: float, nullable: true }
+                withinRoundsPct: { type: number, format: float, nullable: true }
+                avgDeliveryDays: { type: number, format: float, nullable: true }
+                takeoverPct: { type: number, format: float, nullable: true }
+            meta:
+              type: object
+              properties:
+                produced: { type: integer, nullable: true }
+                upgraded: { type: integer, nullable: true }
+                avgGateScore: { type: number, format: float, nullable: true }
+                humanPrPct: { type: number, format: float, nullable: true }
 
     OverviewKpi:
       type: object

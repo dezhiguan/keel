@@ -11,7 +11,7 @@ import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { agentStatus, fmtN } from '@/utils/format'
 import { agentType } from '@/views/agents/employees'
-import { ALERT_KIND, OVERVIEW_RANGES, fmtMoney, fmtScore, fmtSeconds, hm, metricByKey, metricValue, overviewRangeLabel, pipelineCards, pipelineMoney, techLabel, trendText, type OverviewRange, type PipelineCards } from './overviewFormat'
+import { ALERT_KIND, OVERVIEW_RANGES, fmtMoney, fmtScore, fmtSeconds, hm, layerDays, layerPair, layerPct, layerScore, metricByKey, metricValue, overviewRangeLabel, pipelineCards, pipelineMoney, techLabel, trendText, type OverviewRange, type PipelineCards } from './overviewFormat'
 
 type Category = 'all' | 'biz' | 'dev' | 'meta'
 
@@ -209,7 +209,7 @@ watch([() => envStore.env, range], () => {
       <button :class="{ on: panel === 'agents' }" @click="panel = 'agents'">智能体 · {{ filtered.length }}</button>
       <button :class="{ on: panel === 'alerts' }" @click="panel = 'alerts'">告警与事件 · {{ overview?.alerts?.length ?? 0 }}</button>
       <button :class="{ on: panel === 'cost' }" @click="panel = 'cost'">{{ overviewRangeLabel(range) }}成本</button>
-      <button :class="{ on: panel === 'value' }" @click="panel = 'value'">分层价值 <span class="pill nd p-vio">占位</span></button>
+      <button :class="{ on: panel === 'value' }" @click="panel = 'value'">分层价值</button>
     </div>
 
     <section v-if="panel === 'agents'" class="card">
@@ -272,12 +272,25 @@ watch([() => envStore.env, range], () => {
           </div>
         </div>
     </section>
-    <section v-else class="card">
-      <h3>分层价值 <span class="pill nd p-vio">占位</span></h3>
+    <section v-else>
       <div class="grid3">
-        <div class="card"><h3>业务智能体</h3><div class="kv"><span>解决率</span><b>未接入</b><span>转人工率</span><b>未接入</b><span>点踩率</span><b>未接入</b><span>无依据回答率</span><b>未接入</b></div></div>
-        <div class="card"><h3>研发智能体</h3><div class="kv"><span>首次门禁通过率</span><b>未接入</b><span>3 轮内通过率</span><b>未接入</b><span>平均交付周期</span><b>未接入</b><span>人工接管率</span><b>未接入</b></div></div>
-        <div class="card"><h3>元智能体</h3><div class="kv"><span>生产 / 升级研发员工</span><b>未接入</b><span>研发员工门禁均分</span><b>未接入</b><span>人工补写 PR 占比</span><b>未接入</b></div></div>
+        <div class="card"><h3>业务智能体</h3><div class="kv">
+          <span title="已结束运行里，完成且没有转人工的占比。来源：agent_run">解决率</span><b>{{ layerPct(overview?.layers?.biz?.resolutionPct) }}</b>
+          <span title="运行里转人工的占比。来源：agent_run">转人工率</span><b>{{ layerPct(overview?.layers?.biz?.handoffPct) }}</b>
+          <span title="渠道反馈里点踩的占比。来源：channel_feedback">点踩率</span><b>{{ layerPct(overview?.layers?.biz?.downvotePct) }}</b>
+          <span title="没有接地校验落库。">无依据回答率</span><b>{{ layerPct(overview?.layers?.biz?.ungroundedPct) }}</b>
+        </div></div>
+        <div class="card"><h3>研发智能体</h3><div class="kv">
+          <span title="进入门禁或已结束的任务里，修复轮次为 0 且通过的占比。来源：devflow_job">首次门禁通过率</span><b>{{ layerPct(overview?.layers?.dev?.firstPassPct) }}</b>
+          <span title="已结束任务里，完成且修复轮次小于 3 的占比。来源：devflow_job">3 轮内通过率</span><b>{{ layerPct(overview?.layers?.dev?.withinRoundsPct) }}</b>
+          <span title="已完成任务从创建到更新的平均天数。来源：devflow_job">平均交付周期</span><b>{{ layerDays(overview?.layers?.dev?.avgDeliveryDays) }}</b>
+          <span title="有接管人或状态为人工开发的占比。来源：devflow_job">人工接管率</span><b>{{ layerPct(overview?.layers?.dev?.takeoverPct) }}</b>
+        </div></div>
+        <div class="card"><h3>元智能体</h3><div class="kv">
+          <span title="已完成的研发层新建 / 改造任务。来源：devflow_job">生产 / 升级研发员工</span><b>{{ layerPair(overview?.layers?.meta?.produced, overview?.layers?.meta?.upgraded) }}</b>
+          <span title="研发员工最近一次完成评测的平均分。来源：eval_run">研发员工门禁均分</span><b>{{ layerScore(overview?.layers?.meta?.avgGateScore) }}</b>
+          <span title="研发层代码产物里人工提交的占比。来源：devflow_artifact">人工补写 PR 占比</span><b>{{ layerPct(overview?.layers?.meta?.humanPrPct) }}</b>
+        </div></div>
       </div>
     </section>
   </div>

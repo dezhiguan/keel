@@ -23,7 +23,7 @@ public class OverviewService {
     public static final double GATE = 0.85;
 
     public record Overview(Kpi kpi, List<AgentSummary> agents, List<Alert> alerts, List<Map<String, Object>> costByAgent,
-                           Cumulative cumulative, List<Metric> metrics) {}
+                           Cumulative cumulative, List<Metric> metrics, LayerValue.Layers layers) {}
 
     public record Cumulative(Integer agents, Long calls, Long tokens, Double costCny, Long users, String since) {}
 
@@ -42,6 +42,8 @@ public class OverviewService {
     private final FindingBook findings;
     private final CostService costs;
     private final MeteringService metering;
+    @Autowired(required = false)
+    private LayerValueService layerValue;
 
     @Autowired
     public OverviewService(AgentRegistryService agentRegistryService, AgentUsageService usage, QualityService quality,
@@ -138,7 +140,8 @@ public class OverviewService {
                 new Metric("cumulativeCost", "已封账花费 + 今天已结算花费", cumulative.costCny() == null ? "未接入" : "keel_llm 账单", cumulative.costCny() != null),
                 new Metric("cumulativeUsers", "agent_run 中去重的 actor_user", cumulative.users() == null ? "未接入" : "agent_run", cumulative.users() != null),
                 new Metric("agents", "注册中心中的智能体，含已下线，不含已删除", "registry", true));
-        return new Overview(kpi, agents, alerts(scope, agents, daily, bills), costByAgent, cumulative, metrics);
+        var layers = layerValue == null ? LayerValue.empty() : layerValue.compute(scope, names(agents, true), names(agents, false));
+        return new Overview(kpi, agents, alerts(scope, agents, daily, bills), costByAgent, cumulative, metrics, layers);
     }
 
     private List<Alert> alerts(String env, List<AgentSummary> agents, AgentUsageService.Snapshot snap,
@@ -181,6 +184,19 @@ public class OverviewService {
         }
         rows.sort(Comparator.comparing(Alert::at).reversed());
         return rows;
+    }
+
+    private static List<String> names(List<AgentSummary> agents, boolean biz) {
+        return agents.stream().filter(agent -> biz ? bizLayer(agent) : devLayer(agent)).map(AgentSummary::name)
+                .filter(name -> name != null && !name.isBlank()).toList();
+    }
+
+    private static boolean bizLayer(AgentSummary agent) {
+        return "BIZ".equals(agent.layer()) || (agent.layer() == null && "biz".equals(agent.category()));
+    }
+
+    private static boolean devLayer(AgentSummary agent) {
+        return "DEV".equals(agent.layer()) || (agent.layer() == null && "dev".equals(agent.category()));
     }
 
     private static String levelOf(String kind) {
