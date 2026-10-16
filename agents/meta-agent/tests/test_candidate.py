@@ -79,6 +79,14 @@ def test_generated_code_rejects_forbidden_imports_and_missing_behavior_tests():
     assert any("正常和拒绝" in error for error in errors)
 
 
+def test_generated_python_rejects_lowercase_json_literals():
+    bad = {"files": [{"path": "role.py", "content": ROLE_CODE},
+                     {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
+                     {"path": "tests/test_role.py", "content": TEST_CODE + "\ndef test_bad_bool():\n    assert {\"ok\": false}\n"}]}
+    _, errors = parse(json.dumps(bad))
+    assert any("tests/test_role.py" in error and "JSON 小写" in error for error in errors)
+
+
 def test_model_authored_role_runs_in_generated_project(tmp_path):
     project = tmp_path / "spec-agent"
     for name in ("tools", "tests", "evals"):
@@ -92,6 +100,7 @@ def test_model_authored_role_runs_in_generated_project(tmp_path):
                            {"path": "tests/test_role.py", "content": TEST_CODE}]}
     _scaffold(project, "DF-9001", candidate)
     assert "项目骨架已就绪" not in (project / "app.py").read_text(encoding="utf-8")
+    assert "pytest-asyncio==1.4.0" in (project / "requirements.lock").read_text(encoding="utf-8")
     checked = subprocess.run([sys.executable, "-m", "pytest", "tests", "-q"],
                              cwd=project, capture_output=True, text=True)
     assert checked.returncode == 0, checked.stdout + checked.stderr

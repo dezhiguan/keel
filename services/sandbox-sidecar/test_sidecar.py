@@ -8,6 +8,11 @@ import fake_llm
 import runner
 
 
+def test_sandbox_image_installs_async_pytest_support():
+    dockerfile = (Path(__file__).resolve().parent / "Dockerfile").read_text(encoding="utf-8")
+    assert "pytest-asyncio" in dockerfile
+
+
 def test_runner_executes_exact_snapshot_with_in_pod_fakes(tmp_path, monkeypatch):
     root = Path(__file__).resolve().parent
     source = "\n".join((root / name).read_text() for name in ("fake_llm.py", "fake_langfuse.py", "runner.py"))

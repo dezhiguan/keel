@@ -2,6 +2,7 @@ package com.keel.server.devflow;
 
 import io.fabric8.kubernetes.api.model.ContainerState;
 import io.fabric8.kubernetes.api.model.ContainerStateWaiting;
+import io.fabric8.kubernetes.api.model.ContainerStateTerminated;
 import io.fabric8.kubernetes.api.model.ContainerStatus;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.PodStatus;
@@ -12,6 +13,14 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class Fabric8SandboxClusterTest {
+    @Test
+    void usesRunnerExitEvenWhenFakeServicesAreStillRunning() {
+        assertThat(Fabric8SandboxCluster.runnerPhase(podWithRunnerExit(0)))
+                .isEqualTo(SandboxCluster.Phase.SUCCEEDED);
+        assertThat(Fabric8SandboxCluster.runnerPhase(podWithRunnerExit(1)))
+                .isEqualTo(SandboxCluster.Phase.FAILED);
+    }
+
     @Test
     void reportsTheContainerWaitingReasonWithoutMultilineNoise() {
         var waiting = new ContainerStateWaiting();
@@ -52,5 +61,22 @@ class Fabric8SandboxClusterTest {
         container.setName(name);
         container.setState(state);
         return container;
+    }
+
+    private static Pod podWithRunnerExit(int code) {
+        var terminated = new ContainerStateTerminated();
+        terminated.setExitCode(code);
+        var state = new ContainerState();
+        state.setTerminated(terminated);
+        var runner = new ContainerStatus();
+        runner.setName("runner");
+        runner.setState(state);
+        var fake = new ContainerStatus();
+        fake.setName("fake-llm");
+        var status = new PodStatus();
+        status.setContainerStatuses(List.of(fake, runner));
+        var pod = new Pod();
+        pod.setStatus(status);
+        return pod;
     }
 }

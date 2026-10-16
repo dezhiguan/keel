@@ -36,6 +36,7 @@ async def generate(work: dict, ctx) -> dict:
         "不导入网络、文件、进程或厂商 SDK；role.py 只能导入 json/re/typing/collections/datetime。"
         "tests/test_role.py 至少包含一个覆盖岗位正常输入和一个拒绝/失败场景的 test_ 函数，"
         "用假 ctx 测试行为，不能连接真实服务。不要只测试文件存在或字符串常量。"
+        "Python 布尔值和空值必须写 True、False、None，不要把 JSON 的 true、false、null 写进代码。"
     )
     repair = work.get("repair")
     if repair:
@@ -93,6 +94,10 @@ def parse(reply: str | None) -> tuple[dict, list[str]]:
             errors.append(path + " 语法错误")
     if errors:
         return {}, errors
+    for path, tree in trees.items():
+        if any(isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+               and node.id in ("true", "false", "null") for node in ast.walk(tree)):
+            errors.append(path + " 使用了 JSON 小写字面量，Python 应用 True/False/None")
     role = trees["role.py"]
     if not any(isinstance(node, ast.AsyncFunctionDef) and node.name == "execute" for node in role.body):
         errors.append("role.py 缺少 async execute")

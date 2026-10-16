@@ -102,6 +102,8 @@ public class Fabric8SandboxCluster implements SandboxCluster {
         if (job == null || job.getStatus() == null) {
             return new Observation(Phase.PENDING, "");
         }
+        var runner = runnerResult(name);
+        if (runner != null) return runner;
         var status = job.getStatus();
         if (status.getConditions() != null) {
             for (var condition : status.getConditions()) {
@@ -120,6 +122,31 @@ public class Fabric8SandboxCluster implements SandboxCluster {
             return new Observation(Phase.RUNNING, diagnosis(name));
         }
         return new Observation(Phase.PENDING, diagnosis(name));
+    }
+
+    private Observation runnerResult(String name) {
+        try {
+            var pods = client.pods().inNamespace(NAMESPACE).withLabel("keel.io/sandbox-run", name).list().getItems();
+            if (pods == null) return null;
+            for (var pod : pods) {
+                var phase = runnerPhase(pod);
+                if (phase != null) return new Observation(phase, logs(name));
+            }
+        } catch (KubernetesClientException e) {
+            return null;
+        }
+        return null;
+    }
+
+    static Phase runnerPhase(Pod pod) {
+        if (pod == null || pod.getStatus() == null || pod.getStatus().getContainerStatuses() == null) return null;
+        for (var container : pod.getStatus().getContainerStatuses()) {
+            if (!"runner".equals(container.getName()) || container.getState() == null
+                    || container.getState().getTerminated() == null) continue;
+            var exitCode = container.getState().getTerminated().getExitCode();
+            if (exitCode != null) return exitCode == 0 ? Phase.SUCCEEDED : Phase.FAILED;
+        }
+        return null;
     }
 
     @Override

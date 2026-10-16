@@ -279,6 +279,10 @@ def _scaffold(project: Path, job_id: str, candidate: dict | None = None):
     (project / "evals/scorers.py").write_text("# Add scorers after humans provide evaluation cases.\n", encoding="utf-8")
     (project / "manifest.schema.json").write_text(_contract_file("manifest.schema.json"), encoding="utf-8")
     if candidate is not None:
+        lock = project / "requirements.lock"
+        dependencies = lock.read_text(encoding="utf-8")
+        if "pytest-asyncio==" not in dependencies:
+            lock.write_text(dependencies.rstrip() + "\npytest-asyncio==1.4.0\n", encoding="utf-8")
         for folder_name in ("tools", "tests", "prompts"):
             folder = project / folder_name
             if folder.is_dir():
