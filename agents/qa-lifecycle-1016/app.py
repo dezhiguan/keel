@@ -1,5 +1,6 @@
 """Lifecycle acceptance agent using the Keel loop, scoped RAG and an audited tool."""
 import os
+import re
 
 from keel import Agent
 from keel.protocol.events import SuspendEvent
@@ -38,6 +39,13 @@ async def run(request, ctx):
         if content:
             passages.append(f"来源：{hit.get('filename') or '未命名文档'}\n{content}")
             citations.append(citation)
+
+    if "文件" in question and any(word in question for word in ("叫什么", "文件名", "名称")):
+        terms = re.findall(r"[A-Za-z]{2,}", question)
+        for hit, citation in zip(found.results, found.citations):
+            filename = hit.get("filename") or ""
+            if filename and any(term.lower() in filename.lower() for term in terms):
+                return ctx.final(f"文件名是 {filename}。\n来源：{filename}", citations=[citation])
 
     prompt = await ctx.prompt("answer")
     messages = prompt.compile(question=question, passages="\n\n".join(passages) or "无相关知识库片段")

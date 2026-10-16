@@ -58,8 +58,7 @@ def test_natural_language_tool_cycle_and_session_history(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
 
     responses = [_completion(tool=True), _completion("故障值班先确认影响范围"),
-                 _completion("刚才讨论的是故障值班"),
-                 _completion("FAQ 文件是 05_常见问题FAQ.txt")]
+                 _completion("刚才讨论的是故障值班")]
     requests = []
 
     def gateway(request):
@@ -84,6 +83,7 @@ def test_natural_language_tool_cycle_and_session_history(monkeypatch, tmp_path):
     assert "故障" in asyncio.run(turn("故障值班口径是什么？", "run-1")).answer
     assert "刚才" in asyncio.run(turn("刚才讨论了什么？", "run-2")).answer
     assert "来源：FAQ.txt" in asyncio.run(turn("平台基准库的 FAQ 文件叫什么？", "run-3")).answer
+    assert len(requests) == 3
     assert requests[0]["tools"][0]["function"]["name"] == "shift.policy"
     assert requests[1]["messages"][-1]["role"] == "tool"
     assert any(row.get("content") == "故障值班先确认影响范围" for row in requests[2]["messages"])
