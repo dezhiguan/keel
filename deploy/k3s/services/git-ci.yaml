@@ -25,6 +25,8 @@ spec:
           env:
             - name: KEEL_SERVER_URL
               value: https://keel.ragforge.net
+            - name: KEEL_GITHUB_LOG_ARCHIVE_PROXY
+              value: https://keel.ragforge.net/_keel_ci_logs
           ports:
             - containerPort: 8000
           readinessProbe:

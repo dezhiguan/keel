@@ -44,6 +44,7 @@ public class SelfCheckRecords {
                     }
                     var items = new ArrayList<AgentDetail.CheckItem>();
                     for (var item : detail.selfCheck().items()) items.add(actual.getOrDefault(item.name(), item));
+                    if (items.isEmpty()) items.addAll(actual.values());
                     return new AgentDetail.CheckReport(node.path("passed").asBoolean(), items, rs.getTimestamp(2).toInstant().toString());
                 }, detail.summary().name(), detail.summary().env(), detail.manifestHash());
         return rows.isEmpty() ? detail : detail.withSelfCheck(rows.getFirst());

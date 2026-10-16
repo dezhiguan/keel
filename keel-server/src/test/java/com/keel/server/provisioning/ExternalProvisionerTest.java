@@ -40,8 +40,11 @@ class ExternalProvisionerTest {
         var provisioner = new LangfuseProvisioner(new LangfuseClient(base, "pk-lf", "sk-lf"), "evals/seed.jsonl");
         provisioner.provision("qa-policy-advisor-1017", "dev",
                 json.readTree("{\"spec\":{\"eval\":{\"dataset\":\"qa-policy-advisor-1017/smoke\"}}}"));
-        assertThat(imported).hasSize(6);
-        assertThat(json.readTree(imported.getFirst()).path("expectedOutput").asText()).isEqualTo("probe ok");
+        assertThat(imported).hasSize(50);
+        assertThat(imported.stream().map(body -> {
+            try { return json.readTree(body).path("input").asText(); }
+            catch (Exception error) { throw new IllegalStateException(error); }
+        }).distinct().count()).isEqualTo(50);
     }
 
     @Test void convertsDailyCnyUsingTheConfiguredRateAndBlocksOnRevoke() throws Exception {

@@ -70,7 +70,7 @@ public record AgentSummary(
 
     private static String statusNote(AgentStatus status, String instances) {
         if (status == AgentStatus.DRAFT) {
-            return "名称已预占，未注册";
+            return "草稿，待完成开通或自检";
         }
         if (status == AgentStatus.OFFLINE && instances != null) {
             return instances + " 就绪";

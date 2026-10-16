@@ -87,7 +87,7 @@ def run_experiment():
 
     try:
         result = dataset.run_experiment(name=agent, run_name=run_id, task=task,
-                                        evaluators=[evaluate], max_concurrency=1,
+                                        evaluators=[evaluate], max_concurrency=4,
                                         metadata={"agent": agent, "env": env, "keel.eval_run": run_id})
         return summarize(result.item_results, agent=agent, dataset=dataset_name, run_id=run_id,
                          env=env, gate=gate, url=result.dataset_run_url, baseline=baseline)

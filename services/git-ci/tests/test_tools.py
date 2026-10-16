@@ -35,6 +35,27 @@ def test_ci_logs_follow_redirect_and_unpack_zip(monkeypatch):
     assert not result["truncated"]
 
 
+def test_ci_logs_relay_only_the_expected_signed_archive_host(monkeypatch):
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w") as archive:
+        archive.writestr("build.txt", "Failure at compile")
+    calls = []
+
+    def request(method, url, **kwargs):
+        calls.append((url, kwargs.get("headers", {})))
+        if url.endswith("/logs"):
+            return type("Redirect", (), {"status_code": 302,
+                "headers": {"location": "https://results-receiver.actions.githubusercontent.com/signed/archive?sig=opaque"}})()
+        return type("Archive", (), {"status_code": 200, "content": payload.getvalue()})()
+
+    monkeypatch.setattr("git_ci.github.httpx.request", request)
+    result = GitHub("https://api.github.test", "token", "owner",
+                    log_archive_proxy="https://keel.test/_keel_ci_logs").logs("repo", "123")
+    assert "Failure at compile" in result["log"]
+    assert calls[1][0] == "https://keel.test/_keel_ci_logs/signed/archive?sig=opaque"
+    assert "Authorization" not in calls[1][1]
+
+
 def test_ci_log_connection_timeout_is_a_bounded_upstream_error(monkeypatch):
     seen = []
 

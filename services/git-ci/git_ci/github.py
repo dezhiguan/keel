@@ -6,6 +6,7 @@ import httpx
 import io
 import re
 import zipfile
+from urllib.parse import urlsplit
 
 ORG = "keel-agents"
 LOG_LIMIT = 64 * 1024
@@ -26,13 +27,37 @@ class GitHubError(Exception):
 
 
 class GitHub:
-    def __init__(self, base_url: str, token: str, org: str = ORG, server_url: str = ""):
+    def __init__(self, base_url: str, token: str, org: str = ORG, server_url: str = "",
+                 log_archive_proxy: str = ""):
         if not base_url or not token:
             raise ValueError("KEEL_GITHUB_API 或 KEEL_GITHUB_TOKEN 未设置")
         self.base = base_url.rstrip("/")
         self.token = token
         self.org = org
         self.server_url = server_url.rstrip("/")
+        self.log_archive_proxy = log_archive_proxy.rstrip("/")
+
+    def _download_logs(self, path: str) -> bytes:
+        if not self.log_archive_proxy:
+            return self.request("GET", path, binary=True)
+        try:
+            response = httpx.request("GET", self.base + path, headers={
+                "Authorization": f"Bearer {self.token}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            }, timeout=10, follow_redirects=False)
+            if response.status_code in (301, 302, 307, 308):
+                target = urlsplit(response.headers.get("location", ""))
+                if target.scheme != "https" or target.hostname != "results-receiver.actions.githubusercontent.com":
+                    raise GitHubError(502, "Unexpected CI log archive host")
+                # The signed query is forwarded only to the fixed archive host by the gateway.
+                url = self.log_archive_proxy + target.path + ("?" + target.query if target.query else "")
+                response = httpx.request("GET", url, timeout=20, follow_redirects=False)
+            if response.status_code >= 300:
+                raise GitHubError(response.status_code, "CI log archive unavailable")
+            return response.content
+        except httpx.HTTPError as exc:
+            raise GitHubError(502, "CI log archive connection failed") from exc
 
     def request(self, method: str, path: str, payload: dict | None = None, accept: str | None = None,
                 raw: bool = False, binary: bool = False, timeout: int = 30):
@@ -331,7 +356,7 @@ class GitHub:
     def logs(self, repo: str, run_id: str) -> dict:
         root = f"/repos/{self.org}/{repo}/actions/runs/{run_id}"
         try:
-            content = self.request("GET", root + "/logs", binary=True)
+            content = self._download_logs(root + "/logs")
         except GitHubError:
             jobs = self.request("GET", root + "/jobs?per_page=100", timeout=10)
             lines = []

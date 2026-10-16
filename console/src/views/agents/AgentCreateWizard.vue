@@ -120,7 +120,7 @@ async function submit() {
   try {
     report.value = await registerAgent(registerBody(form))
     if (report.value.passed) ElMessage.success('已注册，自检通过')
-    else ElMessage.warning('已登记，自检未通过，请查看失败项')
+    else ElMessage.warning('自检未通过，已保留可恢复草稿。部署服务后重新自检')
   } catch (error) {
     ElMessage.error(`注册失败：${toKeelError(error).message}`)
   } finally {
@@ -278,12 +278,12 @@ async function submit() {
         <template v-else>
           <h3>{{ report ? '注册结果' : '预览并注册' }}</h3>
           <div v-if="report" class="kv">
-            <span>结果</span><b>{{ report.passed ? '自检通过' : '已登记，自检未通过' }}</b>
+            <span>结果</span><b>{{ report.passed ? '自检通过' : '可恢复草稿，自检未通过' }}</b>
             <template v-for="item in report.items ?? []" :key="item.name">
               <span>{{ item.name }}</span><b>{{ item.passed ? '通过' : item.detail || '未通过' }}</b>
             </template>
           </div>
-          <p v-if="report">自检通过后可打开调试页。失败时先按报告检查运行服务和资源配置。</p>
+          <p v-if="report">{{ report.passed ? '可以打开调试页。' : '请按失败项修复。资源开通失败可再次提交注册；服务自检失败可在部署后到详情页重新自检。通过后才开放调用。' }}</p>
           <div class="wfoot">
             <button v-if="!report" class="btn" type="button" :disabled="busy" @click="step = 3">上一步</button>
             <button v-if="!report" v-write class="btn pri" type="button" :disabled="busy" @click="submit">{{ busy ? '注册中…' : '注册' }}</button>

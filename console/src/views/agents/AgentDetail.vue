@@ -393,7 +393,7 @@ onUnmounted(() => {
             <h4>
               接入自检
               <span class="sp" />
-              <button v-if="detail.status !== 'RETIRED' && detail.status !== 'DRAFT'" class="btn sm" :disabled="checking" @click="recheck">{{ checking ? '自检中…' : '重新自检' }}</button>
+              <button v-if="detail.status !== 'RETIRED'" class="btn sm" :disabled="checking" @click="recheck">{{ checking ? '自检中…' : '重新自检' }}</button>
             </h4>
             <p v-if="detail.selfCheck?.checkedAt" class="mut">最近自检：{{ new Date(detail.selfCheck.checkedAt).toLocaleString() }}</p>
             <ul v-if="detail.selfCheck?.items?.length" class="checks">

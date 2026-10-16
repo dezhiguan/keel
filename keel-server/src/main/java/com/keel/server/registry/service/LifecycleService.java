@@ -108,14 +108,16 @@ public class LifecycleService {
             report = provisioning.register(name, env, endpoint, manifest);
         } catch (RuntimeException e) {
             secrets.discardKnowledgeKey(name);
-            if (!RegisterManifest.missingExternal(e.getMessage())) {
-                throw e;
-            }
-            audits.append(name, env, "agent.register", "high", "allowed", name, null);
-            report = new SelfCheckService.Report(false, java.util.List.of(
-                    new SelfCheckService.Item("开通", false, e.getMessage())));
+            // Provisioning already compensates external resources. Keep a
+            // retriable draft; a failed attempt must never look registered.
+            jdbc.update("UPDATE agent SET status='DRAFT', updated_at=now() WHERE name=?", name);
+            audits.append(name, env, "agent.register", "high", "denied", name, null);
+            var reason = RegisterManifest.missingExternal(e.getMessage())
+                    ? e.getMessage() : "外部资源开通失败（" + e.getClass().getSimpleName() + "），请检查服务日志后重试";
+            return new SelfCheckService.Report(false, java.util.List.of(
+                    new SelfCheckService.Item("开通", false, reason)));
         }
-        jdbc.update("UPDATE agent SET status = 'REGISTERED' WHERE name = ?", name);
+        jdbc.update("UPDATE agent SET status = ? WHERE name = ?", report.passed() ? "REGISTERED" : "DRAFT", name);
         if (report.passed()) {
             jdbc.update("INSERT INTO route_snapshot (changed_agent) VALUES (?)", name);
         }
@@ -275,7 +277,7 @@ public class LifecycleService {
         var parts = owner.split(" / ", 2);
         agent.setOwnerOrg(parts[0].isBlank() ? "unknown" : parts[0]);
         agent.setOwnerUser(parts.length > 1 && !parts[1].isBlank() ? parts[1] : "unknown");
-        agent.setStatus(AgentStatus.REGISTERED);
+        agent.setStatus(AgentStatus.DRAFT);
         agent.setLiveness(runtime.path("liveness").asText("k8s"));
         agents.insert(agent);
     }
