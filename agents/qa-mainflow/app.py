@@ -39,8 +39,8 @@ async def _delegate(name: str, text: str, budget: dict, trace_id: str):
     endpoint = f"http://{name}.agents.svc.cluster.local:8000/v1/invoke"
     headers = {"X-Keel-Agent": name, "X-Keel-Env": os.environ["KEEL_ENV"]}
     TraceContextTextMapPropagator().inject(headers)
-    async with httpx.AsyncClient(timeout=90) as client:
-        response = await client.post(endpoint, json={"input": {"text": text}}, headers=headers)
+    async with httpx.AsyncClient(timeout=45) as client:
+        response = await client.post(endpoint, json={"input": {"text": text, "evidenceOnly": True}}, headers=headers)
         response.raise_for_status()
         for block in response.text.split("\n\n"):
             if "event: final" in block:
@@ -108,6 +108,11 @@ async def run(request, ctx):
             evidence.append(f"工具 {tool_name} 参数 {parameters} 返回：{serialized}")
         except Exception as error:
             evidence.append(f"工具 {tool_name} 失败：{type(error).__name__}: {error}")
+
+    if request.input.get("evidenceOnly"):
+        ctx.step("evidence.checked")
+        return ctx.final("\n".join(evidence)[:10000] if evidence else "本次未取得可核查证据。",
+                         citations=citations)
 
     if PROFILE["delegates"]:
         outcomes = await asyncio.gather(*(ctx.delegate(child, question)
