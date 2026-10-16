@@ -24,7 +24,9 @@ class ElementEvidenceTest {
             @Override public Map<String, Object> list(int page, int size, String agent, String env) {
                 assertThat(agent).isEqualTo("qa-lifecycle-1016");
                 assertThat(env).isEqualTo("dev");
-                return Map.of("items", List.of(Map.of("traceId", "trace-1")));
+                return Map.of("items", List.of(
+                        Map.of("traceId", "trace-1", "sessionId", "session-1"),
+                        Map.of("traceId", "trace-2", "sessionId", "session-1")));
             }
 
             @Override public Map<String, Object> detail(String traceId) {
@@ -41,7 +43,7 @@ class ElementEvidenceTest {
         var version = new AgentVersion();
         version.setEnv("dev");
         var manifest = new ObjectMapper().readTree("""
-                {"spec":{"kind":"agent","capabilities":{"toolCalling":true,"loop":true},
+                {"spec":{"kind":"agent","capabilities":{"toolCalling":true,"loop":true,"memory":true},
                          "tools":[{"name":"shift.policy"}],
                          "prompts":{"source":"langfuse","items":[{"name":"answer"}]},
                          "knowledge":[{"kb":"平台基准库·v1"}]}}
@@ -52,5 +54,6 @@ class ElementEvidenceTest {
         assertThat(proved.elements().items().get(5).passed()).isTrue();
         assertThat(proved.elements().items().get(0).passed()).isTrue();
         assertThat(proved.elements().items().get(1).passed()).isTrue();
+        assertThat(proved.elements().items().get(2).passed()).isTrue();
     }
 }

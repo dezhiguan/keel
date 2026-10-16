@@ -31,7 +31,7 @@ public class ElementEvidence {
         var next = detail.elements().withRuntime(
                 evidence.toolCall(),
                 evidence.loop(),
-                count("SELECT count(*) FROM user_memory WHERE agent_name=?", agent) > 0,
+                evidence.sessionMemory() || count("SELECT count(*) FROM user_memory WHERE agent_name=?", agent) > 0,
                 count("SELECT count(*) FROM eval_run WHERE agent_name=? AND state='DONE' AND result->>'passed'='true'", agent) > 0,
                 count("SELECT count(*) FROM console_audit_event WHERE agent=?", agent) > 0,
                 evidence.prompt(), evidence.retrieval());
@@ -39,7 +39,7 @@ public class ElementEvidence {
     }
 
     private TraceEvidence traceEvidence(String agent, String env) {
-        if (traces == null || env == null || env.isBlank()) return new TraceEvidence(false, false, false, false);
+        if (traces == null || env == null || env.isBlank()) return new TraceEvidence(false, false, false, false, false);
         var key = agent + "@" + env;
         var cached = cache.get(key);
         if (cached != null && cached.at().plus(TRACE_TTL).isAfter(java.time.Instant.now())) return cached.evidence();
@@ -51,7 +51,14 @@ public class ElementEvidence {
     private TraceEvidence readTraceEvidence(String agent, String env) {
         try {
             var page = traces.list(1, 20, agent, env);
-            if (!(page.get("items") instanceof java.util.List<?> items)) return new TraceEvidence(false, false, false, false);
+            if (!(page.get("items") instanceof java.util.List<?> items)) return new TraceEvidence(false, false, false, false, false);
+            var sessions = new java.util.HashSet<String>();
+            boolean sessionMemory = false;
+            for (var item : items) {
+                if (!(item instanceof java.util.Map<?, ?> row)) continue;
+                var session = row.get("sessionId");
+                if (session instanceof String id && !id.isBlank() && !sessions.add(id)) sessionMemory = true;
+            }
             boolean prompt = false;
             boolean retrieval = false;
             boolean loop = false;
@@ -85,14 +92,14 @@ public class ElementEvidence {
                 toolCall |= steps > 1 && tool;
                 if (prompt && retrieval && loop && toolCall) break;
             }
-            return new TraceEvidence(prompt, retrieval, loop, toolCall);
+            return new TraceEvidence(prompt, retrieval, loop, toolCall, sessionMemory);
         } catch (RuntimeException error) {
             log.debug("Cannot read element trace evidence for {}", agent, error);
-            return new TraceEvidence(false, false, false, false);
+            return new TraceEvidence(false, false, false, false, false);
         }
     }
 
-    private record TraceEvidence(boolean prompt, boolean retrieval, boolean loop, boolean toolCall) {}
+    private record TraceEvidence(boolean prompt, boolean retrieval, boolean loop, boolean toolCall, boolean sessionMemory) {}
     private record CachedEvidence(TraceEvidence evidence, java.time.Instant at) {}
 
     private int count(String sql, String agent) {

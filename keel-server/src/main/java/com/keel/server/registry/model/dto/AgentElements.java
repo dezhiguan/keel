@@ -57,7 +57,7 @@ public record AgentElements(String kind, List<Item> items, List<String> missing)
         var next = new ArrayList<>(items);
         prove(next, "模型自己调工具", toolCall, "已有允许的工具调用");
         prove(next, "agent loop", loop, "运行里出现过多步循环");
-        prove(next, "记忆", memory, "已写入用户记忆");
+        prove(next, "记忆", memory, "已有多轮会话或用户记忆记录");
         prove(next, "评测", evalPassed, "最近一次回归通过");
         prove(next, "可观测与审计", audit, "已有审计事件");
         prove(next, "有版本的提示词", versionedPrompt, "真实模型调用关联了提示词版本");
