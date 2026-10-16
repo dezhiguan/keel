@@ -20,6 +20,7 @@ class Fabric8SandboxClusterTest {
         assertThat(Fabric8SandboxCluster.runnerPhase(podWithRunnerExit(1)))
                 .isEqualTo(SandboxCluster.Phase.FAILED);
         assertThat(Fabric8SandboxCluster.runnerPhase(new Pod())).isNull();
+        assertThat(Fabric8SandboxCluster.runnerPhase(podWithRunnerWaiting())).isNull();
     }
 
     @Test
@@ -76,6 +77,14 @@ class Fabric8SandboxClusterTest {
         fake.setName("fake-llm");
         var status = new PodStatus();
         status.setContainerStatuses(List.of(fake, runner));
+        var pod = new Pod();
+        pod.setStatus(status);
+        return pod;
+    }
+
+    private static Pod podWithRunnerWaiting() {
+        var status = new PodStatus();
+        status.setContainerStatuses(List.of(waiting("runner", "ContainerCreating")));
         var pod = new Pod();
         pod.setStatus(status);
         return pod;

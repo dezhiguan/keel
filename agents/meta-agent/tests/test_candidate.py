@@ -102,6 +102,8 @@ def test_model_authored_role_runs_in_generated_project(tmp_path):
     _scaffold(project, "DF-9001", candidate)
     assert "项目骨架已就绪" not in (project / "app.py").read_text(encoding="utf-8")
     assert "pytest-asyncio==1.4.0" in (project / "requirements.lock").read_text(encoding="utf-8")
+    _scaffold(project, "DF-9001", candidate)
+    assert (project / "requirements.lock").read_text(encoding="utf-8").count("pytest-asyncio==1.4.0") == 1
     checked = subprocess.run([sys.executable, "-m", "pytest", "tests", "-q"],
                              cwd=project, capture_output=True, text=True)
     assert checked.returncode == 0, checked.stdout + checked.stderr

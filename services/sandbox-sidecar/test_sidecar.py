@@ -11,6 +11,7 @@ import runner
 def test_sandbox_image_installs_async_pytest_support():
     dockerfile = (Path(__file__).resolve().parent / "Dockerfile").read_text(encoding="utf-8")
     assert "pytest-asyncio==1.4.0" in dockerfile
+    assert " /src/sdk-python pytest " in dockerfile
 
 
 def test_runner_executes_exact_snapshot_with_in_pod_fakes(tmp_path, monkeypatch):
