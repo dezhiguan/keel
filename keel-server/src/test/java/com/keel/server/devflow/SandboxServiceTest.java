@@ -80,10 +80,36 @@ class SandboxServiceTest {
                 .isEqualTo(ErrorCode.DEVFLOW_SANDBOX_TIMEOUT);
         assertThat(harness.store.find(run.runId()).status()).isEqualTo("TIMEOUT");
         assertThat(harness.cluster.deleted).contains(run.runId());
+        assertThat(harness.store.find(run.runId()).report()).isEmpty();
         assertThatThrownBy(() -> harness.service.get("SB-4040", NOW))
                 .isInstanceOf(KeelException.class)
                 .extracting(error -> ((KeelException) error).code())
                 .isEqualTo(ErrorCode.SERVER_NOT_FOUND);
+    }
+
+    @Test
+    void aFinishedJobObservedAtTheDeadlineKeepsItsResult() {
+        var harness = harness();
+        harness.job("DF-0001");
+        var run = harness.service.start("DF-0001", "refund-explainer", SHA, "meta-agent", NOW);
+        harness.cluster.observations.put(run.runId(), new SandboxCluster.Observation(
+                SandboxCluster.Phase.SUCCEEDED, "sha=" + SHA + " snapshot=ok tests=PASS"));
+
+        assertThat(harness.service.get(run.runId(), NOW.plus(SandboxService.LIMIT)).status()).isEqualTo("DONE");
+    }
+
+    @Test
+    void aTimedOutPodKeepsItsWaitingReasonForTheOperator() {
+        var harness = harness();
+        harness.job("DF-0001");
+        var run = harness.service.start("DF-0001", "refund-explainer", SHA, "meta-agent", NOW);
+        harness.cluster.observations.put(run.runId(), new SandboxCluster.Observation(
+                SandboxCluster.Phase.PENDING, "容器 runner 等待：ImagePullBackOff"));
+
+        assertThatThrownBy(() -> harness.service.get(run.runId(), NOW.plus(SandboxService.LIMIT)))
+                .isInstanceOf(KeelException.class)
+                .hasMessageContaining("ImagePullBackOff");
+        assertThat(harness.store.find(run.runId()).report()).contains("ImagePullBackOff");
     }
 
     @Test

@@ -712,9 +712,12 @@ public class MetaAgentExecution {
                                 jobs.progress(id, "FAIL", "BUILD", "第 " + attempt + " 轮沙箱失败，修复循环已停止");
                             }
                         } catch (RuntimeException error) {
-                            state.put("phase", "FAILED").put("sandboxStatus", "FAILED").put("error", "隔离沙箱结果读取失败或超时");
+                            var message = error instanceof KeelException keelError
+                                    && keelError.code() == ErrorCode.DEVFLOW_SANDBOX_TIMEOUT
+                                    ? error.getMessage() : "隔离沙箱结果读取失败或超时";
+                            state.put("phase", "FAILED").put("sandboxStatus", "FAILED").put("error", message);
                             save(id, state, "DELIVER");
-                            jobs.progress(id, "FAIL", "BUILD", "隔离沙箱结果读取失败或超时");
+                            jobs.progress(id, "FAIL", "BUILD", message);
                         }
                     }
                 });

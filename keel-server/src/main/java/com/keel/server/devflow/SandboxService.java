@@ -65,13 +65,7 @@ public class SandboxService {
             throw notFound();
         }
         if ("TIMEOUT".equals(run.status())) {
-            throw timedOut();
-        }
-        if ("QUEUED".equals(run.status()) || "RUNNING".equals(run.status())) {
-            if (!now.isBefore(run.deadlineAt())) {
-                expire(run);
-                throw timedOut();
-            }
+            throw timedOut(run.report());
         }
         if ("RUNNING".equals(run.status())) {
             var observed = cluster.observe(run.runId());
@@ -80,7 +74,7 @@ public class SandboxService {
                 cluster.delete(run.runId());
                 store.update(run.finish("TIMEOUT", text.text(), text.truncated()));
                 pump(now);
-                throw timedOut();
+                throw timedOut(text.text());
             }
             if (observed.phase() == SandboxCluster.Phase.MISSING) {
                 store.update(run.finish("FAILED", "沙箱 Job 丢失，测试未完成", false));
@@ -96,19 +90,28 @@ public class SandboxService {
                 pump(now);
                 return view(finished);
             }
+            if (!now.isBefore(run.deadlineAt())) {
+                expire(run, observed.log());
+                throw timedOut(store.find(runId).report());
+            }
         }
         if ("QUEUED".equals(run.status())) {
+            if (!now.isBefore(run.deadlineAt())) {
+                expire(run, "排队超过 10 分钟，未获得沙箱运行槽位");
+                throw timedOut(store.find(runId).report());
+            }
             pump(now);
             run = store.find(runId);
         }
         return view(run);
     }
 
-    private void expire(SandboxRecord run) {
+    private void expire(SandboxRecord run, String report) {
         if ("RUNNING".equals(run.status())) {
             cluster.delete(run.runId());
         }
-        store.update(run.finish("TIMEOUT", run.report(), run.truncated()));
+        var text = SandboxRules.truncate(report);
+        store.update(run.finish("TIMEOUT", text.text(), text.truncated()));
         pump(run.deadlineAt());
     }
 
@@ -121,7 +124,7 @@ public class SandboxService {
                 continue;
             }
             if (!now.isBefore(queued.deadlineAt())) {
-                store.update(queued.finish("TIMEOUT", queued.report(), queued.truncated()));
+                store.update(queued.finish("TIMEOUT", "排队超过 10 分钟，未获得沙箱运行槽位", false));
                 continue;
             }
             if (running >= SandboxRules.MAX_RUNNING) {
@@ -155,7 +158,9 @@ public class SandboxService {
         return new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message());
     }
 
-    private static KeelException timedOut() {
-        return new KeelException(ErrorCode.DEVFLOW_SANDBOX_TIMEOUT, ErrorCode.DEVFLOW_SANDBOX_TIMEOUT.message());
+    private static KeelException timedOut(String report) {
+        var detail = report == null || report.isBlank() ? "" : "：" + report.substring(0, Math.min(500, report.length()));
+        return new KeelException(ErrorCode.DEVFLOW_SANDBOX_TIMEOUT,
+                ErrorCode.DEVFLOW_SANDBOX_TIMEOUT.message() + detail);
     }
 }

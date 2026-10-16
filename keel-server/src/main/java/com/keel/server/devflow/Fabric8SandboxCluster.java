@@ -5,6 +5,7 @@ import com.keel.server.common.KeelException;
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.ContainerBuilder;
 import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
+import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.Quantity;
 import io.fabric8.kubernetes.api.model.batch.v1.Job;
 import io.fabric8.kubernetes.api.model.batch.v1.JobBuilder;
@@ -116,9 +117,9 @@ public class Fabric8SandboxCluster implements SandboxCluster {
             return new Observation(Phase.FAILED, logs(name));
         }
         if (status.getActive() != null && status.getActive() > 0) {
-            return new Observation(Phase.RUNNING, "");
+            return new Observation(Phase.RUNNING, diagnosis(name));
         }
-        return new Observation(Phase.PENDING, "");
+        return new Observation(Phase.PENDING, diagnosis(name));
     }
 
     @Override
@@ -178,10 +179,52 @@ public class Fabric8SandboxCluster implements SandboxCluster {
             }
             var pod = pods.get(0).getMetadata().getName();
             var log = client.pods().inNamespace(NAMESPACE).withName(pod).inContainer("runner").getLog();
-            return log == null ? "" : log;
+            return log == null || log.isBlank() ? podDiagnosis(pods.get(0)) : log;
         } catch (KubernetesClientException e) {
-            return "";
+            return diagnosis(name);
         }
+    }
+
+    private String diagnosis(String name) {
+        try {
+            var pods = client.pods().inNamespace(NAMESPACE).withLabel("keel.io/sandbox-run", name).list().getItems();
+            return pods == null || pods.isEmpty() ? "Pod 尚未创建" : podDiagnosis(pods.get(0));
+        } catch (KubernetesClientException e) {
+            return "Pod 状态暂不可读";
+        }
+    }
+
+    static String podDiagnosis(Pod pod) {
+        if (pod == null || pod.getStatus() == null) return "Pod 尚无状态";
+        var status = pod.getStatus();
+        if (status.getContainerStatuses() != null) {
+            String genericWait = null;
+            for (var container : status.getContainerStatuses()) {
+                var waiting = container.getState() == null ? null : container.getState().getWaiting();
+                if (waiting != null && waiting.getReason() != null && !waiting.getReason().isBlank()) {
+                    var detail = compact("容器 " + container.getName() + " 等待：" + waiting.getReason()
+                            + " " + (waiting.getMessage() == null ? "" : waiting.getMessage()));
+                    if (!"ContainerCreating".equals(waiting.getReason())
+                            && !"PodInitializing".equals(waiting.getReason())) return detail;
+                    if (genericWait == null) genericWait = detail;
+                }
+            }
+            if (genericWait != null) return genericWait;
+        }
+        if (status.getConditions() != null) {
+            for (var condition : status.getConditions()) {
+                if (condition.getReason() != null && !condition.getReason().isBlank()) {
+                    return compact("Pod " + condition.getType() + "：" + condition.getReason()
+                            + " " + (condition.getMessage() == null ? "" : condition.getMessage()));
+                }
+            }
+        }
+        return compact("Pod 阶段：" + (status.getPhase() == null ? "未知" : status.getPhase()));
+    }
+
+    private static String compact(String text) {
+        var singleLine = text.replace('\n', ' ').replace('\r', ' ').trim();
+        return singleLine.length() <= 500 ? singleLine : singleLine.substring(0, 500);
     }
 
     private static KeelException failed(KubernetesClientException e) {
