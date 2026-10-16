@@ -32,14 +32,11 @@ jobs:
           KEEL_SERVER_URL: ${{ secrets.KEEL_SERVER_URL }}
         run: |
           java -jar target/app.jar --server.port=8080 &
-          python -c 'import socket,time
-for _ in range(50):
-    try:
-        socket.create_connection(("127.0.0.1", 8080), 1).close(); break
-    except OSError:
-        time.sleep(0.2)
-else:
-    raise SystemExit("agent did not open port 8080")'
+          for attempt in $(seq 1 50); do
+            if python -c 'import socket; socket.create_connection(("127.0.0.1", 8080), 1).close()'; then break; fi
+            sleep 0.2
+          done
+          python -c 'import socket; socket.create_connection(("127.0.0.1", 8080), 1).close()'
           keel gate --env staging
       - name: Build the image
         run: |

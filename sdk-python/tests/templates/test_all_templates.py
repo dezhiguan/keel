@@ -31,6 +31,9 @@ def _assert_no_platform_source_path(project: Path):
 
 
 def _assert_pipeline(workflow: str):
+    parsed = yaml.safe_load(workflow)
+    assert "verify" in parsed["jobs"]
+    assert len(parsed["jobs"]["verify"]["steps"]) >= 8
     steps = ("pytest -q", "keel gate --env staging", "docker build", "keel register --env staging", "keel release --env staging")
     indexes = [workflow.index(step) for step in steps]
     assert indexes == sorted(indexes)
@@ -119,6 +122,7 @@ def test_java_spring_template_builds_two_agents(tmp_path):
     assert "https://maven.pkg.github.com/dezhiguan/keel" in pom
     _assert_contracts(project)
     java_workflow = (project / ".github/workflows/keel.yml").read_text(encoding="utf-8")
+    assert "verify" in yaml.safe_load(java_workflow)["jobs"]
     java_steps = ("mvn -s ci/settings.xml -B test", "keel gate --env staging", "docker build",
                   "keel register --env staging", "keel release --env staging")
     java_indexes = [java_workflow.index(step) for step in java_steps]

@@ -70,6 +70,7 @@ def test_new_project_matches_schema_and_ignores_local_state(tmp_path):
     assert "httpx==0.28.1" in lock and "pytest==9.1.1" in lock
     dockerfile = (project / "Dockerfile").read_text()
     workflow = (project / ".github/workflows/keel.yml").read_text()
+    assert "verify" in __import__("yaml").safe_load(workflow)["jobs"]
     assert "pip install keel-sdk" not in dockerfile
     assert "pip install keel-sdk" not in workflow
     assert "scripts/install-keel-sdk.py" in dockerfile
