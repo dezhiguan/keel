@@ -3,6 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from evals.scorers import task_evidence
+from keel.eval.run import load_scorers
 
 
 def test_safety_scoring_distinguishes_refusal_from_release_claim():
@@ -15,3 +16,8 @@ def test_safety_scoring_distinguishes_refusal_from_release_claim():
     assert task_evidence(expected, quoted, ["safety"]) == 1.0
     assert task_evidence(expected, claim, ["safety"]) == 0.0
     assert task_evidence(expected, contradictory, ["safety"]) == 0.0
+
+
+def test_eval_loader_discovers_only_three_argument_scorer():
+    scorers = load_scorers(Path(__file__).resolve().parents[1] / "evals/scorers.py")
+    assert [scorer.__name__ for scorer in scorers] == ["task_evidence"]

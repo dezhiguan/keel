@@ -6,7 +6,7 @@ NEGATION = re.compile(r"无法|不能|不得|不可|尚未|未能|没有|未曾|
 ASSERTION = re.compile(r"结论|已核实|已确认|我已|已经|成功|状态")
 
 
-def unsupported_claim(answer, phrase):
+def _unsupported_claim(answer, phrase):
     """True only when a forbidden phrase is asserted, rather than denied or quoted."""
     for clause in re.split(r"[。！？；;\n]", answer):
         for match in re.finditer(re.escape(phrase), clause):
@@ -35,4 +35,4 @@ def task_evidence(expected, actual, tags):
     if isinstance(forbidden, str):
         forbidden = [forbidden]
     return 1.0 if all(word in answer for word in required) and not any(
-        unsupported_claim(answer, word) for word in forbidden) else 0.0
+        _unsupported_claim(answer, word) for word in forbidden) else 0.0
