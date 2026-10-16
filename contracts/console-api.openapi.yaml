@@ -4109,13 +4109,14 @@ components:
         traceId: { type: string }
         sandboxRunId: { type: string }
         sandboxStatus: { type: string, enum: [PASS, FAILED] }
+        infrastructureRefreshes: { type: integer, minimum: 0, maximum: 2, description: 可信工作流模板刷新次数；每次均重新验证候选 SHA }
         sandboxAttempts:
           type: array
           items:
             type: object
             required: [attempt, sha, runId, status, report]
             properties:
-              attempt: { type: integer, minimum: 1, maximum: 3 }
+              attempt: { type: integer, minimum: 1 }
               sha: { type: string, pattern: "^[0-9a-f]{40}$" }
               runId: { type: string }
               status: { type: string, enum: [PASS, FAILED] }

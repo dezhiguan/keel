@@ -3075,6 +3075,8 @@ export interface components {
             sandboxRunId?: string;
             /** @enum {string} */
             sandboxStatus?: "PASS" | "FAILED";
+            /** @description 可信工作流模板刷新次数；每次均重新验证候选 SHA */
+            infrastructureRefreshes?: number;
             sandboxAttempts?: {
                 attempt: number;
                 sha: string;

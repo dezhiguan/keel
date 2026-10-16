@@ -602,7 +602,8 @@ public class MetaAgentExecution {
                     throw invalid("只有沙箱通过的候选可以刷新交付");
                 }
                 int attempt = state.path("sandboxAttempts").size() + 1;
-                if (attempt > 3) throw invalid("沙箱修复已达到三轮上限");
+                int refreshes = state.path("infrastructureRefreshes").asInt(0);
+                if (!canRefreshInfrastructure(refreshes)) throw invalid("基础设施模板刷新已达到两次上限");
                 var delivery = state.path("delivery");
                 var sha = delivery.path("sha").asText();
                 var repo = delivery.path("repo").asText().replaceFirst("^[^/]+/", "");
@@ -612,6 +613,7 @@ public class MetaAgentExecution {
                 repair.put("attempt", attempt).put("failedSha", sha).put("infrastructureOnly", true)
                         .put("report", "交付仓库 CI 工作流无效；保留岗位代码并刷新可信模板");
                 repair.set("previousCandidate", previous);
+                state.put("infrastructureRefreshes", refreshes + 1);
                 state.remove(List.of("humanReview", "modelReview", "modelReviewTraceId", "sandboxStatus", "sandboxRunId"));
                 state.put("phase", "QUEUED");
                 save(id, state, "DELIVER");
@@ -746,6 +748,10 @@ public class MetaAgentExecution {
     static boolean repairableSandbox(String status, String report, String sha, int attempt) {
         return attempt < 3 && "FAILED".equals(status) && report != null
                 && report.startsWith("sha=" + sha + " snapshot=ok tests=FAIL\n");
+    }
+
+    static boolean canRefreshInfrastructure(int refreshes) {
+        return refreshes >= 0 && refreshes < 2;
     }
 
     static ObjectNode previousCandidate(ObjectMapper json, JsonNode snapshot) {

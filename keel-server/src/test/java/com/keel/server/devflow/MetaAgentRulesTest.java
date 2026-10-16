@@ -13,6 +13,12 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.*;
 
 class MetaAgentRulesTest {
+    @Test void infrastructureRefreshHasItsOwnBoundedCounter() {
+        assertThat(MetaAgentExecution.canRefreshInfrastructure(0)).isTrue();
+        assertThat(MetaAgentExecution.canRefreshInfrastructure(1)).isTrue();
+        assertThat(MetaAgentExecution.canRefreshInfrastructure(2)).isFalse();
+        assertThat(MetaAgentExecution.canRefreshInfrastructure(-1)).isFalse();
+    }
     @Test void refreshUsesOnlyTheThreeCandidateFiles() throws Exception {
         var json = new ObjectMapper();
         var snapshot = json.readTree("""
