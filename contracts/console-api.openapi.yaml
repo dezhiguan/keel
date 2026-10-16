@@ -675,6 +675,26 @@ paths:
           $ref: "#/components/responses/Error"
 
   # ---------------------------------------------------------------- 评测中心
+  /eval/gates:
+    get:
+      tags: [eval]
+      operationId: getEvalGates
+      summary: 研发任务门禁与人工编写智能体的可见分、隐藏考题聚合分
+      description: 只含已到门禁或已完成的研发任务，以及有评测分且没有研发任务的智能体。没有考题正文。分数没记到时对应字段为空。
+      parameters:
+        - $ref: "#/components/parameters/Env"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/EvalGateBoard" }
+
   /eval/{agent}/latest:
     parameters:
       - name: agent
@@ -3514,6 +3534,20 @@ components:
           type: string
           nullable: true
           description: "深链 {langfuse}/project/{id}/datasets/{datasetId}/experiments。数据集 id 缺失时落到该项目的数据集列表"
+
+    EvalGateBoard:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              agent: { type: string }
+              jobId: { type: string, nullable: true, description: 为空表示人工编写 }
+              visible: { type: number, format: float, nullable: true, description: 可见用例分。没有记录时为空 }
+              holdout: { type: number, format: float, nullable: true, description: 隐藏考题聚合分。人工编写或尚未记分时为空 }
+              passed: { type: boolean, nullable: true, description: 可见分保留两位后达到 0.80。没有可见分时为空 }
 
     # ------------------------------------------------------------ 工具
     SkillSummary:

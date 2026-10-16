@@ -9,14 +9,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.keel.server.devflow.GateBoard;
 import com.keel.server.evaluation.EvalJobs;
+import com.keel.server.registry.model.enums.AgentStatus;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
@@ -26,6 +30,8 @@ public class EvalQueryService {
     private final Function<String, JsonNode> manifest;
     private final String host;
     private final String projectId;
+    private AgentRegistryService registryService;
+    private GateBoard gateBoard;
     @Autowired
     private EvalJobs jobs;
     private final Map<String, CachedLatest> latestCache = new ConcurrentHashMap<>();
@@ -36,8 +42,10 @@ public class EvalQueryService {
     @Autowired
     public EvalQueryService(LangfuseClient langfuse, AgentRegistryService registry,
                             @Value("${LANGFUSE_HOST:}") String host,
-                            @Value("${LANGFUSE_PROJECT_ID:}") String projectId) {
+                            @Value("${LANGFUSE_PROJECT_ID:}") String projectId, GateBoard gateBoard) {
         this(langfuse, registry::manifestOrEmpty, host, projectId);
+        this.registryService = registry;
+        this.gateBoard = gateBoard;
     }
 
     EvalQueryService(LangfuseClient langfuse, Function<String, JsonNode> manifest) {
@@ -49,6 +57,41 @@ public class EvalQueryService {
         this.manifest = manifest;
         this.host = host == null ? "" : host;
         this.projectId = projectId == null ? "" : projectId;
+        this.registryService = null;
+        this.gateBoard = null;
+    }
+
+    public Map<String, Object> gates(String env) {
+        var scope = env == null || env.isBlank() || "all".equals(env) ? null : env;
+        var jobs = gateBoard == null ? List.<Map<String, Object>>of() : gateBoard.rows();
+        Set<String> names = null;
+        var produced = new HashSet<String>();
+        if (registryService != null) {
+            var page = registryService.page(scope == null ? "all" : scope, null, null, null, 1, 500);
+            if (scope != null) {
+                names = new HashSet<>();
+            }
+            for (var agent : page.items()) {
+                if (agent.name() == null || agent.status() == AgentStatus.DRAFT) {
+                    continue;
+                }
+                if (names != null) {
+                    names.add(agent.name());
+                }
+                if (agent.devflowJobId() != null && !agent.devflowJobId().isBlank()) {
+                    produced.add(agent.name());
+                }
+            }
+        }
+        Map<String, Double> scores = Map.of();
+        if (registryService != null) {
+            try {
+                scores = latestScoreByAgent();
+            } catch (RuntimeException ignored) {
+                scores = Map.of();
+            }
+        }
+        return Map.of("rows", GateBoard.assemble(jobs, names, produced, scores));
     }
 
     public Map<String, Object> latest(String agent) {

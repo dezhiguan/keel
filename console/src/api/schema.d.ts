@@ -419,6 +419,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/eval/gates": {
+        parameters: {
+            query?: {
+                env?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 研发任务门禁与人工编写智能体的可见分、隐藏考题聚合分
+         * @description 只含已到门禁或已完成的研发任务，以及有评测分且没有研发任务的智能体。没有考题正文。分数没记到时对应字段为空。
+         */
+        get: operations["getEvalGates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/eval/{agent}/latest": {
         parameters: {
             query?: never;
@@ -2479,6 +2501,19 @@ export interface components {
             /** @description 深链 {langfuse}/project/{id}/datasets/{datasetId}/experiments。数据集 id 缺失时落到该项目的数据集列表 */
             langfuseUrl?: string | null;
         };
+        EvalGateBoard: {
+            rows?: {
+                agent?: string;
+                /** @description 为空表示人工编写 */
+                jobId?: string | null;
+                /** @description 可见用例分。没有记录时为空 */
+                visible?: number | null;
+                /** @description 隐藏考题聚合分。人工编写或尚未记分时为空 */
+                holdout?: number | null;
+                /** @description 可见分保留两位后达到 0.80。没有可见分时为空 */
+                passed?: boolean | null;
+            }[];
+        };
         SkillSummary: {
             name?: string;
             version?: number;
@@ -3927,6 +3962,30 @@ export interface operations {
                 };
             };
             404: components["responses"]["Error"];
+        };
+    };
+    getEvalGates: {
+        parameters: {
+            query?: {
+                env?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["EvalGateBoard"];
+                    };
+                };
+            };
         };
     };
     getLatestEval: {

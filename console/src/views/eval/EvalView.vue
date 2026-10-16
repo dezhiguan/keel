@@ -4,7 +4,7 @@ import { RouterLink } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import AgentName from '@/components/AgentName.vue'
 import StatusPill from '@/components/StatusPill.vue'
-import { getEvalRun, getLatestEval, runEval, type EvalResult } from '@/api/eval'
+import { getEvalGates, getEvalRun, getLatestEval, runEval, type EvalGateRow, type EvalResult } from '@/api/eval'
 import { listSuspendedRuns, openApproval } from '@/api/approvals'
 import { listAgents } from '@/api/agents'
 import { toKeelError } from '@/api/http'
@@ -29,6 +29,7 @@ const evalTab = ref<'cmp' | 'holdout' | 'confirm'>('cmp')
 const agent = ref('')
 const agentOptions = ref<{ name: string; displayName: string }[]>([])
 const result = ref<EvalResult | null>(null)
+const gates = ref<EvalGateRow[]>([])
 const pending = ref<{ jobId: string; agent: string }[]>([])
 const gap = computed(() => holdoutGap(result.value?.scoreTotal, result.value?.holdout?.score))
 const loading = ref(false)
@@ -89,6 +90,15 @@ async function run() {
   }
 }
 
+function gapOf(row: EvalGateRow) {
+  return row.jobId ? holdoutGap(row.visible, row.holdout) : null
+}
+
+function holdoutCell(row: EvalGateRow) {
+  if (!row.jobId) return '—'
+  return row.holdout == null ? '未接入' : `🔒 ${formatScore(row.holdout)}`
+}
+
 function markExpected() {
   expectReason.value = ''
   expectInvalid.value = false
@@ -127,11 +137,23 @@ async function submitExpected() {
 onMounted(async () => {
   await loadAgents()
   await loadPending()
+  await loadGates()
 })
 watch(() => envStore.env, () => {
   loadAgents()
   loadPending()
+  loadGates()
 })
+
+async function loadGates() {
+  try {
+    const board = await getEvalGates(envStore.env)
+    gates.value = board.rows ?? []
+  } catch (error) {
+    gates.value = []
+    ElMessage.error(`加载研发任务门禁失败：${toKeelError(error).message}`)
+  }
+}
 
 async function loadPending() {
   try {
@@ -179,7 +201,7 @@ watch(agent, () => {
 
     <div class="chipsel" style="margin-bottom: 14px">
       <button :class="{ on: evalTab === 'cmp' }" @click="evalTab = 'cmp'">分维度对比</button>
-      <button :class="{ on: evalTab === 'holdout' }" @click="evalTab = 'holdout'">研发任务门禁（隐藏考题） <span class="pill nd p-vio">占位</span></button>
+      <button :class="{ on: evalTab === 'holdout' }" @click="evalTab = 'holdout'">研发任务门禁（隐藏考题）</button>
       <button :class="{ on: evalTab === 'confirm' }" @click="evalTab = 'confirm'">待评测确认 · {{ pending.length }}</button>
     </div>
 
@@ -192,9 +214,28 @@ watch(agent, () => {
     </div>
 
     <div v-if="evalTab === 'holdout'" class="card">
-      <h3>研发任务门禁 <span class="pill nd p-vio">占位</span></h3>
-      <div class="kv"><span>可见用例</span><b>{{ result?.scoreTotal == null ? '未接入' : formatScore(result.scoreTotal) }}</b><span>隐藏考题</span><b>{{ result?.holdout?.score == null ? '未接入' : formatScore(result.holdout.score) }}</b><span>来源任务</span><b>{{ result?.devflowJobId || '未接入' }}</b></div>
-      <p class="mut">独立的研发任务门禁报告尚未接入。隐藏考题内容只对审核人开放。</p>
+      <h3>研发任务门禁</h3>
+      <table v-if="gates.length" class="t">
+        <thead><tr><th>智能体</th><th>来源</th><th>可见用例</th><th>隐藏考题（聚合）</th><th>分差</th><th>结论</th></tr></thead>
+        <tbody>
+          <tr v-for="row in gates" :key="`${row.jobId ?? 'manual'}-${row.agent}`">
+            <td><AgentName :id="row.agent" /></td>
+            <td>
+              <RouterLink v-if="row.jobId" :to="`/jobs/${row.jobId}`">{{ row.jobId }}</RouterLink>
+              <span v-else class="mut">人工编写</span>
+            </td>
+            <td class="mono">{{ row.visible == null ? '未接入' : formatScore(row.visible) }}</td>
+            <td class="mono">{{ holdoutCell(row) }}</td>
+            <td class="mono" :class="{ down: holdoutGapAlarm(gapOf(row)) }">{{ holdoutGapText(gapOf(row)) }}</td>
+            <td>
+              <StatusPill v-if="row.passed != null" :label="row.passed ? '通过' : '未通过'" :tone="row.passed ? 'ok' : 'failed'" />
+              <span v-else>未接入</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else class="empty">还没有到达门禁的研发任务</p>
+      <p class="mut">分差超过 0.10 标红告警，疑似针对可见用例特判。人工编写的智能体没有隐藏考题，列显示「—」。隐藏考题内容只对审核人开放。</p>
     </div>
 
     <template v-if="evalTab === 'cmp' && result">
