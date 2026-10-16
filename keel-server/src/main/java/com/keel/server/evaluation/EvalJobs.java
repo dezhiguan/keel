@@ -134,7 +134,7 @@ public class EvalJobs {
             catch(Exception e) {
                 // Do not log upstream bodies, which can contain case content or credentials.
                 LoggerFactory.getLogger(EvalJobs.class).warn("eval reconciliation failed trace_id= agent={} run={} error={}",row.agent,row.id,e.getClass().getSimpleName());
-                if(row.created.plusSeconds(1860).isBefore(Instant.now())) fail(row.id,"评测超时或运行服务不可用");
+                if(row.created.plusSeconds(3660).isBefore(Instant.now())) fail(row.id,"评测超时或运行服务不可用");
             }
         }
     }
@@ -162,7 +162,7 @@ public class EvalJobs {
                     .withEnableServiceLinks(false).withContainers(container).withVolumes(pod.getSpec().getVolumes())
                     .withHostAliases(pod.getSpec().getHostAliases()).withImagePullSecrets(pod.getSpec().getImagePullSecrets()).build();
             var created=new JobBuilder().withNewMetadata().withName(name).withNamespace(row.namespace).endMetadata()
-                    .withNewSpec().withBackoffLimit(0).withActiveDeadlineSeconds(1800L).withTtlSecondsAfterFinished(86400)
+                    .withNewSpec().withBackoffLimit(0).withActiveDeadlineSeconds(3600L).withTtlSecondsAfterFinished(86400)
                     .withNewTemplate().withNewMetadata().addToLabels("keel.io/eval-run",row.id).endMetadata()
                     .withSpec(spec).endTemplate().endSpec().build();
             try {cluster.batch().v1().jobs().inNamespace(row.namespace).resource(created).create();}
