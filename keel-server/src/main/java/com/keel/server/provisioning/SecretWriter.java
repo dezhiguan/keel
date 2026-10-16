@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -31,6 +32,8 @@ public class SecretWriter implements ProvisionStep {
     private String serverUrl;
     @Value("${KEEL_SERVICE_AUDIENCE:}")
     private String serviceAudience;
+    @Value("${KEEL_AUDIT_URL:http://keel-audit.keel-system.svc.cluster.local:8080}")
+    private String auditUrl = "http://keel-audit.keel-system.svc.cluster.local:8080";
     private final ConcurrentHashMap<String, String> privateKeys = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> llmKeys = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, RagForgeAccess.Issued> pendingRag = new ConcurrentHashMap<>();
@@ -172,6 +175,11 @@ public class SecretWriter implements ProvisionStep {
         data.put("LANGFUSE_SECRET_KEY", encode(langfuseSecretKey));
         data.put("LANGFUSE_HOST", encode(langfuseHost));
         data.put("KEEL_ENV", encode(env));
+        data.put("KEEL_AUDIT_URL", encode(auditUrl));
+        var auditToken = new byte[32];
+        new SecureRandom().nextBytes(auditToken);
+        data.put("KEEL_AUDIT_TOKEN", encode(Base64.getUrlEncoder().withoutPadding().encodeToString(auditToken)));
+        data.put("KEEL_AUDIT_SPOOL_PATH", encode("/app/.keel/audit-spool.jsonl"));
         if (serverUrl != null && !serverUrl.isBlank()) data.put("KEEL_SERVER_URL", encode(serverUrl));
         if (serviceAudience != null && !serviceAudience.isBlank()) data.put("KEEL_SERVICE_AUDIENCE", encode(serviceAudience));
         var knowledge = knowledgeNames(manifest);

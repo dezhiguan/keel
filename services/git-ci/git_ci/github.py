@@ -3,7 +3,9 @@
 import base64
 import binascii
 import httpx
+import io
 import re
+import zipfile
 
 ORG = "keel-agents"
 LOG_LIMIT = 64 * 1024
@@ -33,15 +35,18 @@ class GitHub:
         self.server_url = server_url.rstrip("/")
 
     def request(self, method: str, path: str, payload: dict | None = None, accept: str | None = None,
-                raw: bool = False):
+                raw: bool = False, binary: bool = False):
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Accept": accept or "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
         }
-        response = httpx.request(method, self.base + path, headers=headers, json=payload, timeout=30)
+        response = httpx.request(method, self.base + path, headers=headers, json=payload,
+                                 timeout=30, follow_redirects=binary)
         if response.status_code >= 300:
             raise GitHubError(response.status_code, response.text)
+        if binary:
+            return response.content
         if raw or (accept and "diff" in accept):
             return response.text
         if not response.content:
@@ -321,9 +326,24 @@ class GitHub:
         return {"repo": f"{self.org}/{repo}", "workflow": workflow, "ref": ref}
 
     def logs(self, repo: str, run_id: str) -> dict:
-        text = self.request("GET", f"/repos/{self.org}/{repo}/actions/runs/{run_id}/logs", raw=True)
-        if not isinstance(text, str):
-            text = str(text)
+        content = self.request("GET", f"/repos/{self.org}/{repo}/actions/runs/{run_id}/logs", binary=True)
+        if isinstance(content, str):
+            text = content
+        elif zipfile.is_zipfile(io.BytesIO(content)):
+            parts = []
+            remaining = LOG_LIMIT + 1
+            with zipfile.ZipFile(io.BytesIO(content)) as archive:
+                for member in sorted(archive.infolist(), key=lambda item: item.filename):
+                    if member.is_dir() or remaining <= 0:
+                        continue
+                    with archive.open(member) as source:
+                        chunk = source.read(remaining)
+                    part = chunk.decode("utf-8", errors="replace")
+                    parts.append(f"[{member.filename}]\n{part}")
+                    remaining -= len(chunk)
+            text = "\n".join(parts)
+        else:
+            text = content.decode("utf-8", errors="replace")
         truncated = len(text) > LOG_LIMIT
         return {"repo": f"{self.org}/{repo}", "runId": run_id,
                 "log": text[:LOG_LIMIT], "truncated": truncated}

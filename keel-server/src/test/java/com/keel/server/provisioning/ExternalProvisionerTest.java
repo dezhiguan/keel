@@ -172,7 +172,7 @@ class ExternalProvisionerTest {
         provisioner.provision("echo", "dev", json.readTree("{\"spec\":{\"eval\":{\"dataset\":\"echo/smoke\"}}}"));
     }
 
-    @Test void secretContainsTheSixKeysAndNoVendorCredential() throws Exception {
+    @Test void secretContainsGovernedRuntimeKeysAndNoVendorCredential() throws Exception {
         var http = new okhttp3.mockwebserver.MockWebServer();
         http.start();
         var created = "{\"apiVersion\":\"v1\",\"kind\":\"Secret\",\"metadata\":{\"name\":\"keel-code-review\",\"namespace\":\"agents\"}}";
@@ -212,8 +212,10 @@ class ExternalProvisionerTest {
                     new String(Base64.getDecoder().decode(entry.getValue().asText()), StandardCharsets.UTF_8)));
             assertThat(values.keySet()).containsExactlyInAnyOrder(
                     "KEEL_CLIENT_PRIVATE_KEY", "KEEL_LLM_KEY", "KEEL_LLM_BASE_URL",
-                    "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_HOST", "KEEL_ENV");
+                    "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_HOST", "KEEL_ENV",
+                    "KEEL_AUDIT_URL", "KEEL_AUDIT_TOKEN", "KEEL_AUDIT_SPOOL_PATH");
             assertThat(values.get("KEEL_LLM_KEY")).isEqualTo("keel-virtual-key");
+            assertThat(values.get("KEEL_AUDIT_TOKEN")).isNotBlank();
             assertThat(String.join("\n", values.values())).doesNotContain("DASHSCOPE", "DEEPSEEK_API_KEY");
         } finally {
             http.shutdown();
