@@ -1,4 +1,5 @@
 """Five real SDK agents with scoped retrieval, read tools and delegated investigation."""
+import asyncio
 import json
 import os
 import re
@@ -109,8 +110,9 @@ async def run(request, ctx):
             evidence.append(f"工具 {tool_name} 失败：{type(error).__name__}: {error}")
 
     if PROFILE["delegates"]:
-        for child in PROFILE["delegates"]:
-            outcome = await ctx.delegate(child, question)
+        outcomes = await asyncio.gather(*(ctx.delegate(child, question)
+                                          for child in PROFILE["delegates"]))
+        for child, outcome in zip(PROFILE["delegates"], outcomes):
             evidence.append(f"委派 {child} 返回：{outcome['result']}")
 
     ctx.step("evidence.checked")
