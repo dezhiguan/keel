@@ -1,4 +1,26 @@
 apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: qa-lifecycle-1016-data-pv
+spec:
+  capacity: {storage: 1Gi}
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-path
+  local:
+    path: /var/lib/rancher/k3s/storage/qa-lifecycle-1016-data
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [iz7xvj0bz5i6jpinys4duwz]
+  claimRef:
+    namespace: agents
+    name: qa-lifecycle-1016-data
+---
+apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: qa-lifecycle-1016-data
