@@ -340,6 +340,8 @@ class GitHub:
                 for step in job.get("steps", [])[:100]:
                     if step.get("conclusion") == "failure":
                         lines.append(f"  failed step: {step.get('name', '')}")
+            if not lines:
+                raise GitHubError(502, "CI logs and job evidence unavailable")
             text = "\n".join(lines)[:LOG_LIMIT]
             return {"repo": f"{self.org}/{repo}", "runId": run_id, "log": text,
                     "truncated": False, "logsUnavailable": True}

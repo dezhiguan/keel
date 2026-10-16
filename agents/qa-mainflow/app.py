@@ -113,6 +113,7 @@ async def run(request, ctx):
             outcome = await ctx.delegate(child, question)
             evidence.append(f"委派 {child} 返回：{outcome['result']}")
 
+    ctx.step("evidence.checked")
     prompt = await ctx.prompt("answer")
     rendered = prompt.compile(question=question)
     messages = rendered if isinstance(rendered, list) else [

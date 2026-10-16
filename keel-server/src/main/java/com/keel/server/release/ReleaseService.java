@@ -74,6 +74,9 @@ public class ReleaseService {
             promptVersions = moveProduction(agent, gateRunId, jobId != null);
         }
         var evalRunId = body.path("evalRunId").asText("");
+        if (!evalRunId.isBlank() && !evalRunId.equals(gateRunId)) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "评测运行号必须与门禁运行号一致");
+        }
         var version = "staging".equals(env) && !evalRunId.isBlank()
                 ? snapshotEvaluatedVersion(agent, evalRunId, image) : agentVersion(agent);
         jdbc.update("""
