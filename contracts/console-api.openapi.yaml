@@ -1040,6 +1040,23 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Envelope" }
+  /agents/{name}/channels/{id}:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    delete:
+      tags: [agents]
+      operationId: revokeChannel
+      summary: 下线渠道并立即停止其发布凭证的调用
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
   /agents/{name}/channels/entry:
     parameters:
       - $ref: "#/components/parameters/AgentName"

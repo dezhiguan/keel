@@ -46,10 +46,11 @@ public class ChannelService {
             row.put("identity", rs.getString("identity"));
             row.put("origin", rs.getString("origin"));
             row.put("quotaPerHour", rs.getObject("quota_per_hour"));
-            row.put("status", rs.getString("status"));
-            row.put("credential", rs.getString("public_id"));
+            var status = rs.getString("status");
+            row.put("status", status);
+            row.put("credential", "REVOKED".equals(status) ? null : rs.getString("public_id"));
             row.put("hostedPath", "/a/" + agent);
-            row.put("embed", embed(agent, rs.getString("public_id")));
+            row.put("embed", "REVOKED".equals(status) ? null : embed(agent, rs.getString("public_id")));
             return row;
         }, agent);
         return Map.of("items", items);
@@ -93,6 +94,15 @@ public class ChannelService {
         result.put("embed", embed(agent, credential));
         result.put("status", status);
         return result;
+    }
+
+    public Map<String, Object> revoke(String agent, long id) {
+        requireAgent(agent);
+        var changed = jdbc.update("UPDATE channel SET status='REVOKED' WHERE id=? AND agent_name=?", id, agent);
+        if (changed == 0) {
+            throw new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message());
+        }
+        return Map.of("id", id, "status", "REVOKED");
     }
 
     public Map<String, Object> entry(String agent, JsonNode body, String requestOrigin, String authorization) {

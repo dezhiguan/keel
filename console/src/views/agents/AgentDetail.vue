@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import StatusPill from '@/components/StatusPill.vue'
 import { deleteAgent, getAgent, getAgentUsage, mergeUsage, retireAgent, recheckAgent, type AgentDetail } from '@/api/agents'
 import { listDevflowJobs, type DevflowJob } from '@/api/devflow'
 import { grantSkill, listAgentSkills, listSkills, type SkillGrant, type SkillSummary } from '@/api/skills'
 import { deleteMemory, listMemories, type UserMemory } from '@/api/memories'
-import { listChannels, publishChannel, type ChannelRow } from '@/api/channels'
+import { listChannels, publishChannel, revokeChannel, type ChannelRow } from '@/api/channels'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { agentStatus, orDash, fmtCny, RISK } from '@/utils/format'
@@ -254,6 +254,20 @@ async function addChannel() {
     await loadChannels(name.value)
   } catch (error) {
     ElMessage.error(toKeelError(error).message)
+  }
+}
+
+async function removeChannel(id: number) {
+  if (!name.value) return
+  try {
+    await ElMessageBox.confirm('下线后这个渠道的发布凭证立即失效，历史记录仍保留。', '下线渠道', {
+      confirmButtonText: '下线', cancelButtonText: '取消', type: 'warning',
+    })
+    await revokeChannel(name.value, id)
+    ElMessage.success('渠道已下线，旧凭证已失效')
+    await loadChannels(name.value)
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(toKeelError(error).message)
   }
 }
 
@@ -533,9 +547,9 @@ onUnmounted(() => {
           <template v-else-if="detail && tab === 'ch'">
             <div class="twrap">
             <table class="t">
-              <thead><tr><th>渠道</th><th>方式</th><th>用户身份</th><th>白名单</th><th>配额</th><th>近 7 天</th><th>状态</th></tr></thead>
+              <thead><tr><th>渠道</th><th>方式</th><th>用户身份</th><th>白名单</th><th>配额</th><th>近 7 天</th><th>状态</th><th></th></tr></thead>
               <tbody>
-                <tr v-if="!channels.length"><td colspan="7" class="empty">还没有发布到任何渠道</td></tr>
+                <tr v-if="!channels.length"><td colspan="8" class="empty">还没有发布到任何渠道</td></tr>
                 <tr v-for="row in channels" :key="row.id">
                   <td><b>{{ row.kind === 'HOSTED' ? '托管页面' : row.kind === 'EMBED' ? '网页嵌入' : row.kind === 'MINIPROGRAM' ? '微信小程序' : '网页 SDK' }}</b></td>
                   <td>{{ channelMethod(row.kind) }}</td>
@@ -543,7 +557,8 @@ onUnmounted(() => {
                   <td class="mono" style="font-size: 12px">{{ row.origin || '—' }}</td>
                   <td class="mono" style="font-size: 12px">{{ row.quotaPerHour == null ? '—' : `${row.quotaPerHour} 次/时` }}</td>
                   <td class="mono mut">未接入</td>
-                  <td><span class="pill" :class="row.status === 'ONLINE' ? 'p-ok' : 'p-warn'">{{ row.status === 'ONLINE' ? '已启用' : '待身份接入' }}</span></td>
+                  <td><span class="pill" :class="row.status === 'ONLINE' ? 'p-ok' : row.status === 'REVOKED' ? 'p-mute' : 'p-warn'">{{ row.status === 'ONLINE' ? '已启用' : row.status === 'REVOKED' ? '已下线' : '待身份接入' }}</span></td>
+                  <td><button v-if="row.status !== 'REVOKED'" v-write class="btn sm" type="button" @click="removeChannel(row.id)">下线</button></td>
                 </tr>
               </tbody>
             </table>

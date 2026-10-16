@@ -1,4 +1,4 @@
-import { get, post } from './http'
+import { del, get, post } from './http'
 
 export interface ChannelRow {
   id: number
@@ -6,10 +6,10 @@ export interface ChannelRow {
   identity: 'EXCHANGE' | 'OPENID' | 'ANONYMOUS'
   origin?: string | null
   quotaPerHour?: number | null
-  status?: string
-  credential?: string
+  status?: 'ONLINE' | 'REGISTERED' | 'REVOKED'
+  credential?: string | null
   hostedPath?: string
-  embed?: string
+  embed?: string | null
 }
 
 export function listChannels(agent: string) {
@@ -23,4 +23,8 @@ export function publishChannel(agent: string, body: {
   quotaPerHour?: number
 }) {
   return post<ChannelRow>(`/agents/${encodeURIComponent(agent)}/channels`, body)
+}
+
+export function revokeChannel(agent: string, id: number) {
+  return del<{ id: number; status: 'REVOKED' }>(`/agents/${encodeURIComponent(agent)}/channels/${id}`)
 }

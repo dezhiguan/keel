@@ -715,6 +715,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agents/{name}/channels/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 下线渠道并立即停止其发布凭证的调用 */
+        delete: operations["revokeChannel"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agents/{name}/channels/entry": {
         parameters: {
             query?: never;
@@ -3513,7 +3533,7 @@ export interface operations {
     getOverview: {
         parameters: {
             query?: {
-                env?: components["parameters"]["Env"];
+                env?: string;
                 range?: "today" | "24h" | "7d" | "30d" | "all";
             };
             header?: never;
@@ -3969,7 +3989,7 @@ export interface operations {
     getEvalGates: {
         parameters: {
             query?: {
-                env?: string;
+                env?: components["parameters"]["Env"];
             };
             header?: never;
             path?: never;
@@ -4408,6 +4428,29 @@ export interface operations {
                 };
             };
         };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    revokeChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {

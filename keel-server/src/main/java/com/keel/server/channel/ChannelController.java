@@ -5,6 +5,7 @@ import com.keel.server.common.R;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -40,6 +41,12 @@ public class ChannelController {
     @PostMapping("/api/v1/agents/{name}/channels")
     public R<Map<String, Object>> publish(@PathVariable String name, @RequestBody JsonNode body) {
         return R.ok(channels.publish(name, body));
+    }
+
+    @DeleteMapping("/api/v1/agents/{name}/channels/{id}")
+    public R<Map<String, Object>> revoke(@PathVariable String name, @PathVariable long id) {
+        com.keel.server.auth.ConsolePrincipal.requireUsername();
+        return R.ok(channels.revoke(name, id));
     }
 
     @CrossOrigin(origins = "*")

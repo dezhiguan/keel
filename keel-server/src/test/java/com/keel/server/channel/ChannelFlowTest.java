@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -74,5 +75,29 @@ class ChannelFlowTest {
                 .andExpect(header().doesNotExist("Set-Cookie"))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-credential=\"ch_")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("keel_console"))));
+    }
+
+    @Test void revokedChannelCannotEnterAndItsCredentialIsHidden() throws Exception {
+        jdbc.update("UPDATE agent_version SET manifest_json='{" + "\"spec\":{}" + "}'::jsonb WHERE agent_name='careermate'");
+        var saved = mvc.perform(post("/api/v1/agents/careermate/channels").contentType("application/json")
+                        .content("{\"kind\":\"HOSTED\",\"identity\":\"ANONYMOUS\"}")
+                        .with(request -> { ConsolePrincipal.set(request, ConsolePrincipal.dev()); return request; }))
+                .andExpect(status().isOk()).andReturn();
+        var data = com.fasterxml.jackson.databind.json.JsonMapper.builder().build()
+                .readTree(saved.getResponse().getContentAsString()).path("data");
+        var id = data.path("id").asLong();
+        var credential = data.path("credential").asText();
+        mvc.perform(delete("/api/v1/agents/careermate/channels/" + id)
+                        .with(request -> { ConsolePrincipal.set(request, ConsolePrincipal.dev()); return request; }))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REVOKED"));
+        mvc.perform(get("/api/v1/agents/careermate/channels"))
+                .andExpect(jsonPath("$.data.items[0].status").value("REVOKED"))
+                .andExpect(jsonPath("$.data.items[0].credential").value(org.hamcrest.Matchers.nullValue()));
+        mvc.perform(post("/a/api/careermate/entry").header("Origin", "https://keel.ragforge.net")
+                        .contentType("application/json").content("{\"credential\":\"" + credential + "\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("CHANNEL_ORIGIN_DENIED"));
+        mvc.perform(get("/a/careermate")).andExpect(status().isForbidden());
     }
 }
