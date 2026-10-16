@@ -10,7 +10,7 @@ import shutil
 
 import yaml
 
-from keel.cli.new import create_from_spec, create_project
+from keel.cli.new import create_from_spec, create_project, template_dir
 from keel.cli.repo import _files, _post
 from keel.protocol.errors import ErrorCode, KeelError
 from tools.manifest_check import check
@@ -30,7 +30,14 @@ async def execute(work, ctx):
         raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "研发岗位模板与目标智能体不匹配")
     if work.get("action") == "DELIVER":
         if target in ROLES and template == ROLES[target][0]:
-            work = {**work, "candidate": await generate_candidate(work, ctx)}
+            repair = work.get("repair") or {}
+            if repair.get("infrastructureOnly"):
+                candidate = repair.get("previousCandidate") or {}
+                if parse_candidate(json.dumps(candidate))[1]:
+                    raise KeelError(ErrorCode.AGENT_MANIFEST_INVALID, "原候选岗位代码已失效")
+            else:
+                candidate = await generate_candidate(work, ctx)
+            work = {**work, "candidate": candidate}
         result = await ctx.tools.call("scaffold.deliver", work=work, target_agent=target,
                                       version=int(work.get("version", 1)), job_id=work["jobId"])
         return ctx.final(_dump(result))
@@ -279,6 +286,12 @@ def _scaffold(project: Path, job_id: str, candidate: dict | None = None):
     (project / "evals/scorers.py").write_text("# Add scorers after humans provide evaluation cases.\n", encoding="utf-8")
     (project / "manifest.schema.json").write_text(_contract_file("manifest.schema.json"), encoding="utf-8")
     if candidate is not None:
+        template = template_dir(ROLES[project.name][0]) / ".github/workflows/keel.yml"
+        if not template.is_file():
+            raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "岗位 CI 工作流模板缺失")
+        workflow = project / ".github/workflows/keel.yml"
+        workflow.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(template, workflow)
         lock = project / "requirements.lock"
         dependencies = lock.read_text(encoding="utf-8")
         if "pytest-asyncio==" not in dependencies:

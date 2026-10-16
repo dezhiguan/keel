@@ -597,6 +597,27 @@ public class MetaAgentExecution {
         requireAdmin();
         return tx.execute(status -> {
             var state = lock(id);
+            if ("WAITING_REVIEW".equals(state.path("phase").asText())) {
+                if (git == null || !"PASS".equals(state.path("sandboxStatus").asText())) {
+                    throw invalid("只有沙箱通过的候选可以刷新交付");
+                }
+                int attempt = state.path("sandboxAttempts").size() + 1;
+                if (attempt > 3) throw invalid("沙箱修复已达到三轮上限");
+                var delivery = state.path("delivery");
+                var sha = delivery.path("sha").asText();
+                var repo = delivery.path("repo").asText().replaceFirst("^[^/]+/", "");
+                git.reviewStatus(id, repo, delivery.path("number").asInt(), sha);
+                var previous = previousCandidate(json, read(git.fetch(id, repo, sha)));
+                var repair = state.putObject("repair");
+                repair.put("attempt", attempt).put("failedSha", sha).put("infrastructureOnly", true)
+                        .put("report", "交付仓库 CI 工作流无效；保留岗位代码并刷新可信模板");
+                repair.set("previousCandidate", previous);
+                state.remove(List.of("humanReview", "modelReview", "modelReviewTraceId", "sandboxStatus", "sandboxRunId"));
+                state.put("phase", "QUEUED");
+                save(id, state, "DELIVER");
+                jobs.progress(id, "QUEUED", "BUILD", "第 " + attempt + " 轮刷新候选交付，重新验证精确提交");
+                return publicState(state);
+            }
             if (!"FAILED".equals(state.path("phase").asText())) throw invalid("只有失败的执行可以重试");
             if (state.path("sandboxAttempts").size() >= 3) throw invalid("沙箱修复已达到三轮上限");
             state.put("phase", "QUEUED"); state.remove("error");
@@ -692,13 +713,7 @@ public class MetaAgentExecution {
                             } else if (repairableSandbox(run.status(), run.report(), sha, attempt) && git != null) {
                                 var repo = state.path("delivery").path("repo").asText().replaceFirst("^[^/]+/", "");
                                 var snapshot = read(git.fetch(id, repo, sha));
-                                var previous = json.createObjectNode();
-                                var files = previous.putArray("files");
-                                var needed = Set.of("role.py", "prompts/role.md", "tests/test_role.py");
-                                for (var file : snapshot.path("files")) {
-                                    if (needed.contains(file.path("path").asText())) files.add(file);
-                                }
-                                if (files.size() != needed.size()) throw invalid("上轮候选快照缺少修复所需文件");
+                                var previous = previousCandidate(json, snapshot);
                                 var repair = state.putObject("repair");
                                 repair.put("attempt", attempt + 1).put("failedSha", sha).put("report", run.report());
                                 repair.set("previousCandidate", previous);
@@ -731,6 +746,17 @@ public class MetaAgentExecution {
     static boolean repairableSandbox(String status, String report, String sha, int attempt) {
         return attempt < 3 && "FAILED".equals(status) && report != null
                 && report.startsWith("sha=" + sha + " snapshot=ok tests=FAIL\n");
+    }
+
+    static ObjectNode previousCandidate(ObjectMapper json, JsonNode snapshot) {
+        var previous = json.createObjectNode();
+        var files = previous.putArray("files");
+        var needed = Set.of("role.py", "prompts/role.md", "tests/test_role.py");
+        for (var file : snapshot.path("files")) {
+            if (needed.contains(file.path("path").asText())) files.add(file);
+        }
+        if (files.size() != needed.size()) throw invalid("上轮候选快照缺少修复所需文件");
+        return previous;
     }
 
     private void complete(Work work, String lease, ObjectNode output, String traceId, String error) {

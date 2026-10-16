@@ -13,6 +13,17 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.*;
 
 class MetaAgentRulesTest {
+    @Test void refreshUsesOnlyTheThreeCandidateFiles() throws Exception {
+        var json = new ObjectMapper();
+        var snapshot = json.readTree("""
+                {"files":[{"path":"role.py","content":"role"},{"path":"prompts/role.md","content":"prompt"},
+                {"path":"tests/test_role.py","content":"test"},{"path":".github/workflows/keel.yml","content":"old"}]}
+                """);
+        assertThat(MetaAgentExecution.previousCandidate(json, snapshot).path("files")).hasSize(3);
+        var missing = json.readTree("{\"files\":[{\"path\":\"role.py\",\"content\":\"role\"}]}");
+        assertThatThrownBy(() -> MetaAgentExecution.previousCandidate(json, missing))
+                .isInstanceOf(KeelException.class).hasMessageContaining("缺少修复所需文件");
+    }
     @Test void sandboxRepairsOnlyActualTestFailuresBeforeThirdAttempt() {
         var sha = "a".repeat(40);
         var report = "sha=" + sha + " snapshot=ok tests=FAIL\ntest_normal failed";

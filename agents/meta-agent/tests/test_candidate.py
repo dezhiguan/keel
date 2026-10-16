@@ -97,11 +97,15 @@ def test_model_authored_role_runs_in_generated_project(tmp_path):
     configured["spec"]["runtime"]["endpoint"] = "http://spec-agent.agents.svc.cluster.local:8000"
     (project / "agent.yaml").write_text(yaml.safe_dump(configured, sort_keys=False), encoding="utf-8")
     (project / "spec.json").write_text(json.dumps({"title": "需求分析师"}), encoding="utf-8")
+    old_workflow = project / ".github/workflows/keel.yml"
+    old_workflow.parent.mkdir(parents=True, exist_ok=True)
+    old_workflow.write_text("invalid: [", encoding="utf-8")
     candidate = {"files": [{"path": "role.py", "content": ROLE_CODE},
                            {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
                            {"path": "tests/test_role.py", "content": TEST_CODE}]}
     _scaffold(project, "DF-9001", candidate)
     assert "项目骨架已就绪" not in (project / "app.py").read_text(encoding="utf-8")
+    assert "verify" in yaml.safe_load(old_workflow.read_text(encoding="utf-8"))["jobs"]
     assert "pytest-asyncio==1.4.0" in (project / "requirements.lock").read_text(encoding="utf-8")
     _scaffold(project, "DF-9001", candidate)
     assert (project / "requirements.lock").read_text(encoding="utf-8").count("pytest-asyncio==1.4.0") == 1
