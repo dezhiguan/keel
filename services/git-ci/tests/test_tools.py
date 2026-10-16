@@ -56,6 +56,32 @@ def test_ci_logs_relay_only_the_expected_signed_archive_host(monkeypatch):
     assert "Authorization" not in calls[1][1]
 
 
+def test_ci_logs_put_failed_job_tail_before_large_successful_build(monkeypatch):
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w") as archive:
+        archive.writestr("0_success.txt", "ok\n" * 20000)
+        archive.writestr("1_failed.txt", "work\n" * 5000 + "##[error] rollout failed\n")
+
+    class Response:
+        status_code = 200
+
+        def __init__(self, content):
+            self.content = content
+
+        def json(self):
+            return json.loads(self.content)
+
+    def request(method, url, **kwargs):
+        if url.endswith("/jobs?per_page=100"):
+            return Response(b'{"jobs":[{"name":"failed","conclusion":"failure","steps":[{"name":"rollout","conclusion":"failure"}]}]}')
+        return Response(payload.getvalue())
+
+    monkeypatch.setattr("git_ci.github.httpx.request", request)
+    result = GitHub("https://api.github.test", "token", "owner").logs("repo", "123")
+    assert "失败 Job: failed; 失败步骤: rollout" in result["log"][:300]
+    assert "##[error] rollout failed" in result["log"][:6000]
+
+
 def test_ci_log_connection_timeout_is_a_bounded_upstream_error(monkeypatch):
     seen = []
 

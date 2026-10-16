@@ -370,23 +370,53 @@ class GitHub:
             text = "\n".join(lines)[:LOG_LIMIT]
             return {"repo": f"{self.org}/{repo}", "runId": run_id, "log": text,
                     "truncated": False, "logsUnavailable": True}
+        archive_truncated = False
         if isinstance(content, str):
             text = content
         elif zipfile.is_zipfile(io.BytesIO(content)):
             parts = []
             remaining = LOG_LIMIT + 1
+            failed = []
+            try:
+                jobs = self.request("GET", root + "/jobs?per_page=100", timeout=10)
+                failed = [job for job in jobs.get("jobs", [])
+                          if job.get("conclusion") == "failure" and isinstance(job.get("name"), str)]
+            except (GitHubError, AttributeError, ValueError):
+                # Archive content remains useful even if the jobs index is unavailable.
+                pass
             with zipfile.ZipFile(io.BytesIO(content)) as archive:
-                for member in sorted(archive.infolist(), key=lambda item: item.filename):
+                members = sorted(archive.infolist(), key=lambda item: item.filename)
+                priority = [member for member in members if any(
+                    member.filename.endswith("_" + job["name"] + ".txt") for job in failed)]
+                archive_truncated = any(member.file_size > 4500 for member in priority)
+                for member in priority + [member for member in members if member not in priority]:
                     if member.is_dir() or remaining <= 0:
+                        if not member.is_dir():
+                            archive_truncated = True
                         continue
                     with archive.open(member) as source:
-                        chunk = source.read(remaining)
+                        if member in priority:
+                            # A failed build log can exceed 1 MiB; the error is usually
+                            # near its end. Keep bounded memory while reading that tail.
+                            tail = bytearray()
+                            while chunk := source.read(8192):
+                                tail.extend(chunk)
+                                if len(tail) > 4500:
+                                    del tail[:-4500]
+                            chunk = bytes(tail)
+                        else:
+                            chunk = source.read(remaining)
                     part = chunk.decode("utf-8", errors="replace")
+                    if member in priority:
+                        job = next(job for job in failed if member.filename.endswith("_" + job["name"] + ".txt"))
+                        steps = [step.get("name", "") for step in job.get("steps", [])
+                                 if step.get("conclusion") == "failure"]
+                        part = "失败 Job: " + job["name"] + "; 失败步骤: " + ", ".join(steps) + "\n" + part
                     parts.append(f"[{member.filename}]\n{part}")
-                    remaining -= len(chunk)
+                    remaining -= len(part.encode("utf-8"))
             text = "\n".join(parts)
         else:
             text = content.decode("utf-8", errors="replace")
-        truncated = len(text) > LOG_LIMIT
+        truncated = archive_truncated or len(text) > LOG_LIMIT
         return {"repo": f"{self.org}/{repo}", "runId": run_id,
                 "log": text[:LOG_LIMIT], "truncated": truncated}
