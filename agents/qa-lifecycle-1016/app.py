@@ -44,7 +44,14 @@ async def run(request, ctx):
     result = await ctx.loop(messages, TOOLS, max_steps=4, prompt=prompt)
     if isinstance(result, SuspendEvent):
         return result
-    return ctx.final(result.answer, citations=citations if "来源：" in result.answer else [])
+    answer = result.answer
+    if (passages and "来源：" not in answer
+            and not any(word in answer for word in ("知识库资料不足", "无法回答", "不能编造"))
+            and not any(word in question for word in ("值班", "口径", "故障", "变更", "咨询", "/policy"))):
+        source = next((hit.get("filename") for hit in found.results if hit.get("filename")), None)
+        if source:
+            answer = f"{answer.rstrip()}\n\n来源：{source}"
+    return ctx.final(answer, citations=citations if "来源：" in answer else [])
 
 
 app = agent.asgi()
