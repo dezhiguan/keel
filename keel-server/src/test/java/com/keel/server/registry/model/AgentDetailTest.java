@@ -140,6 +140,16 @@ class AgentDetailTest {
         assertThat(detail.elements().missing()).containsExactly("有版本的提示词");
         assertThat(detail.elements().items().getFirst().passed()).isNull();
         assertThat(detail.elements().items().getFirst().detail()).contains("待门禁验证");
+        var proved = detail.elements().withRuntime(true, false, false, true, false);
+        assertThat(proved.items().getFirst().passed()).isTrue();
+        assertThat(proved.items().get(1).passed()).isNull();
+        assertThat(proved.items().get(6).passed()).isTrue();
+        var workflowOnly = json.readTree("""
+                {"spec":{"kind":"workflow"}}
+                """);
+        var denied = AgentDetail.of(agent(), null, null, List.of(), workflowOnly, List.of()).elements()
+                .withRuntime(true, true, true, true, true);
+        assertThat(denied.items().getFirst().passed()).isFalse();
         assertThat(detail.elements().items().get(3).passed()).isFalse();
         var workflow = json.readTree("""
                 {"spec":{"kind":"workflow"}}

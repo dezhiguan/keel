@@ -28,6 +28,11 @@ public record AgentDetail(
         List<VersionRow> versions,
         List<Object> findings) {
 
+    public AgentDetail withElements(AgentElements next) {
+        return new AgentDetail(summary, manifestYaml, manifestHash, execution, memory, knowledgeBases, tools, models,
+                delegates, selfCheck, next, instanceList, resources, versions, findings);
+    }
+
     public static AgentDetail of(Agent agent, AgentVersion latest, String instances,
                                  List<AgentInstance> rows, JsonNode manifest, List<ResourceRow> resources) {
         var summary = AgentSummary.of(agent, latest, instances, manifest);

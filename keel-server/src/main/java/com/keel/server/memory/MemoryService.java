@@ -46,6 +46,10 @@ public class MemoryService {
                 INSERT INTO user_memory (agent_name, owner_user, content, layer, embedding)
                 VALUES (?, ?, ?, ?, ?::jsonb) RETURNING id
                 """, Long.class, agent, owner, content, layer, embedding);
+        var envs = jdbc.query("SELECT env FROM agent_version WHERE agent_name=? ORDER BY released_at DESC LIMIT 1",
+                (rs, n) -> rs.getString(1), agent);
+        audit.append(agent, envs.isEmpty() ? "dev" : envs.getFirst(), "memory.write", "low", "allowed", "memory:" + id, null, actor,
+                Map.of("count", 1, "category", layer));
         var created = new LinkedHashMap<String, Object>();
         created.put("id", id);
         created.put("ownerUser", owner);

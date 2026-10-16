@@ -69,6 +69,12 @@ class AuditReporter:
                 self.queue.put_nowait(event["event_id"])
             except asyncio.QueueFull:
                 pass
+        if self.publisher is None:
+            try:
+                response = await self.client.post("/api/v1/audit/events", json=event)
+                response.raise_for_status()
+            except httpx.HTTPError:
+                pass
         return event
 
     def _append(self, event: dict):

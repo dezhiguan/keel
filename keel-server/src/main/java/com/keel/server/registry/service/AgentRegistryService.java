@@ -36,6 +36,8 @@ public class AgentRegistryService {
     private final WizardCatalog wizardCatalog;
     @org.springframework.beans.factory.annotation.Autowired
     private SelfCheckRecords selfCheckRecords;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ElementEvidence elementEvidence;
 
     public AgentRegistryService(AgentMapper agentMapper, AgentVersionMapper versionMapper,
                                 AgentInstanceMapper instanceMapper, ResourceLedger ledger, ObjectMapper json,
@@ -135,6 +137,7 @@ public class AgentRegistryService {
         }
         var detail = AgentDetail.of(agent, latest, instanceLabel, instances, manifest, resources)
                 .withVersions(versions.stream().map(AgentDetail.VersionRow::of).toList());
+        if (elementEvidence != null) detail = elementEvidence.apply(detail);
         return selfCheckRecords == null ? detail : selfCheckRecords.apply(detail);
     }
 

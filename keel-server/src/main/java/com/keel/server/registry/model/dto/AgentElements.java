@@ -47,6 +47,27 @@ public record AgentElements(String kind, List<Item> items, List<String> missing)
                 List.copyOf(items), List.copyOf(missing));
     }
 
+    /** Upgrade a declared item only when a stored record already proves it. */
+    public AgentElements withRuntime(boolean toolCall, boolean loop, boolean memory, boolean evalPassed, boolean audit) {
+        var next = new ArrayList<>(items);
+        prove(next, "模型自己调工具", toolCall, "已有允许的工具调用");
+        prove(next, "agent loop", loop, "运行里出现过多步循环");
+        prove(next, "记忆", memory, "已写入用户记忆");
+        prove(next, "评测", evalPassed, "最近一次回归通过");
+        prove(next, "可观测与审计", audit, "已有审计事件");
+        return new AgentElements(kind, List.copyOf(next), missing);
+    }
+
+    private static void prove(List<Item> items, String name, boolean present, String detail) {
+        if (!present) return;
+        for (var i = 0; i < items.size(); i++) {
+            var item = items.get(i);
+            if (name.equals(item.name()) && !Boolean.FALSE.equals(item.passed())) {
+                items.set(i, new Item(name, true, detail));
+            }
+        }
+    }
+
     private static Item core(String name, boolean present) {
         return new Item(name, present ? null : false,
                 present ? "manifest 已声明；运行行为待门禁验证" : "manifest 缺少核心声明");
