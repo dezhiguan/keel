@@ -3,6 +3,7 @@ import io
 import json
 import threading
 import zipfile
+import httpx
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
@@ -32,6 +33,24 @@ def test_ci_logs_follow_redirect_and_unpack_zip(monkeypatch):
     assert seen == {"method": "GET", "url": "https://api.github.test/repos/owner/repo/actions/runs/123/logs", "redirects": True}
     assert "Compilation failed on line 12" in result["log"]
     assert not result["truncated"]
+
+
+def test_ci_log_connection_timeout_is_a_bounded_upstream_error(monkeypatch):
+    seen = []
+
+    def timeout(method, url, **kwargs):
+        seen.append((url, kwargs["timeout"]))
+        if url.endswith("/logs"):
+            raise httpx.ConnectTimeout("unavailable")
+        return type("Response", (), {"status_code": 200, "content": b'{}',
+                                     "json": lambda self: {"jobs": [{"name": "build", "conclusion": "failure",
+                                                               "steps": [{"name": "compile", "conclusion": "failure"}]}]}})()
+
+    monkeypatch.setattr("git_ci.github.httpx.request", timeout)
+    result = GitHub("https://api.github.test", "token", "owner").logs("repo", "123")
+    assert result["logsUnavailable"] is True
+    assert "failed step: compile" in result["log"]
+    assert [timeout for _, timeout in seen] == [10, 10]
 
 
 def test_scaffold_retries_reuse_own_commit_and_refuse_human_changes():

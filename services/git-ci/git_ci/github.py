@@ -35,14 +35,17 @@ class GitHub:
         self.server_url = server_url.rstrip("/")
 
     def request(self, method: str, path: str, payload: dict | None = None, accept: str | None = None,
-                raw: bool = False, binary: bool = False):
+                raw: bool = False, binary: bool = False, timeout: int = 30):
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Accept": accept or "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
         }
-        response = httpx.request(method, self.base + path, headers=headers, json=payload,
-                                 timeout=30, follow_redirects=binary)
+        try:
+            response = httpx.request(method, self.base + path, headers=headers, json=payload,
+                                     timeout=10 if binary else timeout, follow_redirects=binary)
+        except httpx.HTTPError as exc:
+            raise GitHubError(502, "GitHub request failed") from exc
         if response.status_code >= 300:
             raise GitHubError(response.status_code, response.text)
         if binary:
@@ -326,7 +329,20 @@ class GitHub:
         return {"repo": f"{self.org}/{repo}", "workflow": workflow, "ref": ref}
 
     def logs(self, repo: str, run_id: str) -> dict:
-        content = self.request("GET", f"/repos/{self.org}/{repo}/actions/runs/{run_id}/logs", binary=True)
+        root = f"/repos/{self.org}/{repo}/actions/runs/{run_id}"
+        try:
+            content = self.request("GET", root + "/logs", binary=True)
+        except GitHubError:
+            jobs = self.request("GET", root + "/jobs?per_page=100", timeout=10)
+            lines = []
+            for job in jobs.get("jobs", [])[:100]:
+                lines.append(f"Job {job.get('name', '')}: {job.get('conclusion') or job.get('status', 'unknown')}")
+                for step in job.get("steps", [])[:100]:
+                    if step.get("conclusion") == "failure":
+                        lines.append(f"  failed step: {step.get('name', '')}")
+            text = "\n".join(lines)[:LOG_LIMIT]
+            return {"repo": f"{self.org}/{repo}", "runId": run_id, "log": text,
+                    "truncated": False, "logsUnavailable": True}
         if isinstance(content, str):
             text = content
         elif zipfile.is_zipfile(io.BytesIO(content)):
