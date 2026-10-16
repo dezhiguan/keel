@@ -189,7 +189,7 @@ def _deliver(work):
         fresh = not state
         current = attempt - 1 if fresh else int(state.get("attempt", 1))
         if (not isinstance(failed_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", failed_sha)
-                or (fresh and parse_candidate(json.dumps(repair.get("previousCandidate")))[1])
+                or (fresh and parse_candidate(json.dumps(repair.get("previousCandidate")), allow_legacy_literals=True)[1])
                 or (not fresh and attempt == current + 1 and state.get("push", {}).get("sha") != failed_sha)
                 or (attempt == current and state.get("expectedSha") != failed_sha)
                 or attempt not in (current, current + 1)):

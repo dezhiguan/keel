@@ -85,6 +85,7 @@ def test_generated_python_rejects_lowercase_json_literals():
                      {"path": "tests/test_role.py", "content": TEST_CODE + "\ndef test_bad_bool():\n    assert {\"ok\": false}\n"}]}
     _, errors = parse(json.dumps(bad))
     assert any("tests/test_role.py" in error and "JSON 小写" in error for error in errors)
+    assert parse(json.dumps(bad), allow_legacy_literals=True)[1] == []
 
 
 def test_model_authored_role_runs_in_generated_project(tmp_path):
