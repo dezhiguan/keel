@@ -73,6 +73,7 @@ public class LangfuseClient {
         var listed = get("/api/public/dataset-items?datasetName=" + dataset);
         listed.path("data").forEach(item -> existing.add(item.path("id").asText()));
         if (!Files.isRegularFile(seedFile)) {
+            if (!existing.isEmpty()) return;
             throw new IllegalStateException("找不到评测用例 " + seedFile);
         }
         try {
