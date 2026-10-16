@@ -19,6 +19,7 @@ class Fabric8SandboxClusterTest {
                 .isEqualTo(SandboxCluster.Phase.SUCCEEDED);
         assertThat(Fabric8SandboxCluster.runnerPhase(podWithRunnerExit(1)))
                 .isEqualTo(SandboxCluster.Phase.FAILED);
+        assertThat(Fabric8SandboxCluster.runnerPhase(new Pod())).isNull();
     }
 
     @Test
