@@ -16,3 +16,8 @@
 ## 约束与验收
 
 遵循 P1-6、P1-8、R1-3、R1-8；模型仅经 `ctx.llm`，共享工具经 `ctx.tools.call`，知识库仅按 manifest 授权范围查询。Langfuse 只调用当前 Cloud v4 允许的数据集 API。成功标准为五服务 ready、开通资源 ACTIVE、真实请求及评测完成，且能在 trace 与统计中查到对应数据。
+# 后续线上复测补充
+
+- 自动发放的智能体 Secret 必须带审计 URL、独立令牌和可写的缓冲文件路径；部署后以 SDK `/v1/health` 与自检追踪验证。
+- GitHub Actions 日志 API 返回跳转到 ZIP 归档，`ci.log.fetch` 应跟随跳转并解压有界的文本内容；超长工具结果交给模型前截断并标注。
+- `POST /api/v1/agents/{name}/releases` 在 staging 请求带 `evalRunId` 时，必须核对评测完成、通过和镜像一致，随后生成不可变的下一版 dev manifest 快照并返回该版本号。重复同一评测应复用版本。
