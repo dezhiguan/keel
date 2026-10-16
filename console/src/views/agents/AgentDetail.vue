@@ -300,7 +300,7 @@ async function confirmGrant() {
   try {
     const saved = await grantSkill(name.value, chosen.name, chosen.version)
     granting.value = false
-    ElMessage.success(`已授权 ${chosen.name} v${chosen.version}。依赖工具没有自动授予。并入 ${saved.casesMerged ?? 0} 条回归用例`)
+    ElMessage.success(`已授权 ${chosen.name} v${chosen.version}，并入 ${saved.casesMerged ?? 0} 条回归用例。运行时还需在 agent.yaml 锁定此版本并重新部署`)
     await loadSkills(name.value)
   } catch (error) {
     ElMessage.error(toKeelError(error).message)
@@ -527,7 +527,7 @@ onUnmounted(() => {
               <button v-write class="btn" type="button" @click="openGrant">+ 添加技能</button>
               <RouterLink class="btn ghost" to="/tools">技能注册表 →</RouterLink>
             </div>
-            <p class="mut">添加技能不会自动授予依赖工具。工具仍要逐个授权。技能用例会并入这个智能体的评测集。</p>
+            <p class="mut">授权后还需在 agent.yaml 的 spec.skills 锁定版本并重新部署，运行时才会加载。依赖工具仍要逐个授权；技能用例会并入评测集。</p>
           </template>
 
           <template v-else-if="detail && tab === 'ch'">
