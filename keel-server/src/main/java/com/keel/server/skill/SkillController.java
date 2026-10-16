@@ -43,6 +43,12 @@ public class SkillController {
 
     @GetMapping("/agents/{name}/skills/{skill}")
     public R<Map<String, Object>> load(@PathVariable String name, @PathVariable String skill) {
+        var principal = ConsolePrincipal.current();
+        if (principal != null && "SERVICE".equals(principal.mode()) && !name.equals(principal.userId())) {
+            throw new com.keel.server.common.KeelException(
+                    com.keel.common.error.ErrorCode.AUTH_CONSOLE_FORBIDDEN,
+                    com.keel.common.error.ErrorCode.AUTH_CONSOLE_FORBIDDEN.message());
+        }
         return R.ok(skills.load(name, skill));
     }
 }

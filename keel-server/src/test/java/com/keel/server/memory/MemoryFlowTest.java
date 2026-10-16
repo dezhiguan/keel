@@ -43,7 +43,7 @@ class MemoryFlowTest {
 
     @Test void deleteRemovesTheMemoryAndMetaCannotWrite() throws Exception {
         var saved = mvc.perform(post("/api/v1/agents/careermate/memories").contentType("application/json")
-                        .content("{\"ownerUser\":\"u_1\",\"content\":\"偏好上海\"}")
+                        .content("{\"ownerUser\":\"u_1\",\"content\":\"偏好上海\",\"layer\":\"TASK\"}")
                         .with(asDev()))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -58,7 +58,7 @@ class MemoryFlowTest {
         var payload = jdbc.queryForObject(
                 "SELECT payload::text FROM console_audit_event WHERE agent = 'careermate' AND action = 'memory.delete'",
                 String.class);
-        assertThat(payload).contains("USER").doesNotContain("偏好上海");
+        assertThat(payload).contains("TASK").doesNotContain("偏好上海");
         mvc.perform(post("/api/v1/agents/meta-agent/memories").contentType("application/json")
                         .content("{\"ownerUser\":\"u_1\",\"content\":\"不该写\"}")
                         .with(asDev()))

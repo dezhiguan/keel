@@ -132,10 +132,11 @@ public class ChannelService {
         var body = json.createObjectNode().put("credential", credential);
         entry(agent, body, requestOrigin, authorization);
         var rows = jdbc.query("""
-                SELECT c.id, COALESCE(c.quota_per_hour,30) AS quota, c.identity, c.kind FROM channel c
+                SELECT c.id, COALESCE(c.quota_per_hour,30) AS quota, c.identity, c.kind, c.origin FROM channel c
                 JOIN channel_credential d ON d.channel_id=c.id
                 WHERE c.agent_name=? AND d.public_id=? AND c.status='ONLINE'
-                """, (rs, n) -> new Entry(rs.getLong(1), rs.getString(4), rs.getString(3), "", rs.getInt(2)), agent, credential);
+                """, (rs, n) -> new Entry(rs.getLong(1), rs.getString(4), rs.getString(3),
+                        rs.getString(5), rs.getInt(2)), agent, credential);
         if (rows.isEmpty()) throw denied();
         var hour = Instant.now().truncatedTo(ChronoUnit.HOURS);
         var accepted = jdbc.query("""
@@ -145,7 +146,8 @@ public class ChannelService {
                 """, (rs, n) -> rs.getInt(1), rows.getFirst().id(), java.sql.Timestamp.from(hour), rows.getFirst().quota());
         if (accepted.isEmpty()) throw new KeelException(ErrorCode.GW_QUOTA_EXCEEDED, "渠道每小时配额已用尽");
         return "EXCHANGE".equals(rows.getFirst().identity())
-                ? identities.user(authorization, "MINIPROGRAM".equals(rows.getFirst().kind()) ? requestOrigin : null) : "";
+                ? identities.user(authorization, "MINIPROGRAM".equals(rows.getFirst().kind())
+                    ? rows.getFirst().origin() : null) : "";
     }
 
     public void feedback(String agent, String credential, String requestOrigin, String authorization, String traceId, int value) {

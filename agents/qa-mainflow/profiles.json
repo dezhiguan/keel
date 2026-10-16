@@ -1,5 +1,5 @@
 {
-  "qa-policy-advisor-1017": {"title": "平台知识问答", "template": "loop-agent", "knowledge": ["平台基准库·v1"], "tools": ["devflow.catalog.search", "keel.gate.report.read"], "delegates": []},
+  "qa-policy-advisor-1017": {"title": "平台知识问答", "template": "loop-agent", "knowledge": ["平台基准库·v1"], "tools": ["devflow.catalog.search", "keel.gate.report.read"], "delegates": [], "skills": [{"name": "qa-evidence-grounded-1017", "version": 1}]},
   "qa-devops-investigator-1017": {"title": "DevOps 调查", "template": "loop-agent", "knowledge": [], "tools": ["ci.log.fetch", "devflow.catalog.search", "git.pr.diff"], "delegates": []},
   "qa-incident-planner-1017": {"title": "故障分析规划", "template": "loop-agent", "knowledge": [], "tools": ["ci.log.fetch", "shift.policy", "devflow.job.read"], "delegates": []},
   "qa-workflow-coordinator-1017": {"title": "工作流协作协调", "template": "loop-agent", "knowledge": [], "tools": ["devflow.batch.read", "devflow.job.read", "devflow.catalog.search"], "delegates": ["qa-devops-investigator-1017", "qa-incident-planner-1017"]},

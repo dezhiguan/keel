@@ -27,6 +27,8 @@ def build(name: str) -> dict:
         spec["knowledge"] = [{"kb": kb} for kb in profile["knowledge"]]
     if profile["delegates"]:
         spec["delegates"] = profile["delegates"]
+    if profile.get("skills"):
+        spec["skills"] = profile["skills"]
     return {"apiVersion": "keel/v1", "kind": "Agent",
             "metadata": {"name": name, "displayName": profile["title"],
                          "owner": "平台组 / qa", "category": "dev"}, "spec": spec}

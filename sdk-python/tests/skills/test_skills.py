@@ -70,8 +70,11 @@ def test_an_undeclared_skill_is_rejected_and_does_not_grant_tools(monkeypatch):
 
 
 def test_load_reads_the_pinned_version_and_leaves_tools_alone(monkeypatch):
+    seen_headers = []
+
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
+            seen_headers.append(dict(self.headers))
             body = json.dumps({"data": {
                 "name": "cite-from-kb", "version": 1, "instructions": "找不到依据时说无法确认",
                 "tools": ["rag.search"], "examples": ["标出处"],
@@ -87,12 +90,17 @@ def test_load_reads_the_pinned_version_and_leaves_tools_alone(monkeypatch):
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     monkeypatch.setenv("KEEL_SERVER_URL", f"http://127.0.0.1:{server.server_address[1]}")
+    monkeypatch.setenv("KEEL_SERVICE_AUDIENCE", "keel-api")
+    monkeypatch.setenv("KEEL_CLIENT_PRIVATE_KEY", "test-key")
+    monkeypatch.setattr("keel.skills.sign_client_assertion", lambda agent, audience, key: "signed-test-assertion")
     try:
         manifest = Manifest(Spec(skills=[Item("cite-from-kb", 1)]))
         client = SkillClient(manifest, "skill-agent", "dev")
         skill = run(client.load("cite-from-kb"))
         assert skill.instructions == "找不到依据时说无法确认"
         assert skill.tools == ["rag.search"]
+        assert seen_headers[0]["X-Client-Id"] == "skill-agent"
+        assert seen_headers[0]["X-Client-Assertion"] == "signed-test-assertion"
         context = Context("skill-agent", "run-1", "trace-1", asyncio.Queue(), manifest=manifest, env="dev")
         with pytest.raises(KeelError) as tool:
             run(context.tools.call("rag.search"))

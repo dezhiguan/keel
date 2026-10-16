@@ -18,3 +18,5 @@ def test_five_profiles_have_distinct_governed_runtime_and_real_dependencies():
         assert manifest.spec.capabilities.loop is True
     assert set(build("qa-workflow-coordinator-1017")["spec"]["delegates"]) == {
         "qa-devops-investigator-1017", "qa-incident-planner-1017"}
+    assert build("qa-policy-advisor-1017")["spec"]["skills"] == [
+        {"name": "qa-evidence-grounded-1017", "version": 1}]

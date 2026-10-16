@@ -98,14 +98,14 @@ public class MemoryService {
 
     public Map<String, Object> delete(String agent, long id, String actor) {
         var row = requireAgent(agent);
-        var found = jdbc.query("SELECT owner_user FROM user_memory WHERE agent_name = ? AND id = ?",
-                (rs, n) -> rs.getString(1), agent, id);
+        var found = jdbc.query("SELECT owner_user, layer FROM user_memory WHERE agent_name = ? AND id = ?",
+                (rs, n) -> Map.entry(rs.getString(1), rs.getString(2)), agent, id);
         if (found.isEmpty()) {
             throw new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message());
         }
-        authorize(agent, row.ownerOrg(), found.getFirst(), true);
+        authorize(agent, row.ownerOrg(), found.getFirst().getKey(), true);
         audit.append(agent, "prod", "memory.delete", "low", "allowed", "memory:" + id, null, actor,
-                Map.of("count", 1, "category", "USER"));
+                Map.of("count", 1, "category", found.getFirst().getValue()));
         jdbc.update("DELETE FROM user_memory WHERE agent_name = ? AND id = ?", agent, id);
         return Map.of("id", id, "items", List.of());
     }

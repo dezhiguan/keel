@@ -3,6 +3,7 @@ import { del, get } from './http'
 export interface UserMemory {
   id: number
   ownerUser: string
+  layer?: 'USER' | 'TASK' | 'EXPERIENCE'
   content: string
   createdAt?: string
 }

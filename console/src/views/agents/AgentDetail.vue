@@ -491,15 +491,16 @@ onUnmounted(() => {
               </tbody>
             </table>
             <div class="drawer-actions">
-              <span class="mut">用户记忆 {{ memories.length }} 条 · 评测流量不写入</span>
+              <span class="mut">持久记忆 {{ memories.length }} 条 · 评测流量不写入</span>
             </div>
-            <h4>用户记忆</h4>
+            <h4>持久记忆</h4>
             <table class="t">
-              <thead><tr><th>用户</th><th>内容</th><th></th></tr></thead>
+              <thead><tr><th>用户</th><th>层级</th><th>内容</th><th></th></tr></thead>
               <tbody>
-                <tr v-if="!memories.length"><td colspan="3" class="empty">还没有用户记忆</td></tr>
+                <tr v-if="!memories.length"><td colspan="4" class="empty">还没有持久记忆</td></tr>
                 <tr v-for="item in memories" :key="item.id">
                   <td class="mono">{{ item.ownerUser }}</td>
+                  <td>{{ item.layer === 'TASK' ? '任务' : item.layer === 'EXPERIENCE' ? '经验' : '用户' }}</td>
                   <td>{{ item.content }}</td>
                   <td><button v-write class="btn sm" type="button" @click="removeMemory(item.id)">删除</button></td>
                 </tr>
