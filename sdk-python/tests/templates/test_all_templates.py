@@ -38,6 +38,7 @@ def _assert_pipeline(workflow: str):
     assert "${{ vars.KEEL_SERVER_URL }}" in workflow
     assert "${{ secrets.KEEL_GITHUB_TOKEN }}" not in workflow
     assert "${{ secrets.KEEL_SERVER_URL }}" not in workflow
+    assert "run: python -m pytest -q" in workflow
     steps = ("pytest -q", "keel gate --env staging", "docker build", "keel register --env staging", "keel release --env staging")
     indexes = [workflow.index(step) for step in steps]
     assert indexes == sorted(indexes)
