@@ -57,10 +57,7 @@ public class LifecycleService {
     }
 
     public SelfCheckService.Report register(JsonNode body) {
-        var shared = body.has("apiVersion")
-                ? wizardCatalog.sharedTools().stream().map(row -> String.valueOf(row.get("name"))).collect(Collectors.toSet())
-                : Set.<String>of();
-        var selection = selectionForm(json, body, shared);
+        var selection = selectionForm(json, body);
         var selected = wizardCatalog.resolve(selection);
         var knowledge = wizardCatalog.resolveKnowledge(selection);
         var manifest = manifest(body, selected, knowledge);
@@ -285,14 +282,11 @@ public class LifecycleService {
     }
 
     /** Raw manifests still select catalog resources; bypassing the wizard must not drop their grants or RAG key. */
-    static JsonNode selectionForm(ObjectMapper json, JsonNode body, Set<String> sharedTools) {
+    static JsonNode selectionForm(ObjectMapper json, JsonNode body) {
         if (!body.has("apiVersion")) return body;
         var form = json.createObjectNode();
         var tools = form.putArray("tools");
-        body.path("spec").path("tools").forEach(item -> {
-            var name = item.path("name").asText("");
-            if (sharedTools.contains(name)) tools.add(name);
-        });
+        body.path("spec").path("tools").forEach(item -> tools.add(item.path("name").asText("")));
         var knowledge = form.putArray("knowledgeBases");
         body.path("spec").path("knowledge").forEach(item -> knowledge.add(item.path("kb").asText("")));
         return form;
