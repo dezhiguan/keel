@@ -621,7 +621,9 @@ public class MetaAgentExecution {
                 return publicState(state);
             }
             if (!"FAILED".equals(state.path("phase").asText())) throw invalid("只有失败的执行可以重试");
-            if (state.path("sandboxAttempts").size() >= 3) throw invalid("沙箱修复已达到三轮上限");
+            if (sandboxLimitBlocksRetry(state)) {
+                throw invalid("沙箱修复已达到三轮上限");
+            }
             state.put("phase", "QUEUED"); state.remove("error");
             String action = !state.has("confirmedVersion") ? "DRAFT" : state.has("acceptedAgentCount") ? "DELIVER" : "EVAL";
             save(id, state, action);
@@ -752,6 +754,11 @@ public class MetaAgentExecution {
 
     static boolean canRefreshInfrastructure(int refreshes) {
         return refreshes >= 0 && refreshes < 2;
+    }
+
+    static boolean sandboxLimitBlocksRetry(JsonNode state) {
+        return state.path("sandboxAttempts").size() >= 3
+                && !state.path("repair").path("infrastructureOnly").asBoolean(false);
     }
 
     static ObjectNode previousCandidate(ObjectMapper json, JsonNode snapshot) {

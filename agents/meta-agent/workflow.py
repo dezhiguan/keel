@@ -3,6 +3,7 @@
 import fcntl
 import httpx
 import json
+import logging
 import os
 from pathlib import Path
 import re
@@ -269,6 +270,8 @@ def _deliver(work):
         _save(checkpoint, state)
         return result
     except (ValueError, KeyError, httpx.HTTPError) as exc:
+        logging.getLogger(__name__).warning("candidate delivery failed job=%s cause=%s detail=%s",
+                                            job_id, type(exc).__name__, str(exc)[:240])
         raise KeelError(ErrorCode.GIT_UPSTREAM_FAILED, "骨架 PR 交付失败") from exc
 
 

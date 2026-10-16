@@ -19,6 +19,15 @@ class MetaAgentRulesTest {
         assertThat(MetaAgentExecution.canRefreshInfrastructure(2)).isFalse();
         assertThat(MetaAgentExecution.canRefreshInfrastructure(-1)).isFalse();
     }
+    @Test void failedInfrastructureDeliveryCanRetryWithoutConsumingAnotherRefresh() throws Exception {
+        var json = new ObjectMapper();
+        assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(json.readTree("""
+                {"sandboxAttempts":[{},{},{}],"repair":{"infrastructureOnly":true}}
+                """))).isFalse();
+        assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(json.readTree("""
+                {"sandboxAttempts":[{},{},{}],"repair":{"infrastructureOnly":false}}
+                """))).isTrue();
+    }
     @Test void refreshUsesOnlyTheThreeCandidateFiles() throws Exception {
         var json = new ObjectMapper();
         var snapshot = json.readTree("""
