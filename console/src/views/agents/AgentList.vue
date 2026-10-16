@@ -42,6 +42,7 @@ const shown = computed(() => {
 })
 const ordered = computed(() => [...shown.value].reverse())
 const pageRows = computed(() => ordered.value.slice((filter.page - 1) * filter.size, filter.page * filter.size))
+const showCreate = computed(() => filter.page === Math.max(1, Math.ceil(ordered.value.length / filter.size)))
 const registered = computed(() => result.value?.total ?? 0)
 
 function open(name?: string) {
@@ -163,7 +164,7 @@ watch(() => route.query.drawer, (drawer, previous) => {
             <div>今日花费<b>{{ cardCost(card.cost) }}</b></div>
           </div>
         </div>
-        <div class="acard new" @click="router.push('/agents/new')">
+        <div v-if="showCreate" class="acard new" @click="router.push('/agents/new')">
           <b>+</b>新建智能体
           <small class="mono" style="font-size: 11px">keel new 或向导</small>
         </div>
