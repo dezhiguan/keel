@@ -471,7 +471,7 @@ jobs:
   deploy-qa-mainflow:
     name: 部署五个主流程智能体
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     needs: [changes, build-qa-mainflow, deploy-server]
     if: >-
       always() &&
@@ -496,6 +496,12 @@ jobs:
           KEEL_NAMESPACE: agents
           KEEL_IMAGE_NAME: qa-mainflow
         run: |
+          for attempt in $(seq 1 90); do
+            missing=$(ssh -T -o BatchMode=yes keel-app 'for agent in qa-policy-advisor-1017 qa-devops-investigator-1017 qa-incident-planner-1017 qa-workflow-coordinator-1017 qa-release-knowledge-1017; do kubectl -n agents get secret "keel-${agent}" >/dev/null 2>&1 || echo "${agent}"; done')
+            if [ -z "${missing}" ]; then break; fi
+            sleep 10
+          done
+          if [ -n "${missing}" ]; then echo "等待智能体注册生成 Secret 超时：${missing}"; exit 1; fi
           for agent in qa-policy-advisor-1017 qa-devops-investigator-1017 qa-incident-planner-1017 qa-workflow-coordinator-1017 qa-release-knowledge-1017; do
             KEEL_AGENT_NAME="${agent}" KEEL_MANIFEST_OUTPUT="/tmp/${agent}-agent.yaml" python3 agents/qa-mainflow/manifest.py
             scp -F ~/.ssh/config "/tmp/${agent}-agent.yaml" "keel-app:/tmp/${agent}-agent.yaml"

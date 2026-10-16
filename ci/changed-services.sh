@@ -62,7 +62,9 @@ shared=false
 while IFS= read -r file; do
   [[ -z "${file}" ]] && continue
   case "${file}" in
-    keel-common/*|pom.xml|deploy/docker/service.Dockerfile|.github/workflows/keel-cd.yml|.github/actions/*|deploy/ci/*|ci/changed-services.sh|ci/backend-gate.sh|contracts/*)
+    .github/workflows/keel-cd.yml)
+      shared=true; qa_mainflow=true ;;
+    keel-common/*|pom.xml|deploy/docker/service.Dockerfile|.github/actions/*|deploy/ci/*|ci/changed-services.sh|ci/backend-gate.sh|contracts/*)
       shared=true ;;
     keel-llm/*|deploy/k3s/services/keel-llm.yaml)
       llm=true ;;
