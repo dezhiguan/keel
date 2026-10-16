@@ -18,19 +18,19 @@ def test_ci_logs_follow_redirect_and_unpack_zip(monkeypatch):
     payload = io.BytesIO()
     with zipfile.ZipFile(payload, "w") as archive:
         archive.writestr("build/1_job.txt", "Compilation failed on line 12")
-    seen = {}
+    seen = []
 
     class Response:
         status_code = 200
         content = payload.getvalue()
 
     def request(method, url, **kwargs):
-        seen.update(method=method, url=url, redirects=kwargs.get("follow_redirects"))
+        seen.append({"method": method, "url": url, "redirects": kwargs.get("follow_redirects")})
         return Response()
 
     monkeypatch.setattr("git_ci.github.httpx.request", request)
     result = GitHub("https://api.github.test", "token", "owner").logs("repo", "123")
-    assert seen == {"method": "GET", "url": "https://api.github.test/repos/owner/repo/actions/runs/123/logs", "redirects": True}
+    assert seen[0] == {"method": "GET", "url": "https://api.github.test/repos/owner/repo/actions/runs/123/logs", "redirects": True}
     assert "Compilation failed on line 12" in result["log"]
     assert not result["truncated"]
 
