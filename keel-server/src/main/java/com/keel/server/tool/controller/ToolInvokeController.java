@@ -45,7 +45,7 @@ public class ToolInvokeController {
         var declared=false;
         for(var tool:registry.manifestOrEmpty(agent).path("spec").path("tools"))
             if(name.equals(tool.path("name").asText()) && "read".equals(tool.path("access").asText()) && "low".equals(tool.path("risk").asText()))declared=true;
-        if(!declared || !granted(agent, name, "git.pr.diff".equals(name))) {
+        if(!declared || !granted(agent, name, "git.pr.diff".equals(name) || "ci.log.fetch".equals(name))) {
             audit.append(agent,env,"tool.call","low","denied",name,validTrace(traceId),agent,java.util.Map.of());
             throw denied();
         }
@@ -56,7 +56,36 @@ public class ToolInvokeController {
             audit.append(agent,env,"tool.call","low","allowed",name,validTrace(traceId),agent,java.util.Map.of("category", body.path("category").asText("").trim(), "count", 1));
             return R.ok(ShiftPolicy.answer(body));
         }
-        if(!"git.pr.diff".equals(name)) {
+        if("devflow.catalog.search".equals(name)) {
+            var query = body.path("query").asText("").trim();
+            var rows = jdbc.queryForList("""
+                    SELECT t.name, v.description, v.access, v.risk FROM tool t
+                    JOIN LATERAL (SELECT description, access, risk FROM tool_version
+                        WHERE tool_name=t.name ORDER BY created_at DESC LIMIT 1) v ON true
+                    WHERE t.scope='SHARED' AND t.status<>'RETIRED'
+                      AND (lower(t.name) LIKE lower(?) OR lower(v.description) LIKE lower(?))
+                    ORDER BY t.name LIMIT 20
+                    """, "%"+query+"%", "%"+query+"%");
+            audit.append(agent,env,"tool.call","low","allowed",name,validTrace(traceId),agent,java.util.Map.of("count",rows.size()));
+            return R.ok(json.valueToTree(rows));
+        }
+        if("devflow.job.read".equals(name) || "devflow.batch.read".equals(name)
+                || "keel.gate.report.read".equals(name)) {
+            var id = body.path("jobId").asText(body.path("batchId").asText("")).trim();
+            if(!id.matches("[A-Za-z0-9_-]{1,32}"))
+                throw new KeelException(ErrorCode.SERVER_INVALID_PARAM,"需要有效的 jobId 或 batchId");
+            java.util.List<java.util.Map<String,Object>> rows;
+            if("devflow.job.read".equals(name)) {
+                rows=jdbc.queryForList("SELECT job_id,batch_id,title,status,stage,goal,updated_at FROM devflow_job WHERE job_id=? LIMIT 1",id);
+            } else if("devflow.batch.read".equals(name)) {
+                rows=jdbc.queryForList("SELECT batch_id,title,pilot_job_id,pilot_passed,created_at FROM devflow_batch WHERE batch_id=? LIMIT 1",id);
+            } else {
+                rows=jdbc.queryForList("SELECT job_id,kind,ref,sha256,created_at FROM devflow_artifact WHERE job_id=? AND kind='GATE_REPORT' ORDER BY created_at DESC LIMIT 10",id);
+            }
+            audit.append(agent,env,"tool.call","low","allowed",name,validTrace(traceId),agent,java.util.Map.of("count",rows.size()));
+            return R.ok(json.valueToTree(rows));
+        }
+        if(!"git.pr.diff".equals(name) && !"ci.log.fetch".equals(name)) {
             audit.append(agent,env,"tool.call","low","denied",name,validTrace(traceId),agent,java.util.Map.of());
             throw denied();
         }

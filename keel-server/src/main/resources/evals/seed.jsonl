@@ -1,0 +1,1 @@
+{"id":"protocol-probe","input":"probe","expectedOutput":"probe ok","metadata":{"source":"keel-builtin","case":"protocol"}}

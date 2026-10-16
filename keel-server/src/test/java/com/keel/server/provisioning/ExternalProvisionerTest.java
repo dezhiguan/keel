@@ -21,6 +21,29 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ExternalProvisionerTest {
     private final ObjectMapper json = new ObjectMapper();
 
+    @Test void packagedSeedAllowsRegistrationWithoutAContainerLocalFile() throws Exception {
+        var imported = new ArrayList<String>();
+        var base = server((exchange, body) -> {
+            if (exchange.getRequestURI().getPath().equals("/api/public/dataset-items")) {
+                if ("POST".equals(exchange.getRequestMethod())) {
+                    imported.add(body);
+                    exchange.sendResponseHeaders(200, -1);
+                } else {
+                    var response = "{\"data\":[]}".getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    exchange.getResponseBody().write(response);
+                }
+            } else {
+                exchange.sendResponseHeaders(200, -1);
+            }
+        });
+        var provisioner = new LangfuseProvisioner(new LangfuseClient(base, "pk-lf", "sk-lf"), "evals/seed.jsonl");
+        provisioner.provision("qa-policy-advisor-1017", "dev",
+                json.readTree("{\"spec\":{\"eval\":{\"dataset\":\"qa-policy-advisor-1017/smoke\"}}}"));
+        assertThat(imported).hasSize(1);
+        assertThat(json.readTree(imported.getFirst()).path("expectedOutput").asText()).isEqualTo("probe ok");
+    }
+
     @Test void convertsDailyCnyUsingTheConfiguredRateAndBlocksOnRevoke() throws Exception {
         var bodies = new ArrayList<String>();
         var paths = new ArrayList<String>();
