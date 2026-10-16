@@ -34,6 +34,10 @@ def _assert_pipeline(workflow: str):
     parsed = yaml.safe_load(workflow)
     assert "verify" in parsed["jobs"]
     assert len(parsed["jobs"]["verify"]["steps"]) >= 8
+    assert "${{ github.token }}" in workflow
+    assert "${{ vars.KEEL_SERVER_URL }}" in workflow
+    assert "${{ secrets.KEEL_GITHUB_TOKEN }}" not in workflow
+    assert "${{ secrets.KEEL_SERVER_URL }}" not in workflow
     steps = ("pytest -q", "keel gate --env staging", "docker build", "keel register --env staging", "keel release --env staging")
     indexes = [workflow.index(step) for step in steps]
     assert indexes == sorted(indexes)
@@ -81,6 +85,9 @@ def test_templates_install_sdk_from_the_github_release(tmp_path):
     pom = (java_project / "pom.xml").read_text(encoding="utf-8")
     assert "https://maven.pkg.github.com/dezhiguan/keel" in pom
     assert "<version>1.0.0</version>" in pom
+    java_workflow = (java_project / ".github/workflows/keel.yml").read_text(encoding="utf-8")
+    assert "${{ github.token }}" in java_workflow
+    assert "${{ vars.KEEL_SERVER_URL }}" in java_workflow
 
 
 def _rules():

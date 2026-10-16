@@ -11,3 +11,5 @@
 部署 `3a862fa` 后，`SB-0006` 在约半分钟内完成并记录了 `1 failed, 5 passed`；唯一失败是旧候选 `tests/test_role.py` 的小写 `false`。平台进入第 2 轮修复，但元智能体的新校验也拒绝了作为修复输入的旧候选快照。已调整为仅允许旧快照被读取，新生成候选仍须通过严格校验。
 
 部署 `b8e1381` 后，第 2 轮候选 `e6862776e24db787b2a0c30694862fcae7b17706` 在 `SB-0007` 通过 6 项测试，任务进入 `WAITING_REVIEW`。候选仓库 Actions 两次 push 运行均为失败且没有创建 Job；本地解析生成的 `.github/workflows/keel.yml` 复现 YAML 缩进错误。按 `R3-5c` 修复所有模板及 SDK 生成器。现有 PR 的精确 SHA 已通过沙箱，若修改 PR 工作流必须重新固定 SHA 并重跑沙箱，不能把旧报告用于新提交。
+
+部署 `241b3ae` 后，受控刷新生成第 3 轮候选 `1299ca52b93645c5f899039ce658e275e859acf1`，`SB-0008` 的 6 项测试全部通过，仍在 `WAITING_REVIEW`。GitHub Actions 这次成功创建 `verify` Job，但在安装 SDK 时失败：生成仓库没有 `KEEL_GITHUB_TOKEN` secret，底座仓库没有 `sdk-v1.0.0` Release；`KEEL_SERVER_URL` secret 也未配置。按 `R3-5e` 改为 Actions 内置令牌、自动配置非敏感的服务器地址变量，并发布对应版本。第三轮沙箱结论只属于旧 SHA，不能用于新工作流提交。

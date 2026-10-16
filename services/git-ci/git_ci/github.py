@@ -24,12 +24,13 @@ class GitHubError(Exception):
 
 
 class GitHub:
-    def __init__(self, base_url: str, token: str, org: str = ORG):
+    def __init__(self, base_url: str, token: str, org: str = ORG, server_url: str = ""):
         if not base_url or not token:
             raise ValueError("KEEL_GITHUB_API 或 KEEL_GITHUB_TOKEN 未设置")
         self.base = base_url.rstrip("/")
         self.token = token
         self.org = org
+        self.server_url = server_url.rstrip("/")
 
     def request(self, method: str, path: str, payload: dict | None = None, accept: str | None = None,
                 raw: bool = False):
@@ -94,7 +95,18 @@ class GitHub:
                 raise
             protection = "UNAVAILABLE"
         self.enable_actions(name)
+        self.configure_server_url(name)
         return {"repo": f"{self.org}/{name}", "defaultBranch": "main", "protection": protection}
+
+    def configure_server_url(self, name: str) -> None:
+        """Expose only the public server address, never a platform credential."""
+        if not self.server_url:
+            return
+        root = f"/repos/{self.org}/{name}/actions/variables"
+        if self.status("GET", root + "/KEEL_SERVER_URL") == 404:
+            self.request("POST", root, {"name": "KEEL_SERVER_URL", "value": self.server_url})
+        else:
+            self.request("PATCH", root + "/KEEL_SERVER_URL", {"name": "KEEL_SERVER_URL", "value": self.server_url})
 
     def enable_actions(self, name: str) -> None:
         """Turn Actions on before the first workflow commit so that push can start CI."""

@@ -132,6 +132,27 @@ def test_plan_limit_keeps_private_scaffolds_but_blocks_merge_and_other_permissio
         Restricted("Resource not accessible by integration").ensure_repo("qa", "DF-9001")
 
 
+def test_ensure_repo_sets_public_server_url_as_actions_variable():
+    class Configured(GitHub):
+        def __init__(self):
+            super().__init__("http://unused", "test", server_url="https://keel.example/")
+            self.calls = []
+
+        def request(self, method, path, payload=None, **kwargs):
+            self.calls.append((method, path, payload))
+            if path.endswith("/protection"):
+                raise GitHubError(403, "Upgrade to GitHub Pro")
+            return {"description": "keel-devflow:DF-9001", "private": True}
+
+        def status(self, method, path):
+            return 404
+
+    client = Configured()
+    client.ensure_repo("qa", "DF-9001")
+    assert ("POST", "/repos/keel-agents/qa/actions/variables",
+            {"name": "KEEL_SERVER_URL", "value": "https://keel.example"}) in client.calls
+
+
 def test_human_pr_review_is_bound_to_protected_main_and_exact_candidate_sha():
     sha = "a" * 40
 

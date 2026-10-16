@@ -22,6 +22,9 @@ spec:
           image: PLACEHOLDER_GIT_CI_IMAGE
           envFrom:
             - secretRef: {name: git-ci-github}
+          env:
+            - name: KEEL_SERVER_URL
+              value: https://keel.ragforge.net
           ports:
             - containerPort: 8000
           readinessProbe:
