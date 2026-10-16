@@ -409,3 +409,29 @@ def test_snapshot_rejects_other_jobs_and_unsafe_paths():
         Unsafe().snapshot("qa", "a" * 40, "DF-9001")
     with pytest.raises(GitHubError, match="not the private repository"):
         Unsafe(owner="keel-devflow:DF-9002").snapshot("qa", "a" * 40, "DF-9001")
+
+
+def test_snapshot_skips_directories_and_rejects_symlinks():
+    class Tree(GitHub):
+        def __init__(self, entries):
+            super().__init__("http://unused", "test", "keel-agents")
+            self.entries = entries
+        def request(self, method, path, payload=None, **kwargs):
+            if path.endswith("/spec-agent"):
+                return {"description": "keel-devflow:DF-0002", "private": True}
+            if "/git/commits/" in path:
+                return {"sha": "b" * 40, "tree": {"sha": "tree-1"}}
+            if "/git/trees/" in path:
+                return {"truncated": False, "tree": self.entries}
+            if path.endswith("/blob-role"):
+                return {"encoding": "base64", "content": base64.b64encode(b"def execute():\n    return {}\n").decode()}
+            raise AssertionError(path)
+
+    result = Tree([
+        {"type": "tree", "mode": "040000", "path": "tests", "sha": "tree-2"},
+        {"type": "blob", "mode": "100644", "path": "tests/test_role.py", "sha": "blob-role"},
+    ]).snapshot("spec-agent", "b" * 40, "DF-0002")
+    assert result["files"] == [{"path": "tests/test_role.py", "content": "def execute():\n    return {}\n"}]
+    with pytest.raises(GitHubError, match="regular files only"):
+        Tree([{"type": "blob", "mode": "120000", "path": "link", "sha": "blob-role"}]).snapshot(
+            "spec-agent", "b" * 40, "DF-0002")

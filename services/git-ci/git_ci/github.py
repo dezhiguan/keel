@@ -202,11 +202,15 @@ class GitHub:
             raise GitHubError(409, "Commit tree missing")
         tree = self.request("GET", root + f"/git/trees/{tree_sha}?recursive=1")
         entries = tree.get("tree")
-        if tree.get("truncated") or not isinstance(entries, list) or len(entries) > SNAPSHOT_FILES:
+        if tree.get("truncated") or not isinstance(entries, list):
+            raise GitHubError(413, "Repository snapshot exceeds sandbox limits")
+        # Recursive trees include directory nodes. They are not files.
+        blobs = [item for item in entries if not (item.get("type") == "tree" and item.get("mode") in ("040000", "40000"))]
+        if len(blobs) > SNAPSHOT_FILES:
             raise GitHubError(413, "Repository snapshot exceeds sandbox limits")
         files = []
         used = 0
-        for item in entries:
+        for item in blobs:
             path = item.get("path")
             if item.get("type") != "blob" or item.get("mode") != "100644":
                 raise GitHubError(400, "Sandbox snapshot accepts regular files only")
