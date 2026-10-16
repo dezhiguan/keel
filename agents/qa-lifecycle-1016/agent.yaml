@@ -1,0 +1,43 @@
+apiVersion: keel/v1
+kind: Agent
+metadata:
+  name: qa-lifecycle-1016
+  displayName: 生命周期验收 1016
+  owner: 平台组 / guandezhi
+  category: dev
+spec:
+  kind: agent
+  capabilities:
+    toolCalling: true
+    loop: true
+    memory: true
+  runtime:
+    type: code
+    language: python
+    template: loop-agent
+    endpoint: http://qa-lifecycle-1016.agents.svc.cluster.local:8000
+    liveness: k8s
+  auth:
+    audience: qa-lifecycle-1016
+  models:
+    default: qwen-plus
+    budget:
+      dailyCny: 1
+      maxSteps: 4
+  knowledge:
+    - kb: 平台基准库·v1
+  tools:
+    - name: shift.policy
+      access: read
+      risk: low
+  eval:
+    dataset: qa-lifecycle-1016/smoke
+    gate:
+      minScore: 0.8
+      maxRegression: 0.02
+  prompts:
+    source: langfuse
+    label: production
+    items:
+      - name: answer
+        type: chat

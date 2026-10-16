@@ -190,7 +190,7 @@ class Context:
         return event
 
     async def loop(self, messages: list[dict], tools: list[dict], *,
-                   max_steps: int | None = None) -> FinalEvent | SuspendEvent:
+                   max_steps: int | None = None, prompt=None) -> FinalEvent | SuspendEvent:
         configured = getattr(getattr(getattr(self.manifest.spec, "models", None), "budget", None),
                              "maxSteps", None) if self.manifest else None
         limit = min(max_steps if max_steps is not None else configured or 6,
@@ -199,7 +199,12 @@ class Context:
             raise KeelError(ErrorCode.AGENT_MAX_STEPS_EXCEEDED)
         checkpoint = Path(".keel/checkpoints") / f"ckpt_{self.run_id}"
         turn_messages = list(messages)
-        history = self.memory.history() + turn_messages if not self.resuming else turn_messages
+        if self.resuming:
+            history = turn_messages
+        else:
+            system = [message for message in turn_messages if message.get("role") == "system"]
+            turns = [message for message in turn_messages if message.get("role") != "system"]
+            history = system + self.memory.history() + turns
         step = 0
         last_call = None
         if self.resuming:
@@ -242,7 +247,7 @@ class Context:
                 attrs.RUN_ID: self.run_id, attrs.LOOP_STEP: step, attrs.STATUS: "ok",
             }) as span:
                 try:
-                    result = await self.llm.chat(history, tools=tools)
+                    result = await self.llm.chat(history, tools=tools, prompt=prompt)
                     if not isinstance(result, ChatResult):
                         raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型没有返回结构化工具结果")
                     if not result.tool_calls:

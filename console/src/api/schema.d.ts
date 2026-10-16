@@ -3641,6 +3641,7 @@ export interface operations {
             content: {
                 "application/json": {
                     text: string;
+                    sessionId?: string;
                 };
             };
         };

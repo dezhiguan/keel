@@ -48,8 +48,15 @@ public class AgentChatService {
     }
 
     public Map<String, Object> chat(String name, String text) {
+        return chat(name, text, null);
+    }
+
+    public Map<String, Object> chat(String name, String text, String sessionId) {
         if (text == null || text.isBlank()) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, ErrorCode.SERVER_INVALID_PARAM.message());
+        }
+        if (sessionId != null && !sessionId.matches("[A-Za-z0-9_-]{1,128}")) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "sessionId 格式不正确");
         }
         var detail = registry.detail(name);
         var status = detail.summary().status();
@@ -75,9 +82,14 @@ public class AgentChatService {
             var userId = callerLabel();
             var rag = secrets == null ? null : secrets.knowledgeCredential(name);
             var bridge = "careermate".equals(name) ? careerMateToken : null;
-            answer = rag == null || rag.token().isBlank()
-                    ? endpoints.invoke(endpoint, text, bridge, name, env, userId)
-                    : endpoints.invoke(endpoint, text, bridge, name, env, userId, rag.token(), rag.kbIds());
+            if (sessionId != null) {
+                answer = endpoints.invoke(endpoint, text, bridge, name, env, userId,
+                        rag == null ? null : rag.token(), rag == null ? null : rag.kbIds(), scopedSessionId(sessionId));
+            } else {
+                answer = rag == null || rag.token().isBlank()
+                        ? endpoints.invoke(endpoint, text, bridge, name, env, userId)
+                        : endpoints.invoke(endpoint, text, bridge, name, env, userId, rag.token(), rag.kbIds());
+            }
         } catch (RuntimeException e) {
             throw new KeelException(ErrorCode.SERVER_INTERNAL_ERROR,
                     e.getMessage() == null ? ErrorCode.SERVER_INTERNAL_ERROR.message() : e.getMessage());
@@ -125,5 +137,18 @@ public class AgentChatService {
         }
         var id = principal.userId();
         return id == null || id.isBlank() ? null : id;
+    }
+
+    /** A browser supplied ID never selects another console user's local agent history. */
+    private static String scopedSessionId(String id) {
+        var principal = ConsolePrincipal.current();
+        var owner = principal == null || principal.userId() == null ? "anonymous" : principal.userId();
+        try {
+            var digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest((owner + ":" + id).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(digest);
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
     }
 }

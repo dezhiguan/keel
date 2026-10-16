@@ -49,12 +49,19 @@ public record AgentElements(String kind, List<Item> items, List<String> missing)
 
     /** Upgrade a declared item only when a stored record already proves it. */
     public AgentElements withRuntime(boolean toolCall, boolean loop, boolean memory, boolean evalPassed, boolean audit) {
+        return withRuntime(toolCall, loop, memory, evalPassed, audit, false, false);
+    }
+
+    public AgentElements withRuntime(boolean toolCall, boolean loop, boolean memory, boolean evalPassed,
+                                     boolean audit, boolean versionedPrompt, boolean retrieval) {
         var next = new ArrayList<>(items);
         prove(next, "模型自己调工具", toolCall, "已有允许的工具调用");
         prove(next, "agent loop", loop, "运行里出现过多步循环");
         prove(next, "记忆", memory, "已写入用户记忆");
         prove(next, "评测", evalPassed, "最近一次回归通过");
         prove(next, "可观测与审计", audit, "已有审计事件");
+        prove(next, "有版本的提示词", versionedPrompt, "真实模型调用关联了提示词版本");
+        prove(next, "知识检索", retrieval, "真实运行出现知识检索节点");
         return new AgentElements(kind, List.copyOf(next), missing);
     }
 

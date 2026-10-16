@@ -8,6 +8,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RegisterManifestTest {
     private final ObjectMapper json = new ObjectMapper();
 
+    @Test void rawManifestKeepsToolAndKnowledgeSelectionsForProvisioning() throws Exception {
+        var manifest = json.readTree("""
+                {"apiVersion":"keel/v1","metadata":{"name":"qa-lifecycle-1016"},
+                 "spec":{"kind":"agent","tools":[{"name":"shift.policy"}],
+                         "knowledge":[{"kb":"平台基准库·v1"}]}}
+                """);
+        var selection = LifecycleService.selectionForm(json, manifest);
+        assertThat(selection.path("tools").get(0).asText()).isEqualTo("shift.policy");
+        assertThat(selection.path("knowledgeBases").get(0).asText()).isEqualTo("平台基准库·v1");
+    }
+
     @Test void newEchoUsesItsOwnServiceAndExplicitEndpointIsHonored() throws Exception {
         var form = json.readTree("""
                 {"name":"qa-agent","template":"echo","language":"python"}

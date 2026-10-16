@@ -151,6 +151,16 @@ class AgentDetailTest {
                 .withRuntime(true, true, true, true, true);
         assertThat(denied.items().getFirst().passed()).isFalse();
         assertThat(detail.elements().items().get(3).passed()).isFalse();
+        var runtimeProof = detail.elements().withRuntime(false, false, false, false, false, true, true);
+        assertThat(runtimeProof.items().get(3).passed()).isFalse();
+        var declaredTrace = json.readTree("""
+                {"spec":{"kind":"workflow","prompts":{"source":"langfuse","items":[{"name":"answer"}]},
+                         "knowledge":[{"kb":"平台基准库·v1"}]}}
+                """);
+        var traceProof = AgentDetail.of(agent(), null, null, List.of(), declaredTrace, List.of()).elements()
+                .withRuntime(false, false, false, false, false, true, true);
+        assertThat(traceProof.items().get(3).passed()).isTrue();
+        assertThat(traceProof.items().get(5).passed()).isTrue();
         var workflow = json.readTree("""
                 {"spec":{"kind":"workflow"}}
                 """);

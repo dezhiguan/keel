@@ -78,7 +78,8 @@ public class AgentController {
 
     @PostMapping("/{name}/chat")
     public R<java.util.Map<String, Object>> chat(@PathVariable String name, @RequestBody JsonNode body) {
-        return R.ok(chats.chat(name, body.path("text").asText("")));
+        return R.ok(chats.chat(name, body.path("text").asText(""),
+                body.hasNonNull("sessionId") ? body.path("sessionId").asText() : null));
     }
 
     @DeleteMapping("/{name}")

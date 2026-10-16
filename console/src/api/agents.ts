@@ -86,6 +86,6 @@ export function deleteAgent(name: string) {
   return del<unknown>(`/agents/${encodeURIComponent(name)}`)
 }
 
-export function chatWithAgent(name: string, text: string) {
-  return post<{ text?: string; traceId?: string | null }>(`/agents/${encodeURIComponent(name)}/chat`, { text }, { timeout: 60_000 })
+export function chatWithAgent(name: string, text: string, sessionId?: string) {
+  return post<{ text?: string; traceId?: string | null }>(`/agents/${encodeURIComponent(name)}/chat`, { text, ...(sessionId ? { sessionId } : {}) }, { timeout: 190_000 })
 }

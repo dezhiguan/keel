@@ -39,7 +39,12 @@ public class AgentEndpointClient {
 
     public Answer invoke(String endpoint, String text, String bridgeToken, String agent, String env, String userId,
                          String ragToken, String ragKbIds) {
-        return invokeRequest(endpoint, text, bridgeToken, agent, env, userId, null, Duration.ofSeconds(60), ragToken, ragKbIds);
+        return invoke(endpoint, text, bridgeToken, agent, env, userId, ragToken, ragKbIds, null);
+    }
+
+    public Answer invoke(String endpoint, String text, String bridgeToken, String agent, String env, String userId,
+                         String ragToken, String ragKbIds, String sessionId) {
+        return invokeRequest(endpoint, text, bridgeToken, agent, env, userId, null, Duration.ofMinutes(3), ragToken, ragKbIds, sessionId);
     }
 
     public Answer probe(String endpoint, String agent, String env) {
@@ -74,19 +79,21 @@ public class AgentEndpointClient {
     }
 
     private Answer invoke(String endpoint, String text, String bridgeToken, String agent, String env, String userId, String evalRun) {
-        return invokeRequest(endpoint, text, bridgeToken, agent, env, userId, evalRun, Duration.ofSeconds(60), null, null);
+        return invokeRequest(endpoint, text, bridgeToken, agent, env, userId, evalRun, Duration.ofSeconds(60), null, null, null);
     }
 
     public Answer invokeWork(String endpoint, String text, String bridgeToken, String userId) {
-        return invokeRequest(endpoint, text, bridgeToken, "meta-agent", "dev", userId, null, Duration.ofSeconds(240), null, null);
+        return invokeRequest(endpoint, text, bridgeToken, "meta-agent", "dev", userId, null, Duration.ofSeconds(240), null, null, null);
     }
 
     private Answer invokeRequest(String endpoint, String text, String bridgeToken, String agent, String env,
-                                 String userId, String evalRun, Duration timeout, String ragToken, String ragKbIds) {
+                                 String userId, String evalRun, Duration timeout, String ragToken, String ragKbIds,
+                                 String sessionId) {
         var base = trim(endpoint);
         try {
             var payload = json.createObjectNode();
             payload.putObject("input").put("text", text);
+            if (sessionId != null && !sessionId.isBlank()) payload.put("session_id", sessionId);
             if (userId != null && !userId.isBlank()) {
                 payload.putObject("context").put("user_id", userId);
             }

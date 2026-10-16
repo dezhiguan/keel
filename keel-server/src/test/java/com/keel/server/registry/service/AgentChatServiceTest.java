@@ -23,6 +23,7 @@ class AgentChatServiceTest {
     private String endpoint = "http://qa-agent.agents.svc:8000";
     private int invocations;
     private String auditEnv;
+    private String forwardedSession;
     private final AgentRegistryService registry = new AgentRegistryService(null, null, null, null, null, null) {
         @Override public AgentDetail detail(String name) { return current; }
         @Override public String invokeEndpoint(String name) { return endpoint; }
@@ -31,6 +32,11 @@ class AgentChatServiceTest {
         @Override public Answer invoke(String endpoint, String text, String token, String agent, String env, String user) {
             invocations++;
             assertThat(env).isEqualTo("test");
+            return new Answer("ok", "trace-qa");
+        }
+        @Override public Answer invoke(String endpoint, String text, String token, String agent, String env,
+                                       String user, String ragToken, String ragKbIds, String sessionId) {
+            forwardedSession = sessionId;
             return new Answer("ok", "trace-qa");
         }
     };
@@ -73,6 +79,17 @@ class AgentChatServiceTest {
         service.chat("qa-agent", "hello");
         assertThat(auditEnv).isEqualTo("test");
         assertThat(invocations).isEqualTo(1);
+    }
+
+    @Test void chatSessionIsValidatedAndScopedBeforeInvoke() {
+        detail(AgentStatus.ONLINE, "test", List.of());
+        service.chat("qa-agent", "first", "browser-session");
+        assertThat(forwardedSession).matches("[0-9a-f]{64}");
+        var same = forwardedSession;
+        service.chat("qa-agent", "second", "browser-session");
+        assertThat(forwardedSession).isEqualTo(same);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.chat("qa-agent", "bad", "../other"))
+                .isInstanceOf(KeelException.class);
     }
 
     private void rejected() {

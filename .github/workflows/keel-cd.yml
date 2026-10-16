@@ -39,6 +39,7 @@ jobs:
       console: ${{ steps.scope.outputs.console }}
       echo: ${{ steps.scope.outputs.echo }}
       sandbox: ${{ steps.scope.outputs.sandbox }}
+      qa_agent: ${{ steps.scope.outputs.qa_agent }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -347,6 +348,79 @@ jobs:
           push: true
           provenance: false
           tags: ${{ steps.image.outputs.push_image }}
+
+  test-qa-agent:
+    name: 测试生命周期验收智能体
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [changes]
+    if: needs.changes.outputs.qa_agent == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -e ./sdk-python 'langfuse==4.17.0' pytest
+      - run: PYTHONPATH="$PWD/sdk-python" pytest agents/qa-lifecycle-1016/tests -q
+
+  build-qa-agent:
+    name: 构建生命周期验收智能体
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [changes, test-qa-agent]
+    if: needs.changes.outputs.qa_agent == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - id: image
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+        run: bash deploy/ci/resolve-image.sh qa-lifecycle-1016
+      - name: Stage SDK wheel
+        run: |
+          scripts/build-template-wheel.sh
+          mkdir -p agents/qa-lifecycle-1016/vendor
+          cp sdk-python/dist/keel_sdk-*.whl agents/qa-lifecycle-1016/vendor/
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.image.outputs.server }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: agents/qa-lifecycle-1016
+          file: agents/qa-lifecycle-1016/Dockerfile
+          push: true
+          provenance: false
+          tags: ${{ steps.image.outputs.push_image }}
+
+  deploy-qa-agent:
+    name: 部署生命周期验收智能体
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [changes, build-qa-agent, deploy-server]
+    if: >-
+      always() &&
+      needs.changes.outputs.qa_agent == 'true' &&
+      needs.build-qa-agent.result == 'success' &&
+      (needs.deploy-server.result == 'success' || needs.deploy-server.result == 'skipped') &&
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: 配置 SSH
+        env:
+          SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
+          JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+        run: bash deploy/ci/configure-ssh.sh
+      - name: 发布独立镜像
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+          KEEL_NAMESPACE: agents
+        run: bash deploy/ci/rollout-service.sh qa-lifecycle-1016 deploy/k3s/services/qa-lifecycle-1016.yaml PLACEHOLDER_QA_AGENT_IMAGE keel-qa-lifecycle-1016
 
   deploy-echo:
     name: 部署 echo-agent

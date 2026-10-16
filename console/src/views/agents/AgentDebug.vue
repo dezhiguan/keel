@@ -41,6 +41,7 @@ const calls = ref<Call[]>([])
 const busy = ref(false)
 
 const messages = ref<Message[]>([])
+const chatSession = ref(crypto.randomUUID())
 const draft = ref('')
 const thread = ref<HTMLElement | null>(null)
 
@@ -66,8 +67,7 @@ async function invoke(input: string): Promise<Call> {
   const call: Call = { id: ++callSeq, at: new Date().toISOString(), input, ms: 0 }
   busy.value = true
   try {
-    // Each turn is independent; the backend uses the registered version's environment.
-    const answer = await chatWithAgent(name.value, input)
+    const answer = await chatWithAgent(name.value, input, mode.value === 'chat' ? chatSession.value : undefined)
     call.text = answer.text ?? ''
     call.traceId = answer.traceId ?? null
   } catch (error) {
@@ -145,12 +145,14 @@ function back() {
 
 function clearChat() {
   messages.value = []
+  chatSession.value = crypto.randomUUID()
 }
 
 watch(name, async (agent) => {
   detail.value = null
   calls.value = []
   messages.value = []
+  chatSession.value = crypto.randomUUID()
   lastRun.value = null
   recent.value = []
   if (!agent) return
@@ -191,7 +193,7 @@ watch(name, async (agent) => {
       <div class="pv-grid">
         <div>
           <div v-if="mode === 'chat'" class="card pv-chat">
-            <h3>对话 <small>每轮独立，暂不带上文</small><span class="sp" /><button class="btn sm ghost" type="button" :disabled="!messages.length" @click="clearChat">清空</button></h3>
+            <h3>对话 <small>同一对话使用同一会话，清空后开启新会话</small><span class="sp" /><button class="btn sm ghost" type="button" :disabled="!messages.length" @click="clearChat">清空</button></h3>
             <div ref="thread" class="pv-thread">
               <p v-if="!messages.length" class="empty">发一句话试试它。Enter 发送，Shift+Enter 换行。</p>
               <div v-for="(msg, index) in messages" :key="index" class="pv-msg" :class="[msg.role, { err: msg.error }]">

@@ -9,6 +9,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from keel.context import Context
 from keel.llm.client import LlmClient
+from keel.prompts import Prompt
 from keel.manifest import AgentManifest
 from keel.protocol.errors import ErrorCode, KeelError
 
@@ -92,6 +93,44 @@ def test_loop_executes_tool_and_returns_model_completion(monkeypatch, tmp_path):
                                            "content": '{"weather": "sunny"}'}
     assert [span.attributes["keel.loop.step"] for span in memory.get_finished_spans()
             if span.name == "agent.loop.step"] == [1, 2]
+    provider.shutdown()
+
+
+def test_loop_attaches_prompt_version_and_retries_one_temporary_gateway_failure(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("KEEL_LLM_BASE_URL", "https://gateway.test")
+    monkeypatch.setenv("KEEL_LLM_KEY", "test-key")
+    requests = []
+
+    def gateway(request):
+        requests.append(json.loads(request.content))
+        return httpx.Response(500, json={"error": "temporary"}) if len(requests) == 1 \
+            else httpx.Response(200, json=completion("恢复成功"))
+
+    provider = TracerProvider()
+    spans = InMemorySpanExporter()
+    provider.add_span_processor(SimpleSpanProcessor(spans))
+    llm = LlmClient("loop-agent", "test-model", "trace-1", provider.get_tracer("test"),
+                    httpx.AsyncClient(transport=httpx.MockTransport(gateway)))
+    manifest = AgentManifest.model_validate({
+        "apiVersion": "keel/v1", "metadata": {"name": "loop-agent"},
+        "spec": {"runtime": {"endpoint": "https://agent.test"}, "models": {"default": "test-model"}},
+    })
+    ctx = Context("loop-agent", "run-1", "trace-1", asyncio.Queue(),
+                  provider.get_tracer("test"), manifest=manifest, llm_client=llm,
+                  audit_reporter=Audit(), env="dev")
+    prompt = Prompt("loop-agent/answer", 7, "chat", False, {}, [])
+
+    async def scenario():
+        try:
+            return await ctx.loop([{"role": "user", "content": "hello"}], [], prompt=prompt)
+        finally:
+            await ctx.aclose()
+
+    assert asyncio.run(scenario()).answer == "恢复成功"
+    assert len(requests) == 2
+    assert any(span.attributes.get("langfuse.observation.prompt.version") == 7
+               for span in spans.get_finished_spans())
     provider.shutdown()
 
 

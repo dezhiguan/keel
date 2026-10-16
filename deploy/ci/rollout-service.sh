@@ -6,6 +6,11 @@ service="${1:?service}"
 manifest="${2:?manifest}"
 placeholder="${3:?placeholder}"
 shift 3
+namespace="${KEEL_NAMESPACE:-keel-system}"
+if [[ ! "$namespace" =~ ^[a-z0-9-]+$ ]]; then
+  echo "invalid namespace" >&2
+  exit 1
+fi
 
 if [[ -z "${ACR_REGISTRY:-}" ]]; then
   echo "ACR_REGISTRY must be set" >&2
@@ -24,23 +29,23 @@ scp -F ~/.ssh/config "$rendered" "keel-app:/tmp/${service}.yaml"
 password_b64="$(printf '%s' "${ACR_PASSWORD}" | base64 -w0)"
 required="$(printf '%s\n' "$@")"
 ssh -T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 keel-app \
-  "ACR_REGISTRY='${ACR_REGISTRY}' ACR_USERNAME='${ACR_USERNAME}' ACR_PASSWORD_B64='${password_b64}' SERVICE='${service}' REQUIRED=$(printf '%q' "$required") bash -s" <<'EOF'
+  "ACR_REGISTRY='${ACR_REGISTRY}' ACR_USERNAME='${ACR_USERNAME}' ACR_PASSWORD_B64='${password_b64}' SERVICE='${service}' NAMESPACE='${namespace}' REQUIRED=$(printf '%q' "$required") bash -s" <<'EOF'
 set -euo pipefail
 ACR_PASSWORD="$(printf '%s' "${ACR_PASSWORD_B64}" | base64 -d)"
-kubectl create namespace keel-system --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 while IFS= read -r name; do
   [[ -z "${name}" ]] && continue
-  if ! kubectl -n keel-system get secret "${name}" >/dev/null 2>&1; then
+  if ! kubectl -n "${NAMESPACE}" get secret "${name}" >/dev/null 2>&1; then
     echo "缺少 Secret ${name}。按 deploy/README.md 在 Server 3 上建好再重跑。"
     exit 1
   fi
 done <<< "${REQUIRED}"
-kubectl -n keel-system create secret docker-registry acr-cred \
+kubectl -n "${NAMESPACE}" create secret docker-registry acr-cred \
   --docker-server="${ACR_REGISTRY%%/*}" \
   --docker-username="${ACR_USERNAME}" \
   --docker-password="${ACR_PASSWORD}" \
   --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "/tmp/${SERVICE}.yaml"
-kubectl -n keel-system rollout status "deployment/${SERVICE}" --timeout=180s
+kubectl -n "${NAMESPACE}" rollout status "deployment/${SERVICE}" --timeout=180s
 rm -f "/tmp/${SERVICE}.yaml"
 EOF

@@ -57,8 +57,9 @@ public class LifecycleService {
     }
 
     public SelfCheckService.Report register(JsonNode body) {
-        var selected = wizardCatalog.resolve(body);
-        var knowledge = wizardCatalog.resolveKnowledge(body);
+        var selection = selectionForm(json, body);
+        var selected = wizardCatalog.resolve(selection);
+        var knowledge = wizardCatalog.resolveKnowledge(selection);
         var manifest = manifest(body, selected, knowledge);
         validator.validate(manifest, java.util.Set.of());
         var name = manifest.path("metadata").path("name").asText();
@@ -278,6 +279,17 @@ public class LifecycleService {
 
     private JsonNode manifest(JsonNode body, java.util.List<WizardTools.Spec> tools, java.util.List<String> knowledge) {
         return RegisterManifest.toNode(json, body, port, tools, knowledge);
+    }
+
+    /** Raw manifests still select catalog resources; bypassing the wizard must not drop their grants or RAG key. */
+    static JsonNode selectionForm(ObjectMapper json, JsonNode body) {
+        if (!body.has("apiVersion")) return body;
+        var form = json.createObjectNode();
+        var tools = form.putArray("tools");
+        body.path("spec").path("tools").forEach(item -> tools.add(item.path("name").asText("")));
+        var knowledge = form.putArray("knowledgeBases");
+        body.path("spec").path("knowledge").forEach(item -> knowledge.add(item.path("kb").asText("")));
+        return form;
     }
 
     private static String sha256(String text) {

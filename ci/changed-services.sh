@@ -10,6 +10,7 @@ write() {
   echo "console=${console}" >> "${GITHUB_OUTPUT}"
   echo "echo=${echo}" >> "${GITHUB_OUTPUT}"
   echo "sandbox=${sandbox}" >> "${GITHUB_OUTPUT}"
+  echo "qa_agent=${qa_agent}" >> "${GITHUB_OUTPUT}"
 }
 
 llm=false
@@ -19,6 +20,7 @@ audit=false
 console=false
 echo=false
 sandbox=false
+qa_agent=false
 
 if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
   llm=true
@@ -28,6 +30,7 @@ if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
   console=true
   echo=true
   sandbox=true
+  qa_agent=true
   write
   exit 0
 fi
@@ -43,6 +46,7 @@ else
     audit=true
     console=true
     echo=true
+    qa_agent=true
     write
     exit 0
   fi
@@ -68,8 +72,10 @@ while IFS= read -r file; do
       console=true ;;
     agents/meta-agent/*|deploy/k3s/services/meta-agent.yaml|services/git-ci/*|deploy/docker/git-ci.Dockerfile|deploy/k3s/services/git-ci.yaml|agents/echo/*|deploy/docker/echo-agent.Dockerfile|deploy/k3s/services/echo-agent.yaml|deploy/k3s/services/chat-demo.yaml)
       echo=true ;;
+    agents/qa-lifecycle-1016/*|deploy/k3s/services/qa-lifecycle-1016.yaml)
+      qa_agent=true ;;
     sdk-python/keel/*)
-      echo=true; sandbox=true; server=true ;;
+      echo=true; sandbox=true; server=true; qa_agent=true ;;
     services/sandbox-sidecar/*|deploy/k3s/sandbox/*)
       sandbox=true; server=true ;;
   esac
@@ -83,5 +89,5 @@ if [[ "${shared}" == true ]]; then
   sandbox=true
 fi
 
-echo "本次需要发布：llm=${llm} server=${server} gateway=${gateway} audit=${audit} console=${console} echo=${echo} sandbox=${sandbox}"
+echo "本次需要发布：llm=${llm} server=${server} gateway=${gateway} audit=${audit} console=${console} echo=${echo} sandbox=${sandbox} qa_agent=${qa_agent}"
 write

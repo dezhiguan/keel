@@ -19,6 +19,7 @@ venv/
 dist/
 build/
 agents/meta-agent/vendor/
+agents/qa-lifecycle-1016/vendor/
 
 # Node / 前端
 node_modules/

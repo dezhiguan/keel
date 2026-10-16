@@ -415,6 +415,7 @@ paths:
               required: [text]
               properties:
                 text: { type: string }
+                sessionId: { type: string, pattern: '^[A-Za-z0-9_-]{1,128}$' }
       responses:
         "200":
           description: 智能体的最终回复

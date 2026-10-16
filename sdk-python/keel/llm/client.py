@@ -6,6 +6,7 @@ The LiteLLM Langfuse callback must stay disabled: this SDK owns generation spans
 import json
 import logging
 import os
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -100,8 +101,15 @@ class LlmClient:
                     options["tools"] = tools
                 if not self.standalone:
                     options["extra_body"] = {"metadata": {"caller_agent": self.agent}}
-                response = await self.client.chat.completions.create(
-                    model=chosen, messages=messages, **options)
+                try:
+                    response = await self.client.chat.completions.create(
+                        model=chosen, messages=messages, **options)
+                except openai.APIStatusError as first:
+                    if first.status_code not in (500, 502, 503, 504):
+                        raise
+                    await asyncio.sleep(0.2)
+                    response = await self.client.chat.completions.create(
+                        model=chosen, messages=messages, **options)
             except openai.RateLimitError as exc:
                 span.set_attribute(attrs.STATUS, "failed")
                 raise KeelError(ErrorCode.GW_QUOTA_EXCEEDED) from exc
