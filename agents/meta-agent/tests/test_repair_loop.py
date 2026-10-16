@@ -50,6 +50,7 @@ def test_failed_candidate_is_repaired_and_conditionally_pushed(tmp_path, monkeyp
     project = tmp_path / "DF-9001/spec-agent"
     for name in ("tools", "tests", "evals", "prompts"):
         (project / name).mkdir(parents=True, exist_ok=True)
+    (project / "requirements.lock").write_text("pytest==9.1.1\n", encoding="utf-8")
     monkeypatch.setenv("KEEL_GIT_CI_URL", "https://git.test")
     monkeypatch.setenv("KEEL_GIT_CI_TOKEN", "test-token")
     pushes = []

@@ -91,6 +91,7 @@ def test_model_authored_role_runs_in_generated_project(tmp_path):
     project = tmp_path / "spec-agent"
     for name in ("tools", "tests", "evals"):
         (project / name).mkdir(parents=True, exist_ok=True)
+    (project / "requirements.lock").write_text("pytest==9.1.1\n", encoding="utf-8")
     configured = manifest()
     configured["spec"]["runtime"]["endpoint"] = "http://spec-agent.agents.svc.cluster.local:8000"
     (project / "agent.yaml").write_text(yaml.safe_dump(configured, sort_keys=False), encoding="utf-8")

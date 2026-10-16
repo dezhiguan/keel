@@ -95,6 +95,7 @@ def test_delivery_keeps_prompt_file(tmp_path):
     project = tmp_path / "spec-agent"
     for folder in ("tools", "tests", "evals", "prompts"):
         (project / folder).mkdir(parents=True, exist_ok=True)
+    (project / "requirements.lock").write_text("pytest==9.1.1\n", encoding="utf-8")
     (project / "spec.json").write_text('{"goal":"分析需求","success":"文档完整"}', encoding="utf-8")
     _scaffold(project, "DF-9001", _candidate())
     assert (project / "prompts/role.md").read_text(encoding="utf-8") == "岗位任务：{{input}}\n"
