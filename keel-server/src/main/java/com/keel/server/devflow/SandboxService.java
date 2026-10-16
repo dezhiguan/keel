@@ -22,6 +22,22 @@ public class SandboxService {
         this.cluster = cluster;
     }
 
+    /** Running and queued runs. Finished rows are not counted. */
+    public Activity activity() {
+        int running = 0;
+        int queued = 0;
+        for (var run : store.active()) {
+            if ("RUNNING".equals(run.status())) {
+                running++;
+            } else if ("QUEUED".equals(run.status())) {
+                queued++;
+            }
+        }
+        return new Activity(running, queued);
+    }
+
+    public record Activity(int running, int queued) {}
+
     public synchronized DevflowTypes.SandboxRun start(String jobId, String repo, String ref, String actor, Instant now) {
         SandboxRules.caller(actor);
         requireJob(jobId);

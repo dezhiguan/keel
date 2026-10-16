@@ -16,7 +16,7 @@
 | 已完成 | [DF-5b 项目骨架](DF-5b-scaffold.md)：`keel new --from-spec` 按已确认的需求单复制模板。沙箱里跑测试仍不做 |
 | 已完成 | DF-5a 元智能体第一步：需求单与岗位说明书（本地 `keel dev` 跑通） |
 | 已完成（控制台 mock） | DF-9a 研发任务页：看板、详情、人工接管；批次和规则页按原型可点。keel-server 归 DF-2 / DF-11 |
-| 已完成（占位） | [DF-9d 共享服务](DF-9d-services-sandbox.md)：平台组件表加研发沙箱。用量未接配额，空数据用占位。其余页面仍待做 |
+| 已完成 | [DF-9d 共享服务](DF-9d-services-sandbox.md)：平台组件表加研发沙箱。配额与排队见 [sandbox-quota](../r1014/sandbox-quota.md)；读不到仍显示未接入 |
 | 已完成（控制台） | [DF-9b 智能体页](DF-9b-agents-console.md)：分类加元智能体，卡片带来源，谱系视图，新建向导加「由智能体生产」。列表只显示已注册的智能体 |
 | 已完成（控制台） | DF-9d 链路追踪：按研发任务筛选，行上标来源。没有任务号时用来源占位。其余 DF-9d 页面仍待做 |
 | 已完成（控制台 mock） | [DF-9c 审批中心](DF-9c-approvals.md)：加「研发任务」分组和 H1 / H2 / H4 / 协作 review 关口处理页，审批单和挂起运行带 `devflowJobId` / `devflowGate`。review、seed-cases 接口只在 MSW，keel-server 归 DF-2 |

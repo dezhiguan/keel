@@ -293,6 +293,18 @@ class SharedServiceMonitorTest {
         server.stop(0);
     }
 
+    @Test void measuredSandboxQuotaReplacesThePlaceholder() {
+        var monitor = new SharedServiceMonitor(new RagForgeInsightClient("", "", ""), new LiteLlmClient("", ""),
+                () -> new com.keel.server.integration.k8s.SandboxQuota.Reading("ONLINE", "1.5 / 4 核 · 3 / 8Gi · 运行 2 · 排队 0"));
+        var body = monitor.services();
+        assertThat(componentNamed(body, "keel-devflow-sandbox"))
+                .containsEntry("status", "ONLINE")
+                .containsEntry("usage", "1.5 / 4 核 · 3 / 8Gi · 运行 2 · 排队 0")
+                .containsEntry("impact", "研发任务无法在沙箱里跑测试")
+                .containsEntry("note", "一次性 Job，10 分钟超时，只出包镜像源");
+        assertThat(componentNamed(body, "keel-server")).containsEntry("usage", null);
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> named(Map<String, Object> body, String name) {
         return ((List<Map<String, Object>>) body.get("services")).stream()

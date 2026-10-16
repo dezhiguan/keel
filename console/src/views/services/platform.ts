@@ -59,5 +59,8 @@ export function platformRows(
         usage: null,
         note: item.note,
       }))
-  return { rows, sandboxPlaceholder: rows.some((row) => row.name === 'keel-devflow-sandbox' && !row.usage) }
+  return {
+    rows,
+    sandboxPlaceholder: rows.some((row) => row.name === 'keel-devflow-sandbox' && !row.usage && !row.status),
+  }
 }

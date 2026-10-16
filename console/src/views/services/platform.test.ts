@@ -21,6 +21,13 @@ describe('platformRows', () => {
     expect(sandboxPlaceholder).toBe(true)
   })
 
+  it('does not call an offline sandbox a placeholder', () => {
+    const { sandboxPlaceholder } = platformRows([
+      { name: 'keel-devflow-sandbox', namespace: 'keel-devflow-sandbox', status: 'OFFLINE', usage: null },
+    ], [])
+    expect(sandboxPlaceholder).toBe(false)
+  })
+
   it('leaves a measured sandbox row alone', () => {
     const { rows, sandboxPlaceholder } = platformRows([
       { name: 'keel-devflow-sandbox', namespace: 'keel-devflow-sandbox', status: 'DEGRADED', usage: '2 / 4 核', note: '一次性 Job' },

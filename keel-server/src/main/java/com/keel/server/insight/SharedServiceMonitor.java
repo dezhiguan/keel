@@ -1,7 +1,9 @@
 package com.keel.server.insight;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.keel.server.devflow.SandboxService;
 import com.keel.server.integration.authgw.AuthGatewayClient;
+import com.keel.server.integration.k8s.SandboxQuota;
 import com.keel.server.integration.k8s.ServiceHealthProbe;
 import com.keel.server.integration.langfuse.LangfuseClient;
 import com.keel.server.integration.litellm.LiteLlmClient;
@@ -28,6 +30,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 @Service
 public class SharedServiceMonitor {
@@ -42,6 +45,7 @@ public class SharedServiceMonitor {
     private final AuthGatewayClient authGateway;
     private final KubernetesClient kubernetes;
     private final Function<String, List<String>> namesInEnv;
+    private Supplier<SandboxQuota.Reading> sandboxReading = () -> null;
     private final AtomicBoolean retrievalRefresh = new AtomicBoolean();
     private List<LangfuseClient.Retrieval> retrievalCache;
     private Instant retrievalCachedAt;
@@ -60,8 +64,15 @@ public class SharedServiceMonitor {
 
     @Autowired
     public SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway, AgentRegistryService registry,
-                                LangfuseClient langfuse, AuthGatewayClient authGateway, KubernetesClient kubernetes) {
+                                LangfuseClient langfuse, AuthGatewayClient authGateway, KubernetesClient kubernetes,
+                                SandboxService sandbox) {
         this(ragforge, gateway, registry == null ? null : registry::namesInEnv, langfuse, authGateway, kubernetes);
+        this.sandboxReading = () -> readSandbox(kubernetes, sandbox);
+    }
+
+    SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway, Supplier<SandboxQuota.Reading> sandboxReading) {
+        this(ragforge, gateway);
+        this.sandboxReading = sandboxReading == null ? () -> null : sandboxReading;
     }
 
     SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway, Function<String, List<String>> namesInEnv) {
@@ -197,15 +208,39 @@ public class SharedServiceMonitor {
         return body;
     }
 
-    /** Existing platform rows keep the health probe status. Sandbox quota is not wired yet, so usage stays empty. */
-    private static List<Map<String, Object>> platformComponents(List<Map<String, Object>> services) {
+    /** Platform rows keep the health probe. Sandbox usage comes only from a real quota reading. */
+    private List<Map<String, Object>> platformComponents(List<Map<String, Object>> services) {
         return List.of(
                 platform("keel-server", "keel-system", statusOf(services, "keel-server"), "注册中心 · 工具 · 审批"),
                 platform("keel-llm", "keel-system", statusOf(services, "薄网关"), "模型网关"),
                 platform("keel-audit", "keel-system", statusOf(services, "keel-audit"), "审计"),
                 platform("keel-gateway", "keel-system", statusOf(services, "keel-gateway"), "入口网关"),
                 platform("console", "keel-system", null, "控制台"),
-                platform("keel-devflow-sandbox", "keel-devflow-sandbox", null, "一次性 Job，10 分钟超时，只出包镜像源"));
+                sandboxComponent());
+    }
+
+    private Map<String, Object> sandboxComponent() {
+        SandboxQuota.Reading reading = null;
+        try {
+            reading = sandboxReading.get();
+        } catch (RuntimeException ignored) {
+            reading = null;
+        }
+        var row = platform("keel-devflow-sandbox", "keel-devflow-sandbox",
+                reading == null ? null : reading.status(), "一次性 Job，10 分钟超时，只出包镜像源");
+        if (reading != null) {
+            row.put("usage", reading.usage());
+        }
+        return row;
+    }
+
+    private static SandboxQuota.Reading readSandbox(KubernetesClient kubernetes, SandboxService sandbox) {
+        try {
+            var activity = sandbox == null ? new SandboxService.Activity(0, 0) : sandbox.activity();
+            return SandboxQuota.read(kubernetes, activity.running(), activity.queued(), ServiceHealthProbe.inCluster());
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     private static Object statusOf(List<Map<String, Object>> services, String name) {
@@ -235,7 +270,8 @@ public class SharedServiceMonitor {
             "auth-gateway", "新登录和换票失败",
             "薄网关", "所有模型调用失败",
             "keel-llm", "所有模型调用失败",
-            "Langfuse", "追踪写本地缓冲；提示词用缓存或兜底副本");
+            "Langfuse", "追踪写本地缓冲；提示词用缓存或兜底副本",
+            "keel-devflow-sandbox", "研发任务无法在沙箱里跑测试");
 
     private static void putImpact(Map<String, Object> row) {
         var impact = IMPACT.get(String.valueOf(row.get("name")));
