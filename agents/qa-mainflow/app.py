@@ -111,9 +111,13 @@ async def run(request, ctx):
 
     if PROFILE["delegates"]:
         outcomes = await asyncio.gather(*(ctx.delegate(child, question)
-                                          for child in PROFILE["delegates"]))
+                                          for child in PROFILE["delegates"]),
+                                        return_exceptions=True)
         for child, outcome in zip(PROFILE["delegates"], outcomes):
-            evidence.append(f"委派 {child} 返回：{outcome['result']}")
+            if isinstance(outcome, Exception):
+                evidence.append(f"委派 {child} 失败：{type(outcome).__name__}；不能视为已完成调查")
+            else:
+                evidence.append(f"委派 {child} 返回：{outcome['result']}")
 
     ctx.step("evidence.checked")
     prompt = await ctx.prompt("answer")
