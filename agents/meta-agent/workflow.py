@@ -360,6 +360,11 @@ for _child_name in agent.manifest.spec.delegates or []:
 
 def _scaffold(project: Path, job_id: str, candidate: dict | None = None):
     """Strip unrelated work-order examples; CI verifies this actual manifest and Python syntax."""
+    # Older delivery directories predate the SDK release pin. Their CI already
+    # reads this file, so restore it before collecting files for a new commit.
+    sdk_version = project / ".keel-sdk-version"
+    if not sdk_version.exists():
+        sdk_version.write_text("1.0.0\n", encoding="utf-8")
     (project / "tools/checkpoint.py").unlink(missing_ok=True)
     (project / "evals/seed.jsonl").write_text("", encoding="utf-8")
     (project / "evals/scorers.py").write_text("# Add scorers after humans provide evaluation cases.\n", encoding="utf-8")

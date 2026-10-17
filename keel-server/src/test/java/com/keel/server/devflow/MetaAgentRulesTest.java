@@ -68,6 +68,19 @@ class MetaAgentRulesTest {
                 {"sandboxAttempts":[{},{},{},{},{},{},{},{},{}],"sandboxStatus":"FAILED",
                  "repair":{"ciRefresh":true}}
                 """))).isTrue();
+        assertThat(MetaAgentExecution.canRefreshCandidateCi(json.readTree("""
+                {"reviewRepairRounds":1,"s4RepairRounds":1}
+                """), 10)).isTrue();
+        assertThat(MetaAgentExecution.canRefreshCandidateCi(json.readTree("""
+                {"reviewRepairRounds":1,"s4RepairRounds":1}
+                """), 11)).isFalse();
+        assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(json.readTree("""
+                {"sandboxAttempts":[{},{},{},{},{},{},{},{},{}],"repair":{"ciRefresh":true,"attempt":10}}
+                """))).isFalse();
+        assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(json.readTree("""
+                {"sandboxAttempts":[{},{},{},{},{},{},{},{},{},{}],"sandboxStatus":"FAILED",
+                 "repair":{"ciRefresh":true,"attempt":10}}
+                """))).isTrue();
     }
     @Test void s4RepairRequiresFailedReviewOnCurrentApprovedShaAndStopsAfterOneRound() throws Exception {
         var json = new ObjectMapper();
