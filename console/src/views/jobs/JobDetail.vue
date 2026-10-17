@@ -63,6 +63,13 @@ const notices = computed(() => (job.value ? detailNotices(job.value, concurrency
 const rows = computed(() => (job.value ? timeline(job.value) : []))
 const arts = computed(() => (job.value ? artifacts(job.value) : []))
 const yaml = computed(() => (job.value ? manifestYaml(job.value) : ''))
+const canCancelCurrentJob = computed(() => {
+  if (!job.value) return false
+  if (execution.value?.phase === 'FAILED' && job.value.stage === 'BUILD') return true
+  return canCancel(job.value) && (!execution.value
+    || ['WAITING', 'RUNNING'].includes(execution.value.phase)
+    || (execution.value.phase === 'QUEUED' && !execution.value.draft))
+})
 
 async function load(silent = false) {
   if (!silent) loading.value = true
@@ -212,7 +219,7 @@ onUnmounted(() => {
           <button v-if="canAssist(job)" v-write class="btn vio" type="button" @click="modal = 'assist'">请智能体帮忙</button>
           <button v-write class="btn pri" type="button" :disabled="busy" @click="run(() => handbackDevflowJob(job!.jobId), job.mode === 'SCAFFOLD' ? '已提交门禁' : '已交还')">{{ handbackLabel(job.mode) }}</button>
         </template>
-        <button v-if="(canCancel(job) && (!execution || ['WAITING', 'RUNNING'].includes(execution.phase) || (execution.phase === 'QUEUED' && !execution.draft))) || (execution?.phase === 'FAILED' && job.stage === 'BUILD')" v-write class="btn danger" type="button" @click="modal = 'cancel'">取消</button>
+        <button v-if="canCancelCurrentJob" v-write class="btn danger" type="button" @click="modal = 'cancel'">取消</button>
       </div>
 
       <template v-if="execution">

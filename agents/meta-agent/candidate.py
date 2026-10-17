@@ -43,7 +43,7 @@ async def generate(work: dict, ctx) -> dict:
         "至少调用两个需求单已选择的工具；任何必需工具失败都返回 BLOCKED。"
         "supervisor 必须实际调用 await ctx.delegate(name, text)，目标只从 ctx.manifest.spec.delegates 中读取；"
         "supervisor 的 role.py 请直接写 allowed_delegates = list(ctx.manifest.spec.delegates or [])，"
-        "遍历 allowed_delegates 并用其中的 name 调用 ctx.delegate(name, text)；"
+        "清单为空时返回 BLOCKED；遍历 allowed_delegates 并用其中的 name 调用 ctx.delegate(name, text)；"
         "不得在代码或提示词里硬编码虚构的子智能体名单。任何工具调用失败都应返回 BLOCKED，不能用不完整证据推断通过。"
         "role.py 必须调用 await ctx.prompt(\"role\") 取得提示词，再调用 prompt.compile(input=...)；"
         "完整岗位指令只写在 prompts/role.md，源码里不得硬编码大段提示词。"
