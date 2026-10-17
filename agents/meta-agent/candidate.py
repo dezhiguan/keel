@@ -2,6 +2,7 @@
 
 import ast
 import json
+import re
 
 from keel.protocol.errors import ErrorCode, KeelError
 
@@ -67,8 +68,10 @@ async def generate(work: dict, ctx) -> dict:
         "supervisor 的测试还必须覆盖子智能体 result={decision: BLOCKED} 且模型尝试 PASS 的情况，最终仍为 BLOCKED。"
         "不得在代码或提示词里硬编码虚构的子智能体名单。任何工具调用失败都应返回 BLOCKED，不能用不完整证据推断通过。"
         "工具返回值为空、缺少任务必需字段或状态不明时也返回 BLOCKED，不能把 UNKNOWN 当作通过。"
-        "多工具岗位的 prompts/role.md 必须原样包含 {{input}} 和 {{evidence}} 两个占位符，"
-        "role.py 必须在取得真实工具结果后调用 prompt.compile(input=原始输入, evidence=真实工具结果) 把证据传给模型；"
+        "多工具岗位的 prompts/role.md 必须包含 {{input}} 和 {{evidence}} 两个占位符，可有空格；"
+        "只使用 SDK 可替换的简单变量名，不要写 {{tool.risk}} 等点号占位符。"
+        "role.py 必须在取得真实工具结果后，调用 ctx.prompt('role') 返回对象的"
+        " .compile(input=原始输入, evidence=真实工具结果) 把证据传给模型；"
         "不能只调用工具却让模型看不到返回结果。"
         "模型若返回结构化 decision=BLOCKED 必须保持 BLOCKED，不能因为解释文字含 PASS 改判。"
         "不要对模型全文用 PASS 关键词扫描兜底；只解析明确的 decision 字段，解析失败一律 BLOCKED。"
@@ -200,6 +203,21 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
     called_tools = set()
     prompt_compiles = []
     llm_calls = []
+    prompt_names = set()
+    for node in ast.walk(role):
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        value = node.value
+        if (isinstance(value, ast.Await) and isinstance(value.value, ast.Call)
+                and isinstance(value.value.func, ast.Attribute)
+                and isinstance(value.value.func.value, ast.Name)
+                and value.value.func.value.id == "ctx"
+                and value.value.func.attr == "prompt"
+                and len(value.value.args) == 1
+                and isinstance(value.value.args[0], ast.Constant)
+                and value.value.args[0].value == "role"):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            prompt_names.update(target.id for target in targets if isinstance(target, ast.Name))
     for node in ast.walk(role):
         if isinstance(node, ast.Constant) and isinstance(node.value, str) and len(node.value) > 160:
             errors.append("role.py 不得硬编码大段提示词")
@@ -220,7 +238,7 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
             errors.append("正则表达式的原始字符串误用了双反斜杠")
         if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                 and node.func.attr == "compile" and isinstance(node.func.value, ast.Name)
-                and node.func.value.id == "prompt"):
+                and node.func.value.id in prompt_names):
             prompt_compiles.append({keyword.arg for keyword in node.keywords})
         if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                 and isinstance(node.func.value, ast.Name) and node.func.value.id == "re"
@@ -253,8 +271,15 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
                     errors.append("ctx.llm.chat 使用了 SDK 不支持的参数")
     if selected_tools and len(selected_tools) >= 2 and len(called_tools.intersection(selected_tools)) < 2:
         errors.append("role.py 必须调用至少两个已选择的工具")
+    prompt_text = mapping["prompts/role.md"]
+    placeholders = re.findall(r"\{\{([^{}]*)\}\}", prompt_text)
+    if (prompt_text.count("{{") != len(placeholders)
+            or prompt_text.count("}}") != len(placeholders)
+            or any(not re.fullmatch(r"\s*\w+\s*", value) for value in placeholders)):
+        errors.append("岗位提示词包含 SDK 无法替换的占位符；只允许简单变量名")
     if selected_tools and len(selected_tools) >= 2:
-        if "{{input}}" not in mapping["prompts/role.md"] or "{{evidence}}" not in mapping["prompts/role.md"]:
+        variables = set(re.findall(r"\{\{\s*(\w+)\s*\}\}", prompt_text))
+        if not {"input", "evidence"}.issubset(variables):
             errors.append("多工具岗位提示词必须包含 {{input}} 和 {{evidence}}")
         if not any({"input", "evidence"}.issubset(keywords) for keywords in prompt_compiles):
             errors.append("多工具岗位必须通过 prompt.compile(input=..., evidence=...) 传递真实证据")
