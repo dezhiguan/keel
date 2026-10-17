@@ -111,7 +111,7 @@ const checking = computed(() => isSelfChecking(checkingAgents.value, name.value)
 const layer = computed(() => layerOf({ name: detail.value?.name || name.value, layer: detail.value?.layer, category: detail.value?.category }))
 const sourceText = computed(() => {
   const job = detail.value?.devflowJobId
-  if (!job) return '人工编写（现有）'
+  if (!job) return '人工编写'
   return `${layer.value === 'dev' ? 'meta-agent' : 'dev-lead'} · ${job}`
 })
 

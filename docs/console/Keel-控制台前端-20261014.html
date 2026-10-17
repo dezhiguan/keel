@@ -1853,8 +1853,8 @@ const EMP=[
   {id:'release-agent',name:'发布工程师',post:'staging、门禁、发布申请',layer:'dev',c:'#b48cf2',tpl:'tool-agent',src:'meta-agent · DF-0007',job:'DF-0007',owner:'amy',st:'DEGRADED',calls:534,score:.91,cost:12.6,budget:15,desc:'部署 PR 分支、跑门禁；申请合并 PR（高风险，等发布审批）；上线后观察 7 天。',tools:['ci.workflow.dispatch · mid','git.pr.merge · high']},
   {id:'prd-agent',layer:'dev',src:'人工迁移（现有）',calls:86,cost:1.9,desc:'现有研发智能体，面向通用业务代码，不属于研发流水线。',tools:[]},
   {id:'dev-copilot',layer:'dev',src:'人工迁移（现有）',calls:0,cost:0,desc:'现有研发智能体（P3 从 ai-multi-agent-dev-platform 拆出）。',tools:[]},
-  {id:'careermate',layer:'biz',src:'人工编写（现有）',calls:5210*30,cost:31.2*30,desc:'现有业务智能体，照常由人维护；也可以发起改造任务。',tools:[]},
-  {id:'askdb',layer:'biz',src:'人工编写（现有）',calls:3904*30,cost:28.8*30,desc:'现有业务智能体。',tools:[]},
+  {id:'careermate',layer:'biz',src:'人工编写',calls:5210*30,cost:31.2*30,desc:'现有业务智能体，照常由人维护；也可以发起改造任务。',tools:[]},
+  {id:'askdb',layer:'biz',src:'人工编写',calls:3904*30,cost:28.8*30,desc:'现有业务智能体。',tools:[]},
   {id:'ticket-triage',name:'工单分派员',post:'工单打标签',layer:'biz',c:'#4fd1c5',tpl:'tool-agent',src:'dev-lead · DF-0012',job:'DF-0012',owner:'陈主管',org:'客服中心',st:'ONLINE',calls:2210,score:.88,cost:9.8,budget:20,desc:'由研发流水线生产的业务员工。',tools:['jira.issue.search · low'],mode:'service',trigger:'Jira 新工单事件'},
   {id:'meeting-minutes',name:'会议纪要员',post:'纪要与待办',layer:'biz',c:'#6fd3e3',tpl:'tool-agent',src:'dev-lead · DF-0014',job:'DF-0014',owner:'陈主管',org:'客服中心',st:'ONLINE',calls:318,score:.88,cost:4.4,budget:20,desc:'由研发流水线生产的业务员工，上线观察第 3 天。',tools:['wecom.message.send · mid'],mode:'task'},
 ];

@@ -90,7 +90,7 @@ function fromRegistry(agent: RegistryAgent): EmployeeCard {
   const jobId = agent.devflowJobId || undefined
   const source = jobId
     ? `${layer === 'dev' ? 'meta-agent' : 'dev-lead'} · ${jobId}`
-    : '人工编写（现有）'
+    : '人工编写'
   return {
     name: agent.name || '',
     displayName: agent.displayName || agent.name || '',
