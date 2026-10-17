@@ -96,6 +96,33 @@ def test_bootstrap_review_rejects_unactionable_failure():
         asyncio.run(review_candidate(request, type("Ctx", (), {"llm": Llm()})()))
 
 
+def test_bootstrap_review_rechecks_findings_against_original_contract_and_source():
+    from workflow import review_candidate
+    files = [{"path": path, "content": "pass\n"} for path in
+             ("role.py", "app.py", "agent.yaml", "prompts/role.md", "tests/test_role.py")]
+    checks = {name: True for name in ("modelAccess", "toolAuthorization", "audit",
+              "visibleCaseOverfit", "releaseApproval", "behaviorTests", "hardcodedPrompt")}
+    calls = []
+
+    class Llm:
+        async def chat(self, messages, **kwargs):
+            calls.append(messages[0]["content"])
+            if len(calls) == 1:
+                return json.dumps({"approved": False, "checks": {**checks, "behaviorTests": False},
+                                   "findings": [{"path": "role.py", "line": 1, "severity": "HIGH",
+                                                 "detail": "unsupported initial claim"}]})
+            assert '"trustedSpec": {"io": "return evidence"}' in calls[-1]
+            assert "unsupported initial claim" in calls[-1]
+            assert '"role.py": "pass\\n"' in calls[-1]
+            return json.dumps({"approved": True, "checks": checks, "findings": []})
+
+    request = {**work(), "action": "REVIEW", "delivery": {"sha": "a" * 40},
+               "draft": {"spec": {"io": "return evidence"}},
+               "snapshot": {"sha": "a" * 40, "files": files}}
+    assert asyncio.run(review_candidate(request, type("Ctx", (), {"llm": Llm()})()))["approved"]
+    assert len(calls) == 2
+
+
 def test_workflow_drafts_and_revises_without_an_sdk_resume_token(gateway):
     gateway.replies.append(reply(tools=[]))
     kind, event = terminal(invoke(json.dumps(work())))

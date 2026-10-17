@@ -150,14 +150,21 @@ async def review_candidate(work, ctx):
               "但模型 decision 必须用 json.loads 严格解析响应对象，不能用正则提取。"
               "检查 Python 实际语义：先截取 str 再 json.dumps 会产生有效 JSON，不会切断 UTF-8 字节或 JSON 转义；"
               "不得把此安全操作报告为 JSON 损坏。每项风险必须展示实际触发条件和错误结果，避免推测性漏洞。"
+              "区分 prompts/role.md 对模型单次响应的约束与 trustedSpec 对 execute 最终返回的约束；"
+              "岗位可在模型 JSON 外添加需求规定的工具证据、子智能体结果和步骤。"
+              "沿完整控制流核对类型检查、短路和异常处理后才能报告崩溃；不得忽略已有保护。"
+              "工具参数边界以真实契约为准，不得凭典型值杜撰 PR 编号上限。"
               "只返回 JSON：{\"approved\":bool,\"checks\":{"
               + ",".join(f'\"{name}\":bool' for name in checks)
               + "},\"findings\":[{\"path\":str,\"line\":int,\"severity\":\"HIGH|MID|LOW\",\"detail\":str}]}。"
               "有高/中风险发现时 approved 必须为 false。任何检查项为 false 或 approved 为 false 时，"
               "findings 必须至少给出一项 HIGH/MID 问题，含真实文件路径、行号和可执行的说明；"
               "没有可定位问题时应把对应检查项标为 true，不能返回没有发现的问题报告。\n"
-              + json.dumps({"sha": sha, "trustedTools": trusted_tools, "files": files}, ensure_ascii=False))
-    for _ in range(2):
+              + json.dumps({"sha": sha, "trustedTools": trusted_tools,
+                            "trustedSpec": (work.get("draft") or {}).get("spec") or {},
+                            "files": files}, ensure_ascii=False))
+    verified = False
+    for _ in range(3):
         result = await ctx.llm.chat([{"role": "user", "content": prompt}])
         raw = str(result or "").strip()
         start, end = raw.find("{"), raw.rfind("}")
@@ -177,6 +184,14 @@ async def review_candidate(work, ctx):
                      or any(item["severity"] in ("HIGH", "MID") for item in report["findings"]))):
             report["approved"] = (report["approved"] and all(report["checks"].values())
                                   and not any(item["severity"] in ("HIGH", "MID") for item in report["findings"]))
+            if not report["approved"] and not verified:
+                verified = True
+                prompt += ("\n复核以下初审结论，逐条回到原始文件定位引用，核对完整控制流与受信需求。"
+                           "初审结论可能错误，不能当作事实。删除引用不存在、已被类型/异常保护覆盖、"
+                           "混淆模型与岗位输出契约、或虚构契约限制的发现。仅保留能在当前快照实际触发的风险，"
+                           "重新给出完整 JSON 评审；若均为误报应通过。初审："
+                           + json.dumps(report, ensure_ascii=False))
+                continue
             return {"sha": sha, "reviewer": "meta-agent-bootstrap", **report}
         prompt += "\n上一版格式无效，严格按指定 JSON 结构重写。"
     raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "模型代码评审未返回有效结构化结论")
