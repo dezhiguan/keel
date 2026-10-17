@@ -726,7 +726,9 @@ public class MetaAgentExecution {
                 String sha = delivery.path("sha").asText();
                 String repo = delivery.path("repo").asText().replaceFirst("^[^/]+/", "");
                 var previous = previousCandidate(json, read(git.fetch(id, repo, sha)));
-                var repair = (ObjectNode) state.path("repair");
+                var previousRepair = repairContext(state);
+                var repair = previousRepair.isObject() ? (ObjectNode) previousRepair.deepCopy() : json.createObjectNode();
+                state.set("repair", repair);
                 if (newWindow) {
                     state.put("manualRepairWindows", 1);
                     repair.put("maxAttempts", Math.min(20, state.path("sandboxAttempts").size() + 5));
@@ -734,9 +736,11 @@ public class MetaAgentExecution {
                 repair.put("attempt", state.path("sandboxAttempts").size() + 1).put("failedSha", sha)
                         .put("infrastructureOnly", false).put("feedback", feedback.trim())
                         .put("feedbackActor", ConsolePrincipal.current().username());
+                if (state.path("pipeline").path("evaluationFailed").asBoolean(false))
+                    repair.put("report", state.path("pipeline").path("message").asText());
                 repair.set("previousCandidate", previous);
                 state.put("sandboxAttemptCeiling", repair.path("maxAttempts").asInt()).put("phase", "QUEUED");
-                state.remove(List.of("humanReview", "modelReview", "modelReviewTraceId", "sandboxStatus", "sandboxRunId"));
+                state.remove(List.of("humanReview", "modelReview", "modelReviewTraceId", "sandboxStatus", "sandboxRunId", "gate", "pipeline"));
                 save(id, state, "DELIVER");
                 jobs.progress(id, "QUEUED", "BUILD", newWindow ? "开发者补充澄清并主动开启一次五轮修复窗口，累计验证仍不超过二十次" : "开发者已补充修复说明，在原有额度内继续生成并重新验证审批");
                 return publicState(state);
@@ -923,20 +927,36 @@ public class MetaAgentExecution {
     }
 
     static boolean canAcceptRepairFeedback(JsonNode state) {
-        int ceiling = state.path("repair").path("maxAttempts").asInt();
-        return "WAITING_REVIEW".equals(state.path("phase").asText())
+        int ceiling = repairContext(state).path("maxAttempts").asInt();
+        return repairFeedbackPhase(state)
                 && "PASS".equals(state.path("sandboxStatus").asText())
                 && ceiling > state.path("sandboxAttempts").size() && ceiling <= 20;
     }
 
     static boolean canStartClarifiedRepairWindow(JsonNode state) {
-        int ceiling = state.path("repair").path("maxAttempts").asInt();
+        int ceiling = repairContext(state).path("maxAttempts").asInt();
         var attempts = state.path("sandboxAttempts");
+        if (repairFeedbackPhase(state) && "PASS".equals(state.path("sandboxStatus").asText())
+                && !canAcceptRepairFeedback(state) && attempts.size() > 0 && attempts.size() < 20
+                && state.path("manualRepairWindows").asInt(0) < 1) return true;
         return "FAILED".equals(state.path("phase").asText()) && "FAILED".equals(state.path("sandboxStatus").asText())
                 && state.path("manualRepairWindows").asInt(0) < 1 && ceiling > 0
                 && attempts.size() >= ceiling && attempts.size() < 20
                 && attempts.path(attempts.size() - 1).path("sha").asText().equals(state.path("delivery").path("sha").asText())
                 && attempts.path(attempts.size() - 1).path("report").asText().contains("tests=FAIL");
+    }
+
+    private static JsonNode repairContext(JsonNode state) {
+        return state.path("repair").isObject() ? state.path("repair") : state.path("repairWindow");
+    }
+
+    private static boolean repairFeedbackPhase(JsonNode state) {
+        return "WAITING_REVIEW".equals(state.path("phase").asText())
+                || ("STAGING_READY".equals(state.path("phase").asText())
+                    && "FAILED".equals(state.path("pipeline").path("status").asText())
+                    && "staging".equals(state.path("pipeline").path("env").asText())
+                    && state.path("pipeline").path("evaluationFailed").asBoolean(false)
+                    && state.path("pipeline").path("sha").asText().equals(state.path("delivery").path("sha").asText()));
     }
 
     public DevflowTypes.Job cancel(String id, String actor) {
@@ -1022,6 +1042,7 @@ public class MetaAgentExecution {
                             state.put("sandboxStatus", passed ? "PASS" : "FAILED");
                             if (passed) {
                                 state.put("phase", "WAITING_REVIEW");
+                                if (state.path("repair").isObject()) state.set("repairWindow", state.path("repair").deepCopy());
                                 state.remove("repair");
                                 state.remove("sandboxAttemptCeiling");
                                 save(id, state, "DELIVER");
@@ -1031,7 +1052,10 @@ public class MetaAgentExecution {
                                 var repo = state.path("delivery").path("repo").asText().replaceFirst("^[^/]+/", "");
                                 var snapshot = read(git.fetch(id, repo, sha));
                                 var previous = previousCandidate(json, snapshot);
+                                var context = repairContext(state).deepCopy();
                                 var repair = state.putObject("repair");
+                                if (context.hasNonNull("feedback")) repair.set("feedback", context.path("feedback"));
+                                if (context.hasNonNull("feedbackActor")) repair.set("feedbackActor", context.path("feedbackActor"));
                                 repair.put("attempt", attempt + 1).put("failedSha", sha).put("report", run.report())
                                         .put("templateRefreshes", state.path("infrastructureRefreshes").asInt(0))
                                         .put("maxAttempts", sandboxAttemptLimit(state));
@@ -1230,11 +1254,13 @@ public class MetaAgentExecution {
         result.put("repairFeedbackAvailable", canAcceptRepairFeedback(state) || canStartClarifiedRepairWindow(state));
         result.put("repairFeedbackCreatesWindow", canStartClarifiedRepairWindow(state));
         int limit = sandboxAttemptLimit(state);
+        int windowLimit = repairContext(state).path("maxAttempts").asInt();
+        if (windowLimit > 0 && windowLimit <= 20) limit = Math.max(limit, windowLimit);
         if (!state.has("sandboxAttemptCeiling") && (state.path("repair").path("reviewRepair").asBoolean(false)
                 || state.path("repair").path("s4Repair").asBoolean(false)))
             limit = Math.max(limit, Math.min(20, state.path("repair").path("attempt").asInt() + 4));
         result.put("sandboxAttemptLimit", limit);
-        result.remove(List.of("catalog", "feedback", "confirmedVersion", "humanSeeds", "evalDraft", "repair"));
+        result.remove(List.of("catalog", "feedback", "confirmedVersion", "humanSeeds", "evalDraft", "repair", "repairWindow"));
         if (state.has("acceptedAgentCount")) {
             var grants = jdbc.query("SELECT tool_name, version_range, granted_by FROM devflow_tool_grant WHERE job_id=? ORDER BY tool_name",
                     (rs, n) -> Map.of("toolName", rs.getString(1), "versionRange", rs.getString(2),

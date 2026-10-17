@@ -13,6 +13,25 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.*;
 
 class MetaAgentRulesTest {
+    @Test void passedSandboxRetainsFeedbackAllowanceAndLegacyPassNeedsExplicitNewWindow() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) new ObjectMapper().readTree("""
+                {"phase":"WAITING_REVIEW","sandboxStatus":"PASS","repairWindow":{"maxAttempts":3},"sandboxAttempts":[{},{}]}
+                """);
+        assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isTrue();
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
+        state.put("phase", "STAGING_READY");
+        state.putObject("delivery").put("sha", "abc");
+        state.putObject("pipeline").put("status", "FAILED").put("env", "staging").put("evaluationFailed", true).put("sha", "abc");
+        assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isTrue();
+        state.put("phase", "RELEASING");
+        assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isFalse();
+        state.put("phase", "WAITING_REVIEW");
+        state.remove("repairWindow");
+        assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isFalse();
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
+        state.put("manualRepairWindows", 1);
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
+    }
     @Test void onlyExplicitClarificationCanOpenOneNewFailedWindowWithinAbsoluteLimit() throws Exception {
         var state = (com.fasterxml.jackson.databind.node.ObjectNode) new ObjectMapper().readTree("""
                 {"phase":"FAILED","sandboxStatus":"FAILED","repair":{"maxAttempts":1},
