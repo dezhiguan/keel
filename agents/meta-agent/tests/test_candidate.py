@@ -229,6 +229,7 @@ def test_supervisor_scaffold_registers_manifest_children(tmp_path):
     _scaffold(project, "DF-9002", candidate)
     source = (project / "app.py").read_text(encoding="utf-8")
     ast.parse(source)
+    assert "test_child_blocked_remains_blocked" in (project / "tests/test_platform_contract.py").read_text()
     assert "for _child_name in agent.manifest.spec.delegates" in source
     assert "agent.child(_child_name)" in source
     assert '"event: final"' in source

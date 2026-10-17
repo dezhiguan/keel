@@ -405,6 +405,8 @@ app = agent.asgi()
             output = project / item["path"]
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(item["content"], encoding="utf-8")
+        shutil.copy2(Path(__file__).with_name("platform_contract_test.py"),
+                     project / "tests/test_platform_contract.py")
         readme = project / "README.md"
         existing = readme.read_text(encoding="utf-8") if readme.is_file() else f"# {project.name}\n"
         readme.write_text(existing.rstrip() + f"\n\n## 生产任务 {job_id}\n\n"
