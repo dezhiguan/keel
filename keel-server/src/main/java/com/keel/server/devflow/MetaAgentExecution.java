@@ -640,7 +640,10 @@ public class MetaAgentExecution {
                 var delivery = state.path("delivery");
                 var sha = delivery.path("sha").asText();
                 var repo = delivery.path("repo").asText().replaceFirst("^[^/]+/", "");
-                git.reviewStatus(id, repo, delivery.path("number").asInt(), sha);
+                var currentReview = git.reviewStatus(id, repo, delivery.path("number").asInt(), sha);
+                if (s4Repair && !currentReview.path("approved").asBoolean(false)) {
+                    throw invalid("当前候选的真人 PR 审批已失效，请重新核验评审");
+                }
                 var previous = previousCandidate(json, read(git.fetch(id, repo, sha)));
                 var repair = state.putObject("repair");
                 repair.put("attempt", attempt).put("failedSha", sha).put("infrastructureOnly", infrastructureOnly || ciRefresh)

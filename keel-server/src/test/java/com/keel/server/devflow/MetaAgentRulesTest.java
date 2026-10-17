@@ -60,6 +60,11 @@ class MetaAgentRulesTest {
                 """);
         assertThat(MetaAgentExecution.canRepairS4(state, 9)).isTrue();
         assertThat(MetaAgentExecution.canRepairS4(state, 8)).isFalse();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("modelReview").path("findings").get(0))
+                .put("severity", "LOW");
+        assertThat(MetaAgentExecution.canRepairS4(state, 9)).isFalse();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("modelReview").path("findings").get(0))
+                .put("severity", "HIGH");
         state.put("s4RepairRounds", 1);
         assertThat(MetaAgentExecution.canRepairS4(state, 9)).isFalse();
         state.put("s4RepairRounds", 0);
