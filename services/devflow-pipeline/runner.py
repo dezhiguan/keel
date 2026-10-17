@@ -34,17 +34,17 @@ p=json.load(sys.stdin);os.environ.update(p["credentials"])
 r=httpx.post(os.environ["KEEL_SERVER_URL"]+p["path"],json=p["body"],headers=ci_headers(),timeout=180)
 x=r.json()
 if r.status_code>=400 or x.get("code")!="OK":
- print(json.dumps({"error":str(x.get("code"))+": "+str(x.get("message"))}))
-else: print(json.dumps(x.get("data") or {}))
+ print(json.dumps({"ok":False,"error":str(x.get("code"))+": "+str(x.get("message"))}))
+else: print(json.dumps({"ok":True,"data":x.get("data") or {}}))
 '''
 
 
 def api(job, env, action, **values):
     result = inside(API_SOURCE, {"credentials": credentials(), "path": f"/api/v1/devflow/ci/jobs/{job}/{action}",
                                  "body": {"env": env, **values}})
-    if "error" in result:
-        raise RuntimeError(result["error"])
-    return result
+    if result.get("ok") is not True:
+        raise RuntimeError(result.get("error") or "Trusted CI API did not return a successful response")
+    return result["data"]
 
 
 def write_snapshot(root, files):
@@ -123,19 +123,21 @@ def main():
     context_path = directory / "context.json"
     if args.action == "export":
         context = api(args.job, args.env, "context")
+        context_path.write_text(json.dumps(context, ensure_ascii=False), encoding="utf-8")
         status(context, args.run_url, "RUNNING", "构建精确提交的候选镜像")
         write_snapshot(directory / "project", context["snapshot"]["files"])
-        context_path.write_text(json.dumps(context, ensure_ascii=False), encoding="utf-8")
         with tarfile.open(directory / "project.tar.gz", "w:gz") as archive:
             archive.add(directory / "project", arcname=".")
         print("Exported immutable candidate", context["sha"])
         return
-    context = json.loads(context_path.read_text(encoding="utf-8"))
     if args.action == "fail":
+        context = (json.loads(context_path.read_text(encoding="utf-8")) if context_path.exists()
+                   else api(args.job, args.env, "context"))
         failure = directory / "evaluation-failure.json"
         message = failure.read_text(encoding="utf-8") if failure.exists() else "流水线失败，请打开 CI 查看失败步骤并重试"
         status(context, args.run_url, "FAILED", message, failure.exists())
         return
+    context = json.loads(context_path.read_text(encoding="utf-8"))
     image = args.image or ""
     if not re.fullmatch(r"[^\s]+@sha256:[0-9a-f]{64}", image):
         raise ValueError("Immutable image digest is required")

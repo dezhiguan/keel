@@ -3,6 +3,16 @@ on:
   push:
   pull_request:
 jobs:
+  devflow-runner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -e ./sdk-python pytest
+      - name: Trusted deployment runner and evaluation gates
+        run: PYTHONPATH="$PWD/sdk-python" python -m pytest services/devflow-pipeline/test_pipeline.py -q
   java:
     runs-on: ubuntu-latest
     steps:
