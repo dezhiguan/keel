@@ -205,16 +205,19 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
     llm_calls = []
     prompt_names = set()
     for node in ast.walk(role):
-        if (isinstance(node, ast.Assign) and isinstance(node.value, ast.Await)
-                and isinstance(node.value.value, ast.Call)
-                and isinstance(node.value.value.func, ast.Attribute)
-                and isinstance(node.value.value.func.value, ast.Name)
-                and node.value.value.func.value.id == "ctx"
-                and node.value.value.func.attr == "prompt"
-                and len(node.value.value.args) == 1
-                and isinstance(node.value.value.args[0], ast.Constant)
-                and node.value.value.args[0].value == "role"):
-            prompt_names.update(target.id for target in node.targets if isinstance(target, ast.Name))
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        value = node.value
+        if (isinstance(value, ast.Await) and isinstance(value.value, ast.Call)
+                and isinstance(value.value.func, ast.Attribute)
+                and isinstance(value.value.func.value, ast.Name)
+                and value.value.func.value.id == "ctx"
+                and value.value.func.attr == "prompt"
+                and len(value.value.args) == 1
+                and isinstance(value.value.args[0], ast.Constant)
+                and value.value.args[0].value == "role"):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            prompt_names.update(target.id for target in targets if isinstance(target, ast.Name))
     for node in ast.walk(role):
         if isinstance(node, ast.Constant) and isinstance(node.value, str) and len(node.value) > 160:
             errors.append("role.py 不得硬编码大段提示词")
@@ -270,7 +273,9 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
         errors.append("role.py 必须调用至少两个已选择的工具")
     prompt_text = mapping["prompts/role.md"]
     placeholders = re.findall(r"\{\{([^{}]*)\}\}", prompt_text)
-    if any(not re.fullmatch(r"\s*\w+\s*", value) for value in placeholders):
+    if (prompt_text.count("{{") != len(placeholders)
+            or prompt_text.count("}}") != len(placeholders)
+            or any(not re.fullmatch(r"\s*\w+\s*", value) for value in placeholders)):
         errors.append("岗位提示词包含 SDK 无法替换的占位符；只允许简单变量名")
     if selected_tools and len(selected_tools) >= 2:
         variables = set(re.findall(r"\{\{\s*(\w+)\s*\}\}", prompt_text))
