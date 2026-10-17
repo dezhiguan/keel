@@ -238,6 +238,9 @@ def test_multi_tool_prompt_accepts_sdk_whitespace_and_prompt_alias():
                            {"path": "prompts/role.md", "content": "输入：{{ input }}\n证据：{{ evidence }}"},
                            {"path": "tests/test_role.py", "content": TEST_CODE}]}
     assert parse(json.dumps(candidate), selected_tools=["ci.log.fetch", "git.pr.diff"])[1] == []
+    candidate["files"][0]["content"] = role.replace("prompt=prompt_template)", "prompt=message)")
+    assert any("Prompt对象" in error for error in
+               parse(json.dumps(candidate), selected_tools=["ci.log.fetch", "git.pr.diff"])[1])
     candidate["files"][0]["content"] = role.replace("prompt_template =", "prompt_template: object =")
     assert parse(json.dumps(candidate), selected_tools=["ci.log.fetch", "git.pr.diff"])[1] == []
     candidate["files"][1]["content"] += "\n风险：{{ tool.risk }}"

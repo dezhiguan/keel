@@ -175,7 +175,7 @@ async def generate(work: dict, ctx) -> dict:
     raise KeelError(ErrorCode.AGENT_MANIFEST_INVALID, "岗位代码校验失败：" + "；".join(errors[:6]))
 
 
-def _system_compile_errors(tree, prompt_names):
+def _prompt_call_errors(tree, prompt_names):
     assignments = {target.id: node.value for node in ast.walk(tree) if isinstance(node, ast.Assign)
                    for target in node.targets if isinstance(target, ast.Name)}
 
@@ -188,6 +188,16 @@ def _system_compile_errors(tree, prompt_names):
 
     errors = []
     for node in ast.walk(tree):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "chat" and isinstance(node.func.value, ast.Attribute)
+                and node.func.value.attr == "llm" and isinstance(node.func.value.value, ast.Name)
+                and node.func.value.value.id == "ctx"):
+            for keyword in node.keywords:
+                value = resolve(keyword.value)
+                if (keyword.arg == "prompt" and isinstance(value, ast.Call)
+                        and isinstance(value.func, ast.Attribute) and value.func.attr == "compile"
+                        and isinstance(value.func.value, ast.Name) and value.func.value.id in prompt_names):
+                    errors.append("ctx.llm.chat的prompt参数必须保留ctx.prompt返回的Prompt对象，不能传compile后的字符串")
         if not isinstance(node, ast.Dict):
             continue
         values = {key.value: value for key, value in zip(node.keys, node.values)
@@ -433,7 +443,7 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
             or any(not re.fullmatch(r"\s*\w+\s*", value) for value in placeholders)):
         errors.append("岗位提示词包含 SDK 无法替换的占位符；只允许简单变量名")
     if selected_tools and len(selected_tools) >= 2:
-        errors.extend(_system_compile_errors(role, prompt_names))
+        errors.extend(_prompt_call_errors(role, prompt_names))
         if not prompt_compiles:
             errors.append("多工具岗位必须通过 prompt.compile() 读取版本化岗位指令，真实input/evidence通过user消息传入")
         if llm_calls and not any("prompt" in keywords for keywords in llm_calls):
