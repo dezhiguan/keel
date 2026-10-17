@@ -5,6 +5,7 @@ WORKDIR /app
 COPY agents/meta-agent/vendor/keel_sdk-*.whl /tmp/keel-sdk/
 RUN pip install --no-cache-dir /tmp/keel-sdk/keel_sdk-*.whl && rm -rf /tmp/keel-sdk
 COPY agents/meta-agent/app.py agents/meta-agent/workflow.py agents/meta-agent/candidate.py agents/meta-agent/evalset.py agents/meta-agent/roles.py agents/meta-agent/agent.yaml /app/
+COPY agents/meta-agent/pre-review-workflow.yml /app/
 COPY agents/meta-agent/tools /app/tools
 COPY agents/meta-agent/prompts /app/prompts
 COPY agents/meta-agent/evals /app/evals

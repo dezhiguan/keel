@@ -190,7 +190,8 @@ def _deliver(work):
     state = json.loads(checkpoint.read_text()) if checkpoint.exists() else {}
     repair = work.get("repair") or {}
     attempt = int(repair.get("attempt") or 1)
-    if attempt < 1 or attempt > (6 if repair.get("reviewRepair") is True else
+    if attempt < 1 or attempt > (7 if repair.get("ciRefresh") is True else
+                                 6 if repair.get("reviewRepair") is True else
                                  5 if repair.get("infrastructureOnly") is True else 3):
         raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "沙箱修正轮次无效")
     if attempt > 1:
@@ -311,7 +312,7 @@ def score_decision(expected, answer, tags):
         return 0.0
     return 1.0 if _normalized(actual) == _normalized(expected["decision"]) else 0.0
 ''', encoding="utf-8")
-        template = template_dir(ROLES[project.name][0]) / ".github/workflows/keel.yml"
+        template = Path(__file__).with_name("pre-review-workflow.yml")
         if not template.is_file():
             raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "岗位 CI 工作流模板缺失")
         workflow = project / ".github/workflows/keel.yml"
