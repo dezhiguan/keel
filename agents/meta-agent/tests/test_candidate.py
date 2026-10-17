@@ -113,6 +113,32 @@ def test_candidate_checks_keel_sdk_call_signatures_and_multiple_tools():
     assert any("至少两个" in error for error in errors)
 
 
+def test_multi_tool_candidate_must_show_evidence_to_model_and_preserve_blocked():
+    role = '''import re
+async def execute(data, ctx):
+    log = await ctx.tools.call("ci.log.fetch", repo="sample", runId=1)
+    diff = await ctx.tools.call("git.pr.diff", repo="sample", number=1)
+    prompt = await ctx.prompt("role")
+    message = prompt.compile(input=data, evidence={"log": log, "diff": diff})
+    llm_response = await ctx.llm.chat([{"role": "user", "content": message}])
+    if re.search(r"\\bPASS\\b", llm_response):
+        return {"decision": "PASS"}
+    return {"decision": "BLOCKED"}
+'''
+    candidate = {"files": [{"path": "role.py", "content": role},
+                           {"path": "prompts/role.md", "content": "任务：{{input}}\n证据：{{evidence}}"},
+                           {"path": "tests/test_role.py", "content": TEST_CODE}]}
+    _, errors = parse(json.dumps(candidate), selected_tools=["ci.log.fetch", "git.pr.diff"])
+    assert any("扫描模型全文" in error for error in errors)
+    assert any("prompt=prompt" in error for error in errors)
+    candidate["files"][1]["content"] = "任务：{{input}}"
+    _, errors = parse(json.dumps(candidate), selected_tools=["ci.log.fetch", "git.pr.diff"])
+    assert any("{{evidence}}" in error for error in errors)
+    candidate["files"][0]["content"] = role.replace(', evidence={"log": log, "diff": diff}', '')
+    _, errors = parse(json.dumps(candidate), selected_tools=["ci.log.fetch", "git.pr.diff"])
+    assert any("prompt.compile" in error and "evidence" in error for error in errors)
+
+
 def test_generated_code_rejects_forbidden_imports_and_missing_behavior_tests():
     bad = {"files": [{"path": "role.py", "content": "import subprocess\nasync def execute(data, ctx): return {}"},
                      {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},

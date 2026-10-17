@@ -143,5 +143,9 @@ cd sdk-python && ../.venv/bin/python -m pytest tests/test_runtime.py -q
 
 协作型岗位必须按 SDK 真实返回结构检查 `ctx.delegate` 的 `result` 字段；子智能体拒绝、结果缺失或格式异常不得被误判为放行。工具返回值缺少岗位必需证据或状态不明时也必须阻断。
 
+## 多工具岗位的证据传递与拒绝优先级
+
+多工具岗位的提示词必须包含 `{{input}}` 和 `{{evidence}}`，岗位代码须将真实工具结果传给 `prompt.compile(input=..., evidence=...)`，调用 `ctx.llm.chat` 时附带 `prompt=prompt` 关联提示词版本。仅在代码里调用工具而模型实际看不到证据的候选不得交付。模型返回结构化 `decision=BLOCKED` 时必须保持阻断；解释文字中出现 `PASS` 不能将其改判为通过。候选校验拒绝对模型全文做未绑定 `decision` 字段的 `PASS` 关键词回退。生成的岗位测试须覆盖明确拒绝且解释包含 `PASS` 的情形；协作型岗位还须覆盖子智能体结构化拒绝后模型试图放行的情形。
+
 `ctx.delegate` 的 `result` 可是结构化对象，也可是子智能体返回的证据文本。证据文本仅作材料，不是通过结论；空文本或明确失败不能当作发布许可。生成的 supervisor 需要由独立项目的 `app.py` 按 manifest 注册可执行子智能体回调。
 

@@ -64,8 +64,14 @@ async def generate(work: dict, ctx) -> dict:
         "ctx.delegate 返回封装字典 {result, budget, trace_id, agent}，必须检查封装中的 result；"
         "子智能体 result 可为结构化对象或非空证据文本；缺失、空文本或结构化 decision 为 BLOCKED 时整个任务返回 BLOCKED。"
         "证据文本仅是材料，不是批准结论；测试中的 ctx.delegate 应模拟真实封装字典，不是裸文本或裸 decision。"
+        "supervisor 的测试还必须覆盖子智能体 result={decision: BLOCKED} 且模型尝试 PASS 的情况，最终仍为 BLOCKED。"
         "不得在代码或提示词里硬编码虚构的子智能体名单。任何工具调用失败都应返回 BLOCKED，不能用不完整证据推断通过。"
         "工具返回值为空、缺少任务必需字段或状态不明时也返回 BLOCKED，不能把 UNKNOWN 当作通过。"
+        "多工具岗位的 prompts/role.md 必须包含 {{input}} 和 {{evidence}}，"
+        "role.py 用 prompt.compile(input=原始输入, evidence=真实工具结果) 把证据传给模型；"
+        "不能只调用工具却让模型看不到返回结果。"
+        "模型若返回结构化 decision=BLOCKED 必须保持 BLOCKED，不能因为解释文字含 PASS 改判。"
+        "不要对模型全文用 PASS 关键词扫描兜底；只解析明确的 decision 字段，解析失败一律 BLOCKED。"
         "role.py 必须调用 await ctx.prompt(\"role\") 取得提示词，再调用 prompt.compile(input=...)；"
         "完整岗位指令只写在 prompts/role.md，源码里不得硬编码大段提示词。"
         "绝不自行授予工具、访问隐藏考题、自动合并或发布；缺少人工审批或可信门禁时返回 BLOCKED。"
@@ -77,6 +83,7 @@ async def generate(work: dict, ctx) -> dict:
         "测试须导入 role.execute 并调用它；prompt.compile 是同步方法，用 MagicMock 模拟；"
         "ctx.llm.chat 返回字符串；断言须符合 execute 实际返回的完整结构，"
         "有额外字段时只断言必要字段，不要把完整结果强行等同于只有 decision 的字典。"
+        "另加模型明确返回 BLOCKED 且解释含 PASS 的测试，并断言最终仍为 BLOCKED。"
         "正则表达式的原始字符串里，\\d、\\s、\\w 只写一个反斜杠；"
         "例如 r\"DF-\\d+\"，不要写成 r\"DF-\\\\d+\"。"
         "Python 布尔值和空值必须写 True、False、None，不要把 JSON 的 true、false、null 写进代码。"
@@ -182,6 +189,8 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
             for node in ast.walk(role)):
         errors.append("supervisor 必须从 ctx.manifest.spec.delegates 读取委派清单")
     called_tools = set()
+    prompt_compiles = []
+    llm_calls = []
     for node in ast.walk(role):
         if isinstance(node, ast.Constant) and isinstance(node.value, str) and len(node.value) > 160:
             errors.append("role.py 不得硬编码大段提示词")
@@ -201,6 +210,20 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
                 and any("\\\\" + char in node.args[0].value for char in "dswDSWbB")):
             errors.append("正则表达式的原始字符串误用了双反斜杠")
         if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "compile" and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "prompt"):
+            prompt_compiles.append({keyword.arg for keyword in node.keywords})
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name) and node.func.value.id == "re"
+                and node.func.attr in ("search", "match", "fullmatch")
+                and len(node.args) >= 2 and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+                and "PASS" in node.args[0].value.upper()
+                and "DECISION" not in node.args[0].value.upper()
+                and isinstance(node.args[1], ast.Name)
+                and node.args[1].id.lower() in ("llm_output", "llm_response", "model_output", "model_response", "reply")):
+            errors.append("不能通过扫描模型全文的 PASS 关键词覆盖结构化 BLOCKED 决策")
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                 and isinstance(node.func.value, ast.Attribute)
                 and isinstance(node.func.value.value, ast.Name)
                 and node.func.value.value.id == "ctx"):
@@ -216,10 +239,18 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
                         if missing:
                             errors.append(tool_name + " 缺少必需关键字参数：" + ", ".join(sorted(missing)))
             if node.func.value.attr == "llm" and node.func.attr == "chat":
+                llm_calls.append({keyword.arg for keyword in node.keywords})
                 if any(keyword.arg not in ("messages", "model", "prompt", "tools") for keyword in node.keywords):
                     errors.append("ctx.llm.chat 使用了 SDK 不支持的参数")
     if selected_tools and len(selected_tools) >= 2 and len(called_tools.intersection(selected_tools)) < 2:
         errors.append("role.py 必须调用至少两个已选择的工具")
+    if selected_tools and len(selected_tools) >= 2:
+        if "{{input}}" not in mapping["prompts/role.md"] or "{{evidence}}" not in mapping["prompts/role.md"]:
+            errors.append("多工具岗位提示词必须包含 {{input}} 和 {{evidence}}")
+        if not any({"input", "evidence"}.issubset(keywords) for keywords in prompt_compiles):
+            errors.append("多工具岗位必须通过 prompt.compile(input=..., evidence=...) 传递真实证据")
+        if llm_calls and not any("prompt" in keywords for keywords in llm_calls):
+            errors.append("多工具岗位调用 ctx.llm.chat 时必须传入 prompt=prompt 记录提示词版本")
     tests = trees["tests/test_role.py"]
     if any(isinstance(node, ast.keyword) and node.arg == "compile"
            and isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name)
