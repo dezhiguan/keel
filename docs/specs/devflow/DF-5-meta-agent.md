@@ -137,3 +137,5 @@ cd sdk-python && ../.venv/bin/python -m pytest tests/test_runtime.py -q
 
 通用 supervisor 岗位须从运行时 `ctx.manifest.spec.delegates` 读取已授权子智能体清单，并以清单中的名字调用 `ctx.delegate(name, text)`。生成指令应给出准确的 SDK 用法；未满足此条件的候选在交付前拒绝，由元智能体重新生成。
 
+模型生成的岗位测试须模拟 SDK 的真实调用约定：`prompt.compile` 同步执行，`ctx.llm.chat` 返回字符串。正常路径断言应与实际返回结构一致；候选校验拒绝把 `prompt.compile` 模拟成异步方法的测试。
+

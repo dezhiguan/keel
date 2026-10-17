@@ -139,6 +139,21 @@ def test_previous_snapshot_accepts_old_sdk_calls_for_repair():
     assert snapshot_errors({"files": previous["files"][:2]})
 
 
+def test_generated_tests_use_synchronous_prompt_compile_mock():
+    bad = {"files": [
+        {"path": "role.py", "content": ROLE_CODE},
+        {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
+        {"path": "tests/test_role.py", "content": """from unittest.mock import AsyncMock, MagicMock
+def test_normal():
+    prompt = MagicMock(compile=AsyncMock(return_value='x'))
+    assert prompt
+def test_rejection():
+    assert True
+"""},
+    ]}
+    assert any("prompt.compile 是同步方法" in error for error in parse(json.dumps(bad))[1])
+
+
 def test_model_authored_role_runs_in_generated_project(tmp_path):
     project = tmp_path / "spec-agent"
     for name in ("tools", "tests", "evals"):

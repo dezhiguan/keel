@@ -51,6 +51,9 @@ async def generate(work: dict, ctx) -> dict:
         "不导入网络、文件、进程或厂商 SDK；role.py 只能导入 json/re/typing/collections/datetime。"
         "tests/test_role.py 至少包含一个覆盖岗位正常输入和一个拒绝/失败场景的 test_ 函数，"
         "用假 ctx 测试行为，不能连接真实服务。不要只测试文件存在或字符串常量。"
+        "测试须导入 role.execute 并调用它；prompt.compile 是同步方法，用 MagicMock 模拟；"
+        "ctx.llm.chat 返回字符串；断言须符合 execute 实际返回的完整结构，"
+        "有额外字段时只断言必要字段，不要把完整结果强行等同于只有 decision 的字典。"
         "Python 布尔值和空值必须写 True、False、None，不要把 JSON 的 true、false、null 写进代码。"
     )
     repair = work.get("repair")
@@ -179,6 +182,10 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
     if selected_tools and len(selected_tools) >= 2 and len(called_tools.intersection(selected_tools)) < 2:
         errors.append("role.py 必须调用至少两个已选择的工具")
     tests = trees["tests/test_role.py"]
+    if any(isinstance(node, ast.keyword) and node.arg == "compile"
+           and isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name)
+           and node.value.func.id == "AsyncMock" for node in ast.walk(tests)):
+        errors.append("prompt.compile 是同步方法，测试不能用 AsyncMock 模拟")
     if sum(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test_")
            for node in tests.body) < 2:
         errors.append("岗位测试必须包含正常和拒绝/失败两个场景")
