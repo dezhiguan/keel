@@ -36,6 +36,9 @@ public class MetaAgentExecution {
             "eval-agent", "tool-agent", "code-review", "tool-agent", "ci-doctor", "tool-agent",
             "release-agent", "tool-agent");
     private static final Set<String> GENERAL_TEMPLATES = Set.of("tool-agent", "chat-rag", "graph-agent", "supervisor");
+    private static final Set<String> GENERAL_RUNTIME_TOOLS = Set.of(
+            "devflow.job.read", "devflow.batch.read", "devflow.catalog.search",
+            "git.pr.diff", "ci.log.fetch", "keel.gate.report.read", "shift.policy");
     private static final Map<String, Set<String>> DEV_TOOLS = Map.of(
             "dev-lead", Set.of("devflow.job.read", "devflow.stage.report", "devflow.batch.read"),
             "spec-agent", Set.of("devflow.catalog.search", "devflow.stage.report"),
@@ -140,6 +143,9 @@ public class MetaAgentExecution {
         }
         if (DEV_TOOLS.containsKey(draft.targetAgent()) && !Set.copyOf(draft.tools()).equals(DEV_TOOLS.get(draft.targetAgent()))) {
             throw invalid("岗位工具必须与原型清单完全一致");
+        }
+        if (!DEV_ROLES.containsKey(draft.targetAgent()) && !GENERAL_RUNTIME_TOOLS.containsAll(draft.tools())) {
+            throw invalid("通用智能体只可选择已开放的低风险只读工具");
         }
         var delegates = draft.delegates() == null ? List.<String>of() : draft.delegates();
         if (delegates.size() > 5 || delegates.stream().anyMatch(name -> name == null || name.isBlank()

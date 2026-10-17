@@ -67,3 +67,9 @@ mvn -o -pl :keel-server -Dtest=DevflowToolCatalogTest test
 - 实现 `keel.gate.report.read` 的读取接口（DF-8）
 - 改 GitHub 调用或分支保护
 - 改沙箱的调用方判断
+
+## 2026-10-17 通用代码智能体运行范围
+
+控制台的通用元智能体创建入口只展示运行时服务身份路由已实现的低风险只读工具：`devflow.job.read`、`devflow.batch.read`、`devflow.catalog.search`、`git.pr.diff`、`ci.log.fetch`、`keel.gate.report.read`、`shift.policy`。服务端对通用任务做同样校验；原型岗位的固定工具清单保留。工具目录仍显示完整平台工具，避免把“已登记”误当成“任意生成代码均可调用”。
+
+代码生成器须提供上述工具的实际参数名和返回结构，并拒绝调用时缺少必需关键字参数的候选。`ci.log.fetch` 使用 `repo`、`runId` 并返回 `log`；`git.pr.diff` 使用 `repo`、`number` 并返回 `diff`；研发任务和门禁查询使用 `jobId` 并返回列表。门禁查询的列表仅含报告元数据，不代表门禁通过。证据缺失时返回 `BLOCKED`。

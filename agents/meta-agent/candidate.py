@@ -8,6 +8,15 @@ from keel.protocol.errors import ErrorCode, KeelError
 from roles import ROLES
 
 GENERAL_TEMPLATES = {"tool-agent", "chat-rag", "graph-agent", "supervisor"}
+TOOL_CONTRACTS = {
+    "ci.log.fetch": {"kwargs": ["repo", "runId"], "returns": "dict: log (text), logsUnavailable (optional bool); repo is a keel-agents repository slug"},
+    "git.pr.diff": {"kwargs": ["repo", "number"], "returns": "dict: diff (text), number"},
+    "devflow.job.read": {"kwargs": ["jobId"], "returns": "list of job records; empty list means no evidence"},
+    "devflow.batch.read": {"kwargs": ["batchId"], "returns": "list of batch records; empty list means no evidence"},
+    "devflow.catalog.search": {"kwargs": ["query"], "returns": "list of tool catalog records"},
+    "keel.gate.report.read": {"kwargs": ["jobId"], "returns": "list of gate report artifact metadata (sha256/ref), not a PASS verdict"},
+    "shift.policy": {"kwargs": ["category"], "returns": "dict of shift policy guidance"},
+}
 
 
 ALLOWED_IMPORTS = {"json", "re", "typing", "collections", "datetime"}
@@ -33,6 +42,7 @@ async def generate(work: dict, ctx) -> dict:
         f"岗位 {name}，模板 {role}，职责：{purpose}\n"
         f"人工 H1 已确认的需求：{json.dumps(confirmed, ensure_ascii=False)}\n"
         f"已选工具：{json.dumps(requirement.get('tools') or [], ensure_ascii=False)}。"
+        f"已选工具的真实运行契约：{json.dumps({name: TOOL_CONTRACTS[name] for name in requirement.get('tools') or [] if name in TOOL_CONTRACTS}, ensure_ascii=False)}。"
         f"已授权委派目标：{json.dumps(delegates, ensure_ascii=False)}。"
         f"H2 可见评测用例：{json.dumps(work.get('visibleSeeds') or [], ensure_ascii=False)}。"
         "role.py 必须有 async def execute(data: dict, ctx) -> dict，处理非平凡输入并返回结构化结果。"
@@ -41,6 +51,7 @@ async def generate(work: dict, ctx) -> dict:
         "await ctx.llm.chat([{\"role\":\"user\",\"content\":文本}], prompt=prompt) 返回字符串，"
         "不要直接传 temperature 或 response_format，也不要把返回值当字典。"
         "至少调用两个需求单已选择的工具；任何必需工具失败都返回 BLOCKED。"
+        "工具调用必须使用上述契约的原样关键字参数名；返回结构也按契约检查，不能虚构 steps、files 或 status 字段。"
         "supervisor 必须实际调用 await ctx.delegate(name, text)，目标只从 ctx.manifest.spec.delegates 中读取；"
         "supervisor 的 role.py 请直接写 allowed_delegates = list(ctx.manifest.spec.delegates or [])，"
         "清单为空时返回 BLOCKED；遍历 allowed_delegates 并用其中的 name 调用 ctx.delegate(name, text)；"
@@ -187,7 +198,13 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
                 if len(node.args) != 1:
                     errors.append("ctx.tools.call 只能传工具名位置参数，其余参数须使用关键字")
                 if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
-                    called_tools.add(node.args[0].value)
+                    tool_name = node.args[0].value
+                    called_tools.add(tool_name)
+                    if tool_name in TOOL_CONTRACTS:
+                        given = {keyword.arg for keyword in node.keywords}
+                        missing = set(TOOL_CONTRACTS[tool_name]["kwargs"]) - given
+                        if missing:
+                            errors.append(tool_name + " 缺少必需关键字参数：" + ", ".join(sorted(missing)))
             if node.func.value.attr == "llm" and node.func.attr == "chat":
                 if any(keyword.arg not in ("messages", "model", "prompt", "tools") for keyword in node.keywords):
                     errors.append("ctx.llm.chat 使用了 SDK 不支持的参数")

@@ -30,6 +30,12 @@ watch(() => form.agent, (name) => {
   form.tools = [...(DEV_ROLE_TOOLS[name] || [])]
 })
 const catalogTools = ref<CatalogTool[]>([])
+const GENERAL_RUNTIME_TOOLS = new Set([
+  'devflow.job.read', 'devflow.batch.read', 'devflow.catalog.search',
+  'git.pr.diff', 'ci.log.fetch', 'keel.gate.report.read', 'shift.policy',
+])
+const visibleTools = computed(() => DEV_ROLE_TEMPLATES[form.agent]
+  ? catalogTools.value : catalogTools.value.filter(tool => tool.name && GENERAL_RUNTIME_TOOLS.has(tool.name)))
 const catalogAgents = ref<string[]>([])
 const catalogError = ref('')
 onMounted(async () => {
@@ -144,7 +150,7 @@ async function submit() {
           <div class="field">
             <label>共享工具（授权须在 H3 办理）</label>
             <div class="chipsel">
-              <button v-for="tool in catalogTools" :key="tool.name" type="button" :class="{ on: form.tools.includes(tool.name || '') }" :disabled="!!DEV_ROLE_TEMPLATES[form.agent]" @click="tool.name && (form.tools.includes(tool.name) ? form.tools.splice(form.tools.indexOf(tool.name), 1) : form.tools.push(tool.name))">{{ tool.name }} · {{ tool.risk?.toLowerCase() }}</button>
+              <button v-for="tool in visibleTools" :key="tool.name" type="button" :class="{ on: form.tools.includes(tool.name || '') }" :disabled="!!DEV_ROLE_TEMPLATES[form.agent]" @click="tool.name && (form.tools.includes(tool.name) ? form.tools.splice(form.tools.indexOf(tool.name), 1) : form.tools.push(tool.name))">{{ tool.name }} · {{ tool.risk?.toLowerCase() }}</button>
             </div>
             <div v-if="form.tools.some(name => !catalogTools.some(item => item.name === name)) && !catalogError" class="hint">目录缺少岗位必需工具，当前任务无法提交。</div>
           </div>

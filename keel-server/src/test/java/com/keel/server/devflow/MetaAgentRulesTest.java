@@ -125,6 +125,10 @@ class MetaAgentRulesTest {
                 "supervisor", 7.0, 0, List.of(), List.of(), "QA", "研发", "任务到结果", "有证据", true,
                 List.of("qa-ci-investigator-1017"));
         assertThatCode(() -> MetaAgentExecution.validate(supervisor)).doesNotThrowAnyException();
+        var unsupportedTool = new DevflowTypes.Draft("QA", "qa-meta-loop", "DEV", "CREATE", "COLLAB", "协调任务",
+                "tool-agent", 7.0, 0, List.of("devflow.stage.report"), List.of(), "QA", "研发", "任务到结果", "有证据", true);
+        assertThatThrownBy(() -> MetaAgentExecution.validate(unsupportedTool))
+                .isInstanceOf(KeelException.class).hasMessageContaining("低风险只读工具");
         assertThatThrownBy(() -> MetaAgentExecution.validate(draft("qa-meta-loop", "java-spring", "DEV", "CREATE", 0, 7.0))).isInstanceOf(KeelException.class);
     }
     @Test void rejectsUnsupportedScopeAndFakeSeedUploads() {

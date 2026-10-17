@@ -169,6 +169,22 @@ async def execute(data, ctx):
     assert any("双反斜杠" in error for error in parse(json.dumps(bad))[1])
 
 
+def test_generated_tool_call_requires_actual_runtime_keywords():
+    bad_role = """async def execute(data, ctx):
+    prompt = await ctx.prompt('role')
+    prompt.compile(input=data)
+    await ctx.tools.call('ci.log.fetch', run_id='42')
+    return {'decision': 'BLOCKED'}
+"""
+    bad = {"files": [
+        {"path": "role.py", "content": bad_role},
+        {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
+        {"path": "tests/test_role.py", "content": TEST_CODE},
+    ]}
+    errors = parse(json.dumps(bad))[1]
+    assert any("ci.log.fetch 缺少必需关键字参数" in error and "runId" in error for error in errors)
+
+
 def test_model_authored_role_runs_in_generated_project(tmp_path):
     project = tmp_path / "spec-agent"
     for name in ("tools", "tests", "evals"):
