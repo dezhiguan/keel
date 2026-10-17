@@ -33,3 +33,15 @@ def test_failed_visible_evaluation_never_fetches_hidden_or_submits_pass(monkeypa
     config = {"credentials": {}, "context": {"jobId": "DF-1", "env": "staging", "visibleSeeds": [],
               "manifest": {"spec": {"runtime": {"endpoint": "http://unused"}}}}}
     assert gate.run(config)["passed"] is False
+
+
+def test_only_visible_evaluation_exports_bounded_failure_reasons(monkeypatch):
+    gate = module("gate")
+    monkeypatch.setattr(gate, "invoke_text", lambda *args, **kwargs: '{"decision":"BLOCKED","block_reason":"missing evidence"}')
+    cases = [{"caseId": "public-1", "input": {"text": "audit"}, "expected": {"decision": "PASS"}, "tags": ["normal"]}]
+    failures = []
+    assert gate.evaluate(cases, "http://unused", "staging", "run", failures)[0]["score"] == 0
+    assert failures == [{"caseId": "public-1", "expected": {"decision": "PASS"},
+                         "actualDecision": "BLOCKED", "reason": "missing evidence"}]
+    gate.evaluate(cases, "http://unused", "staging", "run")
+    assert len(failures) == 1

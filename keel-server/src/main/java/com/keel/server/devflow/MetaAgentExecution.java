@@ -333,7 +333,8 @@ public class MetaAgentExecution {
             throw invalid("流水线必须绑定通过 S4/H3 的候选，prod 还须完成 H4 合并");
     }
 
-    public ObjectNode recordPipelineStatus(String id, String env, String sha, String runUrl, String status, String message) {
+    public ObjectNode recordPipelineStatus(String id, String env, String sha, String runUrl, String status, String message,
+                                          boolean evaluationFailed) {
         return tx.execute(transaction -> {
             var state = lock(id);
             var expected = "prod".equals(env) ? state.path("mergeSha").asText() : state.path("delivery").path("sha").asText();
@@ -343,7 +344,8 @@ public class MetaAgentExecution {
                 throw invalid("流水线回报与候选提交不一致");
             state.putObject("pipeline").put("env", env).put("sha", sha).put("status", status)
                     .put("runUrl", runUrl).put("startedAt", Instant.now().toString())
-                    .put("message", message == null ? "" : message.substring(0, Math.min(1000, message.length())));
+                    .put("message", message == null ? "" : message.substring(0, Math.min(8000, message.length())))
+                    .put("evaluationFailed", "FAILED".equals(status) && evaluationFailed);
             save(id, state, "GATE");
             return publicState(state);
         });
@@ -699,6 +701,25 @@ public class MetaAgentExecution {
         requireAdmin();
         return tx.execute(status -> {
             var state = lock(id);
+            if (canRepairStagingGate(state)) {
+                var delivery = state.path("delivery");
+                String sha = delivery.path("sha").asText();
+                String repo = delivery.path("repo").asText().replaceFirst("^[^/]+/", "");
+                var previous = previousCandidate(json, read(git.fetch(id, repo, sha)));
+                int attempt = state.path("sandboxAttempts").size() + 1;
+                int ceiling = Math.min(20, attempt + 4);
+                var repair = state.putObject("repair").put("attempt", attempt).put("failedSha", sha)
+                        .put("reviewRepair", true).put("maxAttempts", ceiling)
+                        .put("report", "staging 真实接口评测未通过。按 H1/H2 的业务语义修复根因，"
+                                + "不得针对 caseId 或具体题目硬编码；保留现有通过路径与拒绝路径。可信反馈："
+                                + state.path("pipeline").path("message").asText());
+                repair.set("previousCandidate", previous);
+                state.put("gateRepairRounds", 1).put("sandboxAttemptCeiling", ceiling).put("phase", "QUEUED");
+                state.remove(List.of("humanReview", "modelReview", "modelReviewTraceId", "sandboxStatus", "sandboxRunId", "gate", "pipeline"));
+                save(id, state, "DELIVER");
+                jobs.progress(id, "QUEUED", "BUILD", "真实 staging 门禁失败，已启动有上限的岗位修复，新提交须重新审批");
+                return publicState(state);
+            }
             if ("WAITING_REVIEW".equals(state.path("phase").asText())) {
                 if (git == null || !"PASS".equals(state.path("sandboxStatus").asText())) {
                     throw invalid("只有沙箱通过的候选可以刷新交付");
@@ -826,6 +847,15 @@ public class MetaAgentExecution {
             jobs.progress(id, "QUEUED", "DELIVER".equals(action) ? "BUILD" : "SPEC", "已请求重试");
             return publicState(state);
         });
+    }
+
+    static boolean canRepairStagingGate(JsonNode state) {
+        return "STAGING_READY".equals(state.path("phase").asText())
+                && "staging".equals(state.path("pipeline").path("env").asText())
+                && "FAILED".equals(state.path("pipeline").path("status").asText())
+                && state.path("pipeline").path("evaluationFailed").asBoolean(false)
+                && state.path("delivery").path("sha").asText().equals(state.path("pipeline").path("sha").asText())
+                && state.path("gateRepairRounds").asInt(0) < 1 && state.path("sandboxAttempts").size() < 20;
     }
 
     public DevflowTypes.Job cancel(String id, String actor) {

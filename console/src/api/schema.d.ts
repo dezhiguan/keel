@@ -3228,7 +3228,11 @@ export interface components {
                 /** Format: uri */
                 runUrl?: string;
                 message?: string;
+                /** @description 可信 CI 确认运行评测失败，允许在 staging 发起有上限的岗位修复 */
+                evaluationFailed?: boolean;
             };
+            /** @description staging 真实门禁失败后的岗位修复窗口次数 */
+            gateRepairRounds?: number;
             /** @description 可信工作流模板刷新次数；每次均重新验证候选 SHA */
             infrastructureRefreshes?: number;
             /** @description 评审阶段岗位功能修正次数；新提交必须重跑沙箱及评审 */

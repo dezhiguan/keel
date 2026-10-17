@@ -58,9 +58,9 @@ def write_snapshot(root, files):
         output.write_text(file["content"], encoding="utf-8")
 
 
-def status(context, run_url, state, message=""):
+def status(context, run_url, state, message="", evaluation_failed=False):
     return api(context["jobId"], context["env"], "status", sha=context["sha"], runUrl=run_url,
-               status=state, message=message)
+               status=state, message=message, evaluationFailed=evaluation_failed)
 
 
 def deploy(context, image):
@@ -124,7 +124,9 @@ def main():
         return
     context = json.loads(context_path.read_text(encoding="utf-8"))
     if args.action == "fail":
-        status(context, args.run_url, "FAILED", "流水线失败，请打开 CI 查看失败步骤并重试")
+        failure = directory / "evaluation-failure.json"
+        message = failure.read_text(encoding="utf-8") if failure.exists() else "流水线失败，请打开 CI 查看失败步骤并重试"
+        status(context, args.run_url, "FAILED", message, failure.exists())
         return
     image = args.image or ""
     if not re.fullmatch(r"[^\s]+@sha256:[0-9a-f]{64}", image):
@@ -139,6 +141,7 @@ def main():
     result = inside(gate_source, {"credentials": credentials(), "context": context, "image": image})
     print(json.dumps({"gate": result}, ensure_ascii=False))
     if not result.get("passed"):
+        (directory / "evaluation-failure.json").write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
         raise RuntimeError("Runtime evaluation failed; release remains blocked")
     if args.env == "prod":
         api(args.job, args.env, "prepare", sha=context["sha"])

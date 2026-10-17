@@ -97,6 +97,8 @@ async def generate(work: dict, ctx) -> dict:
         "PR number、jobId，再按工具契约调用；只写 data.get('repo') 等顶层字段读取会导致"
         "正常用例全部 BLOCKED，属于必须修复的错误。"
         "解析逻辑可以支持多种表述，但不得硬编码评测题的具体标识或答案。"
+        "decision 的含义由 H1 成功标准和 H2 共同决定：完成证据审计与批准业务操作须区分，"
+        "不能额外发明未约定的任务终态要求；已知的失败/取消记录应如实报告，不等同于证据缺失。"
         "不导入网络、文件、进程或厂商 SDK；role.py 只能导入 json/re/typing/collections/datetime。"
         "tests/test_role.py 至少包含一个覆盖岗位正常输入和一个拒绝/失败场景的 test_ 函数，"
         "用假 ctx 测试行为，不能连接真实服务。不要只测试文件存在或字符串常量。"

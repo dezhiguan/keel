@@ -58,7 +58,7 @@ public class DevflowPipelineController {
         String env = body.path("env").asText();
         if ("status".equals(action)) return R.ok(execution.recordPipelineStatus(jobId, env,
                 body.path("sha").asText(), body.path("runUrl").asText(), body.path("status").asText(),
-                body.path("message").asText()));
+                body.path("message").asText(), body.path("evaluationFailed").asBoolean(false)));
         var context = execution.pipelineContext(jobId, env, "context".equals(action) || "prepare".equals(action));
         if (!"context".equals(action) && !context.path("sha").asText().equals(body.path("sha").asText()))
             throw invalid("流水线步骤与当前提交不一致");

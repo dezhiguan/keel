@@ -13,6 +13,22 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.*;
 
 class MetaAgentRulesTest {
+    @Test void gateRepairRequiresExactFailedStagingEvaluationAndStopsAfterOneWindow() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) new ObjectMapper().readTree("""
+                {"phase":"STAGING_READY","delivery":{"sha":"abc"},"pipeline":{"env":"staging",
+                "sha":"abc","status":"FAILED","evaluationFailed":true},"sandboxAttempts":[{}]}
+                """);
+        assertThat(MetaAgentExecution.canRepairStagingGate(state)).isTrue();
+        state.put("gateRepairRounds", 1);
+        assertThat(MetaAgentExecution.canRepairStagingGate(state)).isFalse();
+        state.put("gateRepairRounds", 0).put("phase", "RELEASING");
+        assertThat(MetaAgentExecution.canRepairStagingGate(state)).isFalse();
+        state.put("phase", "STAGING_READY");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("pipeline")).put("evaluationFailed", false);
+        assertThat(MetaAgentExecution.canRepairStagingGate(state)).isFalse();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("pipeline")).put("evaluationFailed", true).put("sha", "old");
+        assertThat(MetaAgentExecution.canRepairStagingGate(state)).isFalse();
+    }
     @Test void reviewSessionCanAutoRepairSeveralCommitsButStopsAtItsCeiling() throws Exception {
         var json = new ObjectMapper();
         var state = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree("""

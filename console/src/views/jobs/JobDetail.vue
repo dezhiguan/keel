@@ -327,6 +327,7 @@ onUnmounted(() => {
             <span v-else>尚未运行</span>
             <span v-if="execution.phase === 'STAGING_READY' || execution.phase === 'RELEASING'">执行</span>
             <button v-if="execution.phase === 'STAGING_READY'" v-write class="btn sm" :disabled="busy || ['DISPATCHED', 'RUNNING'].includes(execution.pipeline?.status || '')" @click="pipeline('staging')">运行 staging 部署与门禁</button>
+            <button v-if="execution.phase === 'STAGING_READY' && execution.pipeline?.status === 'FAILED' && execution.pipeline.evaluationFailed && (execution.gateRepairRounds ?? 0) < 1 && (execution.sandboxAttempts?.length ?? 0) < 20" v-write class="btn sm" :disabled="busy" @click="retry">修复 staging 门禁问题</button>
             <button v-if="execution.phase === 'RELEASING'" v-write class="btn sm" :disabled="busy || ['DISPATCHED', 'RUNNING'].includes(execution.pipeline?.status || '')" @click="pipeline('prod')">运行 prod 门禁并发布</button>
           </div>
           <div v-if="execution.gate" class="kv">

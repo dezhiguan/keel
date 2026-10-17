@@ -32,19 +32,31 @@ def score(expected, answer):
         return 0.0
 
 
-def evaluate(cases, endpoint, env, run_id):
+def evaluate(cases, endpoint, env, run_id, failures=None):
     def one(case):
         data = case.get("input")
         text = data.get("text", "") if isinstance(data, dict) else str(data or "")
         try:
             answer = invoke_text(endpoint, text, eval_run_id=run_id, env=env)
-            return score(case.get("expected"), answer)
+            return score(case.get("expected"), answer), answer
         except Exception:
-            return 0.0
+            return 0.0, ""
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         scores = list(executor.map(one, cases))
     buckets = {}
-    for case, value in zip(cases, scores, strict=True):
+    for case, (value, answer) in zip(cases, scores, strict=True):
+        if value < 1 and failures is not None and len(failures) < 5:
+            try:
+                output = json.loads(answer)
+                if isinstance(output, dict) and isinstance(output.get("output"), dict):
+                    output = output["output"]
+                if not isinstance(output, dict):
+                    output = {}
+            except (TypeError, ValueError):
+                output = {}
+            failures.append({"caseId": case.get("caseId"), "expected": case.get("expected"),
+                             "actualDecision": str(output.get("decision", "NO_VALID_RESULT"))[:40],
+                             "reason": str(output.get("block_reason") or output.get("reason") or "")[:500]})
         for tag in case.get("tags") or ["untagged"]:
             buckets.setdefault(tag, []).append(value)
     return [{"tag": tag, "score": sum(values) / len(values), "count": len(values)}
@@ -57,9 +69,10 @@ def run(config):
     env, job = context["env"], context["jobId"]
     run_id = uuid.uuid4().hex
     endpoint = context["manifest"]["spec"]["runtime"]["endpoint"]
-    visible = evaluate(context["visibleSeeds"], endpoint, env, run_id)
+    failures = []
+    visible = evaluate(context["visibleSeeds"], endpoint, env, run_id, failures)
     if not visible or any(item["score"] < 0.85 for item in visible):
-        return {"passed": False, "phase": "visible", "byTag": visible}
+        return {"passed": False, "phase": "visible", "byTag": visible, "visibleFailures": failures}
     hidden = request(f"/api/v1/devflow/holdout/{job}")["cases"]
     hidden_scores = evaluate(hidden, endpoint, env, run_id)
     result = {"jobId": job, "env": env, "sha": context["sha"], "image": config["image"],
