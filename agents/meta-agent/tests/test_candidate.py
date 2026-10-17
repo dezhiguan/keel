@@ -73,6 +73,48 @@ def test_meta_agent_generates_role_code_from_confirmed_spec():
     assert "spec-agent" in llm.prompts[0][0]["content"]
 
 
+def test_candidate_rejects_dictionary_access_on_sdk_objects_and_string_reply():
+    role = ROLE_CODE.replace(
+        'reply = await ctx.llm.chat([{"role": "user", "content": prompt.compile(input=requirement)}], prompt=prompt)',
+        'tools_spec = ctx.manifest.spec.tools or []\n    for tool in tools_spec:\n        tool.get("name")\n'
+        '    reply = await ctx.llm.chat([{"role": "user", "content": prompt.compile(input=requirement)}], prompt=prompt)\n'
+        '    reply.get("content")')
+    candidate = {"files": [{"path": "role.py", "content": role},
+                           {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
+                           {"path": "tests/test_role.py", "content": TEST_CODE}]}
+    errors = parse(json.dumps(candidate))[1]
+    assert any("tools 条目是对象" in error for error in errors)
+    assert any("chat 未传 tools 时返回字符串" in error for error in errors)
+    candidate["files"][0]["content"] = role.replace('tool.get("name")', "tool.name").replace(
+        'reply.get("content")', "reply")
+    assert parse(json.dumps(candidate))[1] == []
+
+
+def test_candidate_rejects_dictionary_llm_test_double():
+    candidate = {"files": [{"path": "role.py", "content": ROLE_CODE},
+                           {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
+                           {"path": "tests/test_role.py", "content": TEST_CODE + '''
+from unittest.mock import AsyncMock
+
+def test_wrong_llm_double():
+    class Holder: pass
+    self = Holder()
+    self.llm = Holder()
+    self.llm.chat = AsyncMock(return_value={"content": "{}"})
+'''}]}
+    assert any("测试替身必须返回字符串" in error for error in parse(json.dumps(candidate))[1])
+
+
+def test_candidate_rejects_all_paths_blocked_after_h1():
+    candidate = {"files": [{"path": "role.py", "content": ROLE_CODE.replace(
+        'return {"status": "READY", "spec": json.loads(reply)}',
+        'return {"status": "BLOCKED", "spec": json.loads(reply)}')},
+        {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
+        {"path": "tests/test_role.py", "content": TEST_CODE}]}
+    assert any("正常路径不能全部固定返回 BLOCKED" in error
+               for error in parse(json.dumps(candidate))[1])
+
+
 def test_meta_agent_generates_general_agent_from_confirmed_goal():
     candidate = {"files": [{"path": "role.py", "content": ROLE_CODE},
                            {"path": "prompts/role.md", "content": "任务：{{input}}"},

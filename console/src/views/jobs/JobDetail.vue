@@ -239,6 +239,7 @@ onUnmounted(() => {
           <button v-if="execution.phase === 'WAITING_REVIEW' && (execution.infrastructureRefreshes ?? 0) >= 2 && (execution.reviewRepairRounds ?? 0) < 1" v-write class="btn sm" :disabled="busy" @click="retry">修复岗位功能</button>
           <button v-if="execution.phase === 'WAITING_REVIEW' && (execution.infrastructureRefreshes ?? 0) >= 2 && (execution.reviewRepairRounds ?? 0) >= 1 && (execution.sandboxAttempts?.length ?? 0) === 8 && execution.modelReview?.approved !== false" v-write class="btn sm" :disabled="busy" @click="retry">修复候选 CI</button>
           <button v-if="execution.phase === 'WAITING_REVIEW' && (execution.infrastructureRefreshes ?? 0) >= 2 && (execution.reviewRepairRounds ?? 0) >= 1 && (execution.s4RepairRounds ?? 0) === 1 && (execution.sandboxAttempts?.length ?? 0) === 9" v-write class="btn sm" :disabled="busy" @click="retry">刷新候选 CI</button>
+          <button v-if="execution.phase === 'WAITING_REVIEW' && execution.sandboxStatus === 'PASS' && (execution.reviewRepairRounds ?? 0) >= 1 && (execution.s4RepairRounds ?? 0) === 1 && (execution.sandboxAttempts?.length ?? 0) === 10" v-write class="btn sm" :disabled="busy" @click="retry">修复 SDK 调用</button>
           <button v-if="execution.phase === 'WAITING_REVIEW' && execution.humanReview?.approved && execution.humanReview.headSha === execution.delivery?.sha && execution.modelReview?.approved === false && execution.modelReview.sha === execution.delivery?.sha && execution.modelReview.findings?.some(finding => finding.severity === 'HIGH' || finding.severity === 'MID') && (execution.s4RepairRounds ?? 0) < 1 && (execution.sandboxAttempts?.length ?? 0) >= 1 && (execution.sandboxAttempts?.length ?? 0) <= 10" v-write class="btn sm" :disabled="busy" @click="retry">修复 S4 评审问题</button>
         </div>
         <div class="kpis">
@@ -275,7 +276,7 @@ onUnmounted(() => {
           </div>
           <div v-if="execution.sandboxAttempts?.length" class="card">
             <h3>隔离沙箱验证记录 · {{ execution.sandboxAttempts.length }} 次</h3>
-            <p class="mut">岗位代码沙箱修正最多 5 轮；平台模板刷新 {{ execution.infrastructureRefreshes ?? 0 }}/2 次；评审阶段功能修复 {{ execution.reviewRepairRounds ?? 0 }}/1 次；候选 CI 修复 {{ (execution.sandboxAttempts?.length ?? 0) >= 11 || ((execution.s4RepairRounds ? (execution.sandboxAttempts?.length ?? 0) >= 10 : (execution.sandboxAttempts?.length ?? 0) >= 9)) ? 1 : 0 }}/1 次；S4 专项修复 {{ execution.s4RepairRounds ?? 0 }}/1 次。每次均重新验证提交。</p>
+            <p class="mut">岗位代码沙箱修正最多 5 轮；平台模板刷新 {{ execution.infrastructureRefreshes ?? 0 }}/2 次；评审阶段功能修复 {{ execution.reviewRepairRounds ?? 0 }}/1 次；候选 CI 修复 {{ (execution.sandboxAttempts?.length ?? 0) >= 11 || ((execution.s4RepairRounds ? (execution.sandboxAttempts?.length ?? 0) >= 10 : (execution.sandboxAttempts?.length ?? 0) >= 9)) ? 1 : 0 }}/1 次；S4 专项修复 {{ execution.s4RepairRounds ?? 0 }}/1 次；SDK 契约修复 {{ (execution.sandboxAttempts?.length ?? 0) >= 11 ? 1 : 0 }}/1 次。每次均重新验证提交。</p>
             <div v-for="attempt in execution.sandboxAttempts" :key="attempt.runId" class="kv">
               <span>第 {{ attempt.attempt }} 轮</span><b>{{ attempt.status === 'PASS' ? '通过' : '失败' }} · {{ attempt.runId }}</b>
               <span>候选提交</span><span class="mono">{{ attempt.sha }}</span>

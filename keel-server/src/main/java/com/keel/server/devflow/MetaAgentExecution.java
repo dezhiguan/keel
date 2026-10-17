@@ -641,7 +641,9 @@ public class MetaAgentExecution {
                 int reviewRepairs = state.path("reviewRepairRounds").asInt(0);
                 var modelReview = state.path("modelReview");
                 boolean ciRefresh = !infrastructureOnly && !s4Repair && canRefreshCandidateCi(state, attempt);
-                if (!infrastructureOnly && !ciRefresh && !s4Repair && reviewRepairs >= 1)
+                boolean sdkRepair = !infrastructureOnly && !s4Repair && !ciRefresh
+                        && canRepairSdkContract(state, attempt);
+                if (!infrastructureOnly && !ciRefresh && !s4Repair && !sdkRepair && reviewRepairs >= 1)
                     throw invalid("评审阶段岗位功能修复已达到一次上限");
                 var delivery = state.path("delivery");
                 var sha = delivery.path("sha").asText();
@@ -653,10 +655,15 @@ public class MetaAgentExecution {
                 var previous = previousCandidate(json, read(git.fetch(id, repo, sha)));
                 var repair = state.putObject("repair");
                 repair.put("attempt", attempt).put("failedSha", sha).put("infrastructureOnly", infrastructureOnly || ciRefresh)
-                        .put("ciRefresh", ciRefresh).put("s4Repair", s4Repair)
-                        .put("reviewRepair", !infrastructureOnly && !ciRefresh && !s4Repair)
+                        .put("ciRefresh", ciRefresh).put("s4Repair", s4Repair).put("sdkRepair", sdkRepair)
+                        .put("reviewRepair", !infrastructureOnly && !ciRefresh && !s4Repair && !sdkRepair)
                         .put("report", s4Repair
                                 ? modelReview.path("findings").toString()
+                                : sdkRepair
+                                ? "真实 Keel SDK 的 ctx.manifest.spec.tools 条目是对象，不支持 .get()，应读取属性；"
+                                  + "未传 tools= 时 ctx.llm.chat 返回字符串，不支持 .get('content')。"
+                                  + "候选测试须用真实类型或同构替身；H1 已确认，当前正常路径固定返回"
+                                  + " pending_h1_approval/BLOCKED，必须改为按需求输出不同结论，并保留拒绝路径。"
                                 : ciRefresh
                                 ? "候选 CI 的 SDK 版本锁或预检工作流缺失；只补齐交付脚手架，保留岗位代码"
                                 : infrastructureOnly
@@ -665,12 +672,13 @@ public class MetaAgentExecution {
                 repair.set("previousCandidate", previous);
                 if (infrastructureOnly) state.put("infrastructureRefreshes", refreshes + 1);
                 else if (s4Repair) state.put("s4RepairRounds", 1);
-                else if (!ciRefresh) state.put("reviewRepairRounds", reviewRepairs + 1);
+                else if (!ciRefresh && !sdkRepair) state.put("reviewRepairRounds", reviewRepairs + 1);
                 state.remove(List.of("humanReview", "modelReview", "modelReviewTraceId", "sandboxStatus", "sandboxRunId"));
                 state.put("phase", "QUEUED");
                 save(id, state, "DELIVER");
                 jobs.progress(id, "QUEUED", "BUILD", "第 " + attempt + (s4Repair
-                        ? " 轮修复 S4 模型评审问题，重新验证精确提交" : ciRefresh
+                        ? " 轮修复 S4 模型评审问题，重新验证精确提交" : sdkRepair
+                        ? " 轮修复 SDK 运行时调用，重新验证精确提交" : ciRefresh
                         ? " 轮修复候选 CI，重新验证精确提交" : infrastructureOnly
                         ? " 轮刷新候选交付，重新验证精确提交" : " 轮修复岗位功能，重新验证精确提交"));
                 return publicState(state);
@@ -864,6 +872,12 @@ public class MetaAgentExecution {
         return attempt == 9 || (attempt == 10 && state.path("s4RepairRounds").asInt(0) == 1);
     }
 
+    static boolean canRepairSdkContract(JsonNode state, int attempt) {
+        return attempt == 11 && state.path("s4RepairRounds").asInt(0) == 1
+                && state.path("reviewRepairRounds").asInt(0) >= 1
+                && "PASS".equals(state.path("sandboxStatus").asText());
+    }
+
     static boolean canRepairS4(JsonNode state, int attempt) {
         var sha = state.path("delivery").path("sha").asText();
         var review = state.path("modelReview");
@@ -887,6 +901,11 @@ public class MetaAgentExecution {
             return "FAILED".equals(state.path("sandboxStatus").asText())
                     && state.path("sandboxAttempts").size()
                     >= state.path("repair").path("attempt").asInt(9);
+        }
+        if (state.path("repair").path("sdkRepair").asBoolean(false)) {
+            return "FAILED".equals(state.path("sandboxStatus").asText())
+                    && state.path("sandboxAttempts").size()
+                    >= state.path("repair").path("attempt").asInt(11);
         }
         if (state.path("repair").path("reviewRepair").asBoolean(false)) {
             return "FAILED".equals(state.path("sandboxStatus").asText())
