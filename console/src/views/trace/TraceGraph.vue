@@ -124,7 +124,7 @@ const meta = (n: TraceNode): string[] =>
         >
           <div class="gh" :class="{ sel: selected === b.id }" :style="{ color: colorOf(byId[b.id]) }" @click="emit('select', b.id)">
             <span class="dot" :style="{ background: colorOf(byId[b.id]) }" />{{ byId[b.id].name }}
-            <span class="xsvc">跨服务</span>
+            <span v-if="agents[byId[b.id].agentKey!]?.kind === 'sub'" class="xsvc">跨服务</span>
             <small>{{ fmtMs(byId[b.id].durationMs) }} · {{ fmtCny(byId[b.id].costCny) }}</small>
           </div>
           <div class="steps2">

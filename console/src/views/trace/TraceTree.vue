@@ -9,14 +9,15 @@ const props = defineProps<{ detail: TraceDetail; selected: string | null }>()
 const emit = defineEmits<{ select: [id: string] }>()
 
 const agents = computed(() => agentMap(props.detail))
-const rootId = computed(() => (props.detail.nodes ?? []).find((n) => n.aggregated && (n.depth ?? 0) === 0)?.id)
+const rows = computed(() => [...(props.detail.nodes ?? [])].sort((a, b) => (a.startMs ?? 0) - (b.startMs ?? 0) || (a.depth ?? 0) - (b.depth ?? 0)))
+const rootId = computed(() => rows.value.find((n) => n.aggregated && (n.depth ?? 0) === 0)?.id)
 </script>
 
 <template>
   <div class="tree">
     <div class="tr hd"><span>名称</span><span>Langfuse 类型</span><span>智能体</span><span>耗时</span><span>成本</span><span>状态</span></div>
     <div
-      v-for="n in detail.nodes"
+      v-for="n in rows"
       :key="n.id"
       class="tr"
       :class="{ sel: selected === n.id }"
@@ -26,7 +27,7 @@ const rootId = computed(() => (props.detail.nodes ?? []).find((n) => n.aggregate
         <span :style="{ display: 'inline-block', width: `${(n.depth ?? 0) * 18}px` }" />
         <span v-if="n.depth" class="tw">└</span>
         <span>{{ n.name }}</span>
-        <span v-if="n.aggregated && n.id !== rootId" class="xsvc">跨服务</span>
+        <span v-if="n.aggregated && n.id !== rootId && agents[n.agentKey!]?.kind === 'sub'" class="xsvc">跨服务</span>
       </span>
       <span><span class="ot" :class="`ot-${(n.type ?? '').toLowerCase()}`">{{ (n.type ?? '').toLowerCase() }}</span></span>
       <span class="ag" :title="agents[n.agentKey!]?.name"><i class="dot" :style="{ background: agents[n.agentKey!]?.color }" /><span>{{ agents[n.agentKey!]?.name ?? '—' }}</span></span>

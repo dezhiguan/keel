@@ -118,7 +118,7 @@ export function isAgentSpan(node: TraceNode) {
 /** Swimlane bars. Overlapping steps take another row instead of painting on top of each other. */
 export function laneRows(nodes: TraceNode[], agentKey: string) {
   const mine = nodes.filter((node) => node.agentKey === agentKey)
-  const spans = mine.filter((node) => isAgentSpan(node))
+  const spans = mine.filter((node) => isAgentSpan(node) && (node.durationMs ?? 0) > 0)
   const waits = mine.filter((node) => node.humanWaitLabel && !isAgentSpan(node))
   const ends: number[] = []
   const bars = mine
