@@ -285,6 +285,42 @@ def _save(path: Path, value):
     temporary.replace(path)
 
 
+SUPERVISOR_CHILD_WIRING = '''import os
+import httpx
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+
+
+async def _invoke_child(name: str, text: str, budget: dict, trace_id: str):
+    endpoint = f"http://{name}.agents.svc.cluster.local:8000/v1/invoke"
+    headers = {"X-Keel-Agent": name, "X-Keel-Env": os.environ["KEEL_ENV"]}
+    TraceContextTextMapPropagator().inject(headers)
+    async with httpx.AsyncClient(timeout=45) as client:
+        response = await client.post(endpoint, json={"input": {"text": text, "evidenceOnly": True}}, headers=headers)
+        response.raise_for_status()
+    for block in response.text.split("\\n\\n"):
+        if "event: final" not in block:
+            continue
+        for line in block.splitlines():
+            if not line.startswith("data:"):
+                continue
+            answer = json.loads(line[5:].strip()).get("answer")
+            if not isinstance(answer, str) or not answer.strip():
+                raise RuntimeError(f"委派 {name} 返回空结果")
+            try:
+                return json.loads(answer)
+            except json.JSONDecodeError:
+                return answer
+    raise RuntimeError(f"委派 {name} 未返回 final")
+
+
+for _child_name in agent.manifest.spec.delegates or []:
+    agent.child(_child_name)(lambda text, budget, trace_id, name=_child_name:
+                             _invoke_child(name, text, budget, trace_id))
+
+
+'''
+
+
 def _scaffold(project: Path, job_id: str, candidate: dict | None = None):
     """Strip unrelated work-order examples; CI verifies this actual manifest and Python syntax."""
     (project / "tools/checkpoint.py").unlink(missing_ok=True)
@@ -354,6 +390,12 @@ async def run(request, ctx):
 
 app = agent.asgi()
 ''', encoding="utf-8")
+        manifest = yaml.safe_load((project / "agent.yaml").read_text(encoding="utf-8"))
+        if (manifest.get("spec") or {}).get("delegates"):
+            app_file = project / "app.py"
+            source = app_file.read_text(encoding="utf-8")
+            app_file.write_text(source.replace("@agent.entry\n", SUPERVISOR_CHILD_WIRING + "@agent.entry\n", 1),
+                                encoding="utf-8")
         for item in candidate["files"]:
             output = project / item["path"]
             output.parent.mkdir(parents=True, exist_ok=True)

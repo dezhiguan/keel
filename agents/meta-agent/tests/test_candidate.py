@@ -185,6 +185,26 @@ def test_generated_tool_call_requires_actual_runtime_keywords():
     assert any("ci.log.fetch 缺少必需关键字参数" in error and "runId" in error for error in errors)
 
 
+def test_supervisor_scaffold_registers_manifest_children(tmp_path):
+    project = tmp_path / "supervisor-agent"
+    for name in ("tools", "tests", "evals"):
+        (project / name).mkdir(parents=True, exist_ok=True)
+    (project / "requirements.lock").write_text("pytest==9.1.1\n", encoding="utf-8")
+    configured = manifest()
+    configured["metadata"]["name"] = "supervisor-agent"
+    configured["spec"]["delegates"] = ["child-a", "child-b"]
+    (project / "agent.yaml").write_text(yaml.safe_dump(configured, sort_keys=False), encoding="utf-8")
+    candidate = {"files": [{"path": "role.py", "content": ROLE_CODE},
+                           {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
+                           {"path": "tests/test_role.py", "content": TEST_CODE}]}
+    _scaffold(project, "DF-9002", candidate)
+    source = (project / "app.py").read_text(encoding="utf-8")
+    ast.parse(source)
+    assert "for _child_name in agent.manifest.spec.delegates" in source
+    assert "agent.child(_child_name)" in source
+    assert '"event: final"' in source
+
+
 def test_model_authored_role_runs_in_generated_project(tmp_path):
     project = tmp_path / "spec-agent"
     for name in ("tools", "tests", "evals"):

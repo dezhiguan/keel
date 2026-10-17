@@ -54,3 +54,6 @@ keel new --from-spec spec.json
 - 在沙箱里跑 pytest 或协议自检。沙箱没有只读 deploy key，网络策略也不放行装包，生成的项目送不进去。
 - 让模型补业务代码。
 - 建仓库、开 PR（DF-5c）。
+# 协作型项目运行接线
+
+通用 supervisor 独立项目的 `app.py` 必须根据 `agent.yaml` 的 `spec.delegates` 注册 `agent.child` 回调。回调沿用 Keel 集群内子智能体 `/v1/invoke` 协议，传递追踪上下文，读取 final 事件并返回实际 answer；请求失败、无 final 或空 answer 抛错，由岗位代码返回 `BLOCKED`。生成项目需包含自身运行所需的依赖，人工可继续开发该回调。沙箱测试应核对注册逻辑，不得把 manifest 声明误当成可执行委派。

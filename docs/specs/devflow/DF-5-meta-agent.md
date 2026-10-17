@@ -143,3 +143,5 @@ cd sdk-python && ../.venv/bin/python -m pytest tests/test_runtime.py -q
 
 协作型岗位必须按 SDK 真实返回结构检查 `ctx.delegate` 的 `result` 字段；子智能体拒绝、结果缺失或格式异常不得被误判为放行。工具返回值缺少岗位必需证据或状态不明时也必须阻断。
 
+`ctx.delegate` 的 `result` 可是结构化对象，也可是子智能体返回的证据文本。证据文本仅作材料，不是通过结论；空文本或明确失败不能当作发布许可。生成的 supervisor 需要由独立项目的 `app.py` 按 manifest 注册可执行子智能体回调。
+
