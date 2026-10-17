@@ -49,6 +49,8 @@ async def generate(work: dict, ctx) -> dict:
         f"受信 agent.yaml 工具定义：{json.dumps(trusted_tools, ensure_ascii=False)}。"
         "工具风险、访问方式和审批要求只能以受信 agent.yaml 为准；不得从旧候选代码或评审意见反推。"
         "岗位代码若需读取工具定义，使用 ctx.manifest.spec.tools；SDK 不提供 ctx.tools.schema。"
+        "ctx.manifest.spec.tools 的每项是对象，读取 tool.name/tool.risk/tool.access，不能调用 tool.get()；"
+        "测试也必须用具有这些属性的对象模拟工具定义。"
         "不要在 role.py 或提示词里写死与 manifest 冲突的工具风险。"
         f"H2 可见评测用例：{json.dumps(work.get('visibleSeeds') or [], ensure_ascii=False)}。"
         "role.py 必须有 async def execute(data: dict, ctx) -> dict，处理非平凡输入并返回结构化结果。"
@@ -212,10 +214,31 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
     prompt_compiles = []
     llm_calls = []
     prompt_names = set()
+    llm_result_names = set()
+    manifest_tool_names = set()
+    manifest_tool_item_names = set()
+    def is_manifest_tools(node):
+        return (isinstance(node, ast.Attribute) and node.attr == "tools"
+                and isinstance(node.value, ast.Attribute) and node.value.attr == "spec"
+                and isinstance(node.value.value, ast.Attribute) and node.value.value.attr == "manifest"
+                and isinstance(node.value.value.value, ast.Name) and node.value.value.value.id == "ctx")
     for node in ast.walk(role):
         if not isinstance(node, (ast.Assign, ast.AnnAssign)):
             continue
         value = node.value
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        if is_manifest_tools(value) or (isinstance(value, ast.BoolOp)
+                and any(is_manifest_tools(item) for item in value.values)):
+            manifest_tool_names.update(target.id for target in targets if isinstance(target, ast.Name))
+        if (isinstance(value, ast.Await) and isinstance(value.value, ast.Call)
+                and isinstance(value.value.func, ast.Attribute)
+                and value.value.func.attr == "chat"
+                and isinstance(value.value.func.value, ast.Attribute)
+                and value.value.func.value.attr == "llm"
+                and isinstance(value.value.func.value.value, ast.Name)
+                and value.value.func.value.value.id == "ctx"
+                and not any(keyword.arg == "tools" for keyword in value.value.keywords)):
+            llm_result_names.update(target.id for target in targets if isinstance(target, ast.Name))
         if (isinstance(value, ast.Await) and isinstance(value.value, ast.Call)
                 and isinstance(value.value.func, ast.Attribute)
                 and isinstance(value.value.func.value, ast.Name)
@@ -224,8 +247,12 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
                 and len(value.value.args) == 1
                 and isinstance(value.value.args[0], ast.Constant)
                 and value.value.args[0].value == "role"):
-            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
             prompt_names.update(target.id for target in targets if isinstance(target, ast.Name))
+    for node in ast.walk(role):
+        if isinstance(node, (ast.For, ast.AsyncFor)) and isinstance(node.target, ast.Name):
+            if is_manifest_tools(node.iter) or (isinstance(node.iter, ast.Name)
+                    and node.iter.id in manifest_tool_names):
+                manifest_tool_item_names.add(node.target.id)
     for node in ast.walk(role):
         if isinstance(node, ast.Constant) and isinstance(node.value, str) and len(node.value) > 160:
             errors.append("role.py 不得硬编码大段提示词")
@@ -237,6 +264,12 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
                 errors.append("role.py 导入了未经允许的模块")
         elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in FORBIDDEN_CALLS:
             errors.append("role.py 使用了未经允许的执行/文件函数")
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "get" and isinstance(node.func.value, ast.Name)):
+            if node.func.value.id in llm_result_names:
+                errors.append("ctx.llm.chat 未传 tools 时返回字符串，不能调用 .get()")
+            if node.func.value.id in manifest_tool_item_names:
+                errors.append("ctx.manifest.spec.tools 条目是对象，不能调用 .get()")
         if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                 and isinstance(node.func.value, ast.Name) and node.func.value.id == "re"
                 and node.func.attr in ("search", "match", "fullmatch", "compile")
@@ -294,6 +327,15 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
         if llm_calls and not any("prompt" in keywords for keywords in llm_calls):
             errors.append("多工具岗位调用 ctx.llm.chat 时必须传入 prompt=prompt 记录提示词版本")
     tests = trees["tests/test_role.py"]
+    if any(isinstance(node, ast.Assign)
+           and any(isinstance(target, ast.Attribute) and target.attr == "chat"
+                   and isinstance(target.value, ast.Attribute) and target.value.attr == "llm"
+                   for target in node.targets)
+           and isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name)
+           and node.value.func.id == "AsyncMock"
+           and any(keyword.arg == "return_value" and isinstance(keyword.value, ast.Dict)
+                   for keyword in node.value.keywords) for node in ast.walk(tests)):
+        errors.append("ctx.llm.chat 测试替身必须返回字符串，不能返回字典")
     if any(isinstance(node, ast.keyword) and node.arg == "compile"
            and isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name)
            and node.value.func.id == "AsyncMock" for node in ast.walk(tests)):

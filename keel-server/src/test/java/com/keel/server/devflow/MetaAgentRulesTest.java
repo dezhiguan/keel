@@ -111,6 +111,24 @@ class MetaAgentRulesTest {
                 """);
         assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(failed)).isTrue();
     }
+    @Test void sdkContractRepairIsBoundedToEleventhCandidate() throws Exception {
+        var json = new ObjectMapper();
+        var state = json.readTree("""
+                {"s4RepairRounds":1,"reviewRepairRounds":1,"sandboxStatus":"PASS"}
+                """);
+        assertThat(MetaAgentExecution.canRepairSdkContract(state, 11)).isTrue();
+        assertThat(MetaAgentExecution.canRepairSdkContract(state, 12)).isFalse();
+        assertThat(MetaAgentExecution.canRepairSdkContract(json.readTree("""
+                {"s4RepairRounds":1,"reviewRepairRounds":1,"sandboxStatus":"FAILED"}
+                """), 11)).isFalse();
+        assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(json.readTree("""
+                {"sandboxAttempts":[{},{},{},{},{},{},{},{},{},{}],"repair":{"sdkRepair":true,"attempt":11}}
+                """))).isFalse();
+        assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(json.readTree("""
+                {"sandboxAttempts":[{},{},{},{},{},{},{},{},{},{},{}],"sandboxStatus":"FAILED",
+                 "repair":{"sdkRepair":true,"attempt":11}}
+                """))).isTrue();
+    }
     @Test void platformSmokeMismatchNeedsExactCurrentShaAndKnownFailure() throws Exception {
         var json = new ObjectMapper();
         var state = json.readTree("""
