@@ -636,10 +636,10 @@ public class MetaAgentExecution {
                 }
                 int attempt = state.path("sandboxAttempts").size() + 1;
                 int refreshes = state.path("infrastructureRefreshes").asInt(0);
-                boolean infrastructureOnly = canRefreshInfrastructure(refreshes);
+                boolean s4Repair = canRepairS4(state, attempt);
+                boolean infrastructureOnly = !s4Repair && canRefreshInfrastructure(refreshes);
                 int reviewRepairs = state.path("reviewRepairRounds").asInt(0);
                 var modelReview = state.path("modelReview");
-                boolean s4Repair = !infrastructureOnly && canRepairS4(state, attempt);
                 boolean ciRefresh = !infrastructureOnly && !s4Repair && canRefreshCandidateCi(state, attempt);
                 if (!infrastructureOnly && !ciRefresh && !s4Repair && reviewRepairs >= 1)
                     throw invalid("评审阶段岗位功能修复已达到一次上限");
@@ -867,7 +867,7 @@ public class MetaAgentExecution {
     static boolean canRepairS4(JsonNode state, int attempt) {
         var sha = state.path("delivery").path("sha").asText();
         var review = state.path("modelReview");
-        return (attempt == 9 || attempt == 11) && state.path("s4RepairRounds").asInt(0) == 0
+        return attempt >= 2 && attempt <= 11 && state.path("s4RepairRounds").asInt(0) == 0
                 && !sha.isBlank()
                 && sha.equals(state.path("humanReview").path("headSha").asText())
                 && sha.equals(review.path("sha").asText())
@@ -881,7 +881,7 @@ public class MetaAgentExecution {
     static boolean sandboxLimitBlocksRetry(JsonNode state) {
         if (state.path("repair").path("s4Repair").asBoolean(false)) {
             return "FAILED".equals(state.path("sandboxStatus").asText())
-                    && state.path("sandboxAttempts").size() >= state.path("repair").path("attempt").asInt(9);
+                    && state.path("sandboxAttempts").size() >= sandboxAttemptLimit(state);
         }
         if (state.path("repair").path("ciRefresh").asBoolean(false)) {
             return "FAILED".equals(state.path("sandboxStatus").asText())

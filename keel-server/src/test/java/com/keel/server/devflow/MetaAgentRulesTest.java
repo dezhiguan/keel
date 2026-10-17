@@ -89,8 +89,9 @@ class MetaAgentRulesTest {
                  "modelReview":{"sha":"aaaa","approved":false,
                    "findings":[{"severity":"HIGH"}]},"s4RepairRounds":0}
                 """);
+        assertThat(MetaAgentExecution.canRepairS4(state, 2)).isTrue();
         assertThat(MetaAgentExecution.canRepairS4(state, 9)).isTrue();
-        assertThat(MetaAgentExecution.canRepairS4(state, 8)).isFalse();
+        assertThat(MetaAgentExecution.canRepairS4(state, 1)).isFalse();
         ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("modelReview").path("findings").get(0))
                 .put("severity", "LOW");
         assertThat(MetaAgentExecution.canRepairS4(state, 9)).isFalse();
