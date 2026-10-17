@@ -200,7 +200,8 @@ def _deliver(work):
                                  10 if repair.get("ciRefresh") is True else
                                  8 if repair.get("reviewRepair") is True else
                                  7 if repair.get("infrastructureOnly") is True else ordinary_limit):
-        raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "沙箱修正轮次无效")
+        raise KeelError(ErrorCode.SERVER_INVALID_PARAM,
+                        f"沙箱修正轮次无效，含模板刷新最多 {ordinary_limit} 轮")
     if attempt > 1:
         failed_sha = repair.get("failedSha")
         fresh = not state

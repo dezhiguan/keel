@@ -822,7 +822,8 @@ public class MetaAgentExecution {
                                 state.put("phase", "FAILED").put("error", attempt >= sandboxAttemptLimit(state)
                                         ? "五轮岗位代码修复额度已耗尽，候选不可交付" : "隔离沙箱未完成岗位测试，候选不可交付");
                                 save(id, state, "DELIVER");
-                                jobs.progress(id, "FAIL", "BUILD", "第 " + attempt + " 轮沙箱失败，修复循环已停止");
+                                jobs.progress(id, "FAIL", "BUILD", "第 " + attempt + " 轮沙箱失败，当前上限 "
+                                        + sandboxAttemptLimit(state) + " 轮，修复循环已停止");
                             }
                         } catch (RuntimeException error) {
                             var message = error instanceof KeelException keelError
