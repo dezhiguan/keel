@@ -173,6 +173,11 @@ class GitHub:
                 raise GitHubError(409, "Human changes on draft; refusing to overwrite")
             if expected_sha is not None:
                 if expected_sha != sha:
+                    parents = commit.get("parents") or []
+                    if len(parents) == 1 and parents[0].get("sha") == expected_sha:
+                        # The previous compare-and-swap succeeded but its response was lost.
+                        # Adopt this commit for fresh tests/review; never overwrite its contents.
+                        return {"repo": f"{self.org}/{repo}", "branch": "draft", "sha": sha, "recovered": True}
                     raise GitHubError(409, "Draft head changed; refusing to overwrite")
                 return self._push_from_parent(repo, "draft", message, files, sha, commit["tree"]["sha"])
             return {"repo": f"{self.org}/{repo}", "branch": "draft", "sha": sha}
@@ -218,8 +223,7 @@ class GitHub:
         root = f"/repos/{self.org}/{repo}"
         tree = []
         for item in files:
-            blob = self.request("POST", root + "/git/blobs", {"content": item["content"], "encoding": "utf-8"})
-            tree.append({"path": item["path"], "mode": "100644", "type": "blob", "sha": blob["sha"]})
+            tree.append({"path": item["path"], "mode": "100644", "type": "blob", "content": item["content"]})
         try:
             return self.request("POST", root + "/git/trees", {"base_tree": base_tree, "tree": tree})
         except GitHubError as exc:

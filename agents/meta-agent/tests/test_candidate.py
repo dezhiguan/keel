@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 
+import pytest
 import yaml
 
 from candidate import generate, parse, snapshot_errors
@@ -416,3 +417,18 @@ def test_generated_entry_accepts_visible_seed_text_and_json_object(tmp_path):
     import pytest
     with pytest.raises(KeelError):
         asyncio.run(namespace["run"](Request("[1,2]"), Ctx()))
+
+
+def test_repair_patch_preserves_unchanged_files_and_requires_unique_anchors():
+    from candidate import expand_repair_edits
+    previous = {"files": [{"path": "role.py", "content": "first\nsecond\n"},
+                           {"path": "prompts/role.md", "content": "prompt"},
+                           {"path": "tests/test_role.py", "content": "tests"}]}
+    raw = json.dumps({"edits": [{"path": "role.py", "old": "second", "new": "fixed"}]})
+    result = {item["path"]: item["content"] for item in json.loads(expand_repair_edits(raw, previous))["files"]}
+    assert result == {"role.py": "first\nfixed\n", "prompts/role.md": "prompt", "tests/test_role.py": "tests"}
+    for edit in [{"path": "../app.py", "old": "first", "new": "bad"},
+                 {"path": "role.py", "old": "missing", "new": "bad"},
+                 {"path": "role.py", "old": "\n", "new": "bad"}]:
+        with pytest.raises(ValueError):
+            expand_repair_edits(json.dumps({"edits": [edit]}), previous)

@@ -13,6 +13,18 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.*;
 
 class MetaAgentRulesTest {
+    @Test void onlyExplicitClarificationCanOpenOneNewFailedWindowWithinAbsoluteLimit() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) new ObjectMapper().readTree("""
+                {"phase":"FAILED","sandboxStatus":"FAILED","repair":{"maxAttempts":1},
+                "delivery":{"sha":"abc"},"sandboxAttempts":[{"sha":"abc","report":"sha=abc snapshot=ok tests=FAIL"}]}
+                """);
+        assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isFalse();
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
+        state.put("manualRepairWindows", 1);
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
+        state.put("manualRepairWindows", 0).put("phase", "RELEASING");
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
+    }
     @Test void developerFeedbackCannotExtendOrReopenAnExhaustedRepairWindow() throws Exception {
         var state = (com.fasterxml.jackson.databind.node.ObjectNode) new ObjectMapper().readTree("""
                 {"phase":"WAITING_REVIEW","sandboxStatus":"PASS","repair":{"maxAttempts":3},"sandboxAttempts":[{},{}]}

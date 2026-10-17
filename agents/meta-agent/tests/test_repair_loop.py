@@ -166,6 +166,9 @@ def test_retry_reuses_validated_candidate_after_push_but_before_pr_result(tmp_pa
     assert asyncio.run(workflow.execute({**work(saved, repair), "action": "DELIVER"}, Ctx())) == {"sha": SHA_B}
     assert _cached_delivery_candidate(work(saved, {**repair, "attempt": 10})) is None
     checkpoint.write_text(json.dumps({"attempt": 9, "expectedSha": SHA_A,
+                                      "candidate": saved}), encoding="utf-8")
+    assert _cached_delivery_candidate(work(saved, repair)) == saved
+    checkpoint.write_text(json.dumps({"attempt": 9, "expectedSha": SHA_A,
                                       "push": {"sha": "invalid"}, "candidate": saved}), encoding="utf-8")
     assert _cached_delivery_candidate(work(saved, repair)) is None
 

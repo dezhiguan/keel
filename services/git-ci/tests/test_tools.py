@@ -157,12 +157,37 @@ def test_agent_fix_commit_uses_compare_and_swap_without_overwriting_human_change
     tree_payload = next(payload for method, path, payload in github.calls
                         if method == "POST" and path.endswith("/git/trees"))
     assert tree_payload["base_tree"] == "old-tree"
+    assert tree_payload["tree"] == [{"path": "app.py", "mode": "100644", "type": "blob", "content": "updated"}]
+    assert not any(path.endswith("/git/blobs") for _, path, _ in github.calls)
     assert ("PATCH", "/repos/keel-agents/qa/git/refs/heads/draft",
             {"sha": "b" * 40, "force": False}) in github.calls
     with pytest.raises(GitHubError, match="Draft head changed"):
         Fix(head="c" * 40).push_scaffold("qa", "DF-9001", "fix", [], expected_sha="a" * 40)
     with pytest.raises(GitHubError, match="Human changes"):
         Fix(message="Human edit").push_scaffold("qa", "DF-9001", "fix", [], expected_sha="a" * 40)
+
+
+def test_lost_push_response_recovers_only_direct_task_commit_without_writing():
+    class Lost(GitHub):
+        def __init__(self, parent="a" * 40, message="Keel build DF-9001: fix"):
+            super().__init__("http://unused", "test")
+            self.parent, self.message = parent, message
+        def request(self, method, path, payload=None, **kwargs):
+            assert method == "GET" or (method == "PUT" and path.endswith(("/protection", "/permissions", "/workflow"))), "Recovery must not rewrite the branch"
+            if path.endswith("/qa"):
+                return {"description": "keel-devflow:DF-9001", "private": True}
+            if path.endswith("/git/ref/heads/draft"):
+                return {"object": {"sha": "b" * 40}}
+            if "/git/commits/" in path:
+                return {"message": self.message, "parents": [{"sha": self.parent}]}
+            return {}
+
+    result = Lost().push_scaffold("qa", "DF-9001", "retry", [], expected_sha="a" * 40)
+    assert result["sha"] == "b" * 40 and result["recovered"] is True
+    with pytest.raises(GitHubError, match="Draft head changed"):
+        Lost(parent="c" * 40).push_scaffold("qa", "DF-9001", "retry", [], expected_sha="a" * 40)
+    with pytest.raises(GitHubError, match="Human changes"):
+        Lost(message="Human edit").push_scaffold("qa", "DF-9001", "retry", [], expected_sha="a" * 40)
 
 
 def test_scaffold_pr_is_created_as_a_draft_and_ready_repair_reuses_same_pr():

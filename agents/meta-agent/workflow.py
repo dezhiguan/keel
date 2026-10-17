@@ -201,7 +201,7 @@ async def review_candidate(work, ctx):
 
 
 def _cached_delivery_candidate(work):
-    """Reuse a validated candidate after Git push succeeded but PR lookup failed."""
+    """Reuse the persisted candidate when retrying this exact delivery attempt."""
     from tools.state import folder
     repair = work.get("repair") or {}
     job_id = work.get("jobId")
@@ -217,7 +217,8 @@ def _cached_delivery_candidate(work):
         return None
     if (state.get("attempt") != repair.get("attempt")
             or state.get("expectedSha") != repair.get("failedSha")
-            or not re.fullmatch(r"[0-9a-f]{40}", str((state.get("push") or {}).get("sha") or ""))):
+            or (state.get("push") is not None and not re.fullmatch(
+                r"[0-9a-f]{40}", str(state["push"].get("sha") or "")))):
         return None
     candidate = state.get("candidate")
     if not isinstance(candidate, dict):
@@ -342,6 +343,8 @@ def _deliver(work):
                   "capabilityStatus": "UNVERIFIED" if functional else "SCAFFOLD",
                   "gateStatus": "NOT_RUN",
                   "url": opened.get("url") or f"https://github.com/{opened['repo']}/pull/{opened['number']}"}
+        if state["push"].get("recovered"):
+            result.pop("runtimeAdapterVersion", None)
         state["result"] = result
         _save(checkpoint, state)
         return result

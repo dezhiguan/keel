@@ -3221,8 +3221,12 @@ export interface components {
             sandboxAttemptLimit?: number;
             /** @description 协作候选缺少当前运行适配，可以保留岗位代码更新模板并重新验证审批 */
             runtimeAdapterUpdateAvailable?: boolean;
-            /** @description 当前修复窗口仍有验证额度，可补充修复说明后重新生成 */
+            /** @description 当前任务可接受开发者补充澄清后继续修复 */
             repairFeedbackAvailable?: boolean;
+            /** @description 原自动窗口已耗尽，本次明确澄清将主动开启一次最多五轮的新窗口，累计上限二十轮 */
+            repairFeedbackCreatesWindow?: boolean;
+            /** @description 开发者补充澄清后主动开启的新修复窗口次数 */
+            manualRepairWindows?: number;
             pipeline?: {
                 /** @enum {string} */
                 env?: "staging" | "prod";
@@ -5941,7 +5945,7 @@ export interface operations {
         requestBody?: {
             content: {
                 "application/json": {
-                    /** @description 在现有修复窗口内补充开发者澄清 */
+                    /** @description 开发者补充明确澄清；在已有额度内继续，或按任务可用性主动开启一次五轮窗口，累计上限二十 */
                     feedback?: string;
                 };
             };
