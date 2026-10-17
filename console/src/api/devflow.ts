@@ -121,6 +121,6 @@ export function getDevflowExecution(jobId: string) {
 export function decideDevflowRequirement(jobId: string, body: components['schemas']['DevflowRequirementDecision']) {
   return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/requirement`, body)
 }
-export function retryDevflowExecution(jobId: string) {
-  return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/retry`)
+export function retryDevflowExecution(jobId: string, feedback?: string) {
+  return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/retry`, feedback ? { feedback } : undefined)
 }

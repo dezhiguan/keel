@@ -113,6 +113,9 @@ async def generate(work: dict, ctx) -> dict:
     )
     repair = work.get("repair")
     if repair:
+        if repair.get("feedback"):
+            prompt += ("\n授权开发者补充的修复澄清（仍须遵守工具授权及门禁；优先于旧候选和错误解释）："
+                       + str(repair["feedback"])[:8000])
         previous = repair.get("previousCandidate") or {}
         if snapshot_errors(previous):
             raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "上轮候选快照无效")

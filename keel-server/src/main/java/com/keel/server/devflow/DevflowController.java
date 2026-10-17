@@ -113,8 +113,9 @@ public class DevflowController {
     }
 
     @PostMapping("/jobs/{jobId}/retry")
-    public R<com.fasterxml.jackson.databind.node.ObjectNode> retry(@PathVariable String jobId) {
-        return R.ok(execution.retry(jobId));
+    public R<com.fasterxml.jackson.databind.node.ObjectNode> retry(@PathVariable String jobId,
+            @RequestBody(required=false) com.fasterxml.jackson.databind.JsonNode body) {
+        return R.ok(execution.retry(jobId, body == null ? null : body.path("feedback").asText(null)));
     }
 
     @PostMapping("/jobs/{jobId}/seed-cases")

@@ -2286,6 +2286,14 @@ paths:
   /devflow/jobs/{jobId}/retry:
     post:
       operationId: retryDevflowExecution
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                feedback: { type: string, maxLength: 8000, description: 在现有修复窗口内补充开发者澄清 }
       tags: [devflow]
       parameters:
         - { name: jobId, in: path, required: true, schema: { type: string } }
@@ -4291,6 +4299,7 @@ components:
         sandboxStatus: { type: string, enum: [PASS, FAILED] }
         sandboxAttemptLimit: { type: integer, minimum: 1, maximum: 20, description: 当前有上限的沙箱修复窗口终点 }
         runtimeAdapterUpdateAvailable: { type: boolean, description: 协作候选缺少当前运行适配，可以保留岗位代码更新模板并重新验证审批 }
+        repairFeedbackAvailable: { type: boolean, description: 当前修复窗口仍有验证额度，可补充修复说明后重新生成 }
         pipeline:
           type: object
           properties:

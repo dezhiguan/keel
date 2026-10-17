@@ -54,7 +54,7 @@ const loading = ref(false)
 const missing = ref(false)
 const busy = ref(false)
 const tab = ref<'progress' | 'artifacts' | 'links'>('progress')
-const modal = ref<'takeover' | 'assist' | 'cancel' | null>(null)
+const modal = ref<'takeover' | 'assist' | 'cancel' | 'feedback' | null>(null)
 const instruction = ref('')
 const manifestOpen = ref(false)
 const concurrency = ref(3)
@@ -186,6 +186,17 @@ function confirmAssist() {
   run(() => assistDevflowJob(job.value!.jobId, instruction.value), '已发给 dev-agent')
 }
 
+async function confirmFeedback() {
+  busy.value = true
+  try {
+    execution.value = await retryDevflowExecution(jobId.value, instruction.value.trim())
+    modal.value = null
+    await load(true)
+    ElMessage.success('已在原有修复额度内继续生成')
+  } catch (error) { ElMessage.error(toKeelError(error).message) }
+  finally { busy.value = false }
+}
+
 function openArtifact(kind: string) {
   if (kind === 'MANIFEST') {
     manifestOpen.value = true
@@ -250,6 +261,7 @@ onUnmounted(() => {
           <span>{{ execution.error || '元智能体生产任务；沙箱、H2/H3、人工评审、staging 门禁、H4 与发布须逐项完成。' }}</span>
           <button v-if="canRetryCurrentExecution" v-write class="btn sm" :disabled="busy" :title="execution.error?.startsWith('五轮') ? '模板刷新不占五轮岗位代码修复额度' : undefined" @click="retry">重试执行</button>
           <button v-if="execution.runtimeAdapterUpdateAvailable" v-write class="btn sm" :disabled="busy" @click="retry">更新运行适配</button>
+          <button v-if="execution.repairFeedbackAvailable" v-write class="btn sm" :disabled="busy" @click="instruction = ''; modal = 'feedback'">补充修复说明</button>
           <button v-if="execution.phase === 'WAITING_REVIEW' && (execution.infrastructureRefreshes ?? 0) < 2" v-write class="btn sm" :disabled="busy" @click="retry">刷新候选交付</button>
           <button v-if="execution.phase === 'WAITING_REVIEW' && (execution.infrastructureRefreshes ?? 0) >= 2 && (execution.reviewRepairRounds ?? 0) < 1" v-write class="btn sm" :disabled="busy" @click="retry">修复岗位功能</button>
           <button v-if="execution.phase === 'WAITING_REVIEW' && (execution.infrastructureRefreshes ?? 0) >= 2 && (execution.reviewRepairRounds ?? 0) >= 1 && (execution.sandboxAttempts?.length ?? 0) === 8 && execution.modelReview?.approved !== false" v-write class="btn sm" :disabled="busy" @click="retry">修复候选 CI</button>
@@ -527,6 +539,18 @@ onUnmounted(() => {
       <div class="mf">
         <button class="btn" type="button" @click="modal = null">取消</button>
         <button class="btn pri" type="button" :disabled="busy" @click="confirmAssist">发给 dev-agent</button>
+      </div>
+    </div>
+    <div v-if="modal === 'feedback'" class="modal on" role="dialog" aria-label="补充修复说明">
+      <div class="mh">补充修复说明</div>
+      <div class="mb">
+        <p>在现有修复窗口内继续生成，新提交需要重新测试和审批。</p>
+        <label>明确需要修正的行为或业务含义</label>
+        <textarea v-model="instruction" class="inp" maxlength="8000" placeholder="说明实际结果、期望行为及需要保留的要求" />
+      </div>
+      <div class="mf">
+        <button class="btn" type="button" @click="modal = null">取消</button>
+        <button v-write class="btn pri" type="button" :disabled="busy || !instruction.trim()" @click="confirmFeedback">继续修复</button>
       </div>
     </div>
     <div v-if="modal === 'cancel'" class="modal on" role="dialog" aria-label="取消任务">

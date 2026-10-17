@@ -3221,6 +3221,8 @@ export interface components {
             sandboxAttemptLimit?: number;
             /** @description 协作候选缺少当前运行适配，可以保留岗位代码更新模板并重新验证审批 */
             runtimeAdapterUpdateAvailable?: boolean;
+            /** @description 当前修复窗口仍有验证额度，可补充修复说明后重新生成 */
+            repairFeedbackAvailable?: boolean;
             pipeline?: {
                 /** @enum {string} */
                 env?: "staging" | "prod";
@@ -5936,7 +5938,14 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 在现有修复窗口内补充开发者澄清 */
+                    feedback?: string;
+                };
+            };
+        };
         responses: {
             /** @description 持久化的元智能体执行状态；未接入的旧任务返回 null */
             200: {
