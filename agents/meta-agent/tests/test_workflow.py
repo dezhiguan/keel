@@ -69,7 +69,8 @@ def test_bootstrap_review_receives_trusted_tool_risk():
 
     class Llm:
         async def chat(self, messages, **kwargs):
-            assert '"trustedTools": [{"name": "devflow.stage.report", "risk": "low"' in messages[0]["content"]
+            assert messages[0]["role"] == "system"
+            assert '"trustedTools": [{"name": "devflow.stage.report", "risk": "low"' in messages[1]["content"]
             return json.dumps({"approved": True, "checks": checks, "findings": []})
 
     class Ctx:
@@ -106,7 +107,8 @@ def test_bootstrap_review_rechecks_findings_against_original_contract_and_source
 
     class Llm:
         async def chat(self, messages, **kwargs):
-            calls.append(messages[0]["content"])
+            assert [m["role"] for m in messages] == ["system", "user"]
+            calls.append(messages[1]["content"])
             if len(calls) == 1:
                 return json.dumps({"approved": False, "checks": {**checks, "behaviorTests": False},
                                    "findings": [{"path": "role.py", "line": 1, "severity": "HIGH",
@@ -114,6 +116,10 @@ def test_bootstrap_review_rechecks_findings_against_original_contract_and_source
             assert '"trustedSpec": {"io": "return evidence"}' in calls[-1]
             assert "unsupported initial claim" in calls[-1]
             assert '"role.py": "pass\\n"' in calls[-1]
+            data = json.loads(calls[-1])
+            assert data["numberedFiles"]["role.py"] == "1: pass"
+            assert data["unverifiedFindings"][0]["detail"] == "unsupported initial claim"
+            assert "混淆模型与岗位输出契约" in messages[0]["content"]
             return json.dumps({"approved": True, "checks": checks, "findings": []})
 
     request = {**work(), "action": "REVIEW", "delivery": {"sha": "a" * 40},
