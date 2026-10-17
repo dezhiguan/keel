@@ -80,8 +80,9 @@ public class AgentRegistryService {
         }
         var versions = versionMapper.latestByAgent(scope).stream()
                 .collect(Collectors.toMap(AgentVersion::getAgentName, Function.identity(), (left, right) -> left));
+        query.orderByDesc(Agent::getCreatedAt).orderByAsc(Agent::getName);
         var matched = new ArrayList<AgentSummary>();
-        for (var agent : agentMapper.selectList(query.orderByAsc(Agent::getName))) {
+        for (var agent : agentMapper.selectList(query)) {
             var version = versions.get(agent.getName());
             var summary = AgentSummary.of(agent, version, null, readManifest(version));
             if (category != null && !"all".equals(category) && !category.equals(summary.category())) {

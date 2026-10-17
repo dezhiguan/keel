@@ -40,9 +40,8 @@ const shown = computed(() => {
     return `${card.displayName} ${card.name} ${card.description}`.toLowerCase().includes(q)
   })
 })
-const ordered = computed(() => [...shown.value].reverse())
-const pageRows = computed(() => ordered.value.slice((filter.page - 1) * filter.size, filter.page * filter.size))
-const showCreate = computed(() => filter.page === Math.max(1, Math.ceil(ordered.value.length / filter.size)))
+const pageRows = computed(() => shown.value.slice((filter.page - 1) * filter.size, filter.page * filter.size))
+const showCreate = computed(() => filter.page === Math.max(1, Math.ceil(shown.value.length / filter.size)))
 const registered = computed(() => result.value?.total ?? 0)
 
 function open(name?: string) {
