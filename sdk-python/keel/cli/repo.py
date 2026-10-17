@@ -50,7 +50,7 @@ def _post(base: str, tool: str, body: dict) -> dict:
     token = os.environ.get("KEEL_GIT_CI_TOKEN", "").strip()
     headers = {"Authorization": "Bearer " + token} if token else {}
     # Job-scoped Git operations are idempotent on the server; a lost response can be retried.
-    attempts = 3 if body.get("jobId") else 1
+    attempts = 8 if body.get("jobId") else 1
     for attempt in range(attempts):
         try:
             response = httpx.post(f"{base}/v1/tools/{tool}", json=body, headers=headers, timeout=60)
@@ -58,7 +58,7 @@ def _post(base: str, tool: str, body: dict) -> dict:
         except httpx.TransportError:
             if attempt + 1 == attempts:
                 raise
-            time.sleep(0.2 * (attempt + 1))
+            time.sleep(min(0.5 * (attempt + 1), 2.0))
     try:
         payload = response.json()
     except ValueError:

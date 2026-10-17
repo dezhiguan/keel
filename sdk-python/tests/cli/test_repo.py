@@ -77,6 +77,22 @@ def test_job_scoped_git_write_retries_lost_connections_without_repeating_legacy_
     assert len(calls) == 3
 
 
+def test_job_scoped_git_write_survives_seven_transient_disconnects(monkeypatch):
+    import httpx
+    calls = []
+
+    def unstable_post(url, **kwargs):
+        calls.append(url)
+        if len(calls) < 8:
+            raise httpx.ConnectError('connection refused')
+        return httpx.Response(200, json={'sha': 'a' * 40})
+
+    monkeypatch.setattr(httpx, 'post', unstable_post)
+    monkeypatch.setattr('keel.cli.repo.time.sleep', lambda _: None)
+    assert _post('http://git-ci', 'git.branch.push', {'jobId': 'DF-9001'})['sha'] == 'a' * 40
+    assert len(calls) == 8
+
+
 def test_opens_a_draft_pull_request_and_does_not_merge(tmp_path, monkeypatch):
     project = tmp_path / "spec-agent"
     project.mkdir()

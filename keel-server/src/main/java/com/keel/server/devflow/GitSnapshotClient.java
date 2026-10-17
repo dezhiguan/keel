@@ -52,13 +52,13 @@ public class GitSnapshotClient {
                     .header("Authorization", "Bearer " + token)
                     .POST(HttpRequest.BodyPublishers.ofString(body)).build();
             HttpResponse<String> response = null;
-            for (int attempt = 0; attempt < 3; attempt++) {
+            for (int attempt = 0; attempt < 8; attempt++) {
                 try {
                     response = http.send(request, HttpResponse.BodyHandlers.ofString());
                     break;
                 } catch (IOException error) {
-                    if (attempt == 2) throw error;
-                    Thread.sleep(500L * (attempt + 1));
+                    if (attempt == 7) throw error;
+                    Thread.sleep(Math.min(500L * (attempt + 1), 2000L));
                 }
             }
             if (response.statusCode() != 200) {
