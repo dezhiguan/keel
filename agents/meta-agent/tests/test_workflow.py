@@ -119,6 +119,8 @@ def test_bootstrap_review_rechecks_findings_against_original_contract_and_source
             data = json.loads(calls[-1])
             assert data["numberedFiles"]["role.py"] == "1: pass"
             assert data["unverifiedFindings"][0]["detail"] == "unsupported initial claim"
+            assert data["runtimeContract"]["executeResult"]["additionalProperties"] is True
+            assert data["runtimeContract"]["promptOutputScope"].startswith("ctx.llm.chat response only")
             assert "混淆模型与岗位输出契约" in messages[0]["content"]
             return json.dumps({"approved": True, "checks": checks, "findings": []})
 

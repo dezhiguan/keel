@@ -168,9 +168,17 @@ async def review_candidate(work, ctx):
               "模型仅返回 decision 与 execute 附加工具证据/子智能体结果/步骤完全兼容。"
               "检查 json.loads 后具体构造的 return，不能声称返回了原始 parsed 对象。"
               "测试的 expected decision 不表示必须严格相等整个返回对象。"
+              "平台 execute 返回契约是对象且 additionalProperties=true；门禁只比较 decision 字段，"
+              "不是整个对象相等。不存在因附加 evidence_sources 等键就导致 decision 无法读取的消费者。"
+              "协作岗位 H1 明确要求返回证据/委派结果/步骤；提示词要求模型只输出 decision 是内部调用格式。"
+              "这不是待推断的业务含义，不得用候选提示词反向修改平台协议或人工确认的输出需求。"
               "行号以 numberedFiles 为准，逐项核对触发路径，不能把早退分支当成函数末尾分支。")
     data = {"sha": sha, "trustedTools": trusted_tools,
-            "trustedSpec": (work.get("draft") or {}).get("spec") or {}, "files": files,
+            "trustedSpec": (work.get("draft") or {}).get("spec") or {},
+            "runtimeContract": {"executeResult": {"type": "object", "additionalProperties": True},
+                                "decisionGate": "compare result.decision only; additional keys are allowed",
+                                "promptOutputScope": "ctx.llm.chat response only, before execute assembles its result"},
+            "files": files,
             "numberedFiles": {path: "\n".join(f"{i}: {line}" for i, line in enumerate(content.splitlines(), 1))
                               for path, content in files.items()}}
     instructions = prompt
