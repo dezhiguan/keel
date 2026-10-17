@@ -37,7 +37,7 @@ async def execute(work, ctx):
                 if snapshot_errors(candidate):
                     raise KeelError(ErrorCode.AGENT_MANIFEST_INVALID, "原候选岗位代码已失效")
             else:
-                candidate = await generate_candidate(work, ctx)
+                candidate = _cached_delivery_candidate(work) or await generate_candidate(work, ctx)
             work = {**work, "candidate": candidate}
         result = await ctx.tools.call("scaffold.deliver", work=work, target_agent=target,
                                       version=int(work.get("version", 1)), job_id=work["jobId"])
@@ -169,6 +169,34 @@ async def review_candidate(work, ctx):
             return {"sha": sha, "reviewer": "meta-agent-bootstrap", **report}
         prompt += "\n上一版格式无效，严格按指定 JSON 结构重写。"
     raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "模型代码评审未返回有效结构化结论")
+
+
+def _cached_delivery_candidate(work):
+    """Reuse a validated candidate after Git push succeeded but PR lookup failed."""
+    from tools.state import folder
+    repair = work.get("repair") or {}
+    job_id = work.get("jobId")
+    if (not repair or not isinstance(job_id, str)
+            or not re.fullmatch(r"DF-\d+", job_id)):
+        return None
+    checkpoint = folder(job_id) / "delivery.json"
+    if not checkpoint.is_file():
+        return None
+    try:
+        state = json.loads(checkpoint.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if (state.get("attempt") != repair.get("attempt")
+            or state.get("expectedSha") != repair.get("failedSha")
+            or not re.fullmatch(r"[0-9a-f]{40}", str((state.get("push") or {}).get("sha") or ""))):
+        return None
+    candidate = state.get("candidate")
+    if not isinstance(candidate, dict):
+        return None
+    requirement = work.get("requirement") or {}
+    _, errors = parse_candidate(json.dumps(candidate), template=requirement.get("template"),
+                                selected_tools=requirement.get("tools") or [])
+    return candidate if not errors else None
 
 
 def deliver(work):
