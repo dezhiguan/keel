@@ -108,6 +108,12 @@ def test_repair_rejects_stale_commit_and_fourth_round(tmp_path, monkeypatch):
     with pytest.raises(Exception, match="轮次无效"):
         _deliver(work(candidate(True), {"attempt": 6, "failedSha": SHA_A}))
     with pytest.raises(Exception, match="上一轮不一致"):
+        _deliver(work(candidate(True), {"attempt": 6, "failedSha": SHA_A,
+                                        "templateRefreshes": 2}))
+    with pytest.raises(Exception, match="轮次无效"):
+        _deliver(work(candidate(True), {"attempt": 8, "failedSha": SHA_A,
+                                        "templateRefreshes": 2}))
+    with pytest.raises(Exception, match="上一轮不一致"):
         _deliver(work(candidate(True), {"attempt": 4, "failedSha": SHA_A, "infrastructureOnly": True}))
     with pytest.raises(Exception, match="轮次无效"):
         _deliver(work(candidate(True), {"attempt": 8, "failedSha": SHA_A, "infrastructureOnly": True}))

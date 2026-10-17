@@ -31,6 +31,24 @@ class MetaAgentRulesTest {
                 {"sandboxAttempts":[{},{},{},{},{}],"repair":{"infrastructureOnly":false}}
                 """))).isTrue();
     }
+    @Test void infrastructureRefreshesDoNotConsumeFiveFunctionalSandboxRounds() throws Exception {
+        var json = new ObjectMapper();
+        var fiveAttempts = json.readTree("""
+                {"infrastructureRefreshes":2,"sandboxStatus":"FAILED",
+                 "sandboxAttempts":[{},{},{},{},{}]}
+                """);
+        assertThat(MetaAgentExecution.sandboxAttemptLimit(fiveAttempts)).isEqualTo(7);
+        assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(fiveAttempts)).isFalse();
+        var sha = "a".repeat(40);
+        var report = "sha=" + sha + " snapshot=ok tests=FAIL\nfailed";
+        assertThat(MetaAgentExecution.repairableSandbox("FAILED", report, sha, 5, 7)).isTrue();
+        assertThat(MetaAgentExecution.repairableSandbox("FAILED", report, sha, 7, 7)).isFalse();
+        var sevenAttempts = json.readTree("""
+                {"infrastructureRefreshes":2,"sandboxStatus":"FAILED",
+                 "sandboxAttempts":[{},{},{},{},{},{},{}]}
+                """);
+        assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(sevenAttempts)).isTrue();
+    }
     @Test void reviewRepairCanRetryTransportFailureButNotFailedSixthSandbox() throws Exception {
         var json = new ObjectMapper();
         assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(json.readTree("""
