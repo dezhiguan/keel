@@ -62,6 +62,18 @@ describe('trace view helpers', () => {
       agents: [{ key: 'qa', name: 'qa-release-knowledge-1017', color: '#5b9cf6', kind: 'supervisor' }],
     })
     expect(mapped.qa.color).toBe('#5b9cf6')
+    const shared = agentMap({
+      summary: { rootAgent: 'coordinator', multiAgent: true },
+      agents: [
+        { key: 'coordinator', name: 'coordinator', color: '#34c38f', kind: 'supervisor', subtitle: 'dev · supervisor' },
+        { key: 'investigator', name: 'investigator', color: '#6fd3e3', kind: 'supervisor', subtitle: 'dev · 单智能体' },
+        { key: 'planner', name: 'planner', color: '#6fd3e3', kind: 'supervisor', subtitle: 'dev · 单智能体' },
+      ],
+    })
+    expect(shared.investigator.kind).toBe('sub')
+    expect(shared.investigator.subtitle).toBe('子智能体 · 跨服务')
+    expect(shared.planner.color).not.toBe(shared.investigator.color)
+    expect(shared.coordinator.kind).toBe('supervisor')
     expect(stepColor('#5b9cf6', 0)).toBe('#5b9cf6')
     expect(stepColor('#5b9cf6', 1)).toBe('#5b9cf6cc')
     expect(stepColor('#5b9cf6', 4)).toBe('#5b9cf6')

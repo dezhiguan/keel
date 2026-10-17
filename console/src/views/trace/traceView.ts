@@ -87,10 +87,38 @@ export function observationUrl(base?: string | null, id?: string | null) {
 }
 
 const STEP_ALPHA = ['', 'cc', '99', '77']
+const PALETTE = ['#5b9cf6', '#2ec4b6', '#ff7a45', '#34c38f', '#b48cf2', '#e36fae', '#6fd3e3', '#ffb08f']
 
 /** Keep the color keel-server assigned. Known agents stay on the prototype palette; others are not flattened to gray. */
 export function agentMap(detail: TraceDetail): Record<string, TraceAgent> {
-  return Object.fromEntries((detail.agents ?? []).map((a) => [a.key!, { ...a, color: a.color || avatarColor(a.name) }]))
+  const root = detail.summary?.rootAgent
+  const multi = !!detail.summary?.multiAgent
+  const used = new Set<string>()
+  return Object.fromEntries((detail.agents ?? []).map((agent) => {
+    const delegated = agent.kind === 'sub'
+      || (!!multi && !!agent.key && agent.key !== root && agent.kind !== 'human' && agent.kind !== 'platform')
+    const color = distinctColor(agent.color || avatarColor(agent.name), used)
+    const shown: TraceAgent = delegated
+      ? { ...agent, kind: 'sub', subtitle: '子智能体 · 跨服务', color }
+      : { ...agent, color }
+    return [agent.key!, shown]
+  }))
+}
+
+function distinctColor(color: string, used: Set<string>) {
+  if (!used.has(color)) {
+    used.add(color)
+    return color
+  }
+  const start = Math.max(PALETTE.indexOf(color), 0)
+  for (let step = 1; step <= PALETTE.length; step += 1) {
+    const next = PALETTE[(start + step) % PALETTE.length]
+    if (!used.has(next)) {
+      used.add(next)
+      return next
+    }
+  }
+  return color
 }
 
 /** Same agent repeating in the latency stack gets a lighter step, matching the prototype shade cycle. */
