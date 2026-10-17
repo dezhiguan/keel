@@ -7,6 +7,7 @@ import sys
 import yaml
 
 from candidate import generate, parse
+from keel.eval.run import load_scorers
 from workflow import _scaffold
 from test_meta_agent import manifest
 
@@ -108,6 +109,13 @@ def test_model_authored_role_runs_in_generated_project(tmp_path):
     assert "项目骨架已就绪" not in (project / "app.py").read_text(encoding="utf-8")
     assert "verify" in yaml.safe_load(old_workflow.read_text(encoding="utf-8"))["jobs"]
     assert "pytest-asyncio==1.4.0" in (project / "requirements.lock").read_text(encoding="utf-8")
+    scorers = load_scorers(project / "evals/scorers.py")
+    assert len(scorers) == 1
+    score = scorers[0]
+    assert score({"decision": "停在 H1 关口"}, '{"output":{"decision":"停在 H1 关口"}}', []) == 1.0
+    assert score({"decision": "停在 H1 关口"}, '{"output":{"decision":"直接发布"}}', []) == 0.0
+    assert score({"decision": "停在 H1 关口"}, "not-json", []) == 0.0
+    assert score({"decision": "停在 H1 关口"}, '{"status":"BLOCKED"}', []) == 0.0
     _scaffold(project, "DF-9001", candidate)
     assert (project / "requirements.lock").read_text(encoding="utf-8").count("pytest-asyncio==1.4.0") == 1
     checked = subprocess.run([sys.executable, "-m", "pytest", "tests", "-q"],

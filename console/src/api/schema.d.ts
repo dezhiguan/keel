@@ -192,7 +192,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 智能体列表 */
+        /**
+         * 智能体列表
+         * @description 按 agent.created_at 从新到旧。创建时间相同再按 name 升序。
+         */
         get: operations["listAgents"];
         put?: never;
         /** 注册智能体（keel register / 新建向导第四步） */

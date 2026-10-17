@@ -110,6 +110,8 @@ def test_repair_rejects_stale_commit_and_fourth_round(tmp_path, monkeypatch):
         _deliver(work(candidate(True), {"attempt": 4, "failedSha": SHA_A, "infrastructureOnly": True}))
     with pytest.raises(Exception, match="轮次无效"):
         _deliver(work(candidate(True), {"attempt": 6, "failedSha": SHA_A, "infrastructureOnly": True}))
+    with pytest.raises(Exception, match="轮次无效"):
+        _deliver(work(candidate(True), {"attempt": 7, "failedSha": SHA_A, "reviewRepair": True}))
     checkpoint = tmp_path / "DF-9001/delivery.json"
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
     checkpoint.write_text(json.dumps({"attempt": 1, "push": {"sha": SHA_B}}), encoding="utf-8")

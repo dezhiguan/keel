@@ -28,6 +28,16 @@ class MetaAgentRulesTest {
                 {"sandboxAttempts":[{},{},{}],"repair":{"infrastructureOnly":false}}
                 """))).isTrue();
     }
+    @Test void reviewRepairCanRetryTransportFailureButNotFailedSixthSandbox() throws Exception {
+        var json = new ObjectMapper();
+        assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(json.readTree("""
+                {"sandboxAttempts":[{},{},{},{},{}],"repair":{"reviewRepair":true}}
+                """))).isFalse();
+        assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(json.readTree("""
+                {"sandboxAttempts":[{},{},{},{},{},{}],"sandboxStatus":"FAILED",
+                 "repair":{"reviewRepair":true}}
+                """))).isTrue();
+    }
     @Test void refreshUsesOnlyTheThreeCandidateFiles() throws Exception {
         var json = new ObjectMapper();
         var snapshot = json.readTree("""

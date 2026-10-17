@@ -282,6 +282,7 @@ paths:
       tags: [agents]
       operationId: listAgents
       summary: 智能体列表
+      description: 按 agent.created_at 从新到旧。创建时间相同再按 name 升序。
       parameters:
         - $ref: "#/components/parameters/Env"
         - name: category
@@ -4119,7 +4120,7 @@ components:
             sha: { type: string }
             url: { type: string, format: uri }
             branch: { type: string }
-            protection: { type: string, enum: [ENFORCED, UNAVAILABLE], description: 私有仓库分支保护；UNAVAILABLE 时平台拒绝合并和发布 }
+            protection: { type: string, enum: [ENFORCED, UNAVAILABLE], description: 任务仓库分支保护；UNAVAILABLE 时平台拒绝合并和发布 }
             checks: { type: string, enum: [MANUAL, ENABLED], description: ENABLED 表示 .github/workflows/keel.yml 已随交付提交，首次推送会触发 CI。MANUAL 只用于旧记录 }
             capabilityStatus: { type: string, enum: [UNVERIFIED, SCAFFOLD], description: 候选代码尚未通过岗位行为验证 }
             gateStatus: { type: string, enum: [NOT_RUN], description: staging 门禁尚未执行 }
@@ -4127,6 +4128,7 @@ components:
         sandboxRunId: { type: string }
         sandboxStatus: { type: string, enum: [PASS, FAILED] }
         infrastructureRefreshes: { type: integer, minimum: 0, maximum: 2, description: 可信工作流模板刷新次数；每次均重新验证候选 SHA }
+        reviewRepairRounds: { type: integer, minimum: 0, maximum: 1, description: 评审阶段岗位功能修正次数；新提交必须重跑沙箱及评审 }
         sandboxAttempts:
           type: array
           items:

@@ -603,21 +603,28 @@ public class MetaAgentExecution {
                 }
                 int attempt = state.path("sandboxAttempts").size() + 1;
                 int refreshes = state.path("infrastructureRefreshes").asInt(0);
-                if (!canRefreshInfrastructure(refreshes)) throw invalid("基础设施模板刷新已达到两次上限");
+                boolean infrastructureOnly = canRefreshInfrastructure(refreshes);
+                int reviewRepairs = state.path("reviewRepairRounds").asInt(0);
+                if (!infrastructureOnly && reviewRepairs >= 1) throw invalid("评审阶段岗位功能修复已达到一次上限");
                 var delivery = state.path("delivery");
                 var sha = delivery.path("sha").asText();
                 var repo = delivery.path("repo").asText().replaceFirst("^[^/]+/", "");
                 git.reviewStatus(id, repo, delivery.path("number").asInt(), sha);
                 var previous = previousCandidate(json, read(git.fetch(id, repo, sha)));
                 var repair = state.putObject("repair");
-                repair.put("attempt", attempt).put("failedSha", sha).put("infrastructureOnly", true)
-                        .put("report", "交付仓库 CI 工作流无效；保留岗位代码并刷新可信模板");
+                repair.put("attempt", attempt).put("failedSha", sha).put("infrastructureOnly", infrastructureOnly)
+                        .put("reviewRepair", !infrastructureOnly)
+                        .put("report", infrastructureOnly
+                                ? "交付仓库 CI 工作流无效；保留岗位代码并刷新可信模板"
+                                : "H2 可见用例是自然语言输入且期望不同的可核对结论。当前候选固定返回 H1 阻塞，无法通过岗位行为门禁；请修复岗位逻辑与测试，不能硬编码题目。可信模板已提供评分函数。");
                 repair.set("previousCandidate", previous);
-                state.put("infrastructureRefreshes", refreshes + 1);
+                if (infrastructureOnly) state.put("infrastructureRefreshes", refreshes + 1);
+                else state.put("reviewRepairRounds", reviewRepairs + 1);
                 state.remove(List.of("humanReview", "modelReview", "modelReviewTraceId", "sandboxStatus", "sandboxRunId"));
                 state.put("phase", "QUEUED");
                 save(id, state, "DELIVER");
-                jobs.progress(id, "QUEUED", "BUILD", "第 " + attempt + " 轮刷新候选交付，重新验证精确提交");
+                jobs.progress(id, "QUEUED", "BUILD", "第 " + attempt + (infrastructureOnly
+                        ? " 轮刷新候选交付，重新验证精确提交" : " 轮修复岗位功能，重新验证精确提交"));
                 return publicState(state);
             }
             if (!"FAILED".equals(state.path("phase").asText())) throw invalid("只有失败的执行可以重试");
@@ -757,6 +764,10 @@ public class MetaAgentExecution {
     }
 
     static boolean sandboxLimitBlocksRetry(JsonNode state) {
+        if (state.path("repair").path("reviewRepair").asBoolean(false)) {
+            return "FAILED".equals(state.path("sandboxStatus").asText())
+                    && state.path("sandboxAttempts").size() >= 6;
+        }
         return state.path("sandboxAttempts").size() >= 3
                 && !state.path("repair").path("infrastructureOnly").asBoolean(false);
     }
