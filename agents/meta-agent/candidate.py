@@ -66,6 +66,11 @@ async def generate(work: dict, ctx) -> dict:
         "子智能体 result 可为结构化对象或非空证据文本；缺失、空文本或结构化 decision 为 BLOCKED 时整个任务返回 BLOCKED。"
         "证据文本仅是材料，不是批准结论；测试中的 ctx.delegate 应模拟真实封装字典，不是裸文本或裸 decision。"
         "supervisor 的测试还必须覆盖子智能体 result={decision: BLOCKED} 且模型尝试 PASS 的情况，最终仍为 BLOCKED。"
+        "多工具 supervisor 的 execute 返回值除 decision 外，必须包含非空的 evidence_sources、"
+        "delegate_results 和 steps，分别记录工具来源、子智能体意见与逐步核对过程；"
+        "这些字段由岗位代码基于真实调用结果组装，模型只负责判断 decision。"
+        "prompts/role.md 的模型输出格式须与岗位代码的解析格式一致；"
+        "不能同时要求模型输出多个字段又声明顶层仅含 decision。"
         "不得在代码或提示词里硬编码虚构的子智能体名单。任何工具调用失败都应返回 BLOCKED，不能用不完整证据推断通过。"
         "工具返回值为空、缺少任务必需字段或状态不明时也返回 BLOCKED，不能把 UNKNOWN 当作通过。"
         "多工具岗位的 prompts/role.md 必须包含 {{input}} 和 {{evidence}} 两个占位符，可有空格；"
@@ -162,6 +167,9 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
     if not mapping["prompts/role.md"].strip() or len(mapping["prompts/role.md"].encode("utf-8")) > 40_000:
         return {}, ["岗位提示词不能为空或超过 40KB"]
     errors = []
+    role_prompt = mapping["prompts/role.md"]
+    if "输出必须包含" in role_prompt and "顶层仅含" in role_prompt and "decision" in role_prompt:
+        errors.append("岗位提示词对输出字段的要求互相冲突")
     trees = {}
     for path in ("role.py", "tests/test_role.py"):
         source = mapping[path]

@@ -257,6 +257,15 @@ def test_generated_tool_call_requires_actual_runtime_keywords():
     assert any("ci.log.fetch 缺少必需关键字参数" in error and "runId" in error for error in errors)
 
 
+def test_candidate_rejects_conflicting_prompt_output_contract():
+    candidate = {"files": [
+        {"path": "role.py", "content": ROLE_CODE},
+        {"path": "prompts/role.md", "content": "输出必须包含证据与 decision；顶层仅含 decision。{{input}}"},
+        {"path": "tests/test_role.py", "content": TEST_CODE},
+    ]}
+    assert "岗位提示词对输出字段的要求互相冲突" in parse(json.dumps(candidate))[1]
+
+
 def test_supervisor_scaffold_registers_manifest_children(tmp_path):
     project = tmp_path / "supervisor-agent"
     for name in ("tools", "tests", "evals"):
