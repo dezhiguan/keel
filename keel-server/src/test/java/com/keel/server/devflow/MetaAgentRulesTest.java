@@ -48,6 +48,17 @@ class MetaAgentRulesTest {
                  "repair":{"ciRefresh":true}}
                 """))).isTrue();
     }
+    @Test void platformSmokeMismatchNeedsExactCurrentShaAndKnownFailure() throws Exception {
+        var json = new ObjectMapper();
+        var state = json.readTree("""
+                {"delivery":{"sha":"aaaa"},"sandboxStatus":"FAILED","repair":{"ciRefresh":true},
+                 "sandboxAttempts":[{},{},{},{},{},{},{"sha":"aaaa","status":"FAILED",
+                 "report":"test_manifest_matches_the_delivered_contract\\nassert manifest.metadata.name == ROOT.name\\nAssertionError: assert 'spec-agent' == 'repo'"}]}
+                """);
+        assertThat(MetaAgentExecution.platformSmokeMismatch(state)).isTrue();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("delivery")).put("sha", "bbbb");
+        assertThat(MetaAgentExecution.platformSmokeMismatch(state)).isFalse();
+    }
     @Test void refreshUsesOnlyTheThreeCandidateFiles() throws Exception {
         var json = new ObjectMapper();
         var snapshot = json.readTree("""

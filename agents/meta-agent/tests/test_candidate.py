@@ -127,6 +127,7 @@ def test_model_authored_role_runs_in_generated_project(tmp_path):
     assert "keel gate" not in preflight
     assert "KEEL_CLIENT_PRIVATE_KEY" not in preflight
     assert "keel release" not in preflight
+    assert "manifest.metadata.name == 'spec-agent'" in (project / "tests/test_smoke.py").read_text(encoding="utf-8")
     assert "pytest-asyncio==1.4.0" in (project / "requirements.lock").read_text(encoding="utf-8")
     scorers = load_scorers(project / "evals/scorers.py")
     assert len(scorers) == 1

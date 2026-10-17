@@ -190,7 +190,7 @@ def _deliver(work):
     state = json.loads(checkpoint.read_text()) if checkpoint.exists() else {}
     repair = work.get("repair") or {}
     attempt = int(repair.get("attempt") or 1)
-    if attempt < 1 or attempt > (7 if repair.get("ciRefresh") is True else
+    if attempt < 1 or attempt > (8 if repair.get("ciRefresh") is True else
                                  6 if repair.get("reviewRepair") is True else
                                  5 if repair.get("infrastructureOnly") is True else 3):
         raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "沙箱修正轮次无效")
@@ -365,7 +365,7 @@ app = agent.asgi()
     else:
         spec = json.loads((project / "spec.json").read_text(encoding="utf-8"))
         write_prompt_scaffold(project, spec)
-    (project / "tests/test_smoke.py").write_text('''import ast
+    (project / "tests/test_smoke.py").write_text(f'''import ast
 import json
 from pathlib import Path
 import yaml
@@ -375,7 +375,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_manifest_matches_the_delivered_contract():
     manifest = load_manifest(ROOT / "agent.yaml")
-    assert manifest.metadata.name == ROOT.name
+    assert manifest.metadata.name == {project.name!r}
 
 def test_entry_is_valid_python_and_has_an_async_entry():
     tree = ast.parse((ROOT / "app.py").read_text())

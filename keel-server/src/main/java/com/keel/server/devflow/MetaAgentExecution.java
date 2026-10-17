@@ -641,6 +641,22 @@ public class MetaAgentExecution {
                 return publicState(state);
             }
             if (!"FAILED".equals(state.path("phase").asText())) throw invalid("只有失败的执行可以重试");
+            if (platformSmokeMismatch(state) && git != null) {
+                var delivery = state.path("delivery");
+                var sha = delivery.path("sha").asText();
+                var repo = delivery.path("repo").asText().replaceFirst("^[^/]+/", "");
+                git.reviewStatus(id, repo, delivery.path("number").asInt(), sha);
+                var previous = previousCandidate(json, read(git.fetch(id, repo, sha)));
+                var repair = state.putObject("repair");
+                repair.put("attempt", 8).put("failedSha", sha).put("infrastructureOnly", true)
+                        .put("ciRefresh", true).put("report", "可信模板的冒烟测试误用沙箱目录名；只修复模板断言，重验精确提交");
+                repair.set("previousCandidate", previous);
+                state.remove(List.of("sandboxStatus", "sandboxRunId", "error"));
+                state.put("phase", "QUEUED");
+                save(id, state, "DELIVER");
+                jobs.progress(id, "QUEUED", "BUILD", "修正平台冒烟测试并重新验证第 8 次候选提交");
+                return publicState(state);
+            }
             if (sandboxLimitBlocksRetry(state)) {
                 throw invalid("沙箱修复已达到三轮上限");
             }
@@ -787,6 +803,19 @@ public class MetaAgentExecution {
         }
         return state.path("sandboxAttempts").size() >= 3
                 && !state.path("repair").path("infrastructureOnly").asBoolean(false);
+    }
+
+    static boolean platformSmokeMismatch(JsonNode state) {
+        var attempts = state.path("sandboxAttempts");
+        if (!state.path("repair").path("ciRefresh").asBoolean(false)
+                || !"FAILED".equals(state.path("sandboxStatus").asText()) || attempts.size() != 7) return false;
+        var last = attempts.get(6);
+        var report = last.path("report").asText();
+        return state.path("delivery").path("sha").asText().equals(last.path("sha").asText())
+                && "FAILED".equals(last.path("status").asText())
+                && report.contains("test_manifest_matches_the_delivered_contract")
+                && report.contains("assert manifest.metadata.name == ROOT.name")
+                && report.contains("AssertionError: assert 'spec-agent' == 'repo'");
     }
 
     static ObjectNode previousCandidate(ObjectMapper json, JsonNode snapshot) {
