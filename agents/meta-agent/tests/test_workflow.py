@@ -56,6 +56,28 @@ def test_bootstrap_code_review_is_bound_to_snapshot_and_fails_closed():
         asyncio.run(review_candidate(request, Ctx()))
 
 
+def test_bootstrap_review_receives_trusted_tool_risk():
+    from workflow import review_candidate
+    files = [{"path": path, "content": "pass\n"} for path in
+             ("role.py", "app.py", "agent.yaml", "prompts/role.md", "tests/test_role.py")]
+    request = {**work(), "action": "REVIEW", "delivery": {"sha": "a" * 40},
+               "draft": {"manifest": {"spec": {"tools": [
+                   {"name": "devflow.stage.report", "risk": "low", "access": "write", "approval": "none"}]}}},
+               "snapshot": {"sha": "a" * 40, "files": files}}
+    checks = {name: True for name in ("modelAccess", "toolAuthorization", "audit",
+              "visibleCaseOverfit", "releaseApproval", "behaviorTests", "hardcodedPrompt")}
+
+    class Llm:
+        async def chat(self, messages, **kwargs):
+            assert '"trustedTools": [{"name": "devflow.stage.report", "risk": "low"' in messages[0]["content"]
+            return json.dumps({"approved": True, "checks": checks, "findings": []})
+
+    class Ctx:
+        llm = Llm()
+
+    assert asyncio.run(review_candidate(request, Ctx()))["approved"] is True
+
+
 def test_workflow_drafts_and_revises_without_an_sdk_resume_token(gateway):
     gateway.replies.append(reply(tools=[]))
     kind, event = terminal(invoke(json.dumps(work())))
