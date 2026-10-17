@@ -105,6 +105,16 @@ def test_wrong_llm_double():
     assert any("测试替身必须返回字符串" in error for error in parse(json.dumps(candidate))[1])
 
 
+def test_candidate_rejects_all_paths_blocked_after_h1():
+    candidate = {"files": [{"path": "role.py", "content": ROLE_CODE.replace(
+        'return {"status": "READY", "spec": json.loads(reply)}',
+        'return {"status": "BLOCKED", "spec": json.loads(reply)}')},
+        {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
+        {"path": "tests/test_role.py", "content": TEST_CODE}]}
+    assert any("正常路径不能全部固定返回 BLOCKED" in error
+               for error in parse(json.dumps(candidate))[1])
+
+
 def test_meta_agent_generates_general_agent_from_confirmed_goal():
     candidate = {"files": [{"path": "role.py", "content": ROLE_CODE},
                            {"path": "prompts/role.md", "content": "任务：{{input}}"},

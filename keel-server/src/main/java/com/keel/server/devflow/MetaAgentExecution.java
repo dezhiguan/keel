@@ -662,7 +662,8 @@ public class MetaAgentExecution {
                                 : sdkRepair
                                 ? "真实 Keel SDK 的 ctx.manifest.spec.tools 条目是对象，不支持 .get()，应读取属性；"
                                   + "未传 tools= 时 ctx.llm.chat 返回字符串，不支持 .get('content')。"
-                                  + "候选测试须用真实类型或同构替身，修复正常路径并保留所有拒绝路径。"
+                                  + "候选测试须用真实类型或同构替身；H1 已确认，当前正常路径固定返回"
+                                  + " pending_h1_approval/BLOCKED，必须改为按需求输出不同结论，并保留拒绝路径。"
                                 : ciRefresh
                                 ? "候选 CI 的 SDK 版本锁或预检工作流缺失；只补齐交付脚手架，保留岗位代码"
                                 : infrastructureOnly

@@ -190,8 +190,19 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
                    and node.id in ("true", "false", "null") for node in ast.walk(tree)):
                 errors.append(path + " 使用了 JSON 小写字面量，Python 应用 True/False/None")
     role = trees["role.py"]
-    if not any(isinstance(node, ast.AsyncFunctionDef) and node.name == "execute" for node in role.body):
+    execute_node = next((node for node in role.body
+                         if isinstance(node, ast.AsyncFunctionDef) and node.name == "execute"), None)
+    if execute_node is None:
         errors.append("role.py 缺少 async execute")
+    statuses = []
+    for node in ast.walk(execute_node) if execute_node is not None else ():
+        if not isinstance(node, ast.Return) or not isinstance(node.value, ast.Dict):
+            continue
+        statuses.extend(value.value for key, value in zip(node.value.keys, node.value.values)
+                        if isinstance(key, ast.Constant) and key.value == "status"
+                        and isinstance(value, ast.Constant) and isinstance(value.value, str))
+    if statuses and set(statuses) == {"BLOCKED"}:
+        errors.append("H1 已确认，岗位正常路径不能全部固定返回 BLOCKED")
     if not any(isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                and node.func.attr == "prompt" and isinstance(node.func.value, ast.Name)
                and node.func.value.id == "ctx" and len(node.args) == 1
