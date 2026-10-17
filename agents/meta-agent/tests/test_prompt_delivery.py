@@ -12,6 +12,7 @@ from candidate import parse
 from workflow import _scaffold, execute, review_candidate, write_prompt_scaffold
 from keel.cli.repo import _files
 from keel.llm.client import LlmClient
+from test_meta_agent import manifest
 
 
 def _candidate():
@@ -97,6 +98,7 @@ def test_delivery_keeps_prompt_file(tmp_path):
         (project / folder).mkdir(parents=True, exist_ok=True)
     (project / "requirements.lock").write_text("pytest==9.1.1\n", encoding="utf-8")
     (project / "spec.json").write_text('{"goal":"分析需求","success":"文档完整"}', encoding="utf-8")
+    (project / "agent.yaml").write_text(yaml.safe_dump(manifest(), sort_keys=False), encoding="utf-8")
     _scaffold(project, "DF-9001", _candidate())
     assert (project / "prompts/role.md").read_text(encoding="utf-8") == "岗位任务：{{input}}\n"
     assert "ctx.prompt(\"role\")" in (project / "role.py").read_text(encoding="utf-8")

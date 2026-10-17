@@ -712,7 +712,8 @@ public class MetaAgentExecution {
         requireAdmin();
         return tx.execute(status -> {
             var state = lock(id);
-            if (state.has("acceptedAgentCount") && !"FAILED".equals(state.path("phase").asText())) throw invalid("岗位代码交付已启动，请等待结果；已创建的仓库会保留");
+            if (state.has("acceptedAgentCount") && !Set.of("FAILED", "WAITING_REVIEW").contains(state.path("phase").asText()))
+                throw invalid("岗位代码交付已启动，请等待结果；已创建的仓库会保留");
             if ("CANCELLED".equals(state.path("phase").asText())) return jobs.job(id);
             state.put("phase", "CANCELLED");
             save(id, state, "DRAFT");

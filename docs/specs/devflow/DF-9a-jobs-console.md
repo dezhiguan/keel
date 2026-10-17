@@ -71,3 +71,5 @@ cd console && npx vue-tsc --noEmit && npx vitest related src/views/jobs/jobs.tes
 # 失败候选的页面清理
 
 研发任务在 BUILD 阶段失败后，详情页允许管理员经现有确认框取消任务；服务端保留审计和已生成仓库记录。这样测试时可从活跃队列清理失败的诊断候选。
+
+候选已通过沙箱且仍处于 `WAITING_REVIEW` 时，管理员也可经页面确认取消：此时尚未合并或部署，取消只终止后续生产流程，PR 和审计记录继续保留。

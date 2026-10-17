@@ -66,6 +66,7 @@ const yaml = computed(() => (job.value ? manifestYaml(job.value) : ''))
 const canCancelCurrentJob = computed(() => {
   if (!job.value) return false
   if (execution.value?.phase === 'FAILED' && job.value.stage === 'BUILD') return true
+  if (execution.value?.phase === 'WAITING_REVIEW') return true
   return canCancel(job.value) && (!execution.value
     || ['WAITING', 'RUNNING'].includes(execution.value.phase)
     || (execution.value.phase === 'QUEUED' && !execution.value.draft))
