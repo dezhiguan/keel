@@ -280,11 +280,12 @@ def test_human_pr_review_is_bound_to_protected_main_and_exact_candidate_sha():
 
     class Reviews(GitHub):
         def __init__(self, *, protected=True, draft=False, head=sha, latest="APPROVED", review_sha=sha,
-                     private=True):
+                     private=True, reviewer_permission="write"):
             super().__init__("http://unused", "test")
             self.protected, self.draft, self.head = protected, draft, head
             self.latest, self.review_sha = latest, review_sha
             self.private = private
+            self.reviewer_permission = reviewer_permission
 
         def request(self, method, path, payload=None, **kwargs):
             if path.endswith("/qa"):
@@ -299,6 +300,8 @@ def test_human_pr_review_is_bound_to_protected_main_and_exact_candidate_sha():
             if path.endswith("/pulls/7/reviews?per_page=100"):
                 return [{"user": {"login": "human", "type": "User"},
                          "state": self.latest, "commit_id": self.review_sha}]
+            if path.endswith("/collaborators/human/permission"):
+                return {"permission": self.reviewer_permission}
             raise AssertionError(path)
 
     assert call_tool(Reviews(), "git.pr.review.status",
@@ -308,6 +311,7 @@ def test_human_pr_review_is_bound_to_protected_main_and_exact_candidate_sha():
     assert Reviews(protected=False).review_status("qa", 7, sha, "DF-9001")["approved"] is False
     assert Reviews(review_sha="b" * 40).review_status("qa", 7, sha, "DF-9001")["approved"] is False
     assert Reviews(latest="CHANGES_REQUESTED").review_status("qa", 7, sha, "DF-9001")["approved"] is False
+    assert Reviews(reviewer_permission="read").review_status("qa", 7, sha, "DF-9001")["approved"] is False
     with pytest.raises(GitHubError, match="stale"):
         Reviews(head="b" * 40).review_status("qa", 7, sha, "DF-9001")
 

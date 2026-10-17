@@ -321,8 +321,14 @@ class GitHub:
                 order = review.get("id") if isinstance(review.get("id"), int) else index
                 if login not in latest or order > latest[login][0]:
                     latest[login] = (order, review)
-        reviewers = sorted(login for login, (_, review) in latest.items()
-                           if review.get("state") == "APPROVED" and review.get("commit_id") == sha)
+        reviewers = []
+        for login, (_, review) in latest.items():
+            if review.get("state") != "APPROVED" or review.get("commit_id") != sha:
+                continue
+            permission = self.request("GET", root + f"/collaborators/{login}/permission")
+            if permission.get("permission") in ("write", "maintain", "admin"):
+                reviewers.append(login)
+        reviewers.sort()
         return {"repo": f"{self.org}/{repo}", "number": number, "headSha": sha,
                 "protection": "ENFORCED" if required >= 1 else "UNAVAILABLE",
                 "ready": not pull.get("draft", True), "reviewers": reviewers,
