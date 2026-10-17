@@ -54,6 +54,8 @@ async def generate(work: dict, ctx) -> dict:
         "测试须导入 role.execute 并调用它；prompt.compile 是同步方法，用 MagicMock 模拟；"
         "ctx.llm.chat 返回字符串；断言须符合 execute 实际返回的完整结构，"
         "有额外字段时只断言必要字段，不要把完整结果强行等同于只有 decision 的字典。"
+        "正则表达式的原始字符串里，\\d、\\s、\\w 只写一个反斜杠；"
+        "例如 r\"DF-\\d+\"，不要写成 r\"DF-\\\\d+\"。"
         "Python 布尔值和空值必须写 True、False、None，不要把 JSON 的 true、false、null 写进代码。"
     )
     repair = work.get("repair")
@@ -167,6 +169,13 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
                 errors.append("role.py 导入了未经允许的模块")
         elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in FORBIDDEN_CALLS:
             errors.append("role.py 使用了未经允许的执行/文件函数")
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name) and node.func.value.id == "re"
+                and node.func.attr in ("search", "match", "fullmatch", "compile")
+                and node.args and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+                and any("\\\\" + char in node.args[0].value for char in "dswDSWbB")):
+            errors.append("正则表达式的原始字符串误用了双反斜杠")
         if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                 and isinstance(node.func.value, ast.Attribute)
                 and isinstance(node.func.value.value, ast.Name)

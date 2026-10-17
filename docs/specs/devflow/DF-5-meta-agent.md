@@ -139,3 +139,5 @@ cd sdk-python && ../.venv/bin/python -m pytest tests/test_runtime.py -q
 
 模型生成的岗位测试须模拟 SDK 的真实调用约定：`prompt.compile` 同步执行，`ctx.llm.chat` 返回字符串。正常路径断言应与实际返回结构一致；候选校验拒绝把 `prompt.compile` 模拟成异步方法的测试。
 
+输入识别所用的正则表达式须在原始字符串中以单个反斜杠表示 `\d`、`\s`、`\w` 等字符类。候选校验拒绝双重转义的字符类，避免合法任务 ID 被误判为缺失。
+
