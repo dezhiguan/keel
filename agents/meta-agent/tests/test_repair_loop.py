@@ -5,7 +5,7 @@ import sys
 
 import pytest
 
-from candidate import generate
+from candidate import generate, parse
 from workflow import _deliver
 
 
@@ -123,3 +123,38 @@ def test_repair_rejects_stale_commit_and_fourth_round(tmp_path, monkeypatch):
     with pytest.raises(Exception, match="上一轮不一致"):
         _deliver(work(candidate(True), {"attempt": 2, "failedSha": SHA_A,
                                         "previousCandidate": candidate(False)}))
+
+
+def test_infrastructure_refresh_keeps_exact_old_candidate_for_new_contract_tests(tmp_path, monkeypatch):
+    from tools import state
+    import workflow
+
+    monkeypatch.setattr(state, "ROOT", tmp_path)
+    project = tmp_path / "DF-9001/spec-agent"
+    for name in ("tools", "tests", "evals", "prompts"):
+        (project / name).mkdir(parents=True, exist_ok=True)
+    (project / "requirements.lock").write_text("pytest==9.1.1\n", encoding="utf-8")
+    monkeypatch.setenv("KEEL_GIT_CI_URL", "https://git.test")
+    monkeypatch.setenv("KEEL_GIT_CI_TOKEN", "test-token")
+    pushes = []
+
+    def git(base, tool, body):
+        if tool == "git.branch.push":
+            pushes.append(body)
+            return {"sha": SHA_A if len(pushes) == 1 else SHA_B}
+        if tool == "git.repo.create":
+            return {"repo": "keel-agents/spec-agent"}
+        return {"repo": "keel-agents/spec-agent", "number": 1, "url": "https://git.test/pr/1"}
+
+    monkeypatch.setattr(workflow, "_post", git)
+    _deliver(work(candidate(True)))
+    old = candidate(True)
+    old["files"][0]["content"] += '''\nimport re
+def unsafe(llm_response):
+    return bool(re.search(r"PASS", llm_response))
+'''
+    assert any("扫描模型全文" in error for error in parse(json.dumps(old))[1])
+    repair = {"attempt": 2, "failedSha": SHA_A, "previousCandidate": old,
+              "infrastructureOnly": True, "report": "install new trusted platform checks"}
+    assert _deliver(work(old, repair))["sha"] == SHA_B
+    assert "tests/test_platform_contract.py" in {item["path"] for item in pushes[1]["files"]}

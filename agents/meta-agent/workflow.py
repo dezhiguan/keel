@@ -34,7 +34,7 @@ async def execute(work, ctx):
             repair = work.get("repair") or {}
             if repair.get("infrastructureOnly"):
                 candidate = repair.get("previousCandidate") or {}
-                if parse_candidate(json.dumps(candidate))[1]:
+                if snapshot_errors(candidate):
                     raise KeelError(ErrorCode.AGENT_MANIFEST_INVALID, "原候选岗位代码已失效")
             else:
                 candidate = await generate_candidate(work, ctx)
@@ -212,7 +212,9 @@ def _deliver(work):
             raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "沙箱修复提交与上一轮不一致")
         if current < attempt:
             candidate = work.get("candidate")
-            if not isinstance(candidate, dict) or parse_candidate(json.dumps(candidate))[1]:
+            candidate_errors = (snapshot_errors(candidate) if repair.get("infrastructureOnly")
+                                else parse_candidate(json.dumps(candidate))[1])
+            if candidate_errors:
                 raise KeelError(ErrorCode.AGENT_MANIFEST_INVALID, "修复后的岗位候选无效")
             state["candidate"] = candidate
             state["attempt"] = attempt
