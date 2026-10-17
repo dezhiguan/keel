@@ -55,7 +55,8 @@ def test_workflow_runs_tests_then_gate_then_release():
 def test_dockerfile_uses_public_python_until_runtime_image_exists():
     text = (ROOT / "Dockerfile").read_text()
     assert "python:3.11-slim" in text
-    assert "keel/python-runtime" in text
+    assert "keel_sdk-*.whl" in text
+    assert "COPY " + "sdk" + "-python" not in text
 
 
 def test_app_searches_then_asks_the_model():

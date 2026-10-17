@@ -109,7 +109,10 @@ def test_workflow_delivery_preserves_edits_and_does_not_repeat_git_writes(gatewa
     assert "prompts/role.md" in files
     assert "create_work_order" not in files["app.py"]
     assert files["evals/seed.jsonl"] == ""
-    assert "manifest.schema.json" in files
+    assert "manifest.schema.json" not in files
+    assert "contracts/manifest.schema.json" not in files
+    assert "AGENTS.md" in files
+    assert "pyproject.toml" in files
     assert ".github/workflows/keel.yml" in files
     assert "ci/keel.yml" not in files
     assert "on: [push, pull_request]" in files[".github/workflows/keel.yml"]

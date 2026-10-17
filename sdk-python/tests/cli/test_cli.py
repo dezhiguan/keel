@@ -64,8 +64,12 @@ def test_new_project_matches_schema_and_ignores_local_state(tmp_path):
     assert manifest["spec"]["kind"] == "workflow"
     assert "ctx.step('greet')" in (project / "app.py").read_text()
     assert not (project / "vendor").exists()
-    assert (project / "scripts/install-keel-sdk.py").is_file()
-    assert (project / "contracts/manifest.schema.json").is_file()
+    assert not (project / "scripts/install-keel-sdk.py").exists()
+    assert not (project / "contracts").exists()
+    assert (project / "README.md").is_file()
+    assert (project / "AGENTS.md").is_file()
+    assert (project / "pyproject.toml").is_file()
+    assert (project / ".keel-sdk-version").read_text().strip() == "1.0.0"
     lock = (project / "requirements.lock").read_text()
     assert "httpx==0.28.1" in lock and "pytest==9.1.1" in lock
     dockerfile = (project / "Dockerfile").read_text()
@@ -73,16 +77,18 @@ def test_new_project_matches_schema_and_ignores_local_state(tmp_path):
     assert "verify" in __import__("yaml").safe_load(workflow)["jobs"]
     assert "pip install keel-sdk" not in dockerfile
     assert "pip install keel-sdk" not in workflow
-    assert "scripts/install-keel-sdk.py" in dockerfile
+    assert "find /app/vendor" in dockerfile
     assert "requirements.lock" in dockerfile
-    assert "KEEL_GITHUB_TOKEN" in dockerfile
+    assert "keel_sdk-*.whl" in dockerfile
+    assert "KEEL_SDK_TOKEN" in workflow
+    assert "gh release download" in workflow
     assert workflow.index("pytest -q") < workflow.index("keel gate --env staging") < workflow.index("docker build")
 
 
 def test_new_does_not_vendor_a_local_wheel(tmp_path, monkeypatch):
     monkeypatch.setenv("KEEL_SDK_WHEEL", str(tmp_path / "missing.whl"))
     project = create_project("hello-agent", root=tmp_path)
-    assert (project / "scripts/install-keel-sdk.py").is_file()
+    assert (project / ".keel-sdk-version").is_file()
     assert not (project / "vendor").exists()
 
 

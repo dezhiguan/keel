@@ -10,7 +10,6 @@ from keel.manifest import load_manifest
 
 
 TEMPLATES = ("loop-agent", "chat-rag", "tool-agent", "graph-agent", "supervisor", "java-spring")
-CONTRACTS = ("manifest.schema.json", "sse-events.schema.json", "invoke.openapi.yaml", "error-codes.yaml")
 PYTHON_LOCK = "httpx==0.28.1\npytest==9.1.1\nuvicorn==0.54.0\n"
 
 
@@ -62,8 +61,7 @@ def create_project(name: str, *, template: str = "loop-agent", root: str | Path 
         raise FileExistsError(f"{target} already exists")
     if template in TEMPLATES:
         _copy_template(template_dir(template), target, name)
-        _write_sdk_installer(target)
-        _copy_contracts(target)
+        _finish_project(target, name, template)
         print(f"Created {target}. Run: cd {name} && keel dev")
         return target
     target.mkdir(parents=True)
@@ -85,14 +83,13 @@ def create_project(name: str, *, template: str = "loop-agent", root: str | Path 
         "Dockerfile": _python_dockerfile(),
         ".github/workflows/keel.yml": _python_workflow(),
         "requirements.lock": PYTHON_LOCK,
-        ".gitignore": ".keel/\n__pycache__/\n.pytest_cache/\n",
+        ".gitignore": ".keel/\n__pycache__/\n.pytest_cache/\nvendor/\n",
     }
     for relative, content in files.items():
         path = target / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
-    _write_sdk_installer(target)
-    _copy_contracts(target)
+    _finish_project(target, name, "hello-agent")
     load_manifest(target / "agent.yaml")
     print(f"Created {target}. Run: cd {name} && keel dev")
     return target
@@ -101,11 +98,10 @@ def create_project(name: str, *, template: str = "loop-agent", root: str | Path 
 def _python_dockerfile() -> str:
     return (
         "FROM python:3.11-slim\nWORKDIR /app\nCOPY . /app\n"
-        "# docker build --secret id=KEEL_GITHUB_TOKEN,env=KEEL_GITHUB_TOKEN .\n"
-        "RUN --mount=type=secret,id=KEEL_GITHUB_TOKEN \\\n"
-        "    KEEL_GITHUB_TOKEN=\"$(cat /run/secrets/KEEL_GITHUB_TOKEN)\" \\\n"
-        "    python scripts/install-keel-sdk.py \\\n"
-        " && pip install --no-cache-dir -r requirements.lock\n"
+        "RUN wheel=\"$(find /app/vendor -name 'keel_sdk-*.whl' -print -quit)\" \\\n"
+        " && test -n \"$wheel\" \\\n"
+        " && pip install --no-cache-dir \"$wheel\" -r requirements.lock \\\n"
+        " && rm -rf /app/vendor\n"
         "CMD [\"uvicorn\", \"app:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]\n"
     )
 
@@ -121,10 +117,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install keel-sdk from the GitHub Release
+      - name: Download the pinned Keel SDK wheel
         env:
-          KEEL_GITHUB_TOKEN: ${{ github.token }}
-        run: python scripts/install-keel-sdk.py
+          GH_TOKEN: ${{ secrets.KEEL_SDK_TOKEN }}
+        run: |
+          test -n "$GH_TOKEN"
+          version="$(cat .keel-sdk-version)"
+          mkdir -p vendor
+          gh release download "sdk-v${version}" --repo dezhiguan/keel --pattern "keel_sdk-${version}-py3-none-any.whl" --dir vendor
+          python -m pip install "vendor/keel_sdk-${version}-py3-none-any.whl"
       - name: Install locked dependencies
         run: pip install -r requirements.lock
       - name: Unit tests
@@ -141,11 +142,9 @@ jobs:
           python -c 'import socket; socket.create_connection(("127.0.0.1", 8000), 1).close()'
           keel gate --env staging
       - name: Build the image
-        env:
-          KEEL_GITHUB_TOKEN: ${{ github.token }}
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA}"
-          docker build --secret id=KEEL_GITHUB_TOKEN,env=KEEL_GITHUB_TOKEN -t "$image" .
+          docker build -t "$image" .
           echo "image=$image" >> "$GITHUB_ENV"
       - name: Register and release staging
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -157,29 +156,60 @@ jobs:
 """
 
 
-def _contract_dir() -> Path:
-    packaged = Path(__file__).resolve().parents[1] / "_schemas"
-    if all((packaged / name).is_file() for name in CONTRACTS):
-        return packaged
-    repo = Path(__file__).resolve().parents[3] / "contracts"
-    if all((repo / name).is_file() for name in CONTRACTS):
-        return repo
-    raise FileNotFoundError("找不到契约文件，无法生成独立项目")
-
-
-def _copy_contracts(target: Path) -> None:
-    source = _contract_dir()
-    destination = target / "contracts"
-    destination.mkdir(parents=True, exist_ok=True)
-    for name in CONTRACTS:
-        shutil.copy2(source / name, destination / name)
-
-
-def _write_sdk_installer(target: Path) -> None:
-    source = Path(__file__).with_name("install_keel_sdk.py")
-    destination = target / "scripts" / "install-keel-sdk.py"
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, destination)
+def _finish_project(target: Path, name: str, template: str) -> None:
+    """Add the files that make a generated directory a standalone project."""
+    (target / ".keel-sdk-version").write_text("1.0.0\n", encoding="utf-8")
+    if template == "java-spring":
+        setup = (
+            "Maven 从 GitHub Packages 获取 `keel-spring-boot-starter`。设置 GitHub Packages 凭证后"
+            "运行 `mvn -s ci/settings.xml test` 和 `mvn -s ci/settings.xml package`。"
+            "CI 为门禁命令另外下载 `.keel-sdk-version` 指定的 Python CLI wheel。\n"
+        )
+    else:
+        setup = (
+            "本地准备 `KEEL_SDK_TOKEN` 后运行：\n\n"
+            "```bash\n"
+            "version=$(cat .keel-sdk-version)\n"
+            "mkdir -p vendor\n"
+            "GH_TOKEN=$KEEL_SDK_TOKEN gh release download \"sdk-v${version}\" --repo dezhiguan/keel --pattern \"keel_sdk-${version}-py3-none-any.whl\" --dir vendor\n"
+            "python -m pip install vendor/keel_sdk-*.whl -r requirements.lock\n"
+            "python -m pytest -q\n"
+            "keel dev\n"
+            "```\n"
+        )
+    (target / "README.md").write_text(
+        f"# {name}\n\n"
+        f"独立的 Keel 智能体项目，基于 `{template}` 模板。此目录就是项目根目录，"
+        "可单独初始化 Git 仓库；不需要检出 Keel 底座源码。\n\n"
+        "## 开发\n\n"
+        "修改 `agent.yaml`、业务入口、`tools/`、`prompts/` 和 `evals/`。"
+        "提交前运行项目测试，发布前运行 `keel gate --env staging`。\n\n"
+        + setup + "\n"
+        "`evals/` 保存评测样例与评分器，`.github/workflows/keel.yml` 定义项目自己的流水线。"
+        "SDK 提供运行时、契约校验和平台客户端；项目只保存自己的业务代码。\n",
+        encoding="utf-8",
+    )
+    (target / "AGENTS.md").write_text(
+        f"# {name} 开发说明\n\n"
+        "这是一个独立智能体项目。先阅读 `README.md`、`agent.yaml`、现有提示词和评测样例。\n"
+        "业务逻辑写在项目入口及 `tools/`；平台运行时通过版本化 `keel-sdk` 引入。\n"
+        "改动行为时同步更新评测与测试；提交前运行本项目测试。\n"
+        "不要把 Keel 底座源码、契约或密钥复制进本项目。\n",
+        encoding="utf-8",
+    )
+    ignore = target / ".gitignore"
+    if "vendor/" not in ignore.read_text(encoding="utf-8").splitlines():
+        with ignore.open("a", encoding="utf-8") as output:
+            output.write("vendor/\n")
+    if template != "java-spring":
+        (target / "pyproject.toml").write_text(
+            "[project]\n"
+            f'name = "{name}"\nversion = "0.1.0"\n'
+            'description = "Independent Keel agent project"\n'
+            'requires-python = ">=3.11"\n\n'
+            "[tool.pytest.ini_options]\ntestpaths = [\"tests\"]\n",
+            encoding="utf-8",
+        )
 
 
 def _copy_template(source: Path, target: Path, name: str) -> None:

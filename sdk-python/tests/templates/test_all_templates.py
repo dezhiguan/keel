@@ -34,9 +34,8 @@ def _assert_pipeline(workflow: str):
     parsed = yaml.safe_load(workflow)
     assert "verify" in parsed["jobs"]
     assert len(parsed["jobs"]["verify"]["steps"]) >= 8
-    assert "${{ github.token }}" in workflow
+    assert "${{ secrets.KEEL_SDK_TOKEN }}" in workflow
     assert "${{ vars.KEEL_SERVER_URL }}" in workflow
-    assert "${{ secrets.KEEL_GITHUB_TOKEN }}" not in workflow
     assert "${{ secrets.KEEL_SERVER_URL }}" not in workflow
     assert "run: python -m pytest -q" in workflow
     steps = ("pytest -q", "keel gate --env staging", "docker build", "keel register --env staging", "keel release --env staging")
@@ -45,30 +44,27 @@ def _assert_pipeline(workflow: str):
     assert "refs/heads/main" in workflow
 
 
-def _assert_contracts(project: Path):
-    for name in ("manifest.schema.json", "sse-events.schema.json", "invoke.openapi.yaml", "error-codes.yaml"):
-        generated = (project / "contracts" / name).read_text(encoding="utf-8")
-        original = (ROOT / "contracts" / name).read_text(encoding="utf-8")
-        assert generated == original
-
-
 def _assert_private_python_install(project: Path):
     dockerfile = (project / "Dockerfile").read_text(encoding="utf-8")
     workflow = (project / ".github/workflows/keel.yml").read_text(encoding="utf-8")
-    installer = (project / "scripts/install-keel-sdk.py").read_text(encoding="utf-8")
     lock = (project / "requirements.lock").read_text(encoding="utf-8")
     assert "pip install keel-sdk" not in dockerfile
     assert "pip install keel-sdk" not in workflow
-    assert "vendor/" not in dockerfile
+    assert "find /app/vendor" in dockerfile
     assert not (project / "vendor").exists()
-    assert "scripts/install-keel-sdk.py" in dockerfile
+    assert not (project / "scripts/install-keel-sdk.py").exists()
+    assert not (project / "contracts").exists()
+    assert (project / "README.md").is_file()
+    assert (project / "AGENTS.md").is_file()
+    assert (project / "pyproject.toml").is_file()
+    assert (project / ".keel-sdk-version").read_text().strip() == "1.0.0"
     assert "requirements.lock" in dockerfile
-    assert "KEEL_GITHUB_TOKEN" in dockerfile
+    assert "KEEL_GITHUB_TOKEN" not in dockerfile
     assert "pypi.org" not in dockerfile
-    assert "dezhiguan/keel" in installer
+    assert "gh release download" in workflow
+    assert "dezhiguan/keel" in workflow
     assert lock.strip()
     assert all("==" in line for line in lock.splitlines() if line.strip())
-    _assert_contracts(project)
     _assert_pipeline(workflow)
     _assert_no_platform_source_path(project)
 
@@ -128,7 +124,7 @@ def test_java_spring_template_builds_two_agents(tmp_path):
     pom_path = project / "pom.xml"
     pom = pom_path.read_text(encoding="utf-8")
     assert "https://maven.pkg.github.com/dezhiguan/keel" in pom
-    _assert_contracts(project)
+    assert not (project / "contracts").exists()
     java_workflow = (project / ".github/workflows/keel.yml").read_text(encoding="utf-8")
     assert "verify" in yaml.safe_load(java_workflow)["jobs"]
     java_steps = ("mvn -s ci/settings.xml -B test", "keel gate --env staging", "docker build",

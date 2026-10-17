@@ -8,10 +8,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install keel-sdk from the GitHub Release
+      - name: Download the pinned Keel SDK wheel
         env:
-          KEEL_GITHUB_TOKEN: ${{ github.token }}
-        run: python scripts/install-keel-sdk.py
+          GH_TOKEN: ${{ secrets.KEEL_SDK_TOKEN }}
+        run: |
+          test -n "$GH_TOKEN"
+          version="$(cat .keel-sdk-version)"
+          mkdir -p vendor
+          gh release download "sdk-v${version}" --repo dezhiguan/keel --pattern "keel_sdk-${version}-py3-none-any.whl" --dir vendor
+          python -m pip install "vendor/keel_sdk-${version}-py3-none-any.whl"
       - name: Install locked dependencies
         run: pip install -r requirements.lock
       - name: Unit tests
@@ -28,11 +33,9 @@ jobs:
           python -c 'import socket; socket.create_connection(("127.0.0.1", 8000), 1).close()'
           keel gate --env staging
       - name: Build the image
-        env:
-          KEEL_GITHUB_TOKEN: ${{ github.token }}
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA}"
-          docker build --secret id=KEEL_GITHUB_TOKEN,env=KEEL_GITHUB_TOKEN -t "$image" .
+          docker build -t "$image" .
           echo "image=$image" >> "$GITHUB_ENV"
       - name: Register and release staging
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

@@ -284,11 +284,9 @@ def _save(path: Path, value):
 
 def _scaffold(project: Path, job_id: str, candidate: dict | None = None):
     """Strip unrelated work-order examples; CI verifies this actual manifest and Python syntax."""
-    from keel.manifest import _contract_file
     (project / "tools/checkpoint.py").unlink(missing_ok=True)
     (project / "evals/seed.jsonl").write_text("", encoding="utf-8")
     (project / "evals/scorers.py").write_text("# Add scorers after humans provide evaluation cases.\n", encoding="utf-8")
-    (project / "manifest.schema.json").write_text(_contract_file("manifest.schema.json"), encoding="utf-8")
     if candidate is not None:
         (project / "evals/scorers.py").write_text('''import json
 import re
@@ -357,22 +355,25 @@ app = agent.asgi()
             output = project / item["path"]
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(item["content"], encoding="utf-8")
-        (project / "README.md").write_text(f"# {project.name}\n\nKeel 任务 {job_id}：模型生成的研发岗位代码候选。"
-            "必须经隔离沙箱实测、人工 PR review、评测门禁和发布审批后才能上岗。\n", encoding="utf-8")
+        readme = project / "README.md"
+        existing = readme.read_text(encoding="utf-8") if readme.is_file() else f"# {project.name}\n"
+        readme.write_text(existing.rstrip() + f"\n\n## 生产任务 {job_id}\n\n"
+            "模型生成的研发岗位代码候选，需通过隔离沙箱、人工 PR review、评测门禁和发布审批。\n",
+            encoding="utf-8")
     else:
         spec = json.loads((project / "spec.json").read_text(encoding="utf-8"))
         write_prompt_scaffold(project, spec)
     (project / "tests/test_smoke.py").write_text('''import ast
 import json
 from pathlib import Path
-import jsonschema
 import yaml
+from keel.manifest import load_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
 
 def test_manifest_matches_the_delivered_contract():
-    manifest = yaml.safe_load((ROOT / "agent.yaml").read_text())
-    jsonschema.Draft202012Validator(json.loads((ROOT / "manifest.schema.json").read_text())).validate(manifest)
+    manifest = load_manifest(ROOT / "agent.yaml")
+    assert manifest.metadata.name == ROOT.name
 
 def test_entry_is_valid_python_and_has_an_async_entry():
     tree = ast.parse((ROOT / "app.py").read_text())
@@ -382,9 +383,11 @@ def test_entry_is_valid_python_and_has_an_async_entry():
 
     if candidate is not None:
         return
-    (project / "README.md").write_text(f'''# {project.name}
+    readme = project / "README.md"
+    existing = readme.read_text(encoding="utf-8") if readme.is_file() else f"# {project.name}\n"
+    readme.write_text(existing.rstrip() + f'''
 
-Keel 研发任务：{job_id}。
+## 研发任务 {job_id}
 
 此 PR 交付已确认的需求单、agent.yaml 和 Python 项目骨架，业务逻辑尚未实现。
 需求的使用者、输入输出和成功标准以 spec.json 为准。

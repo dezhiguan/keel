@@ -25,8 +25,13 @@ jobs:
           python-version: "3.11"
       - name: Install the keel CLI
         env:
-          KEEL_GITHUB_TOKEN: ${{ github.token }}
-        run: python scripts/install-keel-sdk.py
+          GH_TOKEN: ${{ secrets.KEEL_SDK_TOKEN }}
+        run: |
+          test -n "$GH_TOKEN"
+          version="$(cat .keel-sdk-version)"
+          mkdir -p vendor
+          gh release download "sdk-v${version}" --repo dezhiguan/keel --pattern "keel_sdk-${version}-py3-none-any.whl" --dir vendor
+          python -m pip install "vendor/keel_sdk-${version}-py3-none-any.whl"
       - name: Gate
         env:
           KEEL_SERVER_URL: ${{ vars.KEEL_SERVER_URL }}
