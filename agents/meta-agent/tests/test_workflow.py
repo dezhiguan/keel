@@ -78,6 +78,24 @@ def test_bootstrap_review_receives_trusted_tool_risk():
     assert asyncio.run(review_candidate(request, Ctx()))["approved"] is True
 
 
+def test_bootstrap_review_rejects_unactionable_failure():
+    from workflow import review_candidate
+    files = [{"path": path, "content": "pass\n"} for path in
+             ("role.py", "app.py", "agent.yaml", "prompts/role.md", "tests/test_role.py")]
+    checks = {name: True for name in ("modelAccess", "toolAuthorization", "audit",
+              "visibleCaseOverfit", "releaseApproval", "behaviorTests", "hardcodedPrompt")}
+
+    class Llm:
+        async def chat(self, *args, **kwargs):
+            return json.dumps({"approved": False, "checks": {**checks, "visibleCaseOverfit": False},
+                               "findings": []})
+
+    request = {**work(), "action": "REVIEW", "delivery": {"sha": "a" * 40},
+               "snapshot": {"sha": "a" * 40, "files": files}}
+    with pytest.raises(Exception, match="未返回有效结构化结论"):
+        asyncio.run(review_candidate(request, type("Ctx", (), {"llm": Llm()})()))
+
+
 def test_workflow_drafts_and_revises_without_an_sdk_resume_token(gateway):
     gateway.replies.append(reply(tools=[]))
     kind, event = terminal(invoke(json.dumps(work())))

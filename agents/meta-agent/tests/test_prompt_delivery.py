@@ -160,13 +160,18 @@ def test_review_fails_closed_on_hardcoded_prompt_dimension():
               "visibleCaseOverfit", "releaseApproval", "behaviorTests", "hardcodedPrompt")}
 
     class Llm:
+        calls = 0
         async def chat(self, *args, **kwargs):
+            self.calls += 1
             return json.dumps({"approved": True, "checks": {**checks, "hardcodedPrompt": False},
-                               "findings": []})
+                               "findings": [] if self.calls == 1 else [{
+                                   "path": "role.py", "line": 1, "severity": "MID",
+                                   "detail": "岗位指令写在代码里，应改为 ctx.prompt 读取。"}]})
 
     request = {"delivery": {"sha": "a" * 40}, "snapshot": {"sha": "a" * 40, "files": files}}
     report = asyncio.run(review_candidate(request, type("Ctx", (), {"llm": Llm()})()))
     assert report["approved"] is False
+    assert report["findings"][0]["severity"] == "MID"
     request["snapshot"]["files"] = [item for item in files if item["path"] != "prompts/role.md"]
     with pytest.raises(Exception, match="缺少代码评审所需文件"):
         asyncio.run(review_candidate(request, type("Ctx", (), {"llm": Llm()})()))
