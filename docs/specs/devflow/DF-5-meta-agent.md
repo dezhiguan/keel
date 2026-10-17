@@ -133,3 +133,7 @@ cd sdk-python && ../.venv/bin/python -m pytest tests/test_runtime.py -q
 - M1 不生成代码、不执行代码、不建仓库、不调 keel-server。
 - 不新增契约字段和错误码（归 DF-1）。
 - 不让模型编写 meta-agent 自己的评测考题。
+# 协作型岗位代码生成
+
+通用 supervisor 岗位须从运行时 `ctx.manifest.spec.delegates` 读取已授权子智能体清单，并以清单中的名字调用 `ctx.delegate(name, text)`。生成指令应给出准确的 SDK 用法；未满足此条件的候选在交付前拒绝，由元智能体重新生成。
+
