@@ -57,6 +57,7 @@ public class MemoryService {
         return created;
     }
 
+    /** 仍在库里的条数。详情抽屉用这个数，不用原型里的示例条数。 */
     public Counts counts(String agent) {
         long user = 0;
         long task = 0;
