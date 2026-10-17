@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus'
 import { checkAgentName, getCatalog, previewManifest, registerAgent, type CatalogKnowledgeBase, type CatalogPolicy, type CatalogTool, type SelfCheckReport } from '@/api/agents'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
+import { useUserStore } from '@/stores/user'
 import DevflowWizard from './DevflowWizard.vue'
 import { RISK } from '@/utils/format'
 import { nameError, registerBody, templateForLanguage, templatesFor, type DevflowKind, type WizardForm } from './wizard'
@@ -16,6 +17,7 @@ const STEPS = ['创建方式', '基本信息', '模板与资源', '预览并注�
 const route = useRoute()
 const router = useRouter()
 const envStore = useEnvStore()
+const userStore = useUserStore()
 const method = ref(route.query.method === 'devflow' ? 'devflow' : route.query.method === 'dify' ? 'dify' : 'code')
 const changeAgent = typeof route.query.agent === 'string' ? route.query.agent : ''
 const changeKind: DevflowKind = route.query.kind === 'CHANGE' ? 'CHANGE' : 'CREATE'
@@ -27,8 +29,8 @@ const report = ref<SelfCheckReport | null>(null)
 const form = reactive<WizardForm>({
   name: 'echo',
   displayName: '回声',
-  ownerOrg: '研发效能组',
-  ownerUser: 'amy',
+  ownerOrg: userStore.user?.org?.trim() || '研发效能组',
+  ownerUser: userStore.user?.displayName?.trim() || '官德志',
   category: 'dev',
   language: 'python',
   endpoint: '',

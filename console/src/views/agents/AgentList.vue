@@ -150,8 +150,8 @@ watch(() => route.query.drawer, (drawer, previous) => {
             <span class="ly" :class="card.layer">{{ LAYER_LABEL[card.layer] }}</span>
             <StatusPill v-if="card.status" v-bind="agentStatus(card.status as AgentStatus)" />
           </div>
-          <p>{{ card.description }}</p>
-          <div class="src">来源 <span v-if="card.placeholder" class="tag-new">占位</span><span v-else class="tag-new">新</span>：
+          <p v-if="card.description">{{ card.description }}</p>
+          <div class="src">来源<template v-if="card.placeholder"> <span class="tag-new">占位</span></template>：
             <RouterLink v-if="card.jobId" :to="`/jobs/${card.jobId}`" @click.stop>{{ card.source }}</RouterLink>
             <template v-else>{{ card.source }}</template>
             · 负责人 {{ card.owner }}

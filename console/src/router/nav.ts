@@ -14,7 +14,7 @@ export function isNavActive(itemPath: string, currentPath: string): boolean {
 export const NAV: NavItem[] = [
   { path: '/overview', title: '运行总览', icon: '◈', group: '运营' },
   { path: '/agents', title: '智能体目录', icon: '▣', group: '运营' },
-  { path: '/jobs', title: '智能体生产线', icon: '⚒', group: '运营', badge: '新' },
+  { path: '/jobs', title: '智能体生产线', icon: '⚒', group: '运营' },
   { path: '/services', title: '平台与能力服务', icon: '◎', group: '运营' },
   { path: '/traces', title: '调用链路', icon: '≋', group: '观测' },
   { path: '/eval', title: '评测与门禁', icon: '✓', group: '观测' },
