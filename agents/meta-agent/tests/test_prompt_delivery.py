@@ -100,12 +100,26 @@ def test_delivery_keeps_prompt_file(tmp_path):
     (project / "spec.json").write_text('{"goal":"分析需求","success":"文档完整"}', encoding="utf-8")
     (project / "agent.yaml").write_text(yaml.safe_dump(manifest(), sort_keys=False), encoding="utf-8")
     _scaffold(project, "DF-9001", _candidate())
+    assert (project / ".keel-sdk-version").read_text(encoding="utf-8") == "1.0.0\n"
+    assert ".keel-sdk-version" in {item["path"] for item in _files(project)}
     assert (project / "prompts/role.md").read_text(encoding="utf-8") == "岗位任务：{{input}}\n"
     assert "ctx.prompt(\"role\")" in (project / "role.py").read_text(encoding="utf-8")
     assert "prompts/role.md" in {item["path"] for item in _files(project)}
     workflow = (project / ".github/workflows/keel.yml").read_text(encoding="utf-8")
     assert "gh release download" in workflow
     assert "scripts/install-keel-sdk.py" not in workflow
+
+
+def test_delivery_preserves_existing_sdk_pin(tmp_path):
+    project = tmp_path / "spec-agent"
+    for folder in ("tools", "tests", "evals", "prompts"):
+        (project / folder).mkdir(parents=True, exist_ok=True)
+    (project / "requirements.lock").write_text("pytest==9.1.1\n", encoding="utf-8")
+    (project / "spec.json").write_text('{"goal":"分析需求"}', encoding="utf-8")
+    (project / "agent.yaml").write_text(yaml.safe_dump(manifest(), sort_keys=False), encoding="utf-8")
+    (project / ".keel-sdk-version").write_text("1.2.3\n", encoding="utf-8")
+    _scaffold(project, "DF-9001", _candidate())
+    assert (project / ".keel-sdk-version").read_text(encoding="utf-8") == "1.2.3\n"
 
 
 def test_generic_scaffold_keeps_confirmed_prompt(tmp_path):

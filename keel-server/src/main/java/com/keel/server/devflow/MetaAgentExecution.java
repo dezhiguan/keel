@@ -640,7 +640,7 @@ public class MetaAgentExecution {
                 int reviewRepairs = state.path("reviewRepairRounds").asInt(0);
                 var modelReview = state.path("modelReview");
                 boolean s4Repair = !infrastructureOnly && canRepairS4(state, attempt);
-                boolean ciRefresh = !infrastructureOnly && !s4Repair && reviewRepairs >= 1 && attempt == 9;
+                boolean ciRefresh = !infrastructureOnly && !s4Repair && canRefreshCandidateCi(state, attempt);
                 if (!infrastructureOnly && !ciRefresh && !s4Repair && reviewRepairs >= 1)
                     throw invalid("评审阶段岗位功能修复已达到一次上限");
                 var delivery = state.path("delivery");
@@ -658,7 +658,7 @@ public class MetaAgentExecution {
                         .put("report", s4Repair
                                 ? modelReview.path("findings").toString()
                                 : ciRefresh
-                                ? "公开候选 PR 的 CI 误在人工评审及 staging 开通前启动受管门禁；只刷新无密钥预检工作流，保留岗位代码"
+                                ? "候选 CI 的 SDK 版本锁或预检工作流缺失；只补齐交付脚手架，保留岗位代码"
                                 : infrastructureOnly
                                 ? "交付仓库 CI 工作流无效；保留岗位代码并刷新可信模板"
                                 : "H2 可见用例是自然语言输入且期望不同的可核对结论。当前候选固定返回 H1 阻塞，无法通过岗位行为门禁；请修复岗位逻辑与测试，不能硬编码题目。可信模板已提供评分函数。");
@@ -859,6 +859,11 @@ public class MetaAgentExecution {
         return refreshes >= 0 && refreshes < 2;
     }
 
+    static boolean canRefreshCandidateCi(JsonNode state, int attempt) {
+        if (state.path("reviewRepairRounds").asInt(0) < 1) return false;
+        return attempt == 9 || (attempt == 10 && state.path("s4RepairRounds").asInt(0) == 1);
+    }
+
     static boolean canRepairS4(JsonNode state, int attempt) {
         var sha = state.path("delivery").path("sha").asText();
         var review = state.path("modelReview");
@@ -880,7 +885,8 @@ public class MetaAgentExecution {
         }
         if (state.path("repair").path("ciRefresh").asBoolean(false)) {
             return "FAILED".equals(state.path("sandboxStatus").asText())
-                    && state.path("sandboxAttempts").size() >= 9;
+                    && state.path("sandboxAttempts").size()
+                    >= state.path("repair").path("attempt").asInt(9);
         }
         if (state.path("repair").path("reviewRepair").asBoolean(false)) {
             return "FAILED".equals(state.path("sandboxStatus").asText())
