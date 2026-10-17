@@ -13,6 +13,18 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.*;
 
 class MetaAgentRulesTest {
+    @Test void adapterUpdateUsesDeliveryVersionAndNeverRunsAfterCodeReview() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) new ObjectMapper().readTree("""
+                {"phase":"WAITING_REVIEW","sandboxStatus":"PASS","delivery":{"sha":"abc"},
+                "draft":{"manifest":{"spec":{"delegates":["child"]}}},"sandboxAttempts":[{},{},{},{},{},{},{},{},{},{},{}]}
+                """);
+        assertThat(MetaAgentExecution.canRefreshRuntimeAdapter(state)).isTrue();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("delivery")).put("runtimeAdapterVersion", "registered-env-v1");
+        assertThat(MetaAgentExecution.canRefreshRuntimeAdapter(state)).isFalse();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("delivery")).remove("runtimeAdapterVersion");
+        state.put("phase", "STAGING_READY");
+        assertThat(MetaAgentExecution.canRefreshRuntimeAdapter(state)).isFalse();
+    }
     @Test void gateRepairRequiresExactFailedStagingEvaluationAndStopsAfterOneWindow() throws Exception {
         var state = (com.fasterxml.jackson.databind.node.ObjectNode) new ObjectMapper().readTree("""
                 {"phase":"STAGING_READY","delivery":{"sha":"abc"},"pipeline":{"env":"staging",

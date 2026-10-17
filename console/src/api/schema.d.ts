@@ -3205,6 +3205,8 @@ export interface components {
                  * @enum {string}
                  */
                 capabilityStatus?: "UNVERIFIED" | "SCAFFOLD";
+                /** @description 可信运行适配模板版本 */
+                runtimeAdapterVersion?: string;
                 /**
                  * @description staging 门禁尚未执行
                  * @enum {string}
@@ -3217,6 +3219,8 @@ export interface components {
             sandboxStatus?: "PASS" | "FAILED";
             /** @description 当前有上限的沙箱修复窗口终点 */
             sandboxAttemptLimit?: number;
+            /** @description 协作候选缺少当前运行适配，可以保留岗位代码更新模板并重新验证审批 */
+            runtimeAdapterUpdateAvailable?: boolean;
             pipeline?: {
                 /** @enum {string} */
                 env?: "staging" | "prod";

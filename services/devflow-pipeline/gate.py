@@ -7,8 +7,19 @@ import uuid
 
 import httpx
 
-from keel.eval.run import invoke_text
+from keel.eval.run import _final_answer
 from keel.holdout_run import ci_headers
+
+
+def invoke_text(endpoint, text, *, eval_run_id, env):
+    from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+    headers = {"X-Keel-Eval-Run": eval_run_id, "X-Keel-Env": env, "Accept": "text/event-stream"}
+    TraceContextTextMapPropagator().inject(headers)
+    with httpx.Client(timeout=httpx.Timeout(180, connect=10)) as client:
+        with client.stream("POST", endpoint.rstrip("/") + "/v1/invoke",
+                           json={"input": {"text": text}}, headers=headers) as response:
+            response.raise_for_status()
+            return _final_answer(response.iter_lines())
 
 
 def request(path, body=None):

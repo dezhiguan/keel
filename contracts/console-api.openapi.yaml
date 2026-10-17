@@ -4284,11 +4284,13 @@ components:
             protection: { type: string, enum: [ENFORCED, UNAVAILABLE], description: 任务仓库分支保护；UNAVAILABLE 时平台拒绝合并和发布 }
             checks: { type: string, enum: [MANUAL, ENABLED], description: ENABLED 表示 .github/workflows/keel.yml 已随交付提交，首次推送会触发 CI。MANUAL 只用于旧记录 }
             capabilityStatus: { type: string, enum: [UNVERIFIED, SCAFFOLD], description: 候选代码尚未通过岗位行为验证 }
+            runtimeAdapterVersion: { type: string, description: 可信运行适配模板版本 }
             gateStatus: { type: string, enum: [NOT_RUN], description: staging 门禁尚未执行 }
         traceId: { type: string }
         sandboxRunId: { type: string }
         sandboxStatus: { type: string, enum: [PASS, FAILED] }
         sandboxAttemptLimit: { type: integer, minimum: 1, maximum: 20, description: 当前有上限的沙箱修复窗口终点 }
+        runtimeAdapterUpdateAvailable: { type: boolean, description: 协作候选缺少当前运行适配，可以保留岗位代码更新模板并重新验证审批 }
         pipeline:
           type: object
           properties:

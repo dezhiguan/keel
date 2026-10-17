@@ -715,6 +715,22 @@ public class MetaAgentExecution {
         requireAdmin();
         return tx.execute(status -> {
             var state = lock(id);
+            if (canRefreshRuntimeAdapter(state)) {
+                var delivery = state.path("delivery");
+                String sha = delivery.path("sha").asText();
+                String repo = delivery.path("repo").asText().replaceFirst("^[^/]+/", "");
+                int attempt = state.path("sandboxAttempts").size() + 1;
+                var previous = previousCandidate(json, read(git.fetch(id, repo, sha)));
+                var repair = state.putObject("repair").put("attempt", attempt).put("failedSha", sha)
+                        .put("infrastructureOnly", true).put("maxAttempts", attempt)
+                        .put("report", "更新可信协作运行适配；保留岗位代码、提示词及测试");
+                repair.set("previousCandidate", previous);
+                state.put("sandboxAttemptCeiling", attempt).put("phase", "QUEUED");
+                state.remove(List.of("humanReview", "modelReview", "modelReviewTraceId", "sandboxStatus", "sandboxRunId"));
+                save(id, state, "DELIVER");
+                jobs.progress(id, "QUEUED", "BUILD", "更新可信协作运行适配，保留岗位文件；新提交须重新沙箱与审批");
+                return publicState(state);
+            }
             if (canRepairStagingGate(state)) {
                 var delivery = state.path("delivery");
                 String sha = delivery.path("sha").asText();
@@ -870,6 +886,14 @@ public class MetaAgentExecution {
                 && state.path("pipeline").path("evaluationFailed").asBoolean(false)
                 && state.path("delivery").path("sha").asText().equals(state.path("pipeline").path("sha").asText())
                 && state.path("gateRepairRounds").asInt(0) < 1 && state.path("sandboxAttempts").size() < 20;
+    }
+
+    static boolean canRefreshRuntimeAdapter(JsonNode state) {
+        return "WAITING_REVIEW".equals(state.path("phase").asText())
+                && "PASS".equals(state.path("sandboxStatus").asText())
+                && !state.path("draft").path("manifest").path("spec").path("delegates").isEmpty()
+                && !"registered-env-v1".equals(state.path("delivery").path("runtimeAdapterVersion").asText())
+                && state.path("sandboxAttempts").size() < 20;
     }
 
     public DevflowTypes.Job cancel(String id, String actor) {
@@ -1159,6 +1183,7 @@ public class MetaAgentExecution {
 
     private ObjectNode publicState(ObjectNode state) {
         var result = state.deepCopy();
+        result.put("runtimeAdapterUpdateAvailable", canRefreshRuntimeAdapter(state));
         int limit = sandboxAttemptLimit(state);
         if (!state.has("sandboxAttemptCeiling") && (state.path("repair").path("reviewRepair").asBoolean(false)
                 || state.path("repair").path("s4Repair").asBoolean(false)))

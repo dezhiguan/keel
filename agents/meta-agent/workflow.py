@@ -337,6 +337,7 @@ def _deliver(work):
                 + ("模型生成岗位代码候选，测试、人工评审、门禁和发布尚未完成。" if functional
                    else "骨架交付，待人工开发、评测和发布。")})
         result = {**opened, "sha": state["push"]["sha"], "branch": "draft",
+                  "runtimeAdapterVersion": "registered-env-v1",
                   "checks": "ENABLED",
                   "capabilityStatus": "UNVERIFIED" if functional else "SCAFFOLD",
                   "gateStatus": "NOT_RUN",
@@ -370,8 +371,8 @@ async def _invoke_child(name: str, text: str, budget: dict, trace_id: str):
         raise RuntimeError(f"委派 {name} 缺少登记 endpoint")
     headers = {"X-Keel-Agent": name, "X-Keel-Env": route["env"]}
     TraceContextTextMapPropagator().inject(headers)
-    async with httpx.AsyncClient(timeout=45) as client:
-        response = await client.post(endpoint, json={"input": {"text": text, "evidenceOnly": True}}, headers=headers)
+    async with httpx.AsyncClient(timeout=180) as client:
+        response = await client.post(endpoint, json={"input": {"text": text}}, headers=headers)
         response.raise_for_status()
     for block in response.text.split("\\n\\n"):
         if "event: final" not in block:

@@ -24,6 +24,7 @@ def test_child_adapter_uses_registered_child_environment_and_rejects_missing_bin
     def handler(request):
         assert str(request.url) == "http://child-dev:8000/v1/invoke"
         assert request.headers["X-Keel-Env"] == "dev"
+        assert json.loads(request.content) == {"input": {"text": "task"}}
         return httpx.Response(200, text='event: final\ndata: {"answer":"child evidence"}\n\n')
 
     monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: client(transport=httpx.MockTransport(handler), **kwargs))
