@@ -14,7 +14,7 @@ SNAPSHOT_LIMIT = 700 * 1024
 SNAPSHOT_FILES = 100
 PROTECTION = {
     "required_status_checks": None,
-    "enforce_admins": False,
+    "enforce_admins": True,
     "required_pull_request_reviews": {"required_approving_review_count": 1},
     "restrictions": None,
 }
@@ -28,14 +28,17 @@ class GitHubError(Exception):
 
 class GitHub:
     def __init__(self, base_url: str, token: str, org: str = ORG, server_url: str = "",
-                 log_archive_proxy: str = ""):
+                 log_archive_proxy: str = "", devflow_visibility: str = "private"):
         if not base_url or not token:
             raise ValueError("KEEL_GITHUB_API 或 KEEL_GITHUB_TOKEN 未设置")
+        if devflow_visibility not in ("private", "public"):
+            raise ValueError("KEEL_DEVFLOW_REPO_VISIBILITY 必须是 private 或 public")
         self.base = base_url.rstrip("/")
         self.token = token
         self.org = org
         self.server_url = server_url.rstrip("/")
         self.log_archive_proxy = log_archive_proxy.rstrip("/")
+        self.devflow_visibility = devflow_visibility
 
     def _download_logs(self, path: str) -> bytes:
         if not self.log_archive_proxy:
@@ -113,13 +116,14 @@ class GitHub:
         marker = "keel-devflow:" + job_id
         try:
             existing = self.request("GET", f"/repos/{self.org}/{name}")
-            if existing.get("description") != marker or not existing.get("private"):
+            if existing.get("description") != marker or not isinstance(existing.get("private"), bool):
                 raise GitHubError(409, "Repository belongs to a different task")
         except GitHubError as exc:
             if exc.status != 404:
                 raise
             self._create_repo({
-                "name": name, "private": True, "auto_init": True, "description": marker})
+                "name": name, "private": self.devflow_visibility == "private",
+                "auto_init": True, "description": marker})
         protection = "ENFORCED"
         try:
             self.request("PUT", f"/repos/{self.org}/{name}/branches/main/protection", PROTECTION)
@@ -232,13 +236,14 @@ class GitHub:
         return {"repo": f"{self.org}/{repo}", "number": number, "diff": text}
 
     def snapshot(self, repo: str, sha: str, job_id: str) -> dict:
-        """Fetch the exact private commit for an isolated runner without giving it Git credentials."""
+        """Fetch the exact task commit for an isolated runner without giving it Git credentials."""
         if not re.fullmatch(r"[0-9a-f]{40}", sha):
             raise ValueError("sha")
         root = f"/repos/{self.org}/{repo}"
         metadata = self.request("GET", root)
-        if metadata.get("description") != f"keel-devflow:{job_id}" or metadata.get("private") is not True:
-            raise GitHubError(403, "Repository is not the private repository for this task")
+        if (metadata.get("description") != f"keel-devflow:{job_id}"
+                or not isinstance(metadata.get("private"), bool)):
+            raise GitHubError(403, "Repository is not the repository for this task")
         commit = self.request("GET", root + f"/git/commits/{sha}")
         if commit.get("sha") != sha:
             raise GitHubError(409, "Commit SHA mismatch")
@@ -289,8 +294,9 @@ class GitHub:
             raise ValueError("sha")
         root = f"/repos/{self.org}/{repo}"
         metadata = self.request("GET", root)
-        if metadata.get("description") != f"keel-devflow:{job_id}" or metadata.get("private") is not True:
-            raise GitHubError(403, "Repository is not the private repository for this task")
+        if (metadata.get("description") != f"keel-devflow:{job_id}"
+                or not isinstance(metadata.get("private"), bool)):
+            raise GitHubError(403, "Repository is not the repository for this task")
         pull = self.request("GET", root + f"/pulls/{number}")
         if (pull.get("head", {}).get("sha") != sha or pull.get("base", {}).get("ref") != "main"
                 or pull.get("state") != "open"):

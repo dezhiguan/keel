@@ -27,7 +27,8 @@ def client_from_env() -> GitHub:
     if not _NAME.fullmatch(org):
         raise ValueError("KEEL_GITHUB_ORG 无效")
     return GitHub(api, token, org=org, server_url=os.environ.get("KEEL_SERVER_URL", ""),
-                  log_archive_proxy=os.environ.get("KEEL_GITHUB_LOG_ARCHIVE_PROXY", ""))
+                  log_archive_proxy=os.environ.get("KEEL_GITHUB_LOG_ARCHIVE_PROXY", ""),
+                  devflow_visibility=os.environ.get("KEEL_DEVFLOW_REPO_VISIBILITY", "private").strip())
 
 
 def call_tool(github: GitHub, tool: str, body: dict) -> dict:

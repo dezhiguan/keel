@@ -221,6 +221,36 @@ def test_plan_limit_keeps_private_scaffolds_but_blocks_merge_and_other_permissio
         Restricted("Resource not accessible by integration").ensure_repo("qa", "DF-9001")
 
 
+def test_public_devflow_repo_requires_protected_main_and_valid_visibility():
+    class Public(GitHub):
+        def __init__(self):
+            super().__init__("http://unused", "test", devflow_visibility="public")
+            self.created = None
+            self.protection = None
+
+        def _create_repo(self, payload):
+            self.created = payload
+
+        def request(self, method, path, payload=None, **kwargs):
+            if method == "GET" and path.endswith("/qa"):
+                raise GitHubError(404, "missing")
+            if path.endswith("/branches/main/protection"):
+                self.protection = payload
+            return {}
+
+        def status(self, method, path):
+            return 404
+
+    client = Public()
+    assert client.ensure_repo("qa", "DF-9001")["protection"] == "ENFORCED"
+    assert client.created == {"name": "qa", "private": False, "auto_init": True,
+                              "description": "keel-devflow:DF-9001"}
+    assert client.protection["enforce_admins"] is True
+    assert client.protection["required_pull_request_reviews"]["required_approving_review_count"] == 1
+    with pytest.raises(ValueError, match="KEEL_DEVFLOW_REPO_VISIBILITY"):
+        GitHub("http://unused", "test", devflow_visibility="internal")
+
+
 def test_ensure_repo_sets_public_server_url_as_actions_variable():
     class Configured(GitHub):
         def __init__(self):
@@ -246,14 +276,16 @@ def test_human_pr_review_is_bound_to_protected_main_and_exact_candidate_sha():
     sha = "a" * 40
 
     class Reviews(GitHub):
-        def __init__(self, *, protected=True, draft=False, head=sha, latest="APPROVED", review_sha=sha):
+        def __init__(self, *, protected=True, draft=False, head=sha, latest="APPROVED", review_sha=sha,
+                     private=True):
             super().__init__("http://unused", "test")
             self.protected, self.draft, self.head = protected, draft, head
             self.latest, self.review_sha = latest, review_sha
+            self.private = private
 
         def request(self, method, path, payload=None, **kwargs):
             if path.endswith("/qa"):
-                return {"description": "keel-devflow:DF-9001", "private": True}
+                return {"description": "keel-devflow:DF-9001", "private": self.private}
             if path.endswith("/pulls/7"):
                 return {"head": {"sha": self.head}, "base": {"ref": "main"},
                         "state": "open", "draft": self.draft}
@@ -268,6 +300,7 @@ def test_human_pr_review_is_bound_to_protected_main_and_exact_candidate_sha():
 
     assert call_tool(Reviews(), "git.pr.review.status",
                      {"repo": "qa", "number": 7, "sha": sha, "jobId": "DF-9001"})["approved"] is True
+    assert Reviews(private=False).review_status("qa", 7, sha, "DF-9001")["approved"] is True
     assert Reviews(draft=True).review_status("qa", 7, sha, "DF-9001")["approved"] is False
     assert Reviews(protected=False).review_status("qa", 7, sha, "DF-9001")["approved"] is False
     assert Reviews(review_sha="b" * 40).review_status("qa", 7, sha, "DF-9001")["approved"] is False
@@ -472,7 +505,7 @@ def test_produced_employee_merge_requires_a_server_only_h4_secret():
     assert approved.status_code == 200 and approved.json()["merged"] is True
 
 
-def test_snapshot_uses_exact_private_task_commit_and_returns_utf8_files():
+def test_snapshot_uses_exact_task_commit_and_returns_utf8_files():
     class Snapshot(GitHub):
         def __init__(self):
             super().__init__("http://unused", "test", "owner")
@@ -480,7 +513,7 @@ def test_snapshot_uses_exact_private_task_commit_and_returns_utf8_files():
         def request(self, method, path, payload=None, **kwargs):
             self.paths.append(path)
             if path.endswith("/qa"):
-                return {"description": "keel-devflow:DF-9001", "private": True}
+                return {"description": "keel-devflow:DF-9001", "private": False}
             if "/git/commits/" in path:
                 return {"sha": "a" * 40, "tree": {"sha": "tree-1"}}
             if "/git/trees/" in path:
@@ -517,7 +550,7 @@ def test_snapshot_rejects_other_jobs_and_unsafe_paths():
 
     with pytest.raises(GitHubError, match="Unsafe repository path"):
         Unsafe().snapshot("qa", "a" * 40, "DF-9001")
-    with pytest.raises(GitHubError, match="not the private repository"):
+    with pytest.raises(GitHubError, match="not the repository"):
         Unsafe(owner="keel-devflow:DF-9002").snapshot("qa", "a" * 40, "DF-9001")
 
 

@@ -23,6 +23,8 @@ spec:
           envFrom:
             - secretRef: {name: git-ci-github}
           env:
+            - name: KEEL_DEVFLOW_REPO_VISIBILITY
+              value: public
             - name: KEEL_SERVER_URL
               value: https://keel.ragforge.net
             - name: KEEL_GITHUB_LOG_ARCHIVE_PROXY
