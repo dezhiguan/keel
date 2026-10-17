@@ -26,25 +26,28 @@ class MetaAgentRulesTest {
                 """))).isFalse();
         assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(json.readTree("""
                 {"sandboxAttempts":[{},{},{}],"repair":{"infrastructureOnly":false}}
+                """))).isFalse();
+        assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(json.readTree("""
+                {"sandboxAttempts":[{},{},{},{},{}],"repair":{"infrastructureOnly":false}}
                 """))).isTrue();
     }
     @Test void reviewRepairCanRetryTransportFailureButNotFailedSixthSandbox() throws Exception {
         var json = new ObjectMapper();
         assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(json.readTree("""
-                {"sandboxAttempts":[{},{},{},{},{}],"repair":{"reviewRepair":true}}
+                {"sandboxAttempts":[{},{},{},{},{},{},{}],"repair":{"reviewRepair":true}}
                 """))).isFalse();
         assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(json.readTree("""
-                {"sandboxAttempts":[{},{},{},{},{},{}],"sandboxStatus":"FAILED",
+                {"sandboxAttempts":[{},{},{},{},{},{},{},{}],"sandboxStatus":"FAILED",
                  "repair":{"reviewRepair":true}}
                 """))).isTrue();
     }
     @Test void ciRefreshCanRetryTransportFailureButNotFailedSeventhSandbox() throws Exception {
         var json = new ObjectMapper();
         assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(json.readTree("""
-                {"sandboxAttempts":[{},{},{},{},{},{}],"repair":{"ciRefresh":true}}
+                {"sandboxAttempts":[{},{},{},{},{},{},{},{}],"repair":{"ciRefresh":true}}
                 """))).isFalse();
         assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(json.readTree("""
-                {"sandboxAttempts":[{},{},{},{},{},{},{}],"sandboxStatus":"FAILED",
+                {"sandboxAttempts":[{},{},{},{},{},{},{},{},{}],"sandboxStatus":"FAILED",
                  "repair":{"ciRefresh":true}}
                 """))).isTrue();
     }
@@ -52,7 +55,7 @@ class MetaAgentRulesTest {
         var json = new ObjectMapper();
         var state = json.readTree("""
                 {"delivery":{"sha":"aaaa"},"sandboxStatus":"FAILED","repair":{"ciRefresh":true},
-                 "sandboxAttempts":[{},{},{},{},{},{},{"sha":"aaaa","status":"FAILED",
+                 "sandboxAttempts":[{},{},{},{},{},{},{},{},{"sha":"aaaa","status":"FAILED",
                  "report":"test_manifest_matches_the_delivered_contract\\nassert manifest.metadata.name == ROOT.name\\nAssertionError: assert 'spec-agent' == 'repo'"}]}
                 """);
         assertThat(MetaAgentExecution.platformSmokeMismatch(state)).isTrue();
@@ -70,12 +73,14 @@ class MetaAgentRulesTest {
         assertThatThrownBy(() -> MetaAgentExecution.previousCandidate(json, missing))
                 .isInstanceOf(KeelException.class).hasMessageContaining("缺少修复所需文件");
     }
-    @Test void sandboxRepairsOnlyActualTestFailuresBeforeThirdAttempt() {
+    @Test void sandboxRepairsOnlyActualTestFailuresBeforeFifthAttempt() {
         var sha = "a".repeat(40);
         var report = "sha=" + sha + " snapshot=ok tests=FAIL\ntest_normal failed";
         assertThat(MetaAgentExecution.repairableSandbox("FAILED", report, sha, 1)).isTrue();
         assertThat(MetaAgentExecution.repairableSandbox("FAILED", report, sha, 2)).isTrue();
-        assertThat(MetaAgentExecution.repairableSandbox("FAILED", report, sha, 3)).isFalse();
+        assertThat(MetaAgentExecution.repairableSandbox("FAILED", report, sha, 3)).isTrue();
+        assertThat(MetaAgentExecution.repairableSandbox("FAILED", report, sha, 4)).isTrue();
+        assertThat(MetaAgentExecution.repairableSandbox("FAILED", report, sha, 5)).isFalse();
         assertThat(MetaAgentExecution.repairableSandbox("FAILED", report, "b".repeat(40), 1)).isFalse();
         assertThat(MetaAgentExecution.repairableSandbox("TIMEOUT", report, sha, 1)).isFalse();
         assertThat(MetaAgentExecution.repairableSandbox("FAILED", "snapshot=invalid tests=NOT_RUN", sha, 1)).isFalse();

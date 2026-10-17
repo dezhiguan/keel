@@ -191,9 +191,9 @@ def _deliver(work):
     state = json.loads(checkpoint.read_text()) if checkpoint.exists() else {}
     repair = work.get("repair") or {}
     attempt = int(repair.get("attempt") or 1)
-    if attempt < 1 or attempt > (8 if repair.get("ciRefresh") is True else
-                                 6 if repair.get("reviewRepair") is True else
-                                 5 if repair.get("infrastructureOnly") is True else 3):
+    if attempt < 1 or attempt > (10 if repair.get("ciRefresh") is True else
+                                 8 if repair.get("reviewRepair") is True else
+                                 7 if repair.get("infrastructureOnly") is True else 5):
         raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "沙箱修正轮次无效")
     if attempt > 1:
         failed_sha = repair.get("failedSha")

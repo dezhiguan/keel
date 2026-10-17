@@ -62,3 +62,7 @@ cd console && npm run gen:api && npm run typecheck && npx vitest related src/vie
 ## 明确不做
 
 - 不执行线上 Git、沙箱写操作；不绕过现有人工 PR review、门禁和发布审批。
+
+## 2026-10-17 扩展
+
+岗位代码修复改为最多五轮。已经在旧三轮上限停止的任务，可从最后一个失败的精确提交继续第 4 轮，不重复消耗旧提交的沙箱运行。评审和发布关口保持不变。

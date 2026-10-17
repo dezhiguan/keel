@@ -632,7 +632,7 @@ public class MetaAgentExecution {
                 int refreshes = state.path("infrastructureRefreshes").asInt(0);
                 boolean infrastructureOnly = canRefreshInfrastructure(refreshes);
                 int reviewRepairs = state.path("reviewRepairRounds").asInt(0);
-                boolean ciRefresh = !infrastructureOnly && reviewRepairs >= 1 && attempt == 7;
+                boolean ciRefresh = !infrastructureOnly && reviewRepairs >= 1 && attempt == 9;
                 if (!infrastructureOnly && !ciRefresh && reviewRepairs >= 1)
                     throw invalid("评审阶段岗位功能修复已达到一次上限");
                 var delivery = state.path("delivery");
@@ -667,17 +667,32 @@ public class MetaAgentExecution {
                 git.reviewStatus(id, repo, delivery.path("number").asInt(), sha);
                 var previous = previousCandidate(json, read(git.fetch(id, repo, sha)));
                 var repair = state.putObject("repair");
-                repair.put("attempt", 8).put("failedSha", sha).put("infrastructureOnly", true)
+                repair.put("attempt", 10).put("failedSha", sha).put("infrastructureOnly", true)
                         .put("ciRefresh", true).put("report", "可信模板的冒烟测试误用沙箱目录名；只修复模板断言，重验精确提交");
                 repair.set("previousCandidate", previous);
                 state.remove(List.of("sandboxStatus", "sandboxRunId", "error"));
                 state.put("phase", "QUEUED");
                 save(id, state, "DELIVER");
-                jobs.progress(id, "QUEUED", "BUILD", "修正平台冒烟测试并重新验证第 8 次候选提交");
+                jobs.progress(id, "QUEUED", "BUILD", "修正平台冒烟测试并重新验证第 10 次候选提交");
                 return publicState(state);
             }
             if (sandboxLimitBlocksRetry(state)) {
-                throw invalid("沙箱修复已达到三轮上限");
+                throw invalid("沙箱修复已达到五轮上限");
+            }
+            int completed = state.path("sandboxAttempts").size();
+            if (git != null && completed > 0 && completed < 5
+                    && "FAILED".equals(state.path("sandboxStatus").asText())) {
+                var last = state.path("sandboxAttempts").get(completed - 1);
+                var delivery = state.path("delivery");
+                var sha = delivery.path("sha").asText();
+                if (sha.equals(last.path("sha").asText())
+                        && repairableSandbox(last.path("status").asText(), last.path("report").asText(), sha, completed)) {
+                    var repo = delivery.path("repo").asText().replaceFirst("^[^/]+/", "");
+                    var previous = previousCandidate(json, read(git.fetch(id, repo, sha)));
+                    var repair = state.putObject("repair");
+                    repair.put("attempt", completed + 1).put("failedSha", sha).put("report", last.path("report").asText());
+                    repair.set("previousCandidate", previous);
+                }
             }
             state.put("phase", "QUEUED"); state.remove("error");
             String action = !state.has("confirmedVersion") ? "DRAFT" : state.has("acceptedAgentCount") ? "DELIVER" : "EVAL";
@@ -783,8 +798,8 @@ public class MetaAgentExecution {
                                 save(id, state, "DELIVER");
                                 jobs.progress(id, "QUEUED", "BUILD", "第 " + attempt + " 轮沙箱测试失败，准备第 " + (attempt + 1) + " 轮修复");
                             } else {
-                                state.put("phase", "FAILED").put("error", attempt >= 3
-                                        ? "三轮隔离沙箱测试仍未通过，岗位候选不可交付" : "隔离沙箱未完成岗位测试，候选不可交付");
+                                state.put("phase", "FAILED").put("error", attempt >= 5
+                                        ? "五轮隔离沙箱测试仍未通过，岗位候选不可交付" : "隔离沙箱未完成岗位测试，候选不可交付");
                                 save(id, state, "DELIVER");
                                 jobs.progress(id, "FAIL", "BUILD", "第 " + attempt + " 轮沙箱失败，修复循环已停止");
                             }
@@ -806,7 +821,7 @@ public class MetaAgentExecution {
     }
 
     static boolean repairableSandbox(String status, String report, String sha, int attempt) {
-        return attempt < 3 && "FAILED".equals(status) && report != null
+        return attempt < 5 && "FAILED".equals(status) && report != null
                 && report.startsWith("sha=" + sha + " snapshot=ok tests=FAIL\n");
     }
 
@@ -817,21 +832,21 @@ public class MetaAgentExecution {
     static boolean sandboxLimitBlocksRetry(JsonNode state) {
         if (state.path("repair").path("ciRefresh").asBoolean(false)) {
             return "FAILED".equals(state.path("sandboxStatus").asText())
-                    && state.path("sandboxAttempts").size() >= 7;
+                    && state.path("sandboxAttempts").size() >= 9;
         }
         if (state.path("repair").path("reviewRepair").asBoolean(false)) {
             return "FAILED".equals(state.path("sandboxStatus").asText())
-                    && state.path("sandboxAttempts").size() >= 6;
+                    && state.path("sandboxAttempts").size() >= 8;
         }
-        return state.path("sandboxAttempts").size() >= 3
+        return state.path("sandboxAttempts").size() >= 5
                 && !state.path("repair").path("infrastructureOnly").asBoolean(false);
     }
 
     static boolean platformSmokeMismatch(JsonNode state) {
         var attempts = state.path("sandboxAttempts");
         if (!state.path("repair").path("ciRefresh").asBoolean(false)
-                || !"FAILED".equals(state.path("sandboxStatus").asText()) || attempts.size() != 7) return false;
-        var last = attempts.get(6);
+                || !"FAILED".equals(state.path("sandboxStatus").asText()) || attempts.size() != 9) return false;
+        var last = attempts.get(8);
         var report = last.path("report").asText();
         return state.path("delivery").path("sha").asText().equals(last.path("sha").asText())
                 && "FAILED".equals(last.path("status").asText())
