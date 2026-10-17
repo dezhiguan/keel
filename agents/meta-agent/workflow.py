@@ -364,7 +364,7 @@ def _deliver(work):
                 + ("模型生成岗位代码候选，测试、人工评审、门禁和发布尚未完成。" if functional
                    else "骨架交付，待人工开发、评测和发布。")})
         result = {**opened, "sha": state["push"]["sha"], "branch": "draft",
-                  "runtimeAdapterVersion": "registered-env-v1",
+                  "runtimeAdapterVersion": "prompt-boundary-v2",
                   "checks": "ENABLED",
                   "capabilityStatus": "UNVERIFIED" if functional else "SCAFFOLD",
                   "gateStatus": "NOT_RUN",

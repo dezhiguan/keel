@@ -61,9 +61,20 @@ class MetaAgentRulesTest {
                 """);
         assertThat(MetaAgentExecution.canRefreshRuntimeAdapter(state)).isTrue();
         ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("delivery")).put("runtimeAdapterVersion", "registered-env-v1");
+        assertThat(MetaAgentExecution.canRefreshRuntimeAdapter(state)).isTrue();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("delivery")).put("runtimeAdapterVersion", "prompt-boundary-v2");
         assertThat(MetaAgentExecution.canRefreshRuntimeAdapter(state)).isFalse();
         ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("delivery")).remove("runtimeAdapterVersion");
         state.put("phase", "STAGING_READY");
+        assertThat(MetaAgentExecution.canRefreshRuntimeAdapter(state)).isFalse();
+    }
+    @Test void promptBoundaryUpgradeCoversToolAgentsAndRespectsAbsoluteLimit() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) new ObjectMapper().readTree("""
+                {"phase":"WAITING_REVIEW","sandboxStatus":"PASS","delivery":{"runtimeAdapterVersion":"registered-env-v1"},
+                "requirement":{"tools":["ci.log.fetch","git.pr.diff"]},"sandboxAttempts":[{}]}
+                """);
+        assertThat(MetaAgentExecution.canRefreshRuntimeAdapter(state)).isTrue();
+        while (state.path("sandboxAttempts").size() < 20) state.withArray("sandboxAttempts").addObject();
         assertThat(MetaAgentExecution.canRefreshRuntimeAdapter(state)).isFalse();
     }
     @Test void gateRepairRequiresExactFailedStagingEvaluationAndStopsAfterOneWindow() throws Exception {

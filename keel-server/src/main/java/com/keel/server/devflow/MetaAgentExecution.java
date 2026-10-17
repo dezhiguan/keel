@@ -752,13 +752,16 @@ public class MetaAgentExecution {
                 int attempt = state.path("sandboxAttempts").size() + 1;
                 var previous = previousCandidate(json, read(git.fetch(id, repo, sha)));
                 var repair = state.putObject("repair").put("attempt", attempt).put("failedSha", sha)
-                        .put("infrastructureOnly", true).put("maxAttempts", attempt)
-                        .put("report", "更新可信协作运行适配；保留岗位代码、提示词及测试");
+                        .put("infrastructureOnly", true).put("maxAttempts", Math.min(20, attempt + 4))
+                        .put("report", "升级 prompt-boundary-v2：先保留岗位文件并刷新可信契约测试。"
+                                + "后续如边界测试失败，岗位指令从ctx.prompt读取并放system；原始input/工具证据只放user。"
+                                + "prompt.compile须用user数据字段说明替代原文。模型输出章节仅约束ctx.llm.chat，"
+                                + "execute仍须返回H1要求的工具证据、委派结果和步骤。禁止删除或放宽可信测试。");
                 repair.set("previousCandidate", previous);
-                state.put("sandboxAttemptCeiling", attempt).put("phase", "QUEUED");
+                state.put("sandboxAttemptCeiling", repair.path("maxAttempts").asInt()).put("phase", "QUEUED");
                 state.remove(List.of("humanReview", "modelReview", "modelReviewTraceId", "sandboxStatus", "sandboxRunId"));
                 save(id, state, "DELIVER");
-                jobs.progress(id, "QUEUED", "BUILD", "更新可信协作运行适配，保留岗位文件；新提交须重新沙箱与审批");
+                jobs.progress(id, "QUEUED", "BUILD", "升级可信提示词边界契约，先保留岗位文件；最多五轮且累计不超过二十轮，新提交须重验与审批");
                 return publicState(state);
             }
             if (canRepairStagingGate(state)) {
@@ -921,8 +924,9 @@ public class MetaAgentExecution {
     static boolean canRefreshRuntimeAdapter(JsonNode state) {
         return "WAITING_REVIEW".equals(state.path("phase").asText())
                 && "PASS".equals(state.path("sandboxStatus").asText())
-                && !state.path("draft").path("manifest").path("spec").path("delegates").isEmpty()
-                && !"registered-env-v1".equals(state.path("delivery").path("runtimeAdapterVersion").asText())
+                && (!state.path("draft").path("manifest").path("spec").path("delegates").isEmpty()
+                    || state.path("requirement").path("tools").size() >= 2)
+                && !"prompt-boundary-v2".equals(state.path("delivery").path("runtimeAdapterVersion").asText())
                 && state.path("sandboxAttempts").size() < 20;
     }
 
