@@ -2,14 +2,13 @@
 import { computed } from 'vue'
 import type { TraceDetail, TraceNode } from '@/api/traces'
 import { fmtMs } from '@/utils/format'
-import { agentMap, nodeMap } from './traceView'
+import { agentMap, laneRows, nodeMap } from './traceView'
 
 const props = defineProps<{ detail: TraceDetail; selected: string | null }>()
 const emit = defineEmits<{ select: [id: string] }>()
 
-const ROW_H = 44
 const AXIS_H = 22
-const NAME_W = 128
+const NAME_W = 168
 
 const total = computed(() => props.detail.summary?.durationMs || 1)
 const agents = computed(() => agentMap(props.detail))
@@ -17,28 +16,22 @@ const order = computed(() => (props.detail.agents ?? []).map((a) => a.key!))
 const pct = (ms = 0) => (ms / total.value) * 100
 
 const lanes = computed(() =>
-  order.value.map((key) => {
-    const nodes = (props.detail.nodes ?? []).filter((n) => n.agentKey === key)
-    const ends: number[] = []
-    const bars = nodes
-      .filter((n) => n.type !== 'agent' && !n.humanWaitLabel)
-      .sort((a, b) => (a.startMs ?? 0) - (b.startMs ?? 0))
-      .map((n) => {
-        const start = n.startMs ?? 0
-        let row = ends.findIndex((end) => end <= start)
-        if (row < 0) row = ends.push(0) - 1
-        ends[row] = start + (n.durationMs ?? 0)
-        return { node: n, top: 6 + Math.min(row, 1) * 18 }
-      })
-    return {
-      key,
-      agent: agents.value[key],
-      spans: nodes.filter((n) => n.type === 'agent'),
-      waits: nodes.filter((n) => n.humanWaitLabel),
-      bars,
-    }
-  }),
+  order.value.map((key) => ({
+    key,
+    agent: agents.value[key],
+    ...laneRows(props.detail.nodes ?? [], key),
+  })),
 )
+
+const laneTop = computed(() => {
+  const tops: number[] = []
+  let y = AXIS_H
+  for (const lane of lanes.value) {
+    tops.push(y)
+    y += lane.height
+  }
+  return tops
+})
 
 const byId = computed(() => nodeMap(props.detail))
 
@@ -49,7 +42,10 @@ const handoffs = computed(() =>
     if (!from || !to || from.agentKey === to.agentKey || e.atMs === null || e.atMs === undefined) return []
     const i = order.value.indexOf(from.agentKey!)
     const j = order.value.indexOf(to.agentKey!)
-    return [{ left: e.atMs / total.value, top: AXIS_H + Math.min(i, j) * ROW_H + ROW_H / 2, height: Math.abs(j - i) * ROW_H, down: j > i }]
+    if (i < 0 || j < 0) return []
+    const yi = laneTop.value[i] + lanes.value[i].height / 2
+    const yj = laneTop.value[j] + lanes.value[j].height / 2
+    return [{ left: e.atMs / total.value, top: Math.min(yi, yj), height: Math.abs(yj - yi), down: j > i }]
   }),
 )
 
@@ -60,10 +56,10 @@ const colorOf = (n: TraceNode) => agents.value[n.agentKey!]?.color ?? '#8a97ab'
 <template>
   <div class="lanes">
     <div class="laxis"><span /><div><span v-for="t in ticks" :key="t">{{ t }}</span></div></div>
-    <div v-for="lane in lanes" :key="lane.key" class="lrow">
-      <div class="lname2">
+    <div v-for="lane in lanes" :key="lane.key" class="lrow" :style="{ height: `${lane.height}px` }">
+      <div class="lname2" :title="lane.agent?.name">
         <span class="dot" :style="{ background: lane.agent?.color }" />
-        <div>{{ lane.agent?.name }}<small>{{ lane.agent?.subtitle }}</small></div>
+        <div><span>{{ lane.agent?.name }}</span><small>{{ lane.agent?.subtitle }}</small></div>
       </div>
       <div class="ltrack">
         <div
@@ -91,7 +87,7 @@ const colorOf = (n: TraceNode) => agents.value[n.agentKey!]?.color ?? '#8a97ab'
           :style="{ left: `${pct(b.node.startMs)}%`, width: `${Math.max(pct(b.node.durationMs), 0.35)}%`, top: `${b.top}px`, background: colorOf(b.node) }"
           @click="emit('select', b.node.id!)"
         >
-          {{ b.node.shortName ?? b.node.name }}
+          <template v-if="pct(b.node.durationMs) >= 6">{{ b.node.shortName ?? b.node.name }}</template>
         </div>
       </div>
     </div>
@@ -106,12 +102,14 @@ const colorOf = (n: TraceNode) => agents.value[n.agentKey!]?.color ?? '#8a97ab'
 </template>
 
 <style scoped>
-.lanes { position: relative; margin-top: 12px; }
-.laxis { display: grid; grid-template-columns: 128px 1fr; height: 22px; font-family: var(--mono); font-size: 10px; color: var(--mute); border-bottom: 1px solid var(--line); }
+.lanes { position: relative; margin-top: 12px; --name: 168px; }
+.laxis { display: grid; grid-template-columns: var(--name) 1fr; height: 22px; font-family: var(--mono); font-size: 10px; color: var(--mute); border-bottom: 1px solid var(--line); }
 .laxis div { display: flex; justify-content: space-between; }
-.lrow { display: grid; grid-template-columns: 128px 1fr; height: 44px; border-bottom: 1px solid #182236; }
-.lname2 { font-size: 12px; color: #e6ebf3; display: flex; align-items: center; gap: 7px; }
-.lname2 small { display: block; color: var(--mute); font-size: 10px; line-height: 1.2; }
+.lrow { display: grid; grid-template-columns: var(--name) 1fr; height: 44px; border-bottom: 1px solid #182236; }
+.lname2 { font-size: 12px; color: #e6ebf3; display: flex; align-items: center; gap: 7px; min-width: 0; }
+.lname2 > div { min-width: 0; }
+.lname2 > div span, .lname2 small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lname2 small { color: var(--mute); font-size: 10px; line-height: 1.2; }
 .ltrack { position: relative; background: repeating-linear-gradient(90deg, transparent 0, transparent calc(25% - 1px), #162033 calc(25% - 1px), #162033 25%); }
 .lagent { position: absolute; top: 3px; bottom: 3px; border: 1px dashed; border-radius: 6px; box-sizing: border-box; }
 .lb2 { position: absolute; height: 16px; border-radius: 4px; font-size: 10px; color: #07111c; padding: 0 5px; line-height: 16px; white-space: nowrap; overflow: hidden; cursor: pointer; font-weight: 600; box-sizing: border-box; }

@@ -9,7 +9,7 @@ import TraceTree from './TraceTree.vue'
 import { getTrace, type TraceDetail } from '@/api/traces'
 import { KeelApiError, toKeelError } from '@/api/http'
 import { fmtCny, fmtMs, nodeStatus } from '@/utils/format'
-import { agentMap, humanWait, initialTab, longestStep, nodeMap, observationUrl, pickNode, showTokens, userLine, type TraceTab } from './traceView'
+import { agentMap, breakdownColors, humanWait, initialTab, longestStep, nodeMap, observationUrl, pickNode, showTokens, userLine, type TraceTab } from './traceView'
 
 const TABS: [TraceTab, string][] = [['graph', '协作图'], ['lanes', '泳道时间线'], ['tree', '调用树']]
 
@@ -25,7 +25,8 @@ const agents = computed(() => (detail.value ? agentMap(detail.value) : {}))
 const node = computed(() => (detail.value && selected.value ? nodeMap(detail.value)[selected.value] : null))
 const summary = computed(() => detail.value?.summary)
 const multi = computed(() => !!summary.value?.multiAgent)
-const tabs = computed(() => TABS.filter(([key]) => key !== 'graph' || multi.value))
+const tabs = computed(() => TABS)
+const latencyColors = computed(() => breakdownColors(detail.value?.latencyBreakdown, (key) => agents.value[key ?? '']?.color))
 const costTotal = computed(() => (detail.value?.costBreakdown ?? []).reduce((n, c) => n + (c.costCny ?? 0), 0) || 1)
 const tokensOf = computed(() => node.value?.tokens ?? ((node.value?.tokensIn ?? 0) + (node.value?.tokensOut ?? 0) || null))
 const nodeUrl = computed(() => observationUrl(detail.value?.langfuseUrl, node.value?.id))
@@ -91,10 +92,10 @@ watch(() => route.params.id, load, { immediate: true })
           <div>
             <div class="lb"><span>{{ multi ? '耗时构成（关键路径）' : '耗时构成（按步骤）' }}</span><span class="mono">{{ fmtMs(summary.durationMs) }}</span></div>
             <div class="stack">
-              <i v-for="(l, i) in detail.latencyBreakdown" :key="i" :style="{ width: `${((l.ms ?? 0) / (summary.durationMs || 1)) * 100}%`, background: agents[l.agentKey!]?.color }" />
+              <i v-for="(l, i) in detail.latencyBreakdown" :key="i" :style="{ width: `${((l.ms ?? 0) / (summary.durationMs || 1)) * 100}%`, background: latencyColors[i] }" />
             </div>
             <div class="keys">
-              <span v-for="(l, i) in detail.latencyBreakdown" :key="i"><i :style="{ background: agents[l.agentKey!]?.color }" />{{ l.label }} {{ fmtMs(l.ms) }}</span>
+              <span v-for="(l, i) in detail.latencyBreakdown" :key="i"><i :style="{ background: latencyColors[i] }" />{{ l.label }} {{ fmtMs(l.ms) }}</span>
             </div>
           </div>
           <div v-if="multi && detail.costBreakdown?.length">
@@ -114,11 +115,11 @@ watch(() => route.params.id, load, { immediate: true })
           <div class="vtabs">
             <button v-for="[k, n] in tabs" :key="k" :class="{ on: tab === k }" @click="tab = k">{{ n }}</button>
           </div>
-          <small v-if="!multi" style="margin-left: 8px">单智能体调用没有委派关系，不显示协作图</small>
+          <small v-if="!multi" style="margin-left: 8px">单智能体没有跨服务委派，协作图按调用步骤排列</small>
           <span class="sp" />
           <small>点击任意节点查看详情</small>
         </h3>
-        <TraceGraph v-if="multi && tab === 'graph'" :detail="detail" :selected="selected" @select="selected = $event" />
+        <TraceGraph v-if="tab === 'graph'" :detail="detail" :selected="selected" @select="selected = $event" />
         <template v-else-if="tab === 'lanes'">
           <TraceLanes :detail="detail" :selected="selected" @select="selected = $event" />
           <div class="critnote">
@@ -182,7 +183,7 @@ watch(() => route.params.id, load, { immediate: true })
         </div>
         <div class="srcnote">
           <template v-if="multi">多个智能体是独立服务，靠 W3C traceparent 串成同一个 trace。这个页面在 Langfuse 之上按智能体拆分耗时和成本、标出关键路径，并把审计事件和审批记录挂到对应节点上。</template>
-          <template v-else>详情只请求一次 keel-server，泳道和调用树用同一份节点。trace 里出现两个以上智能体（子智能体带 <code>keel.parent_agent</code>）时，才多出协作图、按智能体拆分的耗时和成本。</template>
+          <template v-else>详情只请求一次 keel-server，协作图、泳道和调用树用同一份节点。trace 里出现两个以上智能体（子智能体带 <code>keel.parent_agent</code>）时，协作图改为委派关系，并按智能体拆分耗时和成本。</template>
         </div>
       </div>
     </template>
@@ -204,7 +205,7 @@ watch(() => route.params.id, load, { immediate: true })
 .critnote b { color: #fff; font-weight: 500; }
 .ndetail { margin-top: 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px 16px; font-size: 12px; }
 .ndetail span { display: block; color: var(--mute); font-size: 11px; }
-.ndetail b { font-weight: 500; color: #e6ebf3; font-family: var(--mono); font-size: 12px; word-break: break-all; }
+.ndetail b { font-weight: 500; color: #e6ebf3; font-family: var(--mono); font-size: 12px; overflow-wrap: break-word; }
 .ndetail b > span { display: inline-flex; font-size: 11.5px; }
 .ndetail .full { grid-column: 1 / -1; }
 .ndetail .full b { font-family: inherit; font-weight: 400; }

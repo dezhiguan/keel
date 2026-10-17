@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import type { TraceDetail, TraceNode } from '@/api/traces'
 import { fmtCny, fmtMs } from '@/utils/format'
-import { NODE_STATUS_COLOR, agentMap, childrenOf, graphEdges, isGraphLandmark, nodeMap } from './traceView'
+import { NODE_STATUS_COLOR, agentMap, childrenOf, displayEdges, isGraphLandmark, nodeMap } from './traceView'
 
 const props = defineProps<{ detail: TraceDetail; selected: string | null }>()
 const emit = defineEmits<{ select: [id: string] }>()
@@ -20,12 +20,7 @@ interface Box { id: string; x: number; y: number; w: number; h: number; group: b
 const agents = computed(() => agentMap(props.detail))
 const byId = computed(() => nodeMap(props.detail))
 
-const edges = computed(() => {
-  const list = graphEdges(props.detail)
-  if (list.length) return list
-  const steps = (props.detail.nodes ?? []).filter((n) => isGraphLandmark(n))
-  return steps.slice(1).map((n, i) => ({ from: steps[i].id!, to: n.id!, label: null, atMs: n.startMs, parallel: false }))
-})
+const edges = computed(() => displayEdges(props.detail))
 
 const graphIds = computed(() => {
   const ids = new Set<string>()

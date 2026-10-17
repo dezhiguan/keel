@@ -86,8 +86,58 @@ export function observationUrl(base?: string | null, id?: string | null) {
   }
 }
 
+const STEP_ALPHA = ['', 'cc', '99', '77']
+
+/** Keep the color keel-server assigned. Known agents stay on the prototype palette; others are not flattened to gray. */
 export function agentMap(detail: TraceDetail): Record<string, TraceAgent> {
-  return Object.fromEntries((detail.agents ?? []).map((a) => [a.key!, { ...a, color: avatarColor(a.name) }]))
+  return Object.fromEntries((detail.agents ?? []).map((a) => [a.key!, { ...a, color: a.color || avatarColor(a.name) }]))
+}
+
+/** Same agent repeating in the latency stack gets a lighter step, matching the prototype shade cycle. */
+export function stepColor(color: string | null | undefined, index: number) {
+  const base = color && /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#8a97ab'
+  return `${base}${STEP_ALPHA[index % STEP_ALPHA.length]}`
+}
+
+export function breakdownColors(steps: { agentKey?: string | null }[] | undefined, colorOf: (key?: string | null) => string | undefined) {
+  const seen: Record<string, number> = {}
+  return (steps ?? []).map((step) => {
+    const key = step.agentKey ?? ''
+    const index = seen[key] ?? 0
+    seen[key] = index + 1
+    return stepColor(colorOf(key), index)
+  })
+}
+
+const LANE_ROW = 18
+
+export function isAgentSpan(node: TraceNode) {
+  return (node.type ?? '').toLowerCase() === 'agent'
+}
+
+/** Swimlane bars. Overlapping steps take another row instead of painting on top of each other. */
+export function laneRows(nodes: TraceNode[], agentKey: string) {
+  const mine = nodes.filter((node) => node.agentKey === agentKey)
+  const spans = mine.filter((node) => isAgentSpan(node))
+  const waits = mine.filter((node) => node.humanWaitLabel && !isAgentSpan(node))
+  const ends: number[] = []
+  const bars = mine
+    .filter((node) => !isAgentSpan(node) && !node.humanWaitLabel)
+    .sort((a, b) => (a.startMs ?? 0) - (b.startMs ?? 0) || (b.durationMs ?? 0) - (a.durationMs ?? 0))
+    .map((node) => {
+      const start = node.startMs ?? 0
+      const end = start + Math.max(node.durationMs ?? 0, 0)
+      let row = ends.findIndex((until) => until <= start)
+      if (row < 0) {
+        row = ends.length
+        ends.push(end)
+      } else {
+        ends[row] = end
+      }
+      return { node, row, top: 6 + row * LANE_ROW }
+    })
+  const rows = Math.max(1, ends.length)
+  return { spans, waits, bars, height: rows <= 2 ? 44 : 8 + rows * (LANE_ROW + 2) }
 }
 
 export function nodeMap(detail: TraceDetail): Record<string, TraceNode> {
@@ -138,4 +188,20 @@ export function graphEdges(detail: TraceDetail): Edge[] {
     lifted.push({ ...edge, from, to })
   }
   return lifted
+}
+
+/** Collaboration graph edges. Delegation edges stay; a single agent falls back to its steps in time order. */
+export function displayEdges(detail: TraceDetail): Edge[] {
+  const lifted = graphEdges(detail)
+  if (lifted.length) return lifted
+  const steps = (detail.nodes ?? [])
+    .filter((node) => isGraphLandmark(node) && node.id)
+    .sort((a, b) => (a.startMs ?? 0) - (b.startMs ?? 0) || String(a.id).localeCompare(String(b.id)))
+  return steps.slice(1).map((node, index) => ({
+    from: steps[index].id,
+    to: node.id,
+    label: null,
+    atMs: node.startMs,
+    parallel: false,
+  }))
 }

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import AgentName from '@/components/AgentName.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import type { TraceDetail } from '@/api/traces'
 import { fmtCny, fmtMs, nodeStatus } from '@/utils/format'
@@ -29,8 +28,8 @@ const rootId = computed(() => (props.detail.nodes ?? []).find((n) => n.aggregate
         <span>{{ n.name }}</span>
         <span v-if="n.aggregated && n.id !== rootId" class="xsvc">跨服务</span>
       </span>
-      <span><span class="ot" :class="`ot-${n.type}`">{{ n.type }}</span></span>
-      <span><AgentName :id="agents[n.agentKey!]?.name" /></span>
+      <span><span class="ot" :class="`ot-${(n.type ?? '').toLowerCase()}`">{{ (n.type ?? '').toLowerCase() }}</span></span>
+      <span class="ag" :title="agents[n.agentKey!]?.name"><i class="dot" :style="{ background: agents[n.agentKey!]?.color }" /><span>{{ agents[n.agentKey!]?.name ?? '—' }}</span></span>
       <span class="mono">{{ n.humanWaitLabel ?? fmtMs(n.durationMs) }}</span>
       <span class="mono">{{ fmtCny(n.costCny) }}</span>
       <span><StatusPill v-bind="nodeStatus(n.status)" /></span>
@@ -39,12 +38,15 @@ const rootId = computed(() => (props.detail.nodes ?? []).find((n) => n.aggregate
 </template>
 
 <style scoped>
-.tree { margin-top: 10px; min-width: 680px; }
-.tr { display: grid; grid-template-columns: 1fr 90px 112px 64px 70px 70px; gap: 8px; padding: 6px 8px; border-bottom: 1px solid #182236; font-size: 12px; align-items: center; cursor: pointer; }
+.tree { margin-top: 10px; min-width: 680px; overflow-x: auto; }
+.tr { display: grid; grid-template-columns: minmax(180px, 1fr) 110px minmax(120px, 180px) 72px 78px 78px; gap: 8px; padding: 6px 8px; border-bottom: 1px solid #182236; font-size: 12px; align-items: center; cursor: pointer; }
 .tr:hover { background: #152036; }
 .tr.sel { background: #1a2740; }
 .tr.hd { color: var(--mute); font-size: 11px; cursor: default; background: none; }
 .nmc { display: flex; align-items: center; gap: 6px; color: #e6ebf3; white-space: nowrap; overflow: hidden; }
+.ag { display: flex; align-items: center; gap: 6px; min-width: 0; color: #e6ebf3; }
+.ag span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .tw { color: #4c5a70; font-family: var(--mono); }
 .xsvc { font-size: 9.5px; padding: 0 5px; border-radius: 3px; background: #1f2b40; color: #8fa3c0; font-family: var(--mono); }
 .ot { font-family: var(--mono); font-size: 9.5px; padding: 0 5px; border-radius: 3px; line-height: 16px; display: inline-block; background: #222d42; color: #a9b5c9; }
