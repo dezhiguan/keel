@@ -362,8 +362,13 @@ from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapProp
 
 
 async def _invoke_child(name: str, text: str, budget: dict, trace_id: str):
-    endpoint = f"http://{name}.agents.svc.cluster.local:8000/v1/invoke"
-    headers = {"X-Keel-Agent": name, "X-Keel-Env": os.environ["KEEL_ENV"]}
+    route = json.loads(os.environ.get("KEEL_DELEGATE_ROUTES", "{}" )).get(name)
+    if not isinstance(route, dict) or route.get("env") not in {"dev", "test", "staging", "prod"}:
+        raise RuntimeError(f"委派 {name} 缺少明确的环境路由，请配置 KEEL_DELEGATE_ROUTES")
+    endpoint = str(route.get("endpoint") or "").rstrip("/") + "/v1/invoke"
+    if not endpoint.startswith(("http://", "https://")):
+        raise RuntimeError(f"委派 {name} 缺少登记 endpoint")
+    headers = {"X-Keel-Agent": name, "X-Keel-Env": route["env"]}
     TraceContextTextMapPropagator().inject(headers)
     async with httpx.AsyncClient(timeout=45) as client:
         response = await client.post(endpoint, json={"input": {"text": text, "evidenceOnly": True}}, headers=headers)
@@ -481,7 +486,10 @@ app = agent.asgi()
         readme = project / "README.md"
         existing = readme.read_text(encoding="utf-8") if readme.is_file() else f"# {project.name}\n"
         readme.write_text(existing.rstrip() + f"\n\n## 生产任务 {job_id}\n\n"
-            "模型生成的研发岗位代码候选，需通过隔离沙箱、人工 PR review、评测门禁和发布审批。\n",
+            "模型生成的研发岗位代码候选，需通过隔离沙箱、人工 PR review、评测门禁和发布审批。\n"
+            "多智能体项目运行时需配置 KEEL_DELEGATE_ROUTES，按 agent.yaml 中的子智能体名称映射其登记 endpoint 和 env。"
+            "例如 `{\"child-name\":{\"endpoint\":\"http://child-service:8000\",\"env\":\"dev\"}}`。"
+            "Keel 可信流水线会自动注入；独立部署时由开发者配置，缺少绑定会明确失败。\n",
             encoding="utf-8")
     else:
         spec = json.loads((project / "spec.json").read_text(encoding="utf-8"))

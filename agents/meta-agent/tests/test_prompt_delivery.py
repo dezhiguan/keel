@@ -2,7 +2,7 @@ import asyncio
 import importlib
 import json
 import sys
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import httpx
 import pytest
@@ -13,6 +13,26 @@ from workflow import _scaffold, execute, review_candidate, write_prompt_scaffold
 from keel.cli.repo import _files
 from keel.llm.client import LlmClient
 from test_meta_agent import manifest
+
+
+def test_child_adapter_uses_registered_child_environment_and_rejects_missing_binding(monkeypatch):
+    from workflow import SUPERVISOR_CHILD_WIRING
+    monkeypatch.setenv("KEEL_ENV", "staging")
+    monkeypatch.setenv("KEEL_DELEGATE_ROUTES", json.dumps({"child": {"env": "dev", "endpoint": "http://child-dev:8000"}}))
+    client = httpx.AsyncClient
+
+    def handler(request):
+        assert str(request.url) == "http://child-dev:8000/v1/invoke"
+        assert request.headers["X-Keel-Env"] == "dev"
+        return httpx.Response(200, text='event: final\ndata: {"answer":"child evidence"}\n\n')
+
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: client(transport=httpx.MockTransport(handler), **kwargs))
+    namespace = {"json": json, "agent": SimpleNamespace(manifest=SimpleNamespace(spec=SimpleNamespace(delegates=[])))}
+    exec(SUPERVISOR_CHILD_WIRING, namespace)
+    assert asyncio.run(namespace["_invoke_child"]("child", "task", {}, "trace")) == "child evidence"
+    monkeypatch.delenv("KEEL_DELEGATE_ROUTES")
+    with pytest.raises(RuntimeError, match="缺少明确的环境路由"):
+        asyncio.run(namespace["_invoke_child"]("child", "task", {}, "trace"))
 
 
 def _candidate():

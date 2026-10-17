@@ -315,6 +315,19 @@ public class MetaAgentExecution {
                 .put("endpoint", "http://" + name + "-" + env + ".agents.svc.cluster.local:8000");
         result.put("agent", name);
         result.set("manifest", manifest);
+        var delegateRoutes = result.putObject("delegateRoutes");
+        for (var child : manifest.path("spec").path("delegates")) {
+            String childName = child.asText();
+            var rows = jdbc.query("""
+                    SELECT v.env, v.manifest_json::text FROM agent_version v JOIN agent a ON a.name=v.agent_name
+                    WHERE v.agent_name=? AND a.status IN ('REGISTERED','ONLINE')
+                      AND EXISTS(SELECT 1 FROM agent_resource r WHERE r.agent_name=v.agent_name AND r.env=v.env AND r.status='ACTIVE')
+                    ORDER BY (v.env=?) DESC, v.released_at DESC, v.id DESC LIMIT 1
+                    """, (rs, n) -> new String[]{rs.getString(1), rs.getString(2)}, childName, env);
+            if (rows.isEmpty()) throw invalid("已授权子智能体没有活动登记：" + childName);
+            delegateRoutes.putObject(childName).put("env", rows.getFirst()[0]).put("endpoint",
+                    read(rows.getFirst()[1]).path("spec").path("runtime").path("endpoint").asText());
+        }
         result.set("visibleSeeds", state.path("visibleSeeds"));
         result.set("prodGate", state.path("prodGate"));
         return result;
