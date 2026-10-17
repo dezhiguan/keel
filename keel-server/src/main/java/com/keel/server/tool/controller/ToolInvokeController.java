@@ -40,10 +40,23 @@ public class ToolInvokeController {
         if(principal==null || !"SERVICE".equals(principal.mode())) throw denied();
         var agent=principal.username();
         var detail=registry.detail(agent);
-        if(detail.summary().status()==AgentStatus.RETIRED || !env.equals(detail.summary().env())
-                || detail.resources().isEmpty() || detail.resources().stream().anyMatch(r->!"ACTIVE".equals(r.status())))throw denied();
+        if(detail.summary().status()==AgentStatus.RETIRED) throw denied();
+        var manifests = registeredManifest(agent, env);
+        String resourceEnv = resourceEnvironment(env, !manifests.isEmpty(),
+                manifests.isEmpty() && "prod".equals(env) && approvedProductionPreview(agent));
+        if (!env.equals(resourceEnv)) {
+            manifests = registeredManifest(agent, resourceEnv);
+        }
+        var active = jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM agent_resource WHERE agent_name=? AND env=? AND status='ACTIVE')
+                  AND NOT EXISTS(SELECT 1 FROM agent_resource WHERE agent_name=? AND env=? AND status<>'ACTIVE')
+                """, Boolean.class, agent, resourceEnv, agent, resourceEnv);
+        if (manifests.isEmpty() || !Boolean.TRUE.equals(active)) throw denied();
+        JsonNode manifest;
+        try { manifest = json.readTree(manifests.getFirst()); }
+        catch (Exception error) { throw denied(); }
         var declared=false;
-        for(var tool:registry.manifestOrEmpty(agent).path("spec").path("tools"))
+        for(var tool:manifest.path("spec").path("tools"))
             if(name.equals(tool.path("name").asText()) && "read".equals(tool.path("access").asText()) && "low".equals(tool.path("risk").asText()))declared=true;
         if(!declared || !granted(agent, name, "git.pr.diff".equals(name) || "ci.log.fetch".equals(name))) {
             audit.append(agent,env,"tool.call","low","denied",name,validTrace(traceId),agent,java.util.Map.of());
@@ -101,6 +114,29 @@ public class ToolInvokeController {
             return R.ok(result);
         }catch(KeelException e){throw e;}
         catch(Exception e){throw new KeelException(ErrorCode.GIT_UPSTREAM_FAILED,"共享工具服务不可达");}
+    }
+    private java.util.List<String> registeredManifest(String agent, String env) {
+        return jdbc.query("SELECT manifest_json::text FROM agent_version WHERE agent_name=? AND env=? ORDER BY released_at DESC, id DESC LIMIT 1",
+                (rs, row) -> rs.getString(1), agent, env);
+    }
+    static String resourceEnvironment(String env, boolean registered, boolean approvedPreview) {
+        if (registered) return env;
+        if ("prod".equals(env) && approvedPreview) return "staging";
+        throw denied();
+    }
+    private boolean approvedProductionPreview(String agent) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM agent a JOIN devflow_execution e ON e.job_id=a.devflow_job_id
+                  WHERE a.name=? AND e.state_json->>'phase'='RELEASING'
+                    AND e.state_json->'gate'->>'passed'='true'
+                    AND e.state_json->>'mergeSha' ~ '^[0-9a-f]{40}$'
+                    AND e.state_json->'gate'->>'sha'=e.state_json->'delivery'->>'sha'
+                    AND EXISTS(SELECT 1 FROM approval_request r WHERE r.devflow_job_id=a.devflow_job_id
+                      AND r.id::text=regexp_replace(e.state_json->>'h4ApprovalId','^ap_','')
+                      AND r.agent_name=a.name AND r.payload_digest=e.state_json->'delivery'->>'sha'
+                      AND r.devflow_gate='H4' AND r.subject_type='tool.call' AND r.subject_ref='git.pr.merge'
+                      AND r.status='APPROVED'))
+                """, Boolean.class, agent));
     }
     private boolean granted(String agent, String name, boolean gitCi) {
         var provider = gitCi ? " AND t.provider='git-ci'" : "";
