@@ -34,7 +34,7 @@ def _assert_pipeline(workflow: str):
     parsed = yaml.safe_load(workflow)
     assert "verify" in parsed["jobs"]
     assert len(parsed["jobs"]["verify"]["steps"]) >= 8
-    assert "${{ secrets.KEEL_SDK_TOKEN }}" in workflow
+    assert "${{ github.token }}" in workflow
     assert "${{ vars.KEEL_SERVER_URL }}" in workflow
     assert "${{ secrets.KEEL_SERVER_URL }}" not in workflow
     assert "run: python -m pytest -q" in workflow

@@ -119,7 +119,7 @@ jobs:
           python-version: "3.11"
       - name: Download the pinned Keel SDK wheel
         env:
-          GH_TOKEN: ${{ secrets.KEEL_SDK_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           test -n "$GH_TOKEN"
           version="$(cat .keel-sdk-version)"
@@ -167,11 +167,11 @@ def _finish_project(target: Path, name: str, template: str) -> None:
         )
     else:
         setup = (
-            "本地准备 `KEEL_SDK_TOKEN` 后运行：\n\n"
+            "本地已登录 GitHub CLI 后运行：\n\n"
             "```bash\n"
             "version=$(cat .keel-sdk-version)\n"
             "mkdir -p vendor\n"
-            "GH_TOKEN=$KEEL_SDK_TOKEN gh release download \"sdk-v${version}\" --repo dezhiguan/keel --pattern \"keel_sdk-${version}-py3-none-any.whl\" --dir vendor\n"
+            "gh release download \"sdk-v${version}\" --repo dezhiguan/keel --pattern \"keel_sdk-${version}-py3-none-any.whl\" --dir vendor\n"
             "python -m pip install vendor/keel_sdk-*.whl -r requirements.lock\n"
             "python -m pytest -q\n"
             "keel dev\n"

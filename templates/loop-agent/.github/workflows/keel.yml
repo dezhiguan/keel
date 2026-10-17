@@ -10,7 +10,7 @@ jobs:
           python-version: "3.11"
       - name: Download the pinned Keel SDK wheel
         env:
-          GH_TOKEN: ${{ secrets.KEEL_SDK_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           test -n "$GH_TOKEN"
           version="$(cat .keel-sdk-version)"

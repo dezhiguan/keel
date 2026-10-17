@@ -25,7 +25,7 @@ jobs:
           python-version: "3.11"
       - name: Install the keel CLI
         env:
-          GH_TOKEN: ${{ secrets.KEEL_SDK_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           test -n "$GH_TOKEN"
           version="$(cat .keel-sdk-version)"

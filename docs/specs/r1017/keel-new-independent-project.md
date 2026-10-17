@@ -8,7 +8,7 @@
 ## 项目边界
 
 - 根目录有 README、AGENTS.md、项目元数据、manifest、智能体入口、提示词、工具、评测、测试、Dockerfile 和 CI。
-- 项目只依赖已发布的 Keel SDK。构建时下载 SDK wheel；不复制底座的 `sdk-python`、`contracts`、`templates` 或其他服务代码。
+- 项目只依赖GitHub Release 中已发布的 Keel SDK。构建时下载 SDK wheel；不复制底座的 `sdk-python`、`contracts`、`templates` 或其他服务代码。
 - 生成代码不依赖 Keel 源码仓库的相对路径。每个项目可以单独初始化 Git 仓库。
 - 生成器支持现有 Python 模板和 Java 模板；从需求单生成时保留需求单和确认过的 manifest。
 - 控制台“由智能体生产”的元智能体交付路径也使用该生成器，不再额外塞入 manifest schema 副本，且保留生成项目的 README 与 AGENTS.md。

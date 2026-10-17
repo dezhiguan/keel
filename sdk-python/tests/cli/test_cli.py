@@ -80,7 +80,7 @@ def test_new_project_matches_schema_and_ignores_local_state(tmp_path):
     assert "find /app/vendor" in dockerfile
     assert "requirements.lock" in dockerfile
     assert "keel_sdk-*.whl" in dockerfile
-    assert "KEEL_SDK_TOKEN" in workflow
+    assert "GH_TOKEN" in workflow
     assert "gh release download" in workflow
     assert workflow.index("pytest -q") < workflow.index("keel gate --env staging") < workflow.index("docker build")
 
