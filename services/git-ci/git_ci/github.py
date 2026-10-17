@@ -193,9 +193,11 @@ class GitHub:
         repository = self.ensure_repo(repo, job_id)
         existing = self.request("GET", f"/repos/{self.org}/{repo}/pulls?state=open&head={self.org}:draft&base=main")
         if existing:
-            if existing[0].get("draft") is not True:
-                raise GitHubError(409, "Existing scaffold PR is not a draft")
-            return {"repo": f"{self.org}/{repo}", "number": existing[0]["number"], "url": existing[0]["html_url"], "protection": repository["protection"]}
+            # A human may have marked the original PR ready before a bounded
+            # repair. The PR is still the same task's draft -> main review path.
+            return {"repo": f"{self.org}/{repo}", "number": existing[0]["number"],
+                    "url": existing[0]["html_url"], "draft": existing[0].get("draft") is True,
+                    "protection": repository["protection"]}
         return {**self.open_pr(repo, "draft", "main", title, body, draft=True), "protection": repository["protection"]}
 
     def push(self, repo: str, branch: str, message: str, files: list[dict]) -> dict:

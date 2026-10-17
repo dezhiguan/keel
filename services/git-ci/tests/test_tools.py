@@ -165,7 +165,7 @@ def test_agent_fix_commit_uses_compare_and_swap_without_overwriting_human_change
         Fix(message="Human edit").push_scaffold("qa", "DF-9001", "fix", [], expected_sha="a" * 40)
 
 
-def test_scaffold_pr_is_created_as_a_draft_and_ready_retries_are_not_misreported():
+def test_scaffold_pr_is_created_as_a_draft_and_ready_repair_reuses_same_pr():
     class Capture(GitHub):
         def __init__(self, ready=False):
             super().__init__("http://unused", "test")
@@ -182,8 +182,11 @@ def test_scaffold_pr_is_created_as_a_draft_and_ready_retries_are_not_misreported
     client = Capture()
     assert client.ensure_pr("qa", "DF-9001", "title", "body")["number"] == 1
     assert client.opened["draft"] is True
-    with pytest.raises(GitHubError, match="not a draft"):
-        Capture(ready=True).ensure_pr("qa", "DF-9001", "title", "body")
+    ready = Capture(ready=True)
+    reused = ready.ensure_pr("qa", "DF-9001", "title", "body")
+    assert reused["number"] == 1
+    assert reused["draft"] is False
+    assert ready.opened is None
 
 
 def test_personal_repository_uses_the_authenticated_user_endpoint():

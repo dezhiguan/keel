@@ -6,7 +6,7 @@ import sys
 import pytest
 
 from candidate import generate, parse
-from workflow import _deliver
+from workflow import _cached_delivery_candidate, _deliver
 
 
 SHA_A = "a" * 40
@@ -129,6 +129,41 @@ def test_repair_rejects_stale_commit_and_fourth_round(tmp_path, monkeypatch):
     with pytest.raises(Exception, match="上一轮不一致"):
         _deliver(work(candidate(True), {"attempt": 2, "failedSha": SHA_A,
                                         "previousCandidate": candidate(False)}))
+
+
+def test_retry_reuses_validated_candidate_after_push_but_before_pr_result(tmp_path, monkeypatch):
+    from tools import state
+    import workflow
+
+    monkeypatch.setattr(state, "ROOT", tmp_path)
+    checkpoint = tmp_path / "DF-9001/delivery.json"
+    checkpoint.parent.mkdir(parents=True)
+    saved = candidate(True)
+    checkpoint.write_text(json.dumps({"attempt": 9, "expectedSha": SHA_A,
+                                      "push": {"sha": SHA_B}, "candidate": saved}), encoding="utf-8")
+    repair = {"attempt": 9, "failedSha": SHA_A, "s4Repair": True}
+    assert _cached_delivery_candidate(work(saved, repair)) == saved
+
+    async def generation_must_not_run(*args):
+        raise AssertionError("an already pushed candidate must not be regenerated")
+
+    class Tools:
+        async def call(self, name, **kwargs):
+            assert name == "scaffold.deliver"
+            assert kwargs["work"]["candidate"] == saved
+            return {"sha": SHA_B}
+
+    class Ctx:
+        tools = Tools()
+        def final(self, value):
+            return json.loads(value)
+
+    monkeypatch.setattr(workflow, "generate_candidate", generation_must_not_run)
+    assert asyncio.run(workflow.execute({**work(saved, repair), "action": "DELIVER"}, Ctx())) == {"sha": SHA_B}
+    assert _cached_delivery_candidate(work(saved, {**repair, "attempt": 10})) is None
+    checkpoint.write_text(json.dumps({"attempt": 9, "expectedSha": SHA_A,
+                                      "push": {"sha": "invalid"}, "candidate": saved}), encoding="utf-8")
+    assert _cached_delivery_candidate(work(saved, repair)) is None
 
 
 def test_infrastructure_refresh_keeps_exact_old_candidate_for_new_contract_tests(tmp_path, monkeypatch):
