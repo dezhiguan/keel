@@ -6,7 +6,7 @@ import sys
 
 import yaml
 
-from candidate import generate, parse
+from candidate import generate, parse, snapshot_errors
 from keel.eval.run import load_scorers
 from workflow import _scaffold
 from test_meta_agent import manifest
@@ -126,6 +126,17 @@ def test_generated_python_rejects_lowercase_json_literals():
     _, errors = parse(json.dumps(bad))
     assert any("tests/test_role.py" in error and "JSON 小写" in error for error in errors)
     assert parse(json.dumps(bad), allow_legacy_literals=True)[1] == []
+
+
+def test_previous_snapshot_accepts_old_sdk_calls_for_repair():
+    previous = {"files": [
+        {"path": "role.py", "content": "async def execute(data, ctx):\n    return await ctx.tools.call('ci.log.fetch', {'run_id': 1})\n"},
+        {"path": "prompts/role.md", "content": "旧提示词"},
+        {"path": "tests/test_role.py", "content": "def test_old():\n    assert True\n"},
+    ]}
+    assert snapshot_errors(previous) == []
+    assert parse(json.dumps(previous))[1]
+    assert snapshot_errors({"files": previous["files"][:2]})
 
 
 def test_model_authored_role_runs_in_generated_project(tmp_path):

@@ -15,7 +15,7 @@ from keel.cli.new import create_from_spec, create_project
 from keel.cli.repo import _files, _post
 from keel.protocol.errors import ErrorCode, KeelError
 from tools.manifest_check import check
-from candidate import GENERAL_TEMPLATES, generate as generate_candidate, parse as parse_candidate
+from candidate import GENERAL_TEMPLATES, generate as generate_candidate, parse as parse_candidate, snapshot_errors
 from evalset import expand as expand_evalset
 from roles import ROLES
 
@@ -200,7 +200,7 @@ def _deliver(work):
         fresh = not state
         current = attempt - 1 if fresh else int(state.get("attempt", 1))
         if (not isinstance(failed_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", failed_sha)
-                or (fresh and parse_candidate(json.dumps(repair.get("previousCandidate")), allow_legacy_literals=True)[1])
+                or (fresh and snapshot_errors(repair.get("previousCandidate")))
                 or (not fresh and attempt == current + 1 and state.get("push", {}).get("sha") != failed_sha)
                 or (attempt == current and state.get("expectedSha") != failed_sha)
                 or attempt not in (current, current + 1)):

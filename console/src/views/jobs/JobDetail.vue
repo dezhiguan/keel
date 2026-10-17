@@ -212,7 +212,7 @@ onUnmounted(() => {
           <button v-if="canAssist(job)" v-write class="btn vio" type="button" @click="modal = 'assist'">请智能体帮忙</button>
           <button v-write class="btn pri" type="button" :disabled="busy" @click="run(() => handbackDevflowJob(job!.jobId), job.mode === 'SCAFFOLD' ? '已提交门禁' : '已交还')">{{ handbackLabel(job.mode) }}</button>
         </template>
-        <button v-if="canCancel(job) && (!execution || ['WAITING', 'RUNNING'].includes(execution.phase) || (execution.phase === 'QUEUED' && !execution.draft))" v-write class="btn danger" type="button" @click="modal = 'cancel'">取消</button>
+        <button v-if="(canCancel(job) && (!execution || ['WAITING', 'RUNNING'].includes(execution.phase) || (execution.phase === 'QUEUED' && !execution.draft))) || (execution?.phase === 'FAILED' && job.stage === 'BUILD')" v-write class="btn danger" type="button" @click="modal = 'cancel'">取消</button>
       </div>
 
       <template v-if="execution">
