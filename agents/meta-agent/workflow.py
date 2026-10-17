@@ -145,6 +145,11 @@ async def review_candidate(work, ctx):
               "role.py 是否把完整提示词硬编码而未通过 ctx.prompt() 读取 prompts/role.md。"
               "evals/seed.jsonl 中存放可见题本身属于正常评测配置；只有 role.py 等岗位逻辑针对题目原文、编号"
               "或预期答案写死判断时，visibleCaseOverfit 才能为 false。"
+              "tests/test_role.py 复用可见题作为回归测试属于正常测试，不是岗位逻辑过拟合。"
+              "从用户输入提取明确标识的通用正则不属于题目硬编码；"
+              "但模型 decision 必须用 json.loads 严格解析响应对象，不能用正则提取。"
+              "检查 Python 实际语义：先截取 str 再 json.dumps 会产生有效 JSON，不会切断 UTF-8 字节或 JSON 转义；"
+              "不得把此安全操作报告为 JSON 损坏。每项风险必须展示实际触发条件和错误结果，避免推测性漏洞。"
               "只返回 JSON：{\"approved\":bool,\"checks\":{"
               + ",".join(f'\"{name}\":bool' for name in checks)
               + "},\"findings\":[{\"path\":str,\"line\":int,\"severity\":\"HIGH|MID|LOW\",\"detail\":str}]}。"
