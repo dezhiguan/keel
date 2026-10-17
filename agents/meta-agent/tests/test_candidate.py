@@ -54,7 +54,7 @@ class FakeModel:
         self.replies = iter(replies)
         self.prompts = []
     async def chat(self, messages, **kwargs):
-        self.prompts.append(messages[0]["content"])
+        self.prompts.append(messages)
         return next(self.replies)
 
 
@@ -69,8 +69,8 @@ def test_meta_agent_generates_role_code_from_confirmed_spec():
                       "manifest": {"spec": {"tools": []}}}}
     output = asyncio.run(generate(work, ctx))
     assert output == candidate
-    assert "把真实需求变成结构化需求单" in llm.prompts[0]
-    assert "spec-agent" in llm.prompts[0]
+    assert "把真实需求变成结构化需求单" in llm.prompts[0][0]["content"]
+    assert "spec-agent" in llm.prompts[0][0]["content"]
 
 
 def test_meta_agent_generates_general_agent_from_confirmed_goal():
@@ -85,8 +85,28 @@ def test_meta_agent_generates_general_agent_from_confirmed_goal():
                       "manifest": {"spec": {"tools": [
                           {"name": "ci.log.fetch", "access": "read", "risk": "low", "approval": "none"}]}}}}
     assert asyncio.run(generate(work, ctx)) == candidate
-    assert "qa-incident-helper" in llm.prompts[0]
-    assert "分析故障并调用日志工具" in llm.prompts[0]
+    assert "qa-incident-helper" in llm.prompts[0][0]["content"]
+    assert "分析故障并调用日志工具" in llm.prompts[0][0]["content"]
+
+
+def test_generation_retry_includes_rejected_candidate_and_specific_errors():
+    bad = {"files": [{"path": "role.py", "content": ROLE_CODE.replace('import json', 'import subprocess')},
+                     {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
+                     {"path": "tests/test_role.py", "content": TEST_CODE}]}
+    bad["files"][0]["content"] += "\n#" + "x" * 30_000
+    bad["files"][1]["content"] += "\n" * 39_000
+    bad["files"][2]["content"] += "\n#" + "x" * 15_000
+    assert len(json.dumps(bad)) > 120_000
+    fixed = {"files": [{"path": "role.py", "content": ROLE_CODE},
+                       {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
+                       {"path": "tests/test_role.py", "content": TEST_CODE}]}
+    model = FakeModel([json.dumps(bad), json.dumps(fixed)])
+    work = {"requirement": {"target_agent": "spec-agent", "template": "graph-agent", "tools": []},
+            "draft": {"spec": {"goal": "写需求单"}, "manifest": {"spec": {"tools": []}}}}
+    assert asyncio.run(generate(work, type("Ctx", (), {"llm": model})())) == fixed
+    assert len(model.prompts[1]) == 3
+    assert model.prompts[1][1] == {"role": "assistant", "content": json.dumps(bad)}
+    assert "未经允许的模块" in model.prompts[1][2]["content"]
 
 
 def test_supervisor_candidate_requires_real_delegation_call():

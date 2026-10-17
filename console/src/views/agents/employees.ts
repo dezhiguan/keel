@@ -97,7 +97,7 @@ function fromRegistry(agent: RegistryAgent): EmployeeCard {
     template: agent.template || agent.language || '—',
     layer,
     color: badgeColor(agent.name),
-    description: '已在注册中心登记的智能体。',
+    description: '',
     source,
     jobId,
     owner: agent.ownerUser || '—',
