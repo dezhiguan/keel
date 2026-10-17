@@ -57,6 +57,22 @@ public class MemoryService {
         return created;
     }
 
+    public Counts counts(String agent) {
+        long user = 0;
+        long task = 0;
+        long experience = 0;
+        var rows = jdbc.query("SELECT layer, count(*) AS n FROM user_memory WHERE agent_name = ? GROUP BY layer",
+                (rs, n) -> Map.entry(rs.getString("layer"), rs.getLong("n")), agent);
+        for (var row : rows) {
+            switch (row.getKey() == null ? "" : row.getKey()) {
+                case "TASK" -> task += row.getValue();
+                case "EXPERIENCE" -> experience += row.getValue();
+                default -> user += row.getValue();
+            }
+        }
+        return new Counts(user, task, experience);
+    }
+
     public Map<String, Object> list(String agent, String ownerUser, String layer) {
         var owner = ownerUser == null ? "" : ownerUser.trim();
         authorize(agent, requireAgent(agent).ownerOrg(), owner, false);
@@ -168,4 +184,6 @@ public class MemoryService {
     }
 
     private record AgentRow(String layer, String ownerOrg) {}
+
+    public record Counts(long user, long task, long experience) {}
 }

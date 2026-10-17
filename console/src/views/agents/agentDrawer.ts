@@ -32,6 +32,19 @@ export function executionRows(execution?: { current?: string; target?: string; c
   ] as const
 }
 
+export function userMemoryCount(items: { layer?: string | null }[]) {
+  return items.filter((item) => (item.layer ?? 'USER') === 'USER').length
+}
+
+export function filterMemories<T extends { layer?: string | null; ownerUser?: string | null }>(
+  items: T[],
+  layer: string,
+  owner: string,
+) {
+  const query = owner.trim()
+  return items.filter((item) => (item.layer ?? 'USER') === layer && (!query || (item.ownerUser ?? '').includes(query)))
+}
+
 export function memoryRows(memory?: { session?: string; user?: string; task?: string; experience?: string } | null) {
   return [
     ['会话记忆', memory?.session || '未接入'],

@@ -30,6 +30,8 @@ import {
   withEvalGate,
   executionRows,
   memoryRows,
+  filterMemories,
+  userMemoryCount,
   sourceLabel,
   versionRows,
 } from './agentDrawer'
@@ -66,6 +68,10 @@ const catalog = ref<SkillSummary[]>([])
 const granting = ref(false)
 const grantName = ref('')
 const memories = ref<UserMemory[]>([])
+const memoriesLoaded = ref(false)
+const managingMemory = ref(false)
+const memoryLayer = ref<'USER' | 'TASK' | 'EXPERIENCE'>('USER')
+const memoryOwnerQuery = ref('')
 const channels = ref<ChannelRow[]>([])
 const channelKind = ref<ChannelRow['kind']>('EMBED')
 const channelIdentity = ref<ChannelRow['identity']>('EXCHANGE')
@@ -271,22 +277,41 @@ async function removeChannel(id: number) {
   }
 }
 
+const userCount = computed(() => userMemoryCount(memories.value))
+const visibleMemories = computed(() => filterMemories(memories.value, memoryLayer.value, memoryOwnerQuery.value))
+
 async function loadUserMemories(agent: string) {
   try {
     memories.value = (await listMemories(agent)).items ?? []
+    memoriesLoaded.value = true
   } catch (error) {
+    memoriesLoaded.value = false
     ElMessage.error(`加载用户记忆失败：${toKeelError(error).message}`)
   }
+}
+
+function openMemoryManager() {
+  memoryLayer.value = 'USER'
+  memoryOwnerQuery.value = ''
+  managingMemory.value = true
+}
+
+function memoryTime(value?: string) {
+  return value ? value.replace('T', ' ').slice(0, 16) : '—'
 }
 
 async function removeMemory(id: number) {
   if (!name.value) return
   try {
+    await ElMessageBox.confirm('删除后不能再召回。审计只记条数和类别，不记正文。', '删除记忆', {
+      confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning',
+    })
     await deleteMemory(name.value, id)
     memories.value = memories.value.filter((item) => item.id !== id)
     ElMessage.success('已删除，不能再召回')
+    await load(name.value, true)
   } catch (error) {
-    ElMessage.error(toKeelError(error).message)
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(toKeelError(error).message)
   }
 }
 
@@ -323,7 +348,8 @@ async function confirmGrant() {
 
 function onKey(event: KeyboardEvent) {
   if (event.key !== 'Escape' || !name.value) return
-  if (retiring.value || deleting.value || granting.value) {
+  if (managingMemory.value || retiring.value || deleting.value || granting.value) {
+    managingMemory.value = false
     retiring.value = false
     deleting.value = false
     granting.value = false
@@ -341,6 +367,7 @@ watch(tab, () => {
 watch(name, async (agent) => {
   tab.value = 'ov'
   retiring.value = false
+  managingMemory.value = false
   retireInput.value = ''
   deleting.value = false
   deleteInput.value = ''
@@ -350,6 +377,8 @@ watch(name, async (agent) => {
     jobs.value = []
     agentSkills.value = []
     memories.value = []
+    memoriesLoaded.value = false
+    managingMemory.value = false
     channels.value = []
     document.body.style.overflow = ''
     return
@@ -372,7 +401,7 @@ onUnmounted(() => {
 <template>
   <Teleport to="body">
     <template v-if="name">
-      <div class="mask" :class="{ on: shown }" @click="retiring || deleting ? (retiring = deleting = false) : close()" />
+      <div class="mask" :class="{ on: shown }" @click="managingMemory ? (managingMemory = false) : retiring || deleting ? (retiring = deleting = false) : close()" />
       <aside class="drawer" :class="{ on: shown }" role="dialog" aria-label="智能体详情">
         <div class="dh">
           <h3>
@@ -504,23 +533,10 @@ onUnmounted(() => {
                 </tr>
               </tbody>
             </table>
-            <div class="drawer-actions">
-              <span class="mut">持久记忆 {{ memories.length }} 条 · 评测流量不写入</span>
+            <div v-if="layer !== 'meta'" class="drawer-actions">
+              <span class="mut">{{ memoriesLoaded ? `用户记忆 ${userCount.toLocaleString('zh-CN')} 条` : '用户记忆 —' }} · 评测流量不写入</span>
+              <button class="btn sm" type="button" @click="openMemoryManager">管理用户记忆</button>
             </div>
-            <h4>持久记忆</h4>
-            <table class="t">
-              <thead><tr><th>用户</th><th>层级</th><th>内容</th><th></th></tr></thead>
-              <tbody>
-                <tr v-if="!memories.length"><td colspan="4" class="empty">还没有持久记忆</td></tr>
-                <tr v-for="item in memories" :key="item.id">
-                  <td class="mono">{{ item.ownerUser }}</td>
-                  <td>{{ item.layer === 'TASK' ? '任务' : item.layer === 'EXPERIENCE' ? '经验' : '用户' }}</td>
-                  <td>{{ item.content }}</td>
-                  <td><button v-write class="btn sm" type="button" @click="removeMemory(item.id)">删除</button></td>
-                </tr>
-              </tbody>
-            </table>
-            <p class="mut">用户、任务、经验记忆都可以删除。删除后不能再召回。会话原文仍在本地。审计只记条数和类别。</p>
           </template>
 
           <template v-else-if="detail && tab === 'skill'">
@@ -667,6 +683,35 @@ onUnmounted(() => {
           </template>
         </div>
       </aside>
+
+      <div v-if="managingMemory" class="mask on lift" @click="managingMemory = false" />
+      <div v-if="managingMemory" class="modal wide on" role="dialog" aria-label="管理用户记忆">
+        <div class="mh">管理用户记忆</div>
+        <div class="mb">
+          <p class="mut">按用户查看、删除。删除后不能再召回。审计只记条数和类别，不记正文。会话原文仍在本地。</p>
+          <div class="dtabs" style="margin-bottom: 10px">
+            <button type="button" :class="{ on: memoryLayer === 'USER' }" @click="memoryLayer = 'USER'">用户</button>
+            <button type="button" :class="{ on: memoryLayer === 'TASK' }" @click="memoryLayer = 'TASK'">任务</button>
+            <button type="button" :class="{ on: memoryLayer === 'EXPERIENCE' }" @click="memoryLayer = 'EXPERIENCE'">经验</button>
+          </div>
+          <input v-model="memoryOwnerQuery" class="inp" placeholder="按用户筛选" style="width: 100%; margin-bottom: 10px" />
+          <table class="t">
+            <thead><tr><th>用户</th><th>内容</th><th>时间</th><th></th></tr></thead>
+            <tbody>
+              <tr v-if="!visibleMemories.length"><td colspan="4" class="empty">这一层还没有记忆</td></tr>
+              <tr v-for="item in visibleMemories" :key="item.id">
+                <td class="mono">{{ item.ownerUser }}</td>
+                <td>{{ item.content }}</td>
+                <td class="mono">{{ memoryTime(item.createdAt) }}</td>
+                <td><button v-write class="btn sm" type="button" @click="removeMemory(item.id)">删除</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="mf">
+          <button class="btn" type="button" @click="managingMemory = false">关闭</button>
+        </div>
+      </div>
 
       <div v-if="granting" class="modal on" role="dialog" aria-label="添加技能">
         <div class="mh">添加技能</div>

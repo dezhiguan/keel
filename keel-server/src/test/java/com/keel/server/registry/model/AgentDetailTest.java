@@ -114,8 +114,10 @@ class AgentDetailTest {
                 {"apiVersion":"keel/v1","spec":{"kind":"agent","models":{"budget":{"maxSteps":4}}}}
                 """);
         var detail = AgentDetail.of(agent(), null, null, List.of(), agentManifest, List.of());
-        assertThat(detail.memory().session()).isEqualTo("本地开发可用 · 7 天");
-        assertThat(detail.memory().user()).isEqualTo("可查可删");
+        assertThat(detail.memory().session()).isEqualTo("不需要");
+        assertThat(detail.memory().user()).isEqualTo("不需要");
+        assertThat(detail.memory().task()).isEqualTo("只读生产履历");
+        assertThat(detail.memory().experience()).isEqualTo("不允许自写");
         assertThat(detail.execution().current()).isEqualTo("声明为智能体");
         assertThat(detail.execution().target()).contains("ctx.loop");
         assertThat(detail.execution().constraints()).contains("maxSteps 4");
@@ -126,6 +128,15 @@ class AgentDetailTest {
         assertThat(AgentDetail.of(agent(), null, null, List.of(), workflow, List.of()).execution().target())
                 .isEqualTo("确定性代码流程");
         assertThat(AgentDetail.of(agent(), null, null, List.of(), null, List.of()).execution()).isNull();
+
+        var biz = new Agent();
+        biz.setName("careermate");
+        biz.setLayer("BIZ");
+        var counted = AgentDetail.memoryStatus(biz, agentManifest, 4, 0, 2);
+        assertThat(counted.session()).isEqualTo("开启 · 7 天");
+        assertThat(counted.user()).isEqualTo("开启");
+        assertThat(counted.task()).isEqualTo("—");
+        assertThat(counted.experience()).isEqualTo("候选 2 条待人审");
     }
 
     @Test void detailShowsTwelveElementsWithoutTreatingDeclarationsAsRuntimeProof() throws Exception {

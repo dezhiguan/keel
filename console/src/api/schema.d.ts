@@ -2061,7 +2061,7 @@ export interface components {
                 target?: string;
                 constraints?: string;
             };
-            /** @description 会话记忆在本地。用户记忆可查可删。任务和经验记忆未接入 */
+            /** @description 四层状态。会话保留期为 keel-lite 的 7 天。用户、任务、经验条数来自 user_memory，评测流量不写入。元智能体与研发、业务的文案不同 */
             memory?: {
                 session?: string;
                 user?: string;

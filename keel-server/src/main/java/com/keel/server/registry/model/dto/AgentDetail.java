@@ -2,6 +2,8 @@ package com.keel.server.registry.model.dto;
 
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.keel.server.memory.MemoryLayers;
+import com.keel.server.registry.model.AgentCategories;
 import com.keel.server.registry.model.entity.Agent;
 import com.keel.server.registry.model.entity.AgentInstance;
 import com.keel.server.registry.model.entity.AgentVersion;
@@ -41,7 +43,7 @@ public record AgentDetail(
         var modelNames = models(manifest);
         return new AgentDetail(summary, ManifestYaml.of(manifest), latest == null ? null : latest.getManifestHash(),
                 execution(manifest),
-                memory(manifest),
+                memoryStatus(agent, manifest, 0, 0, 0),
                 texts(manifest, "knowledge", "kb"),
                 toolLabels(manifest),
                 modelNames,
@@ -244,9 +246,17 @@ public record AgentDetail(
         return new Execution("未声明", "未声明", "以 agent.yaml 为准");
     }
 
-    private static Memory memory(JsonNode manifest) {
-        if (manifest == null) return null;
-        return new Memory("本地开发可用 · 7 天", "可查可删", "可查可删", "可查可删");
+    public static Memory memoryStatus(Agent agent, JsonNode manifest, long userCount, long taskCount, long experienceCount) {
+        if (agent == null || manifest == null) return null;
+        var mode = manifest.path("spec").path("interaction").path("mode").asText("");
+        var status = MemoryLayers.describe(agent.getLayer(), AgentCategories.resolve(agent.getName(), manifest),
+                agent.getName(), mode, userCount, taskCount, experienceCount);
+        return new Memory(status.session(), status.user(), status.task(), status.experience());
+    }
+
+    public AgentDetail withMemory(Memory next) {
+        return new AgentDetail(summary, manifestYaml, manifestHash, execution, next, knowledgeBases, tools, models, delegates,
+                selfCheck, elements, instanceList, resources, versions, findings);
     }
 
     public AgentDetail withSummary(AgentSummary summary) {

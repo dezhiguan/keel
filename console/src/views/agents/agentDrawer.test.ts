@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { avatarLetter, canRelease, cardChips, cardCost, channelIdentity, channelMethod, elementCell, executionRows, highlightYaml, isSelfChecking, kindLine, memoryRows, memoryTone, readyPill, resourceStatus, scoreText, stamp, toolChip, versionRows, withEvalGate } from './agentDrawer'
+import { avatarLetter, canRelease, cardChips, cardCost, channelIdentity, channelMethod, elementCell, executionRows, filterMemories, highlightYaml, isSelfChecking, kindLine, memoryRows, memoryTone, readyPill, resourceStatus, scoreText, stamp, toolChip, userMemoryCount, versionRows, withEvalGate } from './agentDrawer'
 
 describe('agent drawer', () => {
   it('shows memory status from the API and keeps unavailable layers explicit', () => {
@@ -30,6 +30,15 @@ describe('agent drawer', () => {
     expect(memoryTone('未接入')).toBe('p-mute')
     expect(memoryTone('候选 3 条待人审')).toBe('p-warn')
     expect(memoryTone('可查可删')).toBe('p-ok')
+    expect(memoryTone('不需要')).toBe('p-mute')
+    expect(memoryTone('开启 · 7 天')).toBe('p-ok')
+    expect(memoryTone('候选 0 条待人审')).toBe('p-warn')
+    expect(userMemoryCount([{ layer: 'USER' }, { layer: 'TASK' }, {}])).toBe(2)
+    expect(filterMemories(
+      [{ layer: 'USER', ownerUser: 'amy' }, { layer: 'TASK', ownerUser: 'amy' }, { layer: 'USER', ownerUser: 'other' }],
+      'USER',
+      'am',
+    )).toEqual([{ layer: 'USER', ownerUser: 'amy' }])
     expect(channelMethod('HOSTED')).toBe('独立成站')
     expect(channelMethod('EMBED')).toBe('对话气泡')
     expect(channelMethod('MINIPROGRAM')).toBe('小程序 SDK')
