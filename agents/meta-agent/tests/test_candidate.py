@@ -1,4 +1,5 @@
 import asyncio
+import ast
 import json
 import subprocess
 import sys
@@ -112,3 +113,53 @@ def test_model_authored_role_runs_in_generated_project(tmp_path):
     checked = subprocess.run([sys.executable, "-m", "pytest", "tests", "-q"],
                              cwd=project, capture_output=True, text=True)
     assert checked.returncode == 0, checked.stdout + checked.stderr
+
+
+def test_generated_entry_accepts_visible_seed_text_and_json_object(tmp_path):
+    project = tmp_path / "spec-agent"
+    for name in ("tools", "tests", "evals"):
+        (project / name).mkdir(parents=True, exist_ok=True)
+    (project / "requirements.lock").write_text("pytest==9.1.1\n", encoding="utf-8")
+    (project / "agent.yaml").write_text(yaml.safe_dump(manifest()), encoding="utf-8")
+    (project / "spec.json").write_text("{}", encoding="utf-8")
+    _scaffold(project, "DF-9001", {"files": [
+        {"path": "role.py", "content": ROLE_CODE},
+        {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
+        {"path": "tests/test_role.py", "content": TEST_CODE},
+    ]})
+    tree = ast.parse((project / "app.py").read_text(encoding="utf-8"))
+    entry = next(node for node in tree.body if isinstance(node, ast.AsyncFunctionDef) and node.name == "run")
+    entry.decorator_list = []
+    captured = []
+
+    async def execute(data, ctx):
+        captured.append(data)
+        return {"status": "READY"}
+
+    class Ctx:
+        def step(self, name):
+            assert name == "role"
+
+        def final(self, answer):
+            return answer
+
+    class Request:
+        def __init__(self, value):
+            self.input = {"text": value}
+
+    class ErrorCode:
+        SERVER_INVALID_PARAM = "SERVER_INVALID_PARAM"
+
+    class KeelError(Exception):
+        pass
+
+    namespace = {"json": json, "execute": execute, "ErrorCode": ErrorCode, "KeelError": KeelError}
+    exec(compile(ast.fix_missing_locations(ast.Module(body=[entry], type_ignores=[])), "app.py", "exec"), namespace)
+    asyncio.run(namespace["run"](Request("请起草需求单"), Ctx()))
+    asyncio.run(namespace["run"](Request('{"text":"请起草需求单","mode":"COLLAB"}'), Ctx()))
+    asyncio.run(namespace["run"](Request('"请起草需求单"'), Ctx()))
+    assert captured == [{"text": "请起草需求单"}, {"text": "请起草需求单", "mode": "COLLAB"},
+                        {"text": '"请起草需求单"'}]
+    import pytest
+    with pytest.raises(KeelError):
+        asyncio.run(namespace["run"](Request("[1,2]"), Ctx()))
