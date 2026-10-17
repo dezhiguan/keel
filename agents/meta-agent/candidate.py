@@ -134,6 +134,11 @@ async def generate(work: dict, ctx) -> dict:
                    '{"edits":[{"path":"role.py 或 prompts/role.md 或 tests/test_role.py",'
                    '"old":"原文件中唯一存在的精确原文","new":"替换后的原文"}]}。'
                    "old 必须逐字匹配上轮快照且仅出现一次，可有多个补丁依次应用；"
+                   "old 只选唯一的短锚点，不复制整份旧文件。追加回归测试时，"
+                   "用最后一个唯一断言作锚点，在new中保留该断言后追加测试；"
+                   "开发者要求新增测试时，必须实际返回tests/test_role.py的修改，不能只改代码。"
+                   "响应只能有一个合法JSON对象，数组和对象只关闭一次，不要多写尾部]}；"
+                   "代码字符串使用标准JSON换行、引号和反斜杠转义，不能双重编码整个字符串。"
                    "只修复根因，保留已正确的代码。也兼容返回原先的三个完整文件。")
         if "test_approved_normal_case_passes_with_complete_evidence" in str(repair.get("report") or ""):
             prompt += ("\n本轮可信沙箱报告表明已批准的 H2 PASS 正常输入被错误返回 BLOCKED。"
@@ -265,8 +270,9 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
         return {}, ["缺少 JSON 对象"]
     try:
         data = json.loads(raw[start:end + 1])
-    except json.JSONDecodeError:
-        return {}, ["JSON 解析失败"]
+    except json.JSONDecodeError as error:
+        return {}, [f"JSON 解析失败：{error.msg}（第{error.lineno}行，第{error.colno}列）；"
+                    "只返回一个JSON对象，检查字符串转义、逗号及多余的尾部括号"]
     files = data.get("files") if isinstance(data, dict) else None
     if not isinstance(files, list) or len(files) != 3:
         return {}, ["必须且只能有 role.py、prompts/role.md 和 tests/test_role.py"]

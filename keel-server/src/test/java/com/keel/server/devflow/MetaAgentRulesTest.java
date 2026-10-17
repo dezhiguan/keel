@@ -13,6 +13,37 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.*;
 
 class MetaAgentRulesTest {
+    @Test void failedGenerationCanReceiveClarificationOnlyWithinTheExistingUnmergedWindow() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) new ObjectMapper().readTree("""
+                {"phase":"FAILED","delivery":{"sha":"abc"},
+                 "repair":{"maxAttempts":3,"attempt":2,"failedSha":"abc"},
+                 "sandboxAttempts":[{"sha":"abc","status":"PASS","report":"sha=abc snapshot=ok tests=PASS\\n"}]}
+                """);
+        assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isTrue();
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
+        for (String phase : List.of("DELIVERING", "QUEUED", "RELEASING", "WATCHING")) {
+            state.put("phase", phase);
+            assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isFalse();
+        }
+        state.put("phase", "FAILED").put("sandboxStatus", "FAILED");
+        assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isFalse();
+        state.remove("sandboxStatus");
+        state.put("h4ApprovalId", "approval");
+        assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isFalse();
+        state.remove("h4ApprovalId");
+        state.put("mergeSha", "merged");
+        assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isFalse();
+        state.remove("mergeSha");
+        var repair = (com.fasterxml.jackson.databind.node.ObjectNode) state.path("repair");
+        repair.put("failedSha", "stale");
+        assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isFalse();
+        repair.put("failedSha", "abc").put("attempt", 3);
+        assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isFalse();
+        repair.put("attempt", 2).put("maxAttempts", 1);
+        assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isFalse();
+        repair.put("maxAttempts", 3);
+        assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isTrue();
+    }
     @Test void passedSandboxRetainsFeedbackAllowanceAndLegacyPassNeedsExplicitNewWindow() throws Exception {
         var state = (com.fasterxml.jackson.databind.node.ObjectNode) new ObjectMapper().readTree("""
                 {"phase":"WAITING_REVIEW","sandboxStatus":"PASS","repairWindow":{"maxAttempts":3},"sandboxAttempts":[{},{}]}

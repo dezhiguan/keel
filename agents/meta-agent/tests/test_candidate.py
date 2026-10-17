@@ -75,6 +75,24 @@ def test_meta_agent_generates_role_code_from_confirmed_spec():
     assert "spec-agent" in llm.prompts[0][0]["content"]
 
 
+def test_repair_rejects_malformed_json_then_applies_the_corrected_patch_before_delivery():
+    previous = {"files": [{"path": "role.py", "content": ROLE_CODE},
+                          {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
+                          {"path": "tests/test_role.py", "content": TEST_CODE}]}
+    edits = json.dumps({"edits": [{"path": "role.py", "old": 'data.get("requirement")',
+                                   "new": 'data.get("requirement") or ""'}]})
+    llm = FakeModel([edits + "]}", edits])
+    work = {"requirement": {"target_agent": "spec-agent", "template": "graph-agent", "tools": []},
+            "draft": {"spec": {"goal": "分析需求"}, "manifest": {"spec": {"tools": []}}},
+            "repair": {"attempt": 2, "previousCandidate": previous, "feedback": "修复空需求"}}
+    result = asyncio.run(generate(work, type("Ctx", (), {"llm": llm})()))
+    assert len(llm.prompts) == 2
+    assert 'data.get("requirement") or ""' in result["files"][0]["content"]
+    feedback = llm.prompts[1][-1]["content"]
+    assert "Extra data" in feedback and "列" in feedback
+    assert "合法JSON对象" in llm.prompts[0][0]["content"]
+
+
 def test_candidate_rejects_dictionary_access_on_sdk_objects_and_string_reply():
     role = ROLE_CODE.replace(
         'reply = await ctx.llm.chat([{"role": "user", "content": prompt.compile(input=requirement)}], prompt=prompt)',

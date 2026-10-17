@@ -932,9 +932,20 @@ public class MetaAgentExecution {
 
     static boolean canAcceptRepairFeedback(JsonNode state) {
         int ceiling = repairContext(state).path("maxAttempts").asInt();
-        return repairFeedbackPhase(state)
-                && "PASS".equals(state.path("sandboxStatus").asText())
-                && ceiling > state.path("sandboxAttempts").size() && ceiling <= 20;
+        var attempts = state.path("sandboxAttempts");
+        var repair = state.path("repair");
+        var sha = state.path("delivery").path("sha").asText();
+        var last = attempts.path(attempts.size() - 1);
+        boolean generationFailed = "FAILED".equals(state.path("phase").asText())
+                && !state.hasNonNull("sandboxStatus") && repair.isObject()
+                && !state.hasNonNull("h4ApprovalId") && !state.hasNonNull("mergeSha")
+                && !sha.isBlank() && sha.equals(repair.path("failedSha").asText())
+                && repair.path("attempt").asInt() == attempts.size() + 1
+                && sha.equals(last.path("sha").asText()) && "PASS".equals(last.path("status").asText())
+                && last.path("report").asText().startsWith("sha=" + sha + " snapshot=ok tests=PASS\n");
+        return ((repairFeedbackPhase(state) && "PASS".equals(state.path("sandboxStatus").asText()))
+                    || generationFailed)
+                && ceiling > attempts.size() && ceiling <= 20;
     }
 
     static boolean canStartClarifiedRepairWindow(JsonNode state) {
