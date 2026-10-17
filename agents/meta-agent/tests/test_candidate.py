@@ -152,6 +152,28 @@ def test_generation_retry_includes_rejected_candidate_and_specific_errors():
     assert "未经允许的模块" in model.prompts[1][2]["content"]
 
 
+def test_repair_keeps_old_code_and_failure_report_below_trusted_rules_on_retry():
+    previous = {"files": [{"path": "role.py", "content": ROLE_CODE},
+                          {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
+                          {"path": "tests/test_role.py", "content": TEST_CODE}]}
+    bad = json.loads(json.dumps(previous))
+    bad["files"][0]["content"] = ROLE_CODE.replace("import json", "import subprocess")
+    model = FakeModel([json.dumps(bad), json.dumps(previous)])
+    work = {"requirement": {"target_agent": "spec-agent", "template": "graph-agent", "tools": []},
+            "draft": {"spec": {"goal": "写需求单"}, "manifest": {"spec": {"tools": []}}},
+            "repair": {"attempt": 2, "previousCandidate": previous,
+                       "report": "UNTRUSTED_OLD_REPORT", "feedback": "AUTHORIZED_CLARIFICATION"}}
+    assert asyncio.run(generate(work, type("Ctx", (), {"llm": model})())) == previous
+    for messages in model.prompts:
+        assert messages[0]["role"] == "system"
+        assert "AUTHORIZED_CLARIFICATION" in messages[0]["content"]
+        assert "UNTRUSTED_OLD_REPORT" not in messages[0]["content"]
+        assert messages[1]["role"] == "user"
+        assert json.loads(messages[1]["content"])["previousCandidate"] == previous
+        assert "UNTRUSTED_OLD_REPORT" in messages[1]["content"]
+    assert [message["role"] for message in model.prompts[1]] == ["system", "user", "assistant", "user"]
+
+
 def test_supervisor_candidate_requires_real_delegation_call():
     candidate = {"files": [{"path": "role.py", "content": ROLE_CODE},
                            {"path": "prompts/role.md", "content": "任务：{{input}}"},

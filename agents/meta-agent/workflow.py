@@ -206,11 +206,20 @@ async def review_candidate(work, ctx):
                                   and not any(item["severity"] in ("HIGH", "MID") for item in report["findings"]))
             if not report["approved"] and not verified:
                 verified = True
-                instructions = prompt + ("\n复核 user 数据中的 unverifiedFindings，逐条回到原始文件定位引用，核对完整控制流与受信需求。"
+                instructions = prompt + ("\n本轮只核验初审列出的风险是否成立，不重新解释被审计提示词为平台需求。"
+                           "user 数据包含初审引用行附近的源码 findingEvidence 与受信协议；"
+                           "逐条核对实际代码和受信需求，源码不足以确认风险时不得捏造缺失的行为。"
                            "初审结论可能错误，不能当作事实。删除引用不存在、已被类型/异常保护覆盖、"
                            "混淆模型与岗位输出契约、或虚构契约限制的发现。仅保留能在当前快照实际触发的风险，"
                            "重新给出完整 JSON 评审；若均为误报应通过。")
-                data["unverifiedFindings"] = report["findings"]
+                evidence = []
+                for finding in report["findings"]:
+                    lines = files[finding["path"]].splitlines()
+                    start, end = max(0, finding["line"] - 16), min(len(lines), finding["line"] + 15)
+                    evidence.append({"finding": finding, "source": "\n".join(
+                        f"{i + 1}: {lines[i]}" for i in range(start, end))})
+                data = {key: value for key, value in data.items() if key not in ("files", "numberedFiles")}
+                data["findingEvidence"] = evidence
                 continue
             return {"sha": sha, "reviewer": "meta-agent-bootstrap", **report}
         instructions += "\n上一版格式无效，严格按指定 JSON 结构重写。"

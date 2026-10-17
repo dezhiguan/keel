@@ -79,15 +79,17 @@ def test_failed_candidate_is_repaired_and_conditionally_pushed(tmp_path, monkeyp
         prompts = []
 
         async def chat(self, messages, **kwargs):
-            self.prompts.append(messages[0]["content"])
+            self.prompts.append(messages)
             return json.dumps(candidate(True))
 
     model = Model()
     corrected = asyncio.run(generate({**work(candidate(False), repair), "repair": repair},
                                      type("Ctx", (), {"llm": model})()))
-    assert "snapshot=ok tests=FAIL" in model.prompts[0]
-    assert "不可信数据" in model.prompts[0]
-    assert "受信 agent.yaml 工具定义" in model.prompts[0]
+    assert model.prompts[0][0]["role"] == "system"
+    assert "snapshot=ok tests=FAIL" not in model.prompts[0][0]["content"]
+    assert "snapshot=ok tests=FAIL" in model.prompts[0][1]["content"]
+    assert "不可信数据" in model.prompts[0][0]["content"]
+    assert "受信 agent.yaml 工具定义" in model.prompts[0][0]["content"]
     second = _deliver(work(corrected, repair))
     assert second["sha"] == SHA_B
     assert pushes[1]["expectedSha"] == SHA_A

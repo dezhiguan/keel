@@ -115,10 +115,10 @@ def test_bootstrap_review_rechecks_findings_against_original_contract_and_source
                                                  "detail": "unsupported initial claim"}]})
             assert '"trustedSpec": {"io": "return evidence"}' in calls[-1]
             assert "unsupported initial claim" in calls[-1]
-            assert '"role.py": "pass\\n"' in calls[-1]
             data = json.loads(calls[-1])
-            assert data["numberedFiles"]["role.py"] == "1: pass"
-            assert data["unverifiedFindings"][0]["detail"] == "unsupported initial claim"
+            assert "files" not in data and "numberedFiles" not in data
+            assert data["findingEvidence"][0]["source"] == "1: pass"
+            assert data["findingEvidence"][0]["finding"]["detail"] == "unsupported initial claim"
             assert data["runtimeContract"]["executeResult"]["additionalProperties"] is True
             assert data["runtimeContract"]["promptOutputScope"].startswith("ctx.llm.chat response only")
             assert "混淆模型与岗位输出契约" in messages[0]["content"]
