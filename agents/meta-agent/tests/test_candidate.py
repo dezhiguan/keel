@@ -159,6 +159,24 @@ async def execute(data, ctx):
     assert any("prompt.compile" in error and "evidence" in error for error in errors)
 
 
+def test_multi_tool_prompt_accepts_sdk_whitespace_and_prompt_alias():
+    role = '''async def execute(data, ctx):
+    log = await ctx.tools.call("ci.log.fetch", repo="sample", runId="1")
+    diff = await ctx.tools.call("git.pr.diff", repo="sample", number=1)
+    prompt_template = await ctx.prompt("role")
+    message = prompt_template.compile(input=data, evidence={"log": log, "diff": diff})
+    await ctx.llm.chat([{"role": "user", "content": message}], prompt=prompt_template)
+    return {"decision": "BLOCKED"}
+'''
+    candidate = {"files": [{"path": "role.py", "content": role},
+                           {"path": "prompts/role.md", "content": "输入：{{ input }}\n证据：{{ evidence }}"},
+                           {"path": "tests/test_role.py", "content": TEST_CODE}]}
+    assert parse(json.dumps(candidate), selected_tools=["ci.log.fetch", "git.pr.diff"])[1] == []
+    candidate["files"][1]["content"] += "\n风险：{{ tool.risk }}"
+    assert any("无法替换的占位符" in error for error in
+               parse(json.dumps(candidate), selected_tools=["ci.log.fetch", "git.pr.diff"])[1])
+
+
 def test_generated_code_rejects_forbidden_imports_and_missing_behavior_tests():
     bad = {"files": [{"path": "role.py", "content": "import subprocess\nasync def execute(data, ctx): return {}"},
                      {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
