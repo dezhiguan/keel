@@ -103,8 +103,11 @@ public class DevflowPipelineController {
             return R.ok(Map.of("prepared", true));
         }
         if ("ready".equals(action)) {
-            var report = checks.checkRegistered(name, env, manifest.path("spec").path("runtime").path("endpoint").asText(), manifest);
-            if (report.passed()) {
+            String endpoint = manifest.path("spec").path("runtime").path("endpoint").asText();
+            boolean preview = "prod".equals(env) && !context.path("prodGate").path("passed").asBoolean(false);
+            var report = preview ? checks.checkRuntime(name, env, endpoint, manifest)
+                    : checks.checkRegistered(name, env, endpoint, manifest.deepCopy().put("env", env));
+            if (report.passed() && !preview) {
                 jdbc.update("UPDATE agent SET status='REGISTERED', updated_at=now() WHERE name=?", name);
                 jdbc.update("INSERT INTO route_snapshot (changed_agent) VALUES (?)", name);
             }

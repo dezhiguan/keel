@@ -34,6 +34,13 @@ public class SelfCheckService {
 
     /** Probe the registered service, then look up its returned trace rather than hard coding failure. */
     public Report checkRegistered(String agent, String env, String endpoint, JsonNode manifest) {
+        var report = checkRuntime(agent, env, endpoint, manifest);
+        if (records != null) records.save(agent, env, manifest, report);
+        return report;
+    }
+
+    /** A pre-registration preview probes the runtime without creating a registration record. */
+    public Report checkRuntime(String agent, String env, String endpoint, JsonNode manifest) {
         var items = new ArrayList<Item>();
         var health = health(endpoint);
         items.add(health);
@@ -74,7 +81,6 @@ public class SelfCheckService {
         boolean approval = approvalBound(manifest);
         items.add(new Item("审批绑定", approval, approval ? null : "高风险工具没有绑定审批策略"));
         var report = new Report(items.stream().allMatch(Item::passed), List.copyOf(items));
-        if (records != null) records.save(agent, env, manifest, report);
         return report;
     }
 
