@@ -70,6 +70,7 @@ def test_meta_agent_generates_role_code_from_confirmed_spec():
                       "manifest": {"spec": {"tools": []}}}}
     output = asyncio.run(generate(work, ctx))
     assert output == candidate
+    assert [message["role"] for message in llm.prompts[0]] == ["system", "user"]
     assert "把真实需求变成结构化需求单" in llm.prompts[0][0]["content"]
     assert "spec-agent" in llm.prompts[0][0]["content"]
 
@@ -147,9 +148,9 @@ def test_generation_retry_includes_rejected_candidate_and_specific_errors():
     work = {"requirement": {"target_agent": "spec-agent", "template": "graph-agent", "tools": []},
             "draft": {"spec": {"goal": "写需求单"}, "manifest": {"spec": {"tools": []}}}}
     assert asyncio.run(generate(work, type("Ctx", (), {"llm": model})())) == fixed
-    assert len(model.prompts[1]) == 3
-    assert model.prompts[1][1] == {"role": "assistant", "content": json.dumps(bad)}
-    assert "未经允许的模块" in model.prompts[1][2]["content"]
+    assert len(model.prompts[1]) == 4
+    assert model.prompts[1][2] == {"role": "assistant", "content": json.dumps(bad)}
+    assert "未经允许的模块" in model.prompts[1][3]["content"]
 
 
 def test_repair_keeps_old_code_and_failure_report_below_trusted_rules_on_retry():
@@ -254,6 +255,35 @@ def test_generated_code_rejects_forbidden_imports_and_missing_behavior_tests():
     _, errors = parse(json.dumps(bad))
     assert any("导入" in error for error in errors)
     assert any("正常和拒绝" in error for error in errors)
+
+
+@pytest.mark.parametrize("input_expr,evidence_expr,invalid", [
+    ("data", "'user.evidence'", "input"),
+    ("'user.input'", "{'log': log, 'diff': diff}", "evidence"),
+    ("'user.input'", "'user.evidence'", None),
+])
+def test_candidate_checks_raw_material_in_system_before_git_delivery(input_expr, evidence_expr, invalid):
+    role = f'''import json
+async def execute(data, ctx):
+    log = await ctx.tools.call("ci.log.fetch", repo="sample", runId="1")
+    diff = await ctx.tools.call("git.pr.diff", repo="sample", number=1)
+    prompt = await ctx.prompt("role")
+    compiled = prompt.compile(input={input_expr}, evidence={evidence_expr})
+    policy = compiled
+    reply = await ctx.llm.chat([
+        {{"role": "system", "content": policy}},
+        {{"role": "user", "content": json.dumps({{"input": data, "evidence": [log, diff]}})}}
+    ], prompt=prompt)
+    return json.loads(reply)
+'''
+    candidate = {"files": [{"path": "role.py", "content": role},
+                           {"path": "prompts/role.md", "content": "输入：{{input}}\n证据：{{evidence}}"},
+                           {"path": "tests/test_role.py", "content": TEST_CODE}]}
+    errors = parse(json.dumps(candidate), selected_tools=["ci.log.fetch", "git.pr.diff"])[1]
+    if invalid:
+        assert any("system提示词不能compile动态原文参数 " + invalid in error for error in errors)
+    else:
+        assert errors == []
 
 
 def test_generated_python_rejects_lowercase_json_literals():
