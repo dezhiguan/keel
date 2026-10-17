@@ -44,6 +44,23 @@ class MetaAgentRulesTest {
         repair.put("maxAttempts", 3);
         assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isTrue();
     }
+    @Test void generationAfterFailedSandboxCanBeClarifiedWithoutResettingOrExtendingBudget() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) new ObjectMapper().readTree("""
+                {"phase":"FAILED","sandboxStatus":"FAILED","delivery":{"sha":"abc"},
+                 "repair":{"maxAttempts":3,"attempt":2,"failedSha":"abc","feedback":"保留澄清"},
+                 "sandboxAttempts":[{"sha":"abc","status":"FAILED","report":"sha=abc snapshot=ok tests=FAIL\\nassertion failed"}]}
+                """);
+        assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isTrue();
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
+        var last = (com.fasterxml.jackson.databind.node.ObjectNode) state.path("sandboxAttempts").get(0);
+        last.put("report", "sandbox infrastructure unavailable");
+        assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isFalse();
+        last.put("report", "sha=stale snapshot=ok tests=FAIL\n");
+        assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isFalse();
+        last.put("report", "sha=abc snapshot=ok tests=FAIL\n");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("repair")).put("maxAttempts", 1);
+        assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isFalse();
+    }
     @Test void passedSandboxRetainsFeedbackAllowanceAndLegacyPassNeedsExplicitNewWindow() throws Exception {
         var state = (com.fasterxml.jackson.databind.node.ObjectNode) new ObjectMapper().readTree("""
                 {"phase":"WAITING_REVIEW","sandboxStatus":"PASS","repairWindow":{"maxAttempts":3},"sandboxAttempts":[{},{}]}

@@ -93,6 +93,24 @@ def test_repair_rejects_malformed_json_then_applies_the_corrected_patch_before_d
     assert "合法JSON对象" in llm.prompts[0][0]["content"]
 
 
+def test_repeated_ambiguous_anchor_reports_file_and_count_then_requests_complete_files():
+    previous = {"files": [{"path": "role.py", "content": ROLE_CODE},
+                          {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
+                          {"path": "tests/test_role.py", "content": TEST_CODE}]}
+    # Both normal/rejection tests call execute; an anchor without function context is ambiguous.
+    bad = json.dumps({"edits": [{"path": "tests/test_role.py", "old": "result = asyncio.run(execute(",
+                                 "new": "result = asyncio.run(execute("}]})
+    llm = FakeModel([bad, bad, json.dumps(previous)])
+    work = {"requirement": {"target_agent": "spec-agent", "template": "graph-agent", "tools": []},
+            "draft": {"spec": {"goal": "分析需求"}, "manifest": {"spec": {"tools": []}}},
+            "repair": {"attempt": 2, "previousCandidate": previous}}
+    result = asyncio.run(generate(work, type("Ctx", (), {"llm": llm})()))
+    assert result == previous
+    assert len(llm.prompts) == 3
+    assert "补丁 #1 (tests/test_role.py) old 锚点匹配 2 次" in llm.prompts[1][-1]["content"]
+    assert "必须返回files格式的三个完整岗位文件" in llm.prompts[2][-1]["content"]
+
+
 def test_candidate_rejects_dictionary_access_on_sdk_objects_and_string_reply():
     role = ROLE_CODE.replace(
         'reply = await ctx.llm.chat([{"role": "user", "content": prompt.compile(input=requirement)}], prompt=prompt)',

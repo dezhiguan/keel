@@ -897,7 +897,9 @@ public class MetaAgentExecution {
                         completed, sandboxAttemptLimit(state))) {
                     var repo = delivery.path("repo").asText().replaceFirst("^[^/]+/", "");
                     var previous = previousCandidate(json, read(git.fetch(id, repo, sha)));
-                    var repair = state.putObject("repair");
+                    var context = repairContext(state);
+                    var repair = context.isObject() ? (ObjectNode) context.deepCopy() : json.createObjectNode();
+                    state.set("repair", repair);
                     repair.put("attempt", completed + 1).put("failedSha", sha).put("report", last.path("report").asText())
                             .put("templateRefreshes", state.path("infrastructureRefreshes").asInt(0))
                             .put("maxAttempts", sandboxAttemptLimit(state));
@@ -936,13 +938,17 @@ public class MetaAgentExecution {
         var repair = state.path("repair");
         var sha = state.path("delivery").path("sha").asText();
         var last = attempts.path(attempts.size() - 1);
+        boolean previousPassed = !state.hasNonNull("sandboxStatus") && "PASS".equals(last.path("status").asText())
+                && last.path("report").asText().startsWith("sha=" + sha + " snapshot=ok tests=PASS\n");
+        boolean previousFailed = "FAILED".equals(state.path("sandboxStatus").asText())
+                && "FAILED".equals(last.path("status").asText())
+                && last.path("report").asText().startsWith("sha=" + sha + " snapshot=ok tests=FAIL\n");
         boolean generationFailed = "FAILED".equals(state.path("phase").asText())
-                && !state.hasNonNull("sandboxStatus") && repair.isObject()
+                && repair.isObject() && (previousPassed || previousFailed)
                 && !state.hasNonNull("h4ApprovalId") && !state.hasNonNull("mergeSha")
                 && !sha.isBlank() && sha.equals(repair.path("failedSha").asText())
                 && repair.path("attempt").asInt() == attempts.size() + 1
-                && sha.equals(last.path("sha").asText()) && "PASS".equals(last.path("status").asText())
-                && last.path("report").asText().startsWith("sha=" + sha + " snapshot=ok tests=PASS\n");
+                && sha.equals(last.path("sha").asText());
         return ((repairFeedbackPhase(state) && "PASS".equals(state.path("sandboxStatus").asText()))
                     || generationFailed)
                 && ceiling > attempts.size() && ceiling <= 20;
