@@ -684,6 +684,26 @@ public class MetaAgentExecution {
                 return publicState(state);
             }
             if (!"FAILED".equals(state.path("phase").asText())) throw invalid("只有失败的执行可以重试");
+            if (canRetryTrustedContract(state) && git != null) {
+                int completed = state.path("sandboxAttempts").size();
+                var last = state.path("sandboxAttempts").get(completed - 1);
+                var delivery = state.path("delivery");
+                var sha = delivery.path("sha").asText();
+                var repo = delivery.path("repo").asText().replaceFirst("^[^/]+/", "");
+                var previous = previousCandidate(json, read(git.fetch(id, repo, sha)));
+                var repair = state.putObject("repair");
+                int refreshes = state.path("infrastructureRefreshes").asInt(0) + 1;
+                repair.put("attempt", completed + 1).put("failedSha", sha)
+                        .put("report", last.path("report").asText())
+                        .put("templateRefreshes", refreshes);
+                repair.set("previousCandidate", previous);
+                state.put("infrastructureRefreshes", refreshes);
+                state.remove(List.of("sandboxStatus", "sandboxRunId", "error", "humanReview", "modelReview"));
+                state.put("phase", "QUEUED");
+                save(id, state, "DELIVER");
+                jobs.progress(id, "QUEUED", "BUILD", "可信岗位契约更新后补充一次候选修复与沙箱验证");
+                return publicState(state);
+            }
             if (platformSmokeMismatch(state) && git != null) {
                 var delivery = state.path("delivery");
                 var sha = delivery.path("sha").asText();
@@ -861,6 +881,20 @@ public class MetaAgentExecution {
 
     static int sandboxAttemptLimit(JsonNode state) {
         return 5 + Math.min(2, Math.max(0, state.path("infrastructureRefreshes").asInt(0)));
+    }
+
+    static boolean canRetryTrustedContract(JsonNode state) {
+        var attempts = state.path("sandboxAttempts");
+        if (!"FAILED".equals(state.path("phase").asText())
+                || !"FAILED".equals(state.path("sandboxStatus").asText())
+                || state.path("infrastructureRefreshes").asInt(0) >= 2
+                || attempts.size() != sandboxAttemptLimit(state)) return false;
+        var last = attempts.get(attempts.size() - 1);
+        var sha = state.path("delivery").path("sha").asText();
+        var report = last.path("report").asText();
+        return !sha.isBlank() && sha.equals(last.path("sha").asText())
+                && report.startsWith("sha=" + sha + " snapshot=ok tests=FAIL\n")
+                && report.contains("tests/test_platform_contract.py");
     }
 
     static boolean canRefreshInfrastructure(int refreshes) {

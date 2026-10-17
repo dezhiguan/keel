@@ -73,9 +73,14 @@ const canCancelCurrentJob = computed(() => {
 })
 const canRetryCurrentExecution = computed(() => {
   if (execution.value?.phase !== 'FAILED') return false
+  const attempts = execution.value.sandboxAttempts ?? []
+  const last = attempts[attempts.length - 1]
+  const refreshes = Math.min(2, Math.max(0, execution.value.infrastructureRefreshes ?? 0))
+  if (execution.value.sandboxStatus === 'FAILED' && refreshes < 2
+    && attempts.length === 5 + refreshes
+    && last?.report?.includes('tests/test_platform_contract.py')) return true
   if (!execution.value.error?.startsWith('五轮隔离沙箱测试')
     && !execution.value.error?.startsWith('五轮岗位代码修复额度')) return true
-  const refreshes = Math.min(2, Math.max(0, execution.value.infrastructureRefreshes ?? 0))
   return (execution.value.sandboxAttempts?.length ?? 0) < 5 + refreshes
 })
 

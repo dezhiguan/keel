@@ -49,6 +49,21 @@ class MetaAgentRulesTest {
                 """);
         assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(sevenAttempts)).isTrue();
     }
+    @Test void failedTrustedContractAllowsOneBoundedRecovery() throws Exception {
+        var json = new ObjectMapper();
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree("""
+                {"phase":"FAILED","sandboxStatus":"FAILED","infrastructureRefreshes":1,
+                 "delivery":{"sha":"abc"},
+                 "sandboxAttempts":[{},{},{},{},{},
+                   {"sha":"abc","report":"sha=abc snapshot=ok tests=FAIL\\ntests/test_platform_contract.py::test_normal"}]}
+                """);
+        assertThat(MetaAgentExecution.canRetryTrustedContract(state)).isTrue();
+        state.put("infrastructureRefreshes", 2);
+        assertThat(MetaAgentExecution.canRetryTrustedContract(state)).isFalse();
+        state.put("infrastructureRefreshes", 1);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("delivery")).put("sha", "different");
+        assertThat(MetaAgentExecution.canRetryTrustedContract(state)).isFalse();
+    }
     @Test void reviewRepairCanRetryTransportFailureButNotFailedSixthSandbox() throws Exception {
         var json = new ObjectMapper();
         assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(json.readTree("""
