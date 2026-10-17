@@ -143,10 +143,14 @@ async def review_candidate(work, ctx):
               "没有 ctx.tools.schema。"
               "审计及拒绝路径、是否针对可见评测题硬编码、发布审批是否可绕过、测试是否覆盖真实岗位行为、"
               "role.py 是否把完整提示词硬编码而未通过 ctx.prompt() 读取 prompts/role.md。"
+              "evals/seed.jsonl 中存放可见题本身属于正常评测配置；只有 role.py 等岗位逻辑针对题目原文、编号"
+              "或预期答案写死判断时，visibleCaseOverfit 才能为 false。"
               "只返回 JSON：{\"approved\":bool,\"checks\":{"
               + ",".join(f'\"{name}\":bool' for name in checks)
               + "},\"findings\":[{\"path\":str,\"line\":int,\"severity\":\"HIGH|MID|LOW\",\"detail\":str}]}。"
-              "有高/中风险发现时 approved 必须为 false。\n"
+              "有高/中风险发现时 approved 必须为 false。任何检查项为 false 或 approved 为 false 时，"
+              "findings 必须至少给出一项 HIGH/MID 问题，含真实文件路径、行号和可执行的说明；"
+              "没有可定位问题时应把对应检查项标为 true，不能返回没有发现的问题报告。\n"
               + json.dumps({"sha": sha, "trustedTools": trusted_tools, "files": files}, ensure_ascii=False))
     for _ in range(2):
         result = await ctx.llm.chat([{"role": "user", "content": prompt}])
@@ -163,7 +167,9 @@ async def review_candidate(work, ctx):
                         and type(item.get("line")) is int and item["line"] > 0
                         and item.get("severity") in ("HIGH", "MID", "LOW")
                         and isinstance(item.get("detail"), str) and item["detail"].strip()
-                        for item in report["findings"])):
+                        for item in report["findings"])
+                and ((report["approved"] and all(report["checks"].values()))
+                     or any(item["severity"] in ("HIGH", "MID") for item in report["findings"]))):
             report["approved"] = (report["approved"] and all(report["checks"].values())
                                   and not any(item["severity"] in ("HIGH", "MID") for item in report["findings"]))
             return {"sha": sha, "reviewer": "meta-agent-bootstrap", **report}
