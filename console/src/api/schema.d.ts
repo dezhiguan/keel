@@ -3104,6 +3104,8 @@ export interface components {
             infrastructureRefreshes?: number;
             /** @description 评审阶段岗位功能修正次数；新提交必须重跑沙箱及评审 */
             reviewRepairRounds?: number;
+            /** @description S4 模型代码评审失败后的专项修正次数；新提交必须重跑沙箱及评审 */
+            s4RepairRounds?: number;
             sandboxAttempts?: {
                 attempt: number;
                 sha: string;

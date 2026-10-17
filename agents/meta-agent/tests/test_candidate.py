@@ -65,7 +65,8 @@ def test_meta_agent_generates_role_code_from_confirmed_spec():
     llm = FakeModel([json.dumps(candidate)])
     ctx = type("Ctx", (), {"llm": llm})()
     work = {"requirement": {"target_agent": "spec-agent", "template": "graph-agent", "tools": []},
-            "draft": {"spec": {"goal": "把真实需求变成结构化需求单"}}}
+            "draft": {"spec": {"goal": "把真实需求变成结构化需求单"},
+                      "manifest": {"spec": {"tools": []}}}}
     output = asyncio.run(generate(work, ctx))
     assert output == candidate
     assert "把真实需求变成结构化需求单" in llm.prompts[0]
@@ -80,7 +81,9 @@ def test_meta_agent_generates_general_agent_from_confirmed_goal():
     ctx = type("Ctx", (), {"llm": llm})()
     work = {"requirement": {"target_agent": "qa-incident-helper", "template": "tool-agent",
                             "goal": "分析故障并调用日志工具", "tools": ["ci.log.fetch"]},
-            "draft": {"spec": {"goal": "按证据给出故障原因"}}}
+            "draft": {"spec": {"goal": "按证据给出故障原因"},
+                      "manifest": {"spec": {"tools": [
+                          {"name": "ci.log.fetch", "access": "read", "risk": "low", "approval": "none"}]}}}}
     assert asyncio.run(generate(work, ctx)) == candidate
     assert "qa-incident-helper" in llm.prompts[0]
     assert "分析故障并调用日志工具" in llm.prompts[0]

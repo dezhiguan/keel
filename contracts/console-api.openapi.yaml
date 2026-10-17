@@ -4133,6 +4133,7 @@ components:
         sandboxStatus: { type: string, enum: [PASS, FAILED] }
         infrastructureRefreshes: { type: integer, minimum: 0, maximum: 2, description: 可信工作流模板刷新次数；每次均重新验证候选 SHA }
         reviewRepairRounds: { type: integer, minimum: 0, maximum: 1, description: 评审阶段岗位功能修正次数；新提交必须重跑沙箱及评审 }
+        s4RepairRounds: { type: integer, minimum: 0, maximum: 1, description: S4 模型代码评审失败后的专项修正次数；新提交必须重跑沙箱及评审 }
         sandboxAttempts:
           type: array
           items:

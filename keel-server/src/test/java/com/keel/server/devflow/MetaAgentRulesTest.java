@@ -51,6 +51,35 @@ class MetaAgentRulesTest {
                  "repair":{"ciRefresh":true}}
                 """))).isTrue();
     }
+    @Test void s4RepairRequiresFailedReviewOnCurrentApprovedShaAndStopsAfterOneRound() throws Exception {
+        var json = new ObjectMapper();
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree("""
+                {"delivery":{"sha":"aaaa"},"humanReview":{"approved":true,"headSha":"aaaa"},
+                 "modelReview":{"sha":"aaaa","approved":false,
+                   "findings":[{"severity":"HIGH"}]},"s4RepairRounds":0}
+                """);
+        assertThat(MetaAgentExecution.canRepairS4(state, 9)).isTrue();
+        assertThat(MetaAgentExecution.canRepairS4(state, 8)).isFalse();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("modelReview").path("findings").get(0))
+                .put("severity", "LOW");
+        assertThat(MetaAgentExecution.canRepairS4(state, 9)).isFalse();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("modelReview").path("findings").get(0))
+                .put("severity", "HIGH");
+        state.put("s4RepairRounds", 1);
+        assertThat(MetaAgentExecution.canRepairS4(state, 9)).isFalse();
+        state.put("s4RepairRounds", 0);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("modelReview")).put("sha", "bbbb");
+        assertThat(MetaAgentExecution.canRepairS4(state, 9)).isFalse();
+        var transport = json.readTree("""
+                {"sandboxAttempts":[{},{},{},{},{},{},{},{}],"repair":{"s4Repair":true}}
+                """);
+        assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(transport)).isFalse();
+        var failed = json.readTree("""
+                {"sandboxAttempts":[{},{},{},{},{},{},{},{},{}],"sandboxStatus":"FAILED",
+                 "repair":{"s4Repair":true}}
+                """);
+        assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(failed)).isTrue();
+    }
     @Test void platformSmokeMismatchNeedsExactCurrentShaAndKnownFailure() throws Exception {
         var json = new ObjectMapper();
         var state = json.readTree("""

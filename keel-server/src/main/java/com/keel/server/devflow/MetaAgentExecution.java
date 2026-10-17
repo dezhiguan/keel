@@ -638,29 +638,39 @@ public class MetaAgentExecution {
                 int refreshes = state.path("infrastructureRefreshes").asInt(0);
                 boolean infrastructureOnly = canRefreshInfrastructure(refreshes);
                 int reviewRepairs = state.path("reviewRepairRounds").asInt(0);
-                boolean ciRefresh = !infrastructureOnly && reviewRepairs >= 1 && attempt == 9;
-                if (!infrastructureOnly && !ciRefresh && reviewRepairs >= 1)
+                var modelReview = state.path("modelReview");
+                boolean s4Repair = !infrastructureOnly && canRepairS4(state, attempt);
+                boolean ciRefresh = !infrastructureOnly && !s4Repair && reviewRepairs >= 1 && attempt == 9;
+                if (!infrastructureOnly && !ciRefresh && !s4Repair && reviewRepairs >= 1)
                     throw invalid("评审阶段岗位功能修复已达到一次上限");
                 var delivery = state.path("delivery");
                 var sha = delivery.path("sha").asText();
                 var repo = delivery.path("repo").asText().replaceFirst("^[^/]+/", "");
-                git.reviewStatus(id, repo, delivery.path("number").asInt(), sha);
+                var currentReview = git.reviewStatus(id, repo, delivery.path("number").asInt(), sha);
+                if (s4Repair && !currentReview.path("approved").asBoolean(false)) {
+                    throw invalid("当前候选的真人 PR 审批已失效，请重新核验评审");
+                }
                 var previous = previousCandidate(json, read(git.fetch(id, repo, sha)));
                 var repair = state.putObject("repair");
                 repair.put("attempt", attempt).put("failedSha", sha).put("infrastructureOnly", infrastructureOnly || ciRefresh)
-                        .put("ciRefresh", ciRefresh).put("reviewRepair", !infrastructureOnly && !ciRefresh)
-                        .put("report", ciRefresh
+                        .put("ciRefresh", ciRefresh).put("s4Repair", s4Repair)
+                        .put("reviewRepair", !infrastructureOnly && !ciRefresh && !s4Repair)
+                        .put("report", s4Repair
+                                ? modelReview.path("findings").toString()
+                                : ciRefresh
                                 ? "公开候选 PR 的 CI 误在人工评审及 staging 开通前启动受管门禁；只刷新无密钥预检工作流，保留岗位代码"
                                 : infrastructureOnly
                                 ? "交付仓库 CI 工作流无效；保留岗位代码并刷新可信模板"
                                 : "H2 可见用例是自然语言输入且期望不同的可核对结论。当前候选固定返回 H1 阻塞，无法通过岗位行为门禁；请修复岗位逻辑与测试，不能硬编码题目。可信模板已提供评分函数。");
                 repair.set("previousCandidate", previous);
                 if (infrastructureOnly) state.put("infrastructureRefreshes", refreshes + 1);
+                else if (s4Repair) state.put("s4RepairRounds", 1);
                 else if (!ciRefresh) state.put("reviewRepairRounds", reviewRepairs + 1);
                 state.remove(List.of("humanReview", "modelReview", "modelReviewTraceId", "sandboxStatus", "sandboxRunId"));
                 state.put("phase", "QUEUED");
                 save(id, state, "DELIVER");
-                jobs.progress(id, "QUEUED", "BUILD", "第 " + attempt + (ciRefresh
+                jobs.progress(id, "QUEUED", "BUILD", "第 " + attempt + (s4Repair
+                        ? " 轮修复 S4 模型评审问题，重新验证精确提交" : ciRefresh
                         ? " 轮修复候选 CI，重新验证精确提交" : infrastructureOnly
                         ? " 轮刷新候选交付，重新验证精确提交" : " 轮修复岗位功能，重新验证精确提交"));
                 return publicState(state);
@@ -836,7 +846,25 @@ public class MetaAgentExecution {
         return refreshes >= 0 && refreshes < 2;
     }
 
+    static boolean canRepairS4(JsonNode state, int attempt) {
+        var sha = state.path("delivery").path("sha").asText();
+        var review = state.path("modelReview");
+        return (attempt == 9 || attempt == 11) && state.path("s4RepairRounds").asInt(0) == 0
+                && !sha.isBlank()
+                && sha.equals(state.path("humanReview").path("headSha").asText())
+                && sha.equals(review.path("sha").asText())
+                && state.path("humanReview").path("approved").asBoolean(false)
+                && review.path("approved").isBoolean() && !review.path("approved").asBoolean()
+                && review.path("findings").isArray()
+                && java.util.stream.StreamSupport.stream(review.path("findings").spliterator(), false)
+                        .anyMatch(finding -> Set.of("HIGH", "MID").contains(finding.path("severity").asText()));
+    }
+
     static boolean sandboxLimitBlocksRetry(JsonNode state) {
+        if (state.path("repair").path("s4Repair").asBoolean(false)) {
+            return "FAILED".equals(state.path("sandboxStatus").asText())
+                    && state.path("sandboxAttempts").size() >= state.path("repair").path("attempt").asInt(9);
+        }
         if (state.path("repair").path("ciRefresh").asBoolean(false)) {
             return "FAILED".equals(state.path("sandboxStatus").asText())
                     && state.path("sandboxAttempts").size() >= 9;
