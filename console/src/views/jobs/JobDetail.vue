@@ -62,7 +62,7 @@ const jobId = computed(() => String(route.params.jobId ?? ''))
 const notices = computed(() => (job.value ? detailNotices(job.value, concurrency.value) : []))
 const rows = computed(() => (job.value ? timeline(job.value) : []))
 const arts = computed(() => (job.value ? artifacts(job.value) : []))
-const yaml = computed(() => (job.value ? manifestYaml(job.value) : ''))
+const yaml = computed(() => execution.value?.draft?.manifestYaml || (job.value ? manifestYaml(job.value) : ''))
 const canCancelCurrentJob = computed(() => {
   if (!job.value) return false
   if (execution.value?.phase === 'FAILED' && job.value.stage === 'BUILD') return true

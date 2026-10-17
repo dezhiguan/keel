@@ -73,3 +73,5 @@ cd console && npx vue-tsc --noEmit && npx vitest related src/views/jobs/jobs.tes
 研发任务在 BUILD 阶段失败后，详情页允许管理员经现有确认框取消任务；服务端保留审计和已生成仓库记录。这样测试时可从活跃队列清理失败的诊断候选。
 
 候选已通过沙箱且仍处于 `WAITING_REVIEW` 时，管理员也可经页面确认取消：此时尚未合并或部署，取消只终止后续生产流程，PR 和审计记录继续保留。
+
+元智能体任务详情的 `agent.yaml` 抽屉优先展示执行状态里 H1 已确认的 `draft.manifestYaml`。只有旧任务没有执行草稿时才使用任务卡片的概览推导值，避免把未包含委派、知识库等字段的概览误当作候选项目清单。
