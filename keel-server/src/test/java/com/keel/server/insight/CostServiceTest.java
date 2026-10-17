@@ -265,6 +265,74 @@ class CostServiceTest {
         server.stop(0);
     }
 
+    @Test void routePublishRollbackAndPreviewFollowTheGateway() throws Exception {
+        var bodies = new ArrayList<String>();
+        var audited = new AtomicReference<String>();
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            var path = exchange.getRequestURI().getPath();
+            bodies.add(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            String response = switch (path) {
+                case "/admin/v1/route-policy" -> "{\"version\":4,\"objective\":\"cost\"}";
+                case "/admin/v1/route-policy/rollback" -> "{\"version\":3,\"objective\":\"balanced\"}";
+                case "/admin/v1/route/preview" -> "{\"version\":4,\"objective\":\"cost\",\"models\":[\"qwen-plus\",\"deepseek-v3\"]}";
+                default -> "{\"data\":[]}";
+            };
+            var bytes = response.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        var base = "http://127.0.0.1:" + server.getAddress().getPort();
+        var costs = new CostService(new LiteLlmClient(base, "admin"), new LangfuseClient("", "", ""),
+                (agent, env) -> audited.set(agent + ":" + env));
+        try {
+            var published = costs.publishRoute("cost");
+            assertThat(published.version()).isEqualTo(4);
+            assertThat(published.objective()).isEqualTo("cost");
+            assertThat(audited.get()).isEqualTo("keel-llm:prod");
+            assertThat(bodies.get(0)).contains("\"objective\":\"cost\"");
+            var preview = costs.previewRoute("askdb-dev", "qwen-plus");
+            assertThat(preview.models()).containsExactly("qwen-plus", "deepseek-v3");
+            var rolled = costs.rollbackRoute();
+            assertThat(rolled.objective()).isEqualTo("balanced");
+            assertThatThrownBy(() -> costs.publishRoute("fast"))
+                    .isInstanceOf(KeelException.class)
+                    .extracting(error -> ((KeelException) error).code())
+                    .isEqualTo(ErrorCode.SERVER_INVALID_PARAM);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test void catalogPricesStayOnTheModelRow() throws Exception {
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            String body = "/admin/v1/models".equals(exchange.getRequestURI().getPath())
+                    ? """
+                    {"data":[{"name":"qwen-plus","provider":"DashScope","inputCnyPerToken":0.0000008,
+                    "outputCnyPerToken":0.000002,"priceVersion":"p-20261008","embedding":false,"priceConfigured":true}]}
+                    """
+                    : "{\"data\":[]}";
+            var bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var base = "http://127.0.0.1:" + server.getAddress().getPort();
+            var model = new CostService(new LiteLlmClient(base, "admin")).cost("all", "24h").stats().get(0);
+            assertThat(model.inputCnyPerToken()).isEqualTo(0.0000008);
+            assertThat(model.outputCnyPerToken()).isEqualTo(0.000002);
+            assertThat(model.priceVersion()).isEqualTo("p-20261008");
+            assertThat(model.embedding()).isFalse();
+        } finally {
+            server.stop(0);
+        }
+    }
+
     @Test void testAliasIsItsOwnEnvironment() {
         assertThat(CostService.envOf("askdb-test")).isEqualTo("test");
         assertThat(CostService.agentOf("askdb-test")).isEqualTo("askdb");

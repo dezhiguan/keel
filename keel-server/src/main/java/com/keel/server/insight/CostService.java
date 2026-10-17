@@ -43,6 +43,52 @@ public class CostService {
         return gateway.routePolicy();
     }
 
+    public LiteLlmClient.RoutePolicy publishRoute(String objective) {
+        if (!"balanced".equals(objective) && !"cost".equals(objective) && !"latency".equals(objective)) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "objective 只能是 balanced、cost 或 latency");
+        }
+        try {
+            var policy = gateway.publishRoute(objective);
+            audit.record("keel-llm", "prod");
+            return policy;
+        } catch (IllegalStateException e) {
+            throw routeFailure(e);
+        }
+    }
+
+    public LiteLlmClient.RoutePolicy rollbackRoute() {
+        try {
+            var policy = gateway.rollbackRoute();
+            audit.record("keel-llm", "prod");
+            return policy;
+        } catch (IllegalStateException e) {
+            var message = e.getMessage() == null ? "" : e.getMessage();
+            if (message.contains(" 400")) {
+                throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "没有可回滚的上一版路由策略");
+            }
+            throw e;
+        }
+    }
+
+    public LiteLlmClient.Preview previewRoute(String alias, String model) {
+        if (alias == null || alias.isBlank()) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "alias 不能为空");
+        }
+        try {
+            return gateway.previewRoute(alias, model == null ? "" : model);
+        } catch (IllegalStateException e) {
+            throw routeFailure(e);
+        }
+    }
+
+    private static RuntimeException routeFailure(IllegalStateException error) {
+        var message = error.getMessage() == null ? "" : error.getMessage();
+        if (message.contains(" 400")) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "路由策略没有被薄网关接受");
+        }
+        throw error;
+    }
+
     public List<LiteLlmClient.AlertRule> alertRules() {
         return gateway.alertRules();
     }
@@ -197,7 +243,10 @@ public class CostService {
                     version,
                     catalogModel == null ? null : catalogModel.cacheCnyPerToken(),
                     health,
-                    drift || (catalogModel != null && catalogModel.drift())));
+                    drift || (catalogModel != null && catalogModel.drift()),
+                    catalogModel == null ? null : catalogModel.inputCnyPerToken(),
+                    catalogModel == null ? null : catalogModel.outputCnyPerToken(),
+                    catalogModel != null && catalogModel.embedding()));
         }
         return stats;
     }
@@ -368,7 +417,8 @@ public class CostService {
 
     public record ModelStat(String name, String provider, String role, int calls, String p95, Double timeoutRate,
                             double costCny, String status, boolean priceConfigured, String priceVersion,
-                            Double cacheCnyPerToken, String health, boolean drift) {}
+                            Double cacheCnyPerToken, String health, boolean drift,
+                            Double inputCnyPerToken, Double outputCnyPerToken, boolean embedding) {}
 
     public record Result(double totalCny, int calls, Map<String, Double> byAgent, Map<String, Double> byModel,
                          List<LiteLlmClient.Model> models, List<Key> keys, List<ModelStat> stats,

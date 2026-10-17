@@ -29,3 +29,15 @@ export function exportModelBills(query: ModelGatewayQuery) {
 export function rotateModelKey(alias: string) {
   return post<{ alias: string; key: string; version: number }>(`/keys/${encodeURIComponent(alias)}/rotate`, {})
 }
+
+export function publishRoutePolicy(objective: 'balanced' | 'cost' | 'latency') {
+  return post<{ version: number; objective: string }>('/insight/route-policy', { objective })
+}
+
+export function rollbackRoutePolicy() {
+  return post<{ version: number; objective: string }>('/insight/route-policy/rollback', {})
+}
+
+export function previewRoute(alias: string, model: string) {
+  return post<{ version: number; objective: string; models: string[] }>('/insight/route/preview', { alias, model })
+}

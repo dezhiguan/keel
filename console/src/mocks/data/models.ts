@@ -14,7 +14,7 @@ const key = (agent: string, env: Key['env'], models: string[], spentCny: number,
 
 export const modelGateway: ModelGateway = {
   models: [
-    { model: 'qwen-plus', provider: 'DashScope', role: '主力', calls: 8920, p95: '4.6s', errorRate: 0.032, costCny: 58.3, status: 'warn', priceConfigured: true },
+    { model: 'qwen-plus', provider: 'DashScope', role: '主力', calls: 8920, p95: '4.6s', errorRate: 0.032, costCny: 58.3, status: 'warn', priceConfigured: true, inputCnyPerToken: 0.0000008, outputCnyPerToken: 0.000002, cacheCnyPerToken: 0.00000016, priceVersion: 'p-20261008', health: 'LIVE', embedding: false },
     { model: 'qwen-flash', provider: 'DashScope', role: '路由 / 意图', calls: 11960, p95: '0.8s', errorRate: 0.001, costCny: 6.4, status: 'ok', priceConfigured: true },
     { model: 'deepseek-v3', provider: 'DeepSeek', role: '降级备选', calls: 1204, p95: '5.9s', errorRate: 0.004, costCny: 9.8, status: 'ok', priceConfigured: true },
     { model: 'text-embedding-v3', provider: 'DashScope', role: '向量化（rag-forge）', calls: 14300, p95: '0.2s', errorRate: 0, costCny: 2.9, status: 'ok', priceConfigured: true },

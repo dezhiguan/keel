@@ -1,6 +1,7 @@
 package com.keel.server.insight.controller;
 
 import com.keel.common.error.ErrorCode;
+import com.keel.server.auth.ConsolePrincipal;
 import com.keel.server.common.Audited;
 import com.keel.server.common.KeelException;
 import com.keel.server.common.R;
@@ -99,7 +100,10 @@ public class InsightController {
             row.put("status", model.status());
             row.put("priceConfigured", model.priceConfigured());
             row.put("priceVersion", model.priceVersion());
+            row.put("inputCnyPerToken", model.inputCnyPerToken());
+            row.put("outputCnyPerToken", model.outputCnyPerToken());
             row.put("cacheCnyPerToken", model.cacheCnyPerToken());
+            row.put("embedding", model.embedding());
             row.put("health", model.health());
             row.put("drift", model.drift());
             return row;
@@ -216,6 +220,37 @@ public class InsightController {
         var budget = new BigDecimal(raw.toString());
         costs.updateBudget(alias, budget);
         return R.ok(Map.of("alias", alias, "dailyBudgetCny", budget));
+    }
+
+    @PostMapping("/route-policy")
+    @Audited
+    public R<Map<String, Object>> publishRoute(@RequestBody Map<String, Object> body) {
+        requireAdmin();
+        var policy = costs.publishRoute(body.get("objective") == null ? "" : body.get("objective").toString());
+        return R.ok(Map.of("version", policy.version(), "objective", policy.objective()));
+    }
+
+    @PostMapping("/route-policy/rollback")
+    @Audited
+    public R<Map<String, Object>> rollbackRoute() {
+        requireAdmin();
+        var policy = costs.rollbackRoute();
+        return R.ok(Map.of("version", policy.version(), "objective", policy.objective()));
+    }
+
+    @PostMapping("/route/preview")
+    public R<Map<String, Object>> previewRoute(@RequestBody Map<String, Object> body) {
+        var preview = costs.previewRoute(
+                body.get("alias") == null ? "" : body.get("alias").toString(),
+                body.get("model") == null ? "" : body.get("model").toString());
+        return R.ok(Map.of("version", preview.version(), "objective", preview.objective(), "models", preview.models()));
+    }
+
+    private static void requireAdmin() {
+        var principal = ConsolePrincipal.current();
+        if (principal == null || principal.readOnly() || !"ADMIN".equals(principal.platformRole())) {
+            throw new KeelException(ErrorCode.AUTH_CONSOLE_FORBIDDEN, ErrorCode.AUTH_CONSOLE_FORBIDDEN.message());
+        }
     }
 
     private static String csvCell(String value) {

@@ -1940,6 +1940,94 @@ paths:
                           alias: { type: string }
                           dailyBudgetCny: { type: number, format: float }
 
+  /insight/route-policy:
+    post:
+      tags: [models]
+      operationId: publishRoutePolicy
+      summary: 发布路由策略
+      description: objective 只能是 balanced、cost、latency。发布后版本加一。只允许平台管理员。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [objective]
+              properties:
+                objective: { type: string, enum: [balanced, cost, latency] }
+      responses:
+        "200":
+          description: 已发布
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          version: { type: integer }
+                          objective: { type: string, enum: [balanced, cost, latency] }
+
+  /insight/route-policy/rollback:
+    post:
+      tags: [models]
+      operationId: rollbackRoutePolicy
+      summary: 回滚到上一版路由策略
+      description: 只有一版时返回 400。只允许平台管理员。
+      responses:
+        "200":
+          description: 已回滚
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          version: { type: integer }
+                          objective: { type: string, enum: [balanced, cost, latency] }
+
+  /insight/route/preview:
+    post:
+      tags: [models]
+      operationId: previewRoute
+      summary: 路由试算
+      description: 与薄网关 POST /admin/v1/route/preview 一致。请求里写了模型就先用它。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alias, model]
+              properties:
+                alias: { type: string }
+                model: { type: string }
+      responses:
+        "200":
+          description: 试算结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          version: { type: integer }
+                          objective: { type: string, enum: [balanced, cost, latency] }
+                          models:
+                            type: array
+                            items: { type: string }
+
   /keys/{alias}/rotate:
     post:
       tags: [models]
@@ -3807,7 +3895,10 @@ components:
                 type: boolean
                 description: 薄网关是否为该模型配置了单价；为 false 时表示配置漂移
               priceVersion: { type: string, description: 当前单价版本 }
+              inputCnyPerToken: { type: number, format: float, nullable: true, description: 输入单价，人民币 / token。页面按每百万 token 展示 }
+              outputCnyPerToken: { type: number, format: float, nullable: true, description: 输出单价，人民币 / token。页面按每百万 token 展示 }
               cacheCnyPerToken: { type: number, format: float, nullable: true, description: 缓存命中单价，人民币 / token }
+              embedding: { type: boolean, description: 向量模型，不参与降级 }
               health: { type: string, enum: [CONFIGURED, PROBED, LIVE], description: 已配置、已探测、有真实调用 }
               drift: { type: boolean, description: 最近一条已结算账单的价格版本与当前版本不同 }
         keys:

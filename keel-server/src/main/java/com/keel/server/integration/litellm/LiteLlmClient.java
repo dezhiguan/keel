@@ -237,6 +237,24 @@ public class LiteLlmClient {
         }
     }
 
+    public RoutePolicy publishRoute(String objective) {
+        var body = send("/admin/v1/route-policy", Map.of("objective", objective));
+        return new RoutePolicy(body.path("version").asInt(), body.path("objective").asText(objective));
+    }
+
+    public RoutePolicy rollbackRoute() {
+        var body = send("/admin/v1/route-policy/rollback", Map.of());
+        return new RoutePolicy(body.path("version").asInt(), body.path("objective").asText("balanced"));
+    }
+
+    public Preview previewRoute(String alias, String model) {
+        var request = new java.util.LinkedHashMap<String, Object>();
+        request.put("alias", alias);
+        request.put("model", model == null ? "" : model);
+        var body = send("/admin/v1/route/preview", request);
+        return new Preview(body.path("version").asInt(), body.path("objective").asText("balanced"), texts(body.path("models")));
+    }
+
     public List<AlertRule> alertRules() {
         try {
             var rows = new ArrayList<AlertRule>();
@@ -284,6 +302,8 @@ public class LiteLlmClient {
     public record RotatedKey(String alias, String key, int version) {}
 
     public record RoutePolicy(int version, String objective) {}
+
+    public record Preview(int version, String objective, List<String> models) {}
 
     public record AlertRule(String id, String name, String metric, double threshold, String window, String groupBy) {}
 

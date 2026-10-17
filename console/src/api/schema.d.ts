@@ -2774,9 +2774,21 @@ export interface components {
                 priceVersion?: string;
                 /**
                  * Format: float
+                 * @description 输入单价，人民币 / token。页面按每百万 token 展示
+                 */
+                inputCnyPerToken?: number | null;
+                /**
+                 * Format: float
+                 * @description 输出单价，人民币 / token。页面按每百万 token 展示
+                 */
+                outputCnyPerToken?: number | null;
+                /**
+                 * Format: float
                  * @description 缓存命中单价，人民币 / token
                  */
                 cacheCnyPerToken?: number | null;
+                /** @description 向量模型，不参与降级 */
+                embedding?: boolean;
                 /**
                  * @description 已配置、已探测、有真实调用
                  * @enum {string}
