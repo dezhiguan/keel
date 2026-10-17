@@ -86,16 +86,19 @@ async def generate(work: dict, ctx) -> dict:
         "不能同时要求模型输出多个字段又声明顶层仅含 decision。"
         "不得在代码或提示词里硬编码虚构的子智能体名单。任何工具调用失败都应返回 BLOCKED，不能用不完整证据推断通过。"
         "工具返回值为空、缺少任务必需字段或状态不明时也返回 BLOCKED，不能把 UNKNOWN 当作通过。"
-        "多工具岗位的 prompts/role.md 必须包含 {{input}} 和 {{evidence}} 两个占位符，可有空格；"
+        "ci.log.fetch的logsUnavailable=true即使附带非空摘要也必须BLOCKED，不能当作原始日志齐全。"
+        "supervisor的真实delegate_results必须同工具证据一起传给模型，不能只放在最终返回而不让模型看到子意见。"
+        "多工具岗位的 prompts/role.md 优先只写静态职责与规则，说明从user JSON读取input/evidence；无需变量占位符。"
+        "如果采用 {{input}} 和 {{evidence}} 占位符，只编译字段说明而不编译原文；"
         "只使用 SDK 可替换的简单变量名，不要写 {{tool.risk}} 等点号占位符。"
         "role.py 必须在取得真实工具结果后，调用 ctx.prompt('role') 返回对象的"
-        " .compile(input='见下一条user消息input', evidence='见下一条user消息evidence') 生成受信system指令，"
+        " .compile() 生成静态system指令（有变量时可用input/evidence字段说明字符串编译），"
         "再用user消息json.dumps({'input':原始输入,'evidence':真实工具结果})把真实数据传给模型；"
         "不能把用户/工具原文直接compile进system，不能只调用工具却让模型看不到返回结果。"
         "模型若返回结构化 decision=BLOCKED 必须保持 BLOCKED，不能因为解释文字含 PASS 改判。"
         "模型输出必须用 json.loads(完整响应文本) 严格解析为对象，再校验 decision 为 PASS 或 BLOCKED；"
         "禁止用正则、子串扫描或截取花括号片段寻找 decision；非 JSON、字段缺失或类型错误一律 BLOCKED。"
-        "role.py 必须调用 await ctx.prompt(\"role\") 取得提示词，再调用 prompt.compile(input=...)；"
+        "role.py 必须调用 await ctx.prompt(\"role\") 取得提示词，再调用 prompt.compile()；"
         "完整岗位指令只写在 prompts/role.md，源码里不得硬编码大段提示词。"
         "绝不自行授予工具、访问隐藏考题、自动合并或发布；缺少人工审批或可信门禁时返回 BLOCKED。"
         "H1 需求已经人工确认；岗位正常的需求分析路径应给出符合输入的不同结论，"
@@ -431,11 +434,8 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
         errors.append("岗位提示词包含 SDK 无法替换的占位符；只允许简单变量名")
     if selected_tools and len(selected_tools) >= 2:
         errors.extend(_system_compile_errors(role, prompt_names))
-        variables = set(re.findall(r"\{\{\s*(\w+)\s*\}\}", prompt_text))
-        if not {"input", "evidence"}.issubset(variables):
-            errors.append("多工具岗位提示词必须包含 {{input}} 和 {{evidence}}")
-        if not any({"input", "evidence"}.issubset(keywords) for keywords in prompt_compiles):
-            errors.append("多工具岗位必须通过 prompt.compile(input=..., evidence=...) 声明数据字段，真实证据通过user消息传入")
+        if not prompt_compiles:
+            errors.append("多工具岗位必须通过 prompt.compile() 读取版本化岗位指令，真实input/evidence通过user消息传入")
         if llm_calls and not any("prompt" in keywords for keywords in llm_calls):
             errors.append("多工具岗位调用 ctx.llm.chat 时必须传入 prompt=prompt 记录提示词版本")
     tests = trees["tests/test_role.py"]

@@ -219,10 +219,10 @@ async def execute(data, ctx):
     assert any("prompt=prompt" in error for error in errors)
     candidate["files"][1]["content"] = "任务：{{input}}"
     _, errors = parse(json.dumps(candidate), selected_tools=["ci.log.fetch", "git.pr.diff"])
-    assert any("{{evidence}}" in error for error in errors)
+    assert not any("必须包含" in error and "{{evidence}}" in error for error in errors)
     candidate["files"][0]["content"] = role.replace(', evidence={"log": log, "diff": diff}', '')
     _, errors = parse(json.dumps(candidate), selected_tools=["ci.log.fetch", "git.pr.diff"])
-    assert any("prompt.compile" in error and "evidence" in error for error in errors)
+    assert not any("prompt.compile" in error and "evidence" in error for error in errors)
 
 
 def test_multi_tool_prompt_accepts_sdk_whitespace_and_prompt_alias():
@@ -261,14 +261,16 @@ def test_generated_code_rejects_forbidden_imports_and_missing_behavior_tests():
     ("data", "'user.evidence'", "input"),
     ("'user.input'", "{'log': log, 'diff': diff}", "evidence"),
     ("'user.input'", "'user.evidence'", None),
+    (None, None, None),
 ])
 def test_candidate_checks_raw_material_in_system_before_git_delivery(input_expr, evidence_expr, invalid):
+    compile_args = "" if input_expr is None else f"input={input_expr}, evidence={evidence_expr}"
     role = f'''import json
 async def execute(data, ctx):
     log = await ctx.tools.call("ci.log.fetch", repo="sample", runId="1")
     diff = await ctx.tools.call("git.pr.diff", repo="sample", number=1)
     prompt = await ctx.prompt("role")
-    compiled = prompt.compile(input={input_expr}, evidence={evidence_expr})
+    compiled = prompt.compile({compile_args})
     policy = compiled
     reply = await ctx.llm.chat([
         {{"role": "system", "content": policy}},
@@ -277,7 +279,7 @@ async def execute(data, ctx):
     return json.loads(reply)
 '''
     candidate = {"files": [{"path": "role.py", "content": role},
-                           {"path": "prompts/role.md", "content": "输入：{{input}}\n证据：{{evidence}}"},
+                           {"path": "prompts/role.md", "content": "静态岗位规则。从下一条user JSON读取input和evidence。"},
                            {"path": "tests/test_role.py", "content": TEST_CODE}]}
     errors = parse(json.dumps(candidate), selected_tools=["ci.log.fetch", "git.pr.diff"])[1]
     if invalid:
