@@ -92,6 +92,12 @@ public class MetaAgentExecution {
         for (String name : draft.tools() == null ? List.<String>of() : draft.tools()) {
             if (tools.stream().noneMatch(t -> name.equals(t.get("name")))) throw invalid("工具不在当前目录：" + name);
         }
+        for (String name : draft.delegates() == null ? List.<String>of() : draft.delegates()) {
+            var status = jdbc.query("SELECT status FROM agent WHERE name=?", (rs, row) -> rs.getString(1), name);
+            if (status.size() != 1 || !("REGISTERED".equals(status.getFirst()) || "ONLINE".equals(status.getFirst()))) {
+                throw invalid("只可委派已登记的智能体：" + name);
+            }
+        }
         return tx.execute(status -> {
             // Serializes name allocation across both server replicas, including an existing registered agent.
             jdbc.execute("SELECT pg_advisory_xact_lock(481516)");
@@ -110,6 +116,7 @@ public class MetaAgentExecution {
                     .put("io", draft.io()).put("success", draft.success()).put("template", draft.template())
                     .put("dailyBudgetCny", draft.dailyBudgetCny()).put("owner", job.ownerOrg() + " / " + actor);
             requirement.set("tools", json.valueToTree(draft.tools() == null ? List.of() : draft.tools()));
+            requirement.set("delegates", json.valueToTree(draft.delegates() == null ? List.of() : draft.delegates()));
             state.set("catalog", json.valueToTree(tools));
             jdbc.update("INSERT INTO devflow_execution(job_id,state_json,action) VALUES (?,?::jsonb,'DRAFT')", job.jobId(), state.toString());
             return jobs.progress(job.jobId(), "QUEUED", "SPEC", "已排队，等待元智能体生成需求草稿");
@@ -133,6 +140,18 @@ public class MetaAgentExecution {
         }
         if (DEV_TOOLS.containsKey(draft.targetAgent()) && !Set.copyOf(draft.tools()).equals(DEV_TOOLS.get(draft.targetAgent()))) {
             throw invalid("岗位工具必须与原型清单完全一致");
+        }
+        var delegates = draft.delegates() == null ? List.<String>of() : draft.delegates();
+        if (delegates.size() > 5 || delegates.stream().anyMatch(name -> name == null || name.isBlank()
+                || name.equals(draft.targetAgent()) || name.equals("meta-agent"))
+                || delegates.size() != Set.copyOf(delegates).size()) {
+            throw invalid("委派清单无效、重复或包含自身");
+        }
+        if (!DEV_ROLES.containsKey(draft.targetAgent()) && "supervisor".equals(draft.template()) && delegates.isEmpty()) {
+            throw invalid("协作智能体必须选择至少一个已登记的子智能体");
+        }
+        if (!"supervisor".equals(draft.template()) && !delegates.isEmpty()) {
+            throw invalid("仅协作模板可以选择子智能体");
         }
         if (blank(draft.users()) || blank(draft.io()) || blank(draft.success())) throw invalid("场景、输入输出和成功标准必填");
         if (draft.dailyBudgetCny() == null || !Double.isFinite(draft.dailyBudgetCny()) || draft.dailyBudgetCny() < 1) throw invalid("日预算必须大于等于 1");
@@ -730,6 +749,9 @@ public class MetaAgentExecution {
                             save(id, state, "DELIVER");
                             jobs.progress(id, "RUN", "BUILD", "隔离沙箱已启动，验证候选 PR commit " + delivery.path("sha").asText());
                         } catch (RuntimeException error) {
+                            org.slf4j.LoggerFactory.getLogger(MetaAgentExecution.class).warn(
+                                    "sandbox start failed trace_id= agent=meta-agent job={} error={} message={}",
+                                    id, error.getClass().getSimpleName(), error.getMessage());
                             state.put("phase", "FAILED").put("error", "隔离沙箱启动失败，测试未运行");
                             save(id, state, "DELIVER");
                             jobs.progress(id, "FAIL", "BUILD", "隔离沙箱启动失败，测试未运行");

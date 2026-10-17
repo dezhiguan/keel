@@ -86,6 +86,30 @@ def test_meta_agent_generates_general_agent_from_confirmed_goal():
     assert "分析故障并调用日志工具" in llm.prompts[0]
 
 
+def test_supervisor_candidate_requires_real_delegation_call():
+    candidate = {"files": [{"path": "role.py", "content": ROLE_CODE},
+                           {"path": "prompts/role.md", "content": "任务：{{input}}"},
+                           {"path": "tests/test_role.py", "content": TEST_CODE}]}
+    _, errors = parse(json.dumps(candidate), template="supervisor")
+    assert any("ctx.delegate" in error for error in errors)
+
+
+def test_candidate_checks_keel_sdk_call_signatures_and_multiple_tools():
+    role = '''async def execute(data, ctx):
+    prompt = await ctx.prompt("role")
+    await ctx.tools.call("ci.log.fetch", {"run_id": 1})
+    await ctx.llm.chat([], temperature=0)
+    return {"decision": "BLOCKED"}
+'''
+    candidate = {"files": [{"path": "role.py", "content": role},
+                           {"path": "prompts/role.md", "content": "任务：{{input}}"},
+                           {"path": "tests/test_role.py", "content": TEST_CODE}]}
+    _, errors = parse(json.dumps(candidate), selected_tools=["ci.log.fetch", "git.pr.diff"])
+    assert any("ctx.tools.call" in error for error in errors)
+    assert any("ctx.llm.chat" in error for error in errors)
+    assert any("至少两个" in error for error in errors)
+
+
 def test_generated_code_rejects_forbidden_imports_and_missing_behavior_tests():
     bad = {"files": [{"path": "role.py", "content": "import subprocess\nasync def execute(data, ctx): return {}"},
                      {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},

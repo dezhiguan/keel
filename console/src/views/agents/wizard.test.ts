@@ -53,6 +53,15 @@ describe('wizard', () => {
     }
   })
 
+  it('requires a declared child for a general supervisor', () => {
+    const supervisor = { ...blankDevflow('qa-coordinator'), template: 'supervisor', title: '协调', goal: '编排',
+      users: '研发', io: '任务到结果', success: '有证据' }
+    expect(devflowStepError(0, supervisor)).toBe('')
+    expect(devflowStepError(1, supervisor)).toContain('子智能体')
+    expect(devflowStepError(1, { ...supervisor, delegates: ['qa-helper'] })).toBe('')
+    expect(devflowBody({ ...supervisor, delegates: ['qa-helper'] }, 'QA').delegates).toEqual(['qa-helper'])
+  })
+
   it('preserves structured requirements for the real execution queue', () => {
     const body = devflowBody({ ...blankDevflow('qa-meta'), title: ' QA ', goal: ' 目标 ',
       users: ' 使用者 ', io: ' 输入输出 ', success: ' 成功标准 ' }, 'QA')

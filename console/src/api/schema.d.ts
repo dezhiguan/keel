@@ -2879,6 +2879,8 @@ export interface components {
             seedCount?: number;
             tools?: string[];
             knowledge?: string[];
+            /** @description 协作模板可委派的已登记智能体 ID；由平台校验并写入 manifest */
+            delegates?: string[];
             ownerOrg?: string;
             users?: string;
             io?: string;

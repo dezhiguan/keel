@@ -101,6 +101,9 @@ def test_delivery_keeps_prompt_file(tmp_path):
     assert (project / "prompts/role.md").read_text(encoding="utf-8") == "岗位任务：{{input}}\n"
     assert "ctx.prompt(\"role\")" in (project / "role.py").read_text(encoding="utf-8")
     assert "prompts/role.md" in {item["path"] for item in _files(project)}
+    workflow = (project / ".github/workflows/keel.yml").read_text(encoding="utf-8")
+    assert "gh release download" in workflow
+    assert "scripts/install-keel-sdk.py" not in workflow
 
 
 def test_generic_scaffold_keeps_confirmed_prompt(tmp_path):

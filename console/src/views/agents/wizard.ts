@@ -62,6 +62,7 @@ export interface DevflowForm {
   success: string
   tools: string[]
   knowledge: string[]
+  delegates: string[]
   dailyBudgetCny: number
   seedCount: number
 }
@@ -117,6 +118,7 @@ export function blankDevflow(agent = '', kind: DevflowKind = 'CREATE'): DevflowF
     success: '',
     tools: [...(DEV_ROLE_TOOLS[agent] || [])],
     knowledge: [],
+    delegates: [],
     dailyBudgetCny: 20,
     seedCount: 0,
   }
@@ -139,6 +141,8 @@ export function devflowStepError(step: number, form: DevflowForm, takenNames: st
       form.tools.some(tool => !DEV_ROLE_TOOLS[form.agent].includes(tool)))) return '岗位工具必须与原型清单完全一致'
   }
   if (step === 1 && (!form.users.trim() || !form.io.trim() || !form.success.trim())) return '场景、输入输出、成功标准必填'
+  if (step === 1 && form.template === 'supervisor' && !DEV_ROLE_TEMPLATES[form.agent] && !form.delegates.length) return '协作模板至少选择一个已登记的子智能体'
+  if (step === 1 && (form.delegates.length > 5 || form.delegates.includes(form.agent))) return '子智能体清单无效'
   return ''
 }
 
@@ -160,6 +164,7 @@ export function devflowBody(form: DevflowForm, ownerOrg: string) {
     seedCount: locked.seedCount,
     tools: [...locked.tools],
     knowledge: [...locked.knowledge],
+    delegates: [...locked.delegates],
     ownerOrg,
   }
 }

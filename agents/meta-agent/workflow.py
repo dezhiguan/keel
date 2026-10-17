@@ -88,6 +88,7 @@ async def execute(work, ctx):
                              "auth": {"audience": target},
                              "models": {"default": "qwen-plus", "budget": {"dailyCny": requirement["dailyBudgetCny"]}},
                              "tools": tools, "knowledge": [],
+                             "delegates": requirement.get("delegates") or [],
                              "guardrails": {"inputInjection": "enforce", "grounding": "off", "pii": "mask"},
                              "prompts": {"source": "langfuse", "items": [{"name": "role", "type": "text"}]},
                              "audit": {"captureFields": ["request_id"]},

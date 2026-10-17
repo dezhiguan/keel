@@ -28,6 +28,7 @@ export function createDevflowJob(body: {
   seedCount: number
   tools: string[]
   knowledge: string[]
+  delegates?: string[]
   ownerOrg: string
   users?: string
   io?: string

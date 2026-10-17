@@ -112,9 +112,14 @@ class MetaAgentRulesTest {
             assertThatCode(() -> MetaAgentExecution.validate(draft(name, template, "DEV", "CREATE", 0, 7.0))).doesNotThrowAnyException();
             assertThatThrownBy(() -> MetaAgentExecution.validate(draft(name, "chat-rag", "DEV", "CREATE", 0, 7.0))).isInstanceOf(KeelException.class);
         }
-        for (var template : List.of("tool-agent", "chat-rag", "graph-agent", "supervisor")) {
+        for (var template : List.of("tool-agent", "chat-rag", "graph-agent")) {
             assertThatCode(() -> MetaAgentExecution.validate(draft("qa-meta-loop", template, "DEV", "CREATE", 0, 7.0))).doesNotThrowAnyException();
         }
+        assertThatThrownBy(() -> MetaAgentExecution.validate(draft("qa-meta-loop", "supervisor", "DEV", "CREATE", 0, 7.0))).isInstanceOf(KeelException.class);
+        var supervisor = new DevflowTypes.Draft("QA", "qa-meta-loop", "DEV", "CREATE", "COLLAB", "协调任务",
+                "supervisor", 7.0, 0, List.of(), List.of(), "QA", "研发", "任务到结果", "有证据", true,
+                List.of("qa-ci-investigator-1017"));
+        assertThatCode(() -> MetaAgentExecution.validate(supervisor)).doesNotThrowAnyException();
         assertThatThrownBy(() -> MetaAgentExecution.validate(draft("qa-meta-loop", "java-spring", "DEV", "CREATE", 0, 7.0))).isInstanceOf(KeelException.class);
     }
     @Test void rejectsUnsupportedScopeAndFakeSeedUploads() {

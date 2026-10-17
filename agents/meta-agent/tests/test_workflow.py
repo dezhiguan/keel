@@ -19,6 +19,17 @@ def work():
                 "owner": "QA", "tools": []}, "catalog": []}
 
 
+def test_general_supervisor_draft_declares_selected_delegates(gateway):
+    request = work()
+    request["requirement"].update(target_agent="qa-coordinator", template="supervisor",
+                                  delegates=["qa-ci-investigator-1017"])
+    gateway.replies.append(reply(tools=[]))
+    kind, event = terminal(invoke(json.dumps(request)))
+    assert kind == "final"
+    manifest = json.loads(event["answer"])["manifest"]
+    assert manifest["spec"]["delegates"] == ["qa-ci-investigator-1017"]
+
+
 def test_bootstrap_code_review_is_bound_to_snapshot_and_fails_closed():
     from workflow import review_candidate
     files = [{"path": path, "content": "pass\n"} for path in

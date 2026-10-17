@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
+import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -50,7 +51,16 @@ public class GitSnapshotClient {
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + token)
                     .POST(HttpRequest.BodyPublishers.ofString(body)).build();
-            var response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = null;
+            for (int attempt = 0; attempt < 3; attempt++) {
+                try {
+                    response = http.send(request, HttpResponse.BodyHandlers.ofString());
+                    break;
+                } catch (IOException error) {
+                    if (attempt == 2) throw error;
+                    Thread.sleep(500L * (attempt + 1));
+                }
+            }
             if (response.statusCode() != 200) {
                 throw new KeelException(ErrorCode.GIT_UPSTREAM_FAILED, "无法读取指定任务的 Git 提交");
             }
@@ -62,6 +72,9 @@ public class GitSnapshotClient {
             return response.body();
         } catch (KeelException error) {
             throw error;
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw new KeelException(ErrorCode.GIT_UPSTREAM_FAILED, "Git 快照读取中断");
         } catch (Exception error) {
             throw new KeelException(ErrorCode.GIT_UPSTREAM_FAILED, "Git 快照服务不可达");
         }

@@ -21,6 +21,9 @@ async def generate(work: dict, ctx) -> dict:
     if role not in GENERAL_TEMPLATES or (name in ROLES and role != ROLES[name][0]):
         raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "研发智能体与模板不匹配")
     purpose = ROLES[name][1] if name in ROLES else str(requirement.get("goal") or "完成确认的研发任务")
+    delegates = requirement.get("delegates") or []
+    if role == "supervisor" and name not in ROLES and not delegates:
+        raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "协作智能体缺少已授权子智能体")
     confirmed = work["draft"]["spec"]
     prompt = (
         "你是 Keel 的 meta-agent，正在为研发数字员工编写实际岗位代码。"
@@ -30,9 +33,16 @@ async def generate(work: dict, ctx) -> dict:
         f"岗位 {name}，模板 {role}，职责：{purpose}\n"
         f"人工 H1 已确认的需求：{json.dumps(confirmed, ensure_ascii=False)}\n"
         f"已选工具：{json.dumps(requirement.get('tools') or [], ensure_ascii=False)}。"
+        f"已授权委派目标：{json.dumps(delegates, ensure_ascii=False)}。"
         f"H2 可见评测用例：{json.dumps(work.get('visibleSeeds') or [], ensure_ascii=False)}。"
         "role.py 必须有 async def execute(data: dict, ctx) -> dict，处理非平凡输入并返回结构化结果。"
         "模型推理只能 ctx.llm.chat，外部工具只能 ctx.tools.call，委派只能 ctx.delegate。"
+        "Keel SDK 调用签名：await ctx.tools.call(\"工具名\", 参数名=参数值)，不能把参数字典作为第二个位置参数；"
+        "await ctx.llm.chat([{\"role\":\"user\",\"content\":文本}], prompt=prompt) 返回字符串，"
+        "不要直接传 temperature 或 response_format，也不要把返回值当字典。"
+        "至少调用两个需求单已选择的工具；任何必需工具失败都返回 BLOCKED。"
+        "supervisor 必须实际调用 await ctx.delegate(name, text)，目标只从 ctx.manifest.spec.delegates 中读取；"
+        "不得在代码或提示词里硬编码虚构的子智能体名单。任何工具调用失败都应返回 BLOCKED，不能用不完整证据推断通过。"
         "role.py 必须调用 await ctx.prompt(\"role\") 取得提示词，再调用 prompt.compile(input=...)；"
         "完整岗位指令只写在 prompts/role.md，源码里不得硬编码大段提示词。"
         "绝不自行授予工具、访问隐藏考题、自动合并或发布；缺少人工审批或可信门禁时返回 BLOCKED。"
@@ -54,14 +64,15 @@ async def generate(work: dict, ctx) -> dict:
     errors = []
     for _ in range(3):
         reply = await ctx.llm.chat([{"role": "user", "content": prompt}])
-        candidate, errors = parse(reply)
+        candidate, errors = parse(reply, template=role, selected_tools=requirement.get("tools") or [])
         if not errors:
             return candidate
         prompt += "\n上一版校验失败，请完整重写并修正：" + "；".join(errors[:6])
     raise KeelError(ErrorCode.AGENT_MANIFEST_INVALID, "岗位代码校验失败：" + "；".join(errors[:6]))
 
 
-def parse(reply: str | None, *, allow_legacy_literals: bool = False) -> tuple[dict, list[str]]:
+def parse(reply: str | None, *, allow_legacy_literals: bool = False,
+          template: str | None = None, selected_tools: list[str] | None = None) -> tuple[dict, list[str]]:
     raw = str(reply or "").strip()
     start, end = raw.find("{"), raw.rfind("}")
     if start < 0 or end < start:
@@ -111,6 +122,19 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False) -> tuple[di
                and isinstance(node.args[0], ast.Constant) and node.args[0].value == "role"
                for node in ast.walk(role)):
         errors.append("role.py 必须调用 ctx.prompt(\"role\")")
+    if template == "supervisor" and not any(
+            isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "delegate" and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "ctx" for node in ast.walk(role)):
+        errors.append("supervisor 必须经 ctx.delegate 委派已授权子智能体")
+    if template == "supervisor" and not any(
+            isinstance(node, ast.Attribute) and node.attr == "delegates"
+            and isinstance(node.value, ast.Attribute) and node.value.attr == "spec"
+            and isinstance(node.value.value, ast.Attribute) and node.value.value.attr == "manifest"
+            and isinstance(node.value.value.value, ast.Name) and node.value.value.value.id == "ctx"
+            for node in ast.walk(role)):
+        errors.append("supervisor 必须从 ctx.manifest.spec.delegates 读取委派清单")
+    called_tools = set()
     for node in ast.walk(role):
         if isinstance(node, ast.Constant) and isinstance(node.value, str) and len(node.value) > 160:
             errors.append("role.py 不得硬编码大段提示词")
@@ -122,6 +146,20 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False) -> tuple[di
                 errors.append("role.py 导入了未经允许的模块")
         elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in FORBIDDEN_CALLS:
             errors.append("role.py 使用了未经允许的执行/文件函数")
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Attribute)
+                and isinstance(node.func.value.value, ast.Name)
+                and node.func.value.value.id == "ctx"):
+            if node.func.value.attr == "tools" and node.func.attr == "call":
+                if len(node.args) != 1:
+                    errors.append("ctx.tools.call 只能传工具名位置参数，其余参数须使用关键字")
+                if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+                    called_tools.add(node.args[0].value)
+            if node.func.value.attr == "llm" and node.func.attr == "chat":
+                if any(keyword.arg not in ("messages", "model", "prompt", "tools") for keyword in node.keywords):
+                    errors.append("ctx.llm.chat 使用了 SDK 不支持的参数")
+    if selected_tools and len(selected_tools) >= 2 and len(called_tools.intersection(selected_tools)) < 2:
+        errors.append("role.py 必须调用至少两个已选择的工具")
     tests = trees["tests/test_role.py"]
     if sum(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test_")
            for node in tests.body) < 2:

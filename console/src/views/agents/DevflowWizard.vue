@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getCatalog, type CatalogTool } from '@/api/agents'
+import { getCatalog, listAgents, type CatalogTool } from '@/api/agents'
 import { createDevflowJob } from '@/api/devflow'
 import { toKeelError } from '@/api/http'
 import { useUserStore } from '@/stores/user'
@@ -30,9 +30,14 @@ watch(() => form.agent, (name) => {
   form.tools = [...(DEV_ROLE_TOOLS[name] || [])]
 })
 const catalogTools = ref<CatalogTool[]>([])
+const catalogAgents = ref<string[]>([])
 const catalogError = ref('')
 onMounted(async () => {
   try { catalogTools.value = (await getCatalog()).tools ?? [] }
+  catch (error) { catalogError.value = toKeelError(error).message }
+  try { catalogAgents.value = ((await listAgents({ page: 1, size: 100 })).items ?? [])
+    .filter(item => item.name && ['REGISTERED', 'ONLINE'].includes(item.status || ''))
+    .map(item => item.name!) }
   catch (error) { catalogError.value = toKeelError(error).message }
 })
 const admin = computed(() => user.user?.platformRole === 'ADMIN')
@@ -46,6 +51,12 @@ function pickLayer(layer: 'biz' | 'dev') {
 
 function templateOpen(id: string) {
   return id !== 'java-spring' && (!DEV_ROLE_TEMPLATES[form.agent] || id === DEV_ROLE_TEMPLATES[form.agent])
+}
+
+function selectTemplate(id: string) {
+  if (!templateOpen(id)) return
+  form.template = id
+  if (id !== 'supervisor') form.delegates = []
 }
 
 function next() {
@@ -117,7 +128,7 @@ async function submit() {
         <div class="field">
           <label>模板</label>
           <div class="tplgrid">
-            <div v-for="[id, desc] in DEVFLOW_TEMPLATES" :key="id" class="tpl" :class="{ on: form.template === id, dis: !templateOpen(id) }" @click="templateOpen(id) && (form.template = id)">
+            <div v-for="[id, desc] in DEVFLOW_TEMPLATES" :key="id" class="tpl" :class="{ on: form.template === id, dis: !templateOpen(id) }" @click="selectTemplate(id)">
               <b>{{ id }}</b><small>{{ desc }}{{ DEV_ROLE_TEMPLATES[form.agent] ? (templateOpen(id) ? ' · 原型指定' : ' · 不适用于当前岗位') : (templateOpen(id) ? '' : ' · 暂未开放') }}</small>
             </div>
           </div>
@@ -142,6 +153,13 @@ async function submit() {
             <div class="hint">当前创建入口尚未接入知识库授权；需要知识库的岗位应在 H3 前暂停。</div>
           </div>
         </div>
+        <div v-if="form.template === 'supervisor' && !DEV_ROLE_TEMPLATES[form.agent]" class="field">
+          <label>可委派的已登记智能体<b>*</b></label>
+          <div class="chipsel">
+            <button v-for="name in catalogAgents.filter(name => name !== form.agent && name !== 'meta-agent')" :key="name" type="button" :class="{ on: form.delegates.includes(name) }" :disabled="!form.delegates.includes(name) && form.delegates.length >= 5" @click="form.delegates.includes(name) ? form.delegates.splice(form.delegates.indexOf(name), 1) : form.delegates.push(name)">{{ name }}</button>
+          </div>
+          <div class="hint">最多选 5 个。平台只允许委派清单里的智能体，生成项目会在 agent.yaml 声明它们。</div>
+        </div>
         <div v-if="catalogError" class="banner warn">工具目录加载失败：{{ catalogError }}</div>
         <div class="grid3">
           <div class="field"><label>日预算（¥）</label><input v-model.number="form.dailyBudgetCny" class="inp mono" type="number" min="1"></div>
@@ -160,6 +178,7 @@ async function submit() {
           <span>标题</span><b>{{ form.title }}</b>
           <span>智能体 ID</span><b class="mono">{{ form.agent }}</b>
           <span>工具</span><b>{{ form.tools.join('、') || '—' }}</b>
+          <span>子智能体</span><b>{{ form.delegates.join('、') || '—' }}</b>
           <span>种子用例</span><b class="mono">{{ form.seedCount || '稍后上传' }}</b>
         </div>
         <div class="banner warn">提交后元智能体生成需求草稿。H1 确认后生成岗位代码候选 PR；完成原型全部关口前，不会标记为已上岗。</div>

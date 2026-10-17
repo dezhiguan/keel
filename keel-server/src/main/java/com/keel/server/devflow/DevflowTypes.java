@@ -70,12 +70,19 @@ public final class DevflowTypes {
 
     public record Draft(String title, String targetAgent, String layer, String kind, String mode, String goal,
                         String template, Double dailyBudgetCny, Integer seedCount, List<String> tools,
-                        List<String> knowledge, String ownerOrg, String users, String io, String success, Boolean execution) {
+                        List<String> knowledge, String ownerOrg, String users, String io, String success,
+                        Boolean execution, List<String> delegates) {
+        public Draft(String title, String targetAgent, String layer, String kind, String mode, String goal,
+                     String template, Double dailyBudgetCny, Integer seedCount, List<String> tools,
+                     List<String> knowledge, String ownerOrg, String users, String io, String success, Boolean execution) {
+            this(title, targetAgent, layer, kind, mode, goal, template, dailyBudgetCny, seedCount,
+                    tools, knowledge, ownerOrg, users, io, success, execution, List.of());
+        }
         public Draft(String title, String targetAgent, String layer, String kind, String mode, String goal,
                      String template, Double dailyBudgetCny, Integer seedCount, List<String> tools,
                      List<String> knowledge, String ownerOrg) {
             this(title, targetAgent, layer, kind, mode, goal, template, dailyBudgetCny, seedCount,
-                    tools, knowledge, ownerOrg, null, null, null, false);
+                    tools, knowledge, ownerOrg, null, null, null, false, List.of());
         }
     }
 
