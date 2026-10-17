@@ -255,6 +255,17 @@ public class PromptService {
     }
 
     public Map<String, Object> sync(String agent, JsonNode body) {
+        return sync(agent, body, false);
+    }
+
+    /** Trusted staging preparation activates the exact candidate contents before evaluation. */
+    public Map<String, Object> syncCandidate(String agent, JsonNode body) {
+        if (!body.path("gitSha").asText().matches("[0-9a-f]{40}"))
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "候选提示词必须绑定完整提交 SHA");
+        return sync(agent, body, true);
+    }
+
+    private Map<String, Object> sync(String agent, JsonNode body, boolean activateStaging) {
         catalog.authorize(agent);
         requireLangfuse();
         invalidateListCache();
@@ -276,7 +287,12 @@ public class PromptService {
             }
             var sha = PromptTexts.sha256(prompt, type);
             var existing = load(item.fullName());
-            if (existing.stream().anyMatch(version -> sha.equals(version.sha()))) {
+            var matching = existing.stream().filter(version -> sha.equals(version.sha())).findFirst();
+            if (matching.isPresent()) {
+                if (activateStaging) {
+                    promote(agent, name, json.createObjectNode().put("env", "staging").put("version", matching.get().version()));
+                    langfuse.moveLabel(item.fullName(), matching.get().version(), "candidate-" + gitSha);
+                }
                 continue;
             }
             var message = "from git " + gitSha;
@@ -289,13 +305,17 @@ public class PromptService {
                     VALUES (?, ?, ?, ?)
                     ON CONFLICT (agent_name, prompt_name, version) DO NOTHING
                     """, agent, name, version, gitSha);
-            if (existing.isEmpty()) {
+            if (existing.isEmpty() && !activateStaging) {
                 jdbc.update("""
                         INSERT INTO prompt_promotion (agent_name, prompt_name, version, sha256, promoted_by, gate_status)
                         VALUES (?, ?, ?, ?, 'ci', 'PENDING')
                         """, agent, name, version, sha);
             }
             writeAudit(agent, "staging", "low", item, payload(version, sha, null, null, gitSha, null));
+            if (activateStaging) {
+                promote(agent, name, json.createObjectNode().put("env", "staging").put("version", version));
+                langfuse.moveLabel(item.fullName(), version, "candidate-" + gitSha);
+            }
             created.add(Map.of("name", name, "version", version));
         }
         invalidateListCache();

@@ -26,6 +26,15 @@ def test_runtime_scorer_rejects_misleading_and_malformed_output():
     assert gate.score(expected, '{"decision":"PASS"}') == 1
 
 
+def test_prod_preview_uses_candidate_prompt_without_changing_formal_manifest():
+    runner = module("runner")
+    context = {"candidatePromptLabel": "candidate-" + "a" * 40,
+               "manifest": {"spec": {"prompts": {"source": "langfuse"}}}}
+    assert runner.runtime_manifest(context, True)["spec"]["prompts"]["label"] == context["candidatePromptLabel"]
+    assert "label" not in context["manifest"]["spec"]["prompts"]
+    assert runner.runtime_manifest(context) == context["manifest"]
+
+
 def test_failed_visible_evaluation_never_fetches_hidden_or_submits_pass(monkeypatch):
     gate = module("gate")
     monkeypatch.setattr(gate, "evaluate", lambda *args: [{"tag": "normal", "score": 0.0, "count": 1}])

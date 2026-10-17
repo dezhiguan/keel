@@ -307,6 +307,7 @@ public class MetaAgentExecution {
         var sha = "prod".equals(env) ? state.path("mergeSha").asText() : state.path("delivery").path("sha").asText();
         var repo = state.path("delivery").path("repo").asText().replaceFirst("^[^/]+/", "");
         var result = json.createObjectNode().put("jobId", id).put("env", env).put("sha", sha);
+        result.put("candidatePromptLabel", "candidate-" + state.path("delivery").path("sha").asText());
         if (includeSnapshot) result.set("snapshot", read(git.fetch(id, repo, sha)));
         var manifest = (ObjectNode) state.path("draft").path("manifest").deepCopy();
         var name = manifest.path("metadata").path("name").asText();

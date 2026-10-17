@@ -98,7 +98,8 @@ public class DevflowPipelineController {
                                     .digest(canonical.getBytes(StandardCharsets.UTF_8))));
                     entry.set("prompt", prompt);
                 }
-                prompts.sync(name, sync);
+                if ("staging".equals(env)) prompts.syncCandidate(name, sync);
+                else prompts.sync(name, sync);
             }
             return R.ok(Map.of("prepared", true));
         }

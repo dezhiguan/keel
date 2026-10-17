@@ -63,7 +63,14 @@ def status(context, run_url, state, message="", evaluation_failed=False):
                status=state, message=message, evaluationFailed=evaluation_failed)
 
 
-def deploy(context, image):
+def runtime_manifest(context, preview=False):
+    manifest = json.loads(json.dumps(context["manifest"]))
+    if preview:
+        manifest["spec"]["prompts"]["label"] = context["candidatePromptLabel"]
+    return manifest
+
+
+def deploy(context, image, preview=False):
     name, env, sha = context["agent"], context["env"], context["sha"]
     workload = name + "-" + env
     source = json.loads(kube("-n", "agents", "get", "secret", "keel-" + name, "-o", "json"))
@@ -72,7 +79,7 @@ def deploy(context, image):
     kube("apply", "-f", "-", body=json.dumps(secret).encode())
     labels = {"app": workload, "keel.io/agent": name, "keel.io/env": env, "keel.io/commit": sha}
     config = {"apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": workload + "-manifest", "namespace": "agents"},
-              "data": {"agent.yaml": json.dumps(context["manifest"], ensure_ascii=False)}}
+              "data": {"agent.yaml": json.dumps(runtime_manifest(context, preview), ensure_ascii=False)}}
     pod = {"automountServiceAccountToken": False, "imagePullSecrets": [{"name": "acr-cred"}],
            "hostAliases": [{"ip": "172.25.90.183", "hostnames": ["jp.cloud.langfuse.com"]}],
            "containers": [{"name": "agent", "image": image, "envFrom": [{"secretRef": {"name": "keel-" + workload}}],
@@ -132,7 +139,7 @@ def main():
     if not re.fullmatch(r"[^\s]+@sha256:[0-9a-f]{64}", image):
         raise ValueError("Immutable image digest is required")
     api(args.job, args.env, "prepare", sha=context["sha"])
-    deploy(context, image)
+    deploy(context, image, preview=args.env == "prod")
     ready = api(args.job, args.env, "ready", sha=context["sha"])
     if not ready.get("passed"):
         print(json.dumps({"selfCheck": ready}, ensure_ascii=False))

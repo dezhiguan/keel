@@ -244,6 +244,27 @@ class PromptFlowTest {
         assertThat(CALLS.stream().filter(call -> call.startsWith("POST ")).count()).isEqualTo(posts);
     }
 
+    @Test void trustedCandidateSyncActivatesItsExactVersionAndKeepsProductionProtected() throws Exception {
+        var request = new org.springframework.mock.web.MockHttpServletRequest();
+        com.keel.server.auth.ConsolePrincipal.set(request, com.keel.server.auth.ConsolePrincipal.dev());
+        org.springframework.web.context.request.RequestContextHolder.setRequestAttributes(
+                new org.springframework.web.context.request.ServletRequestAttributes(request));
+        try {
+            for (int index = 1; index <= 2; index++) {
+                String text = "candidate-" + index;
+                var body = JSON.createObjectNode().put("gitSha", Integer.toString(index).repeat(40));
+                body.putArray("files").addObject().put("name", "answer").put("type", "text")
+                        .put("prompt", text).put("sha256", PromptTexts.sha256(JSON.getNodeFactory().textNode(text), "text"));
+                prompts.syncCandidate("prompt-agent", body);
+                assertThat(label("prompt-agent/answer", "staging")).isEqualTo(index);
+                assertThat(label("prompt-agent/answer", "candidate-" + Integer.toString(index).repeat(40))).isEqualTo(index);
+                assertThat(label("prompt-agent/answer", "production")).isNull();
+                prompts.syncCandidate("prompt-agent", body);
+                assertThat(STORE.get("prompt-agent/answer")).hasSize(index);
+            }
+        } finally { org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes(); }
+    }
+
     @Test void listReadsLabelsOnceAndShowsCodeVersionFromTheTable() throws Exception {
         var first = PromptTexts.sha256(JSON.getNodeFactory().textNode("from-git"), "text");
         mvc.perform(post("/api/v1/agents/prompt-agent/prompts/sync").contentType("application/json").content("""
