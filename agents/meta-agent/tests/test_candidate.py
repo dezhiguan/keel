@@ -93,6 +93,10 @@ def test_generation_retry_includes_rejected_candidate_and_specific_errors():
     bad = {"files": [{"path": "role.py", "content": ROLE_CODE.replace('import json', 'import subprocess')},
                      {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
                      {"path": "tests/test_role.py", "content": TEST_CODE}]}
+    bad["files"][0]["content"] += "\n#" + "x" * 30_000
+    bad["files"][1]["content"] += "\n" * 39_000
+    bad["files"][2]["content"] += "\n#" + "x" * 15_000
+    assert len(json.dumps(bad)) > 120_000
     fixed = {"files": [{"path": "role.py", "content": ROLE_CODE},
                        {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
                        {"path": "tests/test_role.py", "content": TEST_CODE}]}
