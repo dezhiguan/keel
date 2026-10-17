@@ -7,6 +7,8 @@ from keel.protocol.errors import ErrorCode, KeelError
 
 from roles import ROLES
 
+GENERAL_TEMPLATES = {"tool-agent", "chat-rag", "graph-agent", "supervisor"}
+
 
 ALLOWED_IMPORTS = {"json", "re", "typing", "collections", "datetime"}
 FORBIDDEN_CALLS = {"eval", "exec", "compile", "open", "__import__", "globals", "locals"}
@@ -15,9 +17,10 @@ FORBIDDEN_CALLS = {"eval", "exec", "compile", "open", "__import__", "globals", "
 async def generate(work: dict, ctx) -> dict:
     requirement = work["requirement"]
     name = requirement["target_agent"]
-    if name not in ROLES or requirement.get("template") != ROLES[name][0]:
-        raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "研发岗位与原型模板不匹配")
-    role, purpose = ROLES[name]
+    role = requirement.get("template")
+    if role not in GENERAL_TEMPLATES or (name in ROLES and role != ROLES[name][0]):
+        raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "研发智能体与模板不匹配")
+    purpose = ROLES[name][1] if name in ROLES else str(requirement.get("goal") or "完成确认的研发任务")
     confirmed = work["draft"]["spec"]
     prompt = (
         "你是 Keel 的 meta-agent，正在为研发数字员工编写实际岗位代码。"

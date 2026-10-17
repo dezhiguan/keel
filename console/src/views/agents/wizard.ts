@@ -79,6 +79,7 @@ export const DEVFLOW_TEMPLATES: [string, string][] = [
   ['supervisor', '委派多个子智能体'],
   ['java-spring', 'Java · Spring Boot'],
 ]
+export const GENERAL_AGENT_TEMPLATES = ['tool-agent', 'chat-rag', 'graph-agent', 'supervisor']
 
 export const DEV_ROLE_TEMPLATES: Record<string, string> = {
   'dev-lead': 'supervisor',
@@ -131,9 +132,10 @@ export function devflowStepError(step: number, form: DevflowForm, takenNames: st
     if (!NAME.test(form.agent)) return '智能体 ID 不合规'
     if (form.kind === 'CREATE' && takenNames.includes(form.agent)) return '该 ID 已存在；要改已有智能体请选「改造」'
     if (form.kind === 'CHANGE' && form.agent === 'meta-agent') return '元智能体只能由人直接修改'
-    if (form.layer === 'dev' && !DEV_ROLE_TEMPLATES[form.agent]) return '当前仅创建原型中的七名研发数字员工'
-    if (form.layer === 'dev' && form.template !== DEV_ROLE_TEMPLATES[form.agent]) return '该岗位必须使用原型指定的模板'
-    if (form.layer === 'dev' && (form.tools.length !== DEV_ROLE_TOOLS[form.agent].length ||
+    if (form.layer === 'dev' && !GENERAL_AGENT_TEMPLATES.includes(form.template)) return '请选择支持的 Python 智能体模板'
+    if (form.layer === 'dev' && DEV_ROLE_TEMPLATES[form.agent] && form.template !== DEV_ROLE_TEMPLATES[form.agent]) return '该岗位必须使用原型指定的模板'
+    if (form.layer === 'dev' && DEV_ROLE_TEMPLATES[form.agent] &&
+      (form.tools.length !== DEV_ROLE_TOOLS[form.agent].length ||
       form.tools.some(tool => !DEV_ROLE_TOOLS[form.agent].includes(tool)))) return '岗位工具必须与原型清单完全一致'
   }
   if (step === 1 && (!form.users.trim() || !form.io.trim() || !form.success.trim())) return '场景、输入输出、成功标准必填'

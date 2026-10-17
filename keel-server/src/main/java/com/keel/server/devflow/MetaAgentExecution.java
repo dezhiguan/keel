@@ -35,6 +35,7 @@ public class MetaAgentExecution {
             "dev-lead", "supervisor", "spec-agent", "graph-agent", "dev-agent", "graph-agent",
             "eval-agent", "tool-agent", "code-review", "tool-agent", "ci-doctor", "tool-agent",
             "release-agent", "tool-agent");
+    private static final Set<String> GENERAL_TEMPLATES = Set.of("tool-agent", "chat-rag", "graph-agent", "supervisor");
     private static final Map<String, Set<String>> DEV_TOOLS = Map.of(
             "dev-lead", Set.of("devflow.job.read", "devflow.stage.report", "devflow.batch.read"),
             "spec-agent", Set.of("devflow.catalog.search", "devflow.stage.report"),
@@ -117,13 +118,20 @@ public class MetaAgentExecution {
 
     public static void validate(DevflowTypes.Draft draft) {
         if (!"DEV".equals(draft.layer()) || !"CREATE".equals(draft.kind()) || !"COLLAB".equals(draft.mode())
-                || !DEV_ROLES.getOrDefault(draft.targetAgent(), "").equals(draft.template())) {
-            throw invalid("当前仅允许 meta-agent 以原型指定模板创建七名研发数字员工");
+                || !GENERAL_TEMPLATES.contains(draft.template())
+                || "meta-agent".equals(draft.targetAgent())) {
+            throw invalid("请选择受支持的研发智能体模板和人机协作模式");
+        }
+        if (DEV_ROLES.containsKey(draft.targetAgent()) && !DEV_ROLES.get(draft.targetAgent()).equals(draft.template())) {
+            throw invalid("原型研发岗位必须使用指定模板");
         }
         if (draft.knowledge() != null && !draft.knowledge().isEmpty()) throw invalid("当前创建入口尚未接入知识库授权");
         if (draft.seedCount() != null && draft.seedCount() != 0) throw invalid("人工种子用例须在 H2 上传，不能仅填写数量");
-        if (draft.tools() == null || draft.tools().size() != DEV_TOOLS.get(draft.targetAgent()).size()
-                || !Set.copyOf(draft.tools()).equals(DEV_TOOLS.get(draft.targetAgent()))) {
+        if (draft.tools() == null || draft.tools().stream().anyMatch(name -> name == null || name.isBlank())
+                || draft.tools().size() != Set.copyOf(draft.tools()).size()) {
+            throw invalid("工具清单无效或重复");
+        }
+        if (DEV_TOOLS.containsKey(draft.targetAgent()) && !Set.copyOf(draft.tools()).equals(DEV_TOOLS.get(draft.targetAgent()))) {
             throw invalid("岗位工具必须与原型清单完全一致");
         }
         if (blank(draft.users()) || blank(draft.io()) || blank(draft.success())) throw invalid("场景、输入输出和成功标准必填");

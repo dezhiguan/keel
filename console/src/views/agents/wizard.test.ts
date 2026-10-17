@@ -32,7 +32,8 @@ describe('wizard', () => {
     expect(devflowStepError(0, form)).toBe('智能体 ID 不合规')
     expect(devflowStepError(0, { ...blankDevflow('echo'), title: '回声', goal: '打通', kind: 'CREATE' }, ['echo'])).toContain('改造')
     expect(devflowStepError(0, { ...blankDevflow('meta-agent', 'CHANGE'), title: '改元', goal: '不行' })).toContain('元智能体')
-    expect(devflowStepError(0, { ...blankDevflow('weekly-report'), title: '周报', goal: '汇总' })).toContain('七名研发')
+    expect(devflowStepError(0, { ...blankDevflow('weekly-report'), title: '周报', goal: '汇总' })).toBe('')
+    expect(devflowStepError(0, { ...blankDevflow('weekly-report'), title: '周报', goal: '汇总', template: 'java-spring' })).toContain('模板')
     expect(devflowBody({ ...blankDevflow('weekly-report'), title: '周报', goal: '汇总', layer: 'dev', mode: 'AUTO' }, '研发效能组')).toMatchObject({
       layer: 'DEV',
       mode: 'COLLAB',

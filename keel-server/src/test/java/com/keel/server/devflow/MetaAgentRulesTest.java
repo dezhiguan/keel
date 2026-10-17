@@ -95,13 +95,16 @@ class MetaAgentRulesTest {
         ConsolePrincipal.set(request, ConsolePrincipal.dev());
         assertThatCode(MetaAgentExecution::requireAdmin).doesNotThrowAnyException();
     }
-    @Test void acceptsOnlyTheSevenPrototypeRolesAndTheirTemplates() {
+    @Test void acceptsGeneralAgentsAndKeepsSevenPrototypeRolesLocked() {
         for (var name : List.of("dev-lead", "spec-agent", "dev-agent", "eval-agent", "code-review", "ci-doctor", "release-agent")) {
             String template = name.equals("dev-lead") ? "supervisor" : List.of("spec-agent", "dev-agent").contains(name) ? "graph-agent" : "tool-agent";
             assertThatCode(() -> MetaAgentExecution.validate(draft(name, template, "DEV", "CREATE", 0, 7.0))).doesNotThrowAnyException();
             assertThatThrownBy(() -> MetaAgentExecution.validate(draft(name, "chat-rag", "DEV", "CREATE", 0, 7.0))).isInstanceOf(KeelException.class);
         }
-        assertThatThrownBy(() -> MetaAgentExecution.validate(draft("qa-meta-loop", "tool-agent", "DEV", "CREATE", 0, 7.0))).isInstanceOf(KeelException.class);
+        for (var template : List.of("tool-agent", "chat-rag", "graph-agent", "supervisor")) {
+            assertThatCode(() -> MetaAgentExecution.validate(draft("qa-meta-loop", template, "DEV", "CREATE", 0, 7.0))).doesNotThrowAnyException();
+        }
+        assertThatThrownBy(() -> MetaAgentExecution.validate(draft("qa-meta-loop", "java-spring", "DEV", "CREATE", 0, 7.0))).isInstanceOf(KeelException.class);
     }
     @Test void rejectsUnsupportedScopeAndFakeSeedUploads() {
         for (var bad : List.of(draft("BIZ", "CREATE", 0, 7.0), draft("dev", "CREATE", 0, 7.0),

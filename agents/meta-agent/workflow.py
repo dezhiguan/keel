@@ -11,11 +11,11 @@ import shutil
 
 import yaml
 
-from keel.cli.new import create_from_spec, create_project, template_dir
+from keel.cli.new import create_from_spec, create_project
 from keel.cli.repo import _files, _post
 from keel.protocol.errors import ErrorCode, KeelError
 from tools.manifest_check import check
-from candidate import generate as generate_candidate, parse as parse_candidate
+from candidate import GENERAL_TEMPLATES, generate as generate_candidate, parse as parse_candidate
 from evalset import expand as expand_evalset
 from roles import ROLES
 
@@ -27,10 +27,10 @@ async def execute(work, ctx):
     requirement = work.get("requirement") or {}
     target = _target(requirement)
     template = requirement.get("template")
-    if not target or template not in ("tool-agent", ROLES.get(target, (None,))[0]):
-        raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "研发岗位模板与目标智能体不匹配")
+    if not target or template not in GENERAL_TEMPLATES:
+        raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "研发智能体模板与目标不匹配")
     if work.get("action") == "DELIVER":
-        if target in ROLES and template == ROLES[target][0]:
+        if target not in ROLES or template == ROLES[target][0]:
             repair = work.get("repair") or {}
             if repair.get("infrastructureOnly"):
                 candidate = repair.get("previousCandidate") or {}
@@ -216,8 +216,9 @@ def _deliver(work):
             _save(checkpoint, state)
     if state.get("result"):
         return state["result"]
-    functional = (requirement["target_agent"] in ROLES
-                  and requirement.get("template") == ROLES[requirement["target_agent"]][0])
+    functional = (requirement.get("template") in GENERAL_TEMPLATES
+                  and (requirement["target_agent"] not in ROLES
+                       or requirement["template"] == ROLES[requirement["target_agent"]][0]))
     if functional and not state.get("candidate"):
         candidate = work.get("candidate")
         if not isinstance(candidate, dict) or parse_candidate(json.dumps(candidate))[1]:

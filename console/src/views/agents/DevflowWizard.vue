@@ -26,7 +26,7 @@ const busy = ref(false)
 const steps = ['基本信息', '需求细节', '交付范围', '预览并提交']
 const form = reactive(blankDevflow(props.agent ?? '', props.kind ?? 'CREATE'))
 watch(() => form.agent, (name) => {
-  form.template = DEV_ROLE_TEMPLATES[name] || ''
+  form.template = DEV_ROLE_TEMPLATES[name] || (form.template && form.template !== 'java-spring' ? form.template : 'tool-agent')
   form.tools = [...(DEV_ROLE_TOOLS[name] || [])]
 })
 const catalogTools = ref<CatalogTool[]>([])
@@ -45,7 +45,7 @@ function pickLayer(layer: 'biz' | 'dev') {
 }
 
 function templateOpen(id: string) {
-  return id === DEV_ROLE_TEMPLATES[form.agent]
+  return id !== 'java-spring' && (!DEV_ROLE_TEMPLATES[form.agent] || id === DEV_ROLE_TEMPLATES[form.agent])
 }
 
 function next() {
@@ -107,18 +107,18 @@ async function submit() {
               <div>{{ title }}<small>{{ desc }}</small></div>
             </label>
           </div>
-          <div class="hint">本入口按原型创建七名研发数字员工。元智能体先生成需求与岗位代码候选；沙箱、评测、授权、人工评审和发布必须逐项通过。</div>
+          <div class="hint">元智能体按确认的需求生成独立项目和岗位代码候选；沙箱、评测、授权、人工评审和发布必须逐项通过。</div>
         </div>
         <div class="grid2">
           <div class="field"><label>标题<b>*</b></label><input v-model="form.title" class="inp"></div>
-          <div class="field"><label>智能体 ID<b>*</b></label><input v-model="form.agent" class="inp mono"><div class="hint">选择 dev-lead、spec-agent、dev-agent、eval-agent、code-review、ci-doctor 或 release-agent</div></div>
+          <div class="field"><label>智能体 ID<b>*</b></label><input v-model="form.agent" class="inp mono"><div class="hint">小写字母、数字和连字符，生成后作为独立项目名称</div></div>
         </div>
         <div class="field"><label>一句话目标<b>*</b></label><textarea v-model="form.goal" class="inp" /></div>
         <div class="field">
           <label>模板</label>
           <div class="tplgrid">
             <div v-for="[id, desc] in DEVFLOW_TEMPLATES" :key="id" class="tpl" :class="{ on: form.template === id, dis: !templateOpen(id) }" @click="templateOpen(id) && (form.template = id)">
-              <b>{{ id }}</b><small>{{ desc }}{{ templateOpen(id) ? ' · 原型指定' : ' · 不适用于当前岗位' }}</small>
+              <b>{{ id }}</b><small>{{ desc }}{{ DEV_ROLE_TEMPLATES[form.agent] ? (templateOpen(id) ? ' · 原型指定' : ' · 不适用于当前岗位') : (templateOpen(id) ? '' : ' · 暂未开放') }}</small>
             </div>
           </div>
         </div>
@@ -131,9 +131,9 @@ async function submit() {
         <div class="field"><label>怎样算做得好<b>*</b></label><textarea v-model="form.success" class="inp" /></div>
         <div class="grid2">
           <div class="field">
-            <label>岗位共享工具（原型指定，授权须在 H3 办理）</label>
+            <label>共享工具（授权须在 H3 办理）</label>
             <div class="chipsel">
-              <button v-for="tool in catalogTools.filter(item => form.tools.includes(item.name || ''))" :key="tool.name" type="button" class="on" disabled>{{ tool.name }} · {{ tool.risk?.toLowerCase() }}</button>
+              <button v-for="tool in catalogTools" :key="tool.name" type="button" :class="{ on: form.tools.includes(tool.name || '') }" :disabled="!!DEV_ROLE_TEMPLATES[form.agent]" @click="tool.name && (form.tools.includes(tool.name) ? form.tools.splice(form.tools.indexOf(tool.name), 1) : form.tools.push(tool.name))">{{ tool.name }} · {{ tool.risk?.toLowerCase() }}</button>
             </div>
             <div v-if="form.tools.some(name => !catalogTools.some(item => item.name === name)) && !catalogError" class="hint">目录缺少岗位必需工具，当前任务无法提交。</div>
           </div>

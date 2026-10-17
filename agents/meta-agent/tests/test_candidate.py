@@ -72,6 +72,20 @@ def test_meta_agent_generates_role_code_from_confirmed_spec():
     assert "spec-agent" in llm.prompts[0]
 
 
+def test_meta_agent_generates_general_agent_from_confirmed_goal():
+    candidate = {"files": [{"path": "role.py", "content": ROLE_CODE},
+                           {"path": "prompts/role.md", "content": "任务：{{input}}"},
+                           {"path": "tests/test_role.py", "content": TEST_CODE}]}
+    llm = FakeModel([json.dumps(candidate)])
+    ctx = type("Ctx", (), {"llm": llm})()
+    work = {"requirement": {"target_agent": "qa-incident-helper", "template": "tool-agent",
+                            "goal": "分析故障并调用日志工具", "tools": ["ci.log.fetch"]},
+            "draft": {"spec": {"goal": "按证据给出故障原因"}}}
+    assert asyncio.run(generate(work, ctx)) == candidate
+    assert "qa-incident-helper" in llm.prompts[0]
+    assert "分析故障并调用日志工具" in llm.prompts[0]
+
+
 def test_generated_code_rejects_forbidden_imports_and_missing_behavior_tests():
     bad = {"files": [{"path": "role.py", "content": "import subprocess\nasync def execute(data, ctx): return {}"},
                      {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
