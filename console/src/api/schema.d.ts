@@ -3074,7 +3074,7 @@ export interface components {
                 url: string;
                 branch: string;
                 /**
-                 * @description 私有仓库分支保护；UNAVAILABLE 时平台拒绝合并和发布
+                 * @description 任务仓库分支保护；UNAVAILABLE 时平台拒绝合并和发布
                  * @enum {string}
                  */
                 protection?: "ENFORCED" | "UNAVAILABLE";
@@ -3100,6 +3100,8 @@ export interface components {
             sandboxStatus?: "PASS" | "FAILED";
             /** @description 可信工作流模板刷新次数；每次均重新验证候选 SHA */
             infrastructureRefreshes?: number;
+            /** @description 评审阶段岗位功能修正次数；新提交必须重跑沙箱及评审 */
+            reviewRepairRounds?: number;
             sandboxAttempts?: {
                 attempt: number;
                 sha: string;
