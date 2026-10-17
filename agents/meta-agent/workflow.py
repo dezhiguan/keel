@@ -230,7 +230,8 @@ def _deliver(work):
     repair = work.get("repair") or {}
     attempt = int(repair.get("attempt") or 1)
     ordinary_limit = 5 + min(2, max(0, int(repair.get("templateRefreshes") or 0)))
-    if attempt < 1 or attempt > (11 if repair.get("s4Repair") is True else
+    if attempt < 1 or attempt > (11 if repair.get("sdkRepair") is True else
+                                 11 if repair.get("s4Repair") is True else
                                  10 if repair.get("ciRefresh") is True else
                                  8 if repair.get("reviewRepair") is True else
                                  7 if repair.get("infrastructureOnly") is True else ordinary_limit):
