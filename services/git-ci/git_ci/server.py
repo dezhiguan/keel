@@ -7,6 +7,7 @@ import uuid
 import hmac
 
 from starlette.applications import Starlette
+from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -110,7 +111,8 @@ def create_app(github: GitHub, token: str | None = None, merge_token: str | None
                     request.headers.get("x-keel-merge-token", ""), merge_token):
                 return _error(ErrorCode.AUTH_UNAUTHENTICATED)
         try:
-            return JSONResponse(call_tool(github, request.path_params["tool"], body))
+            result = await run_in_threadpool(call_tool, github, request.path_params["tool"], body)
+            return JSONResponse(result)
         except ValueError:
             return _error(ErrorCode.SERVER_INVALID_PARAM)
         except GitHubError:

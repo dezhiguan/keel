@@ -2,6 +2,7 @@ import base64
 import io
 import json
 import threading
+from concurrent.futures import ThreadPoolExecutor
 import zipfile
 import httpx
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -12,6 +13,30 @@ from starlette.testclient import TestClient
 from git_ci.github import GitHub
 from git_ci.github import GitHubError
 from git_ci.server import call_tool, client_from_env, create_app
+
+
+def test_slow_github_operation_does_not_block_readiness():
+    entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+
+    class SlowGitHub:
+        def diff(self, repo, number):
+            entered.set()
+            release.wait(5)
+            finished.set()
+            return {"diff": "validated", "number": number}
+
+    with TestClient(create_app(SlowGitHub(), token="test")) as client:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            pending = pool.submit(client.post, "/v1/tools/git.pr.diff",
+                                  json={"repo": "spec-agent", "number": 1},
+                                  headers={"Authorization": "Bearer test"})
+            try:
+                assert entered.wait(2), "Git operation did not start"
+                assert client.get("/v1/health").status_code == 200
+                assert not finished.is_set(), "Health probe waited for the Git request to finish"
+            finally:
+                release.set()
+            assert pending.result(timeout=2).json()["diff"] == "validated"
 
 
 def test_ci_logs_follow_redirect_and_unpack_zip(monkeypatch):
