@@ -820,7 +820,7 @@ public class MetaAgentExecution {
                                 jobs.progress(id, "QUEUED", "BUILD", "第 " + attempt + " 轮沙箱测试失败，准备第 " + (attempt + 1) + " 轮修复");
                             } else {
                                 state.put("phase", "FAILED").put("error", attempt >= sandboxAttemptLimit(state)
-                                        ? "五轮隔离沙箱测试仍未通过，岗位候选不可交付" : "隔离沙箱未完成岗位测试，候选不可交付");
+                                        ? "五轮岗位代码修复额度已耗尽，候选不可交付" : "隔离沙箱未完成岗位测试，候选不可交付");
                                 save(id, state, "DELIVER");
                                 jobs.progress(id, "FAIL", "BUILD", "第 " + attempt + " 轮沙箱失败，修复循环已停止");
                             }
