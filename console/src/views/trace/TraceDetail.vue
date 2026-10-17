@@ -176,7 +176,7 @@ watch(() => route.params.id, load, { immediate: true })
 
         <div class="legend2">
           <span>颜色 = 所属智能体：</span>
-          <span v-for="a in detail.agents" :key="a.key"><i :style="{ background: a.color }" />{{ a.name }}</span>
+          <span v-for="a in detail.agents" :key="a.key"><i :style="{ background: agents[a.key!]?.color }" />{{ a.name }}</span>
           <span style="margin-left: auto">
             状态点：<b style="color: var(--ok)">●</b> ok　<b style="color: var(--warn)">●</b> 降级　<b style="color: var(--bad)">●</b> 失败
           </span>
