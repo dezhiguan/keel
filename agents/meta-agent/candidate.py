@@ -52,6 +52,7 @@ async def generate(work: dict, ctx) -> dict:
         "不要直接传 temperature 或 response_format，也不要把返回值当字典。"
         "至少调用两个需求单已选择的工具；任何必需工具失败都返回 BLOCKED。"
         "工具调用必须使用上述契约的原样关键字参数名；返回结构也按契约检查，不能虚构 steps、files 或 status 字段。"
+        "repo、runId、number、jobId 等对象标识必须来自用户输入或已验证的工具结果；缺少时返回 BLOCKED，不得猜测。"
         "supervisor 必须实际调用 await ctx.delegate(name, text)，目标只从 ctx.manifest.spec.delegates 中读取；"
         "supervisor 的 role.py 请直接写 allowed_delegates = list(ctx.manifest.spec.delegates or [])，"
         "清单为空时返回 BLOCKED；遍历 allowed_delegates 并用其中的 name 调用 ctx.delegate(name, text)；"

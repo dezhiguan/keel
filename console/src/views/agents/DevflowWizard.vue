@@ -149,6 +149,7 @@ async function submit() {
         <div class="grid2">
           <div class="field">
             <label>共享工具（授权须在 H3 办理）</label>
+            <div v-if="!DEV_ROLE_TEMPLATES[form.agent]" class="hint">仅显示当前可在独立项目中调用的低风险只读工具。</div>
             <div class="chipsel">
               <button v-for="tool in visibleTools" :key="tool.name" type="button" :class="{ on: form.tools.includes(tool.name || '') }" :disabled="!!DEV_ROLE_TEMPLATES[form.agent]" @click="tool.name && (form.tools.includes(tool.name) ? form.tools.splice(form.tools.indexOf(tool.name), 1) : form.tools.push(tool.name))">{{ tool.name }} · {{ tool.risk?.toLowerCase() }}</button>
             </div>

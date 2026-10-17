@@ -145,7 +145,7 @@ public class MetaAgentExecution {
             throw invalid("岗位工具必须与原型清单完全一致");
         }
         if (!DEV_ROLES.containsKey(draft.targetAgent()) && !GENERAL_RUNTIME_TOOLS.containsAll(draft.tools())) {
-            throw invalid("通用智能体只可选择已开放的低风险只读工具");
+            throw invalid("通用智能体只可选择当前运行服务已开放的低风险只读工具");
         }
         var delegates = draft.delegates() == null ? List.<String>of() : draft.delegates();
         if (delegates.size() > 5 || delegates.stream().anyMatch(name -> name == null || name.isBlank()
