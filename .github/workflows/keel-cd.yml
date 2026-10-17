@@ -822,10 +822,7 @@ jobs:
         with:
           python-version: '3.13'
       - run: pip install -e ./sdk-python pytest
-      - run: |
-          PYTHONPATH="$PWD/sdk-python" pytest agents/meta-agent/tests -q > /tmp/meta-agent-pytest.log 2>&1 && exit 0
-          printf '::error title=meta-agent pytest output::%s\n' "$(tail -c 7000 /tmp/meta-agent-pytest.log | base64 -w0)"
-          exit 1
+      - run: PYTHONPATH="$PWD/sdk-python" pytest agents/meta-agent/tests -q
       - run: PYTHONPATH="$PWD/services/git-ci:$PWD/sdk-python" pytest services/git-ci/tests -q
       - run: PYTHONPATH="$PWD/sdk-python" pytest sdk-python/tests/cli/test_ledger.py sdk-python/tests/cli/test_repo.py -q
 
