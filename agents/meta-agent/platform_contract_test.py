@@ -87,7 +87,7 @@ def test_approved_normal_case_passes_with_complete_evidence():
         pytest.skip("Multi-tool contract only")
     context = Context('{"decision":"PASS"}')
     result = asyncio.run(execute(_normal_input(), context))
-    assert result["decision"] == "PASS"
+    assert result["decision"] == "PASS", result
 
 
 def test_non_json_model_text_cannot_authorize_pass():

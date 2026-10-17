@@ -2490,6 +2490,72 @@ paths:
                     properties:
                       data: { $ref: "#/components/schemas/DevflowExecution" }
 
+  /devflow/jobs/{jobId}/pipeline/run:
+    parameters:
+      - $ref: "#/components/parameters/DevflowJobId"
+    post:
+      tags: [devflow]
+      operationId: runDevflowPipeline
+      summary: 管理员启动底座的可信 staging 或 prod 流水线
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [env]
+              properties:
+                env: { type: string, enum: [staging, prod] }
+      responses:
+        "200":
+          description: 流水线已请求；仅已通过审批的精确提交可执行
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DevflowExecution" }
+
+  /devflow/ci/jobs/{jobId}/{action}:
+    parameters:
+      - $ref: "#/components/parameters/DevflowJobId"
+      - name: action
+        in: path
+        required: true
+        schema: { type: string, enum: [context, prepare, ready, complete, status] }
+    post:
+      tags: [devflow]
+      operationId: executeTrustedDevflowPipeline
+      summary: 仅配置的可信 CI 身份调用；精确提交的快照、资源、自检和发布
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [env]
+              properties:
+                env: { type: string, enum: [staging, prod] }
+                sha: { type: string, pattern: "^[0-9a-f]{40}$" }
+                image: { type: string }
+                gateRunId: { type: string }
+                runUrl: { type: string, format: uri }
+                status: { type: string, enum: [RUNNING, SUCCEEDED, FAILED] }
+                message: { type: string }
+      responses:
+        "200":
+          description: 可信流水线步骤结果；context 含候选文件与可见用例，不含隐藏内容
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { type: object, additionalProperties: true }
+
   /devflow/jobs/{jobId}/h4/request:
     parameters:
       - $ref: "#/components/parameters/DevflowJobId"
@@ -4222,6 +4288,16 @@ components:
         traceId: { type: string }
         sandboxRunId: { type: string }
         sandboxStatus: { type: string, enum: [PASS, FAILED] }
+        sandboxAttemptLimit: { type: integer, minimum: 1, maximum: 20, description: 当前有上限的沙箱修复窗口终点 }
+        pipeline:
+          type: object
+          properties:
+            env: { type: string, enum: [staging, prod] }
+            sha: { type: string }
+            status: { type: string, enum: [DISPATCHED, RUNNING, SUCCEEDED, FAILED] }
+            startedAt: { type: string, format: date-time }
+            runUrl: { type: string, format: uri }
+            message: { type: string }
         infrastructureRefreshes: { type: integer, minimum: 0, maximum: 2, description: 可信工作流模板刷新次数；每次均重新验证候选 SHA }
         reviewRepairRounds: { type: integer, minimum: 0, maximum: 1, description: 评审阶段岗位功能修正次数；新提交必须重跑沙箱及评审 }
         s4RepairRounds: { type: integer, minimum: 0, maximum: 1, description: S4 模型代码评审失败后的专项修正次数；新提交必须重跑沙箱及评审 }

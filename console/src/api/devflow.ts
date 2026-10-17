@@ -82,6 +82,10 @@ export function runDevflowCodeReview(jobId: string) {
   return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/code-review/run`)
 }
 
+export function runDevflowPipeline(jobId: string, env: 'staging' | 'prod') {
+  return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/pipeline/run`, { env })
+}
+
 export function requestDevflowH4(jobId: string) {
   return post<DevflowExecution>(`/devflow/jobs/${encodeURIComponent(jobId)}/h4/request`)
 }

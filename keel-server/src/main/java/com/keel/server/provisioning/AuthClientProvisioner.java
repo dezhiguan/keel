@@ -34,7 +34,8 @@ public class AuthClientProvisioner implements ProvisionStep {
         if (jwksBase.isBlank()) {
             throw new IllegalStateException("KEEL_JWKS_BASE 未配置");
         }
-        var material = keys.generate(agent);
+        var material = keys.find(agent);
+        if (material == null) material = keys.generate(agent);
         secrets.rememberPrivateKey(agent, material.privatePem());
         var audiences = new LinkedHashSet<String>();
         audiences.add("keel-api");

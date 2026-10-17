@@ -424,9 +424,7 @@ export interface paths {
     };
     "/eval/gates": {
         parameters: {
-            query?: {
-                env?: string;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -1245,6 +1243,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/insight/route-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 发布路由策略
+         * @description objective 只能是 balanced、cost、latency。发布后版本加一。只允许平台管理员。
+         */
+        post: operations["publishRoutePolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insight/route-policy/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 回滚到上一版路由策略
+         * @description 只有一版时返回 400。只允许平台管理员。
+         */
+        post: operations["rollbackRoutePolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insight/route/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 路由试算
+         * @description 与薄网关 POST /admin/v1/route/preview 一致。请求里写了模型就先用它。
+         */
+        post: operations["previewRoute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/keys/{alias}/rotate": {
         parameters: {
             query?: never;
@@ -1568,6 +1626,45 @@ export interface paths {
         put?: never;
         /** S4 读取精确候选提交并运行模型代码评审 */
         post: operations["runDevflowCodeReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/jobs/{jobId}/pipeline/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 管理员启动底座的可信 staging 或 prod 流水线 */
+        post: operations["runDevflowPipeline"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devflow/ci/jobs/{jobId}/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+                action: "context" | "prepare" | "ready" | "complete" | "status";
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 仅配置的可信 CI 身份调用；精确提交的快照、资源、自检和发布 */
+        post: operations["executeTrustedDevflowPipeline"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2529,9 +2626,15 @@ export interface components {
                 agent?: string;
                 /** @description 为空表示人工编写 */
                 jobId?: string | null;
-                /** @description 可见用例分。没有记录时为空 */
+                /**
+                 * Format: float
+                 * @description 可见用例分。没有记录时为空
+                 */
                 visible?: number | null;
-                /** @description 隐藏考题聚合分。人工编写或尚未记分时为空 */
+                /**
+                 * Format: float
+                 * @description 隐藏考题聚合分。人工编写或尚未记分时为空
+                 */
                 holdout?: number | null;
                 /** @description 可见分保留两位后达到 0.80。没有可见分时为空 */
                 passed?: boolean | null;
@@ -3112,6 +3215,20 @@ export interface components {
             sandboxRunId?: string;
             /** @enum {string} */
             sandboxStatus?: "PASS" | "FAILED";
+            /** @description 当前有上限的沙箱修复窗口终点 */
+            sandboxAttemptLimit?: number;
+            pipeline?: {
+                /** @enum {string} */
+                env?: "staging" | "prod";
+                sha?: string;
+                /** @enum {string} */
+                status?: "DISPATCHED" | "RUNNING" | "SUCCEEDED" | "FAILED";
+                /** Format: date-time */
+                startedAt?: string;
+                /** Format: uri */
+                runUrl?: string;
+                message?: string;
+            };
             /** @description 可信工作流模板刷新次数；每次均重新验证候选 SHA */
             infrastructureRefreshes?: number;
             /** @description 评审阶段岗位功能修正次数；新提交必须重跑沙箱及评审 */
@@ -3554,7 +3671,7 @@ export interface operations {
     getOverview: {
         parameters: {
             query?: {
-                env?: string;
+                env?: components["parameters"]["Env"];
                 range?: "today" | "24h" | "7d" | "30d" | "all";
             };
             header?: never;
@@ -5436,6 +5553,99 @@ export interface operations {
             };
         };
     };
+    publishRoutePolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    objective: "balanced" | "cost" | "latency";
+                };
+            };
+        };
+        responses: {
+            /** @description 已发布 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            version?: number;
+                            /** @enum {string} */
+                            objective?: "balanced" | "cost" | "latency";
+                        };
+                    };
+                };
+            };
+        };
+    };
+    rollbackRoutePolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已回滚 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            version?: number;
+                            /** @enum {string} */
+                            objective?: "balanced" | "cost" | "latency";
+                        };
+                    };
+                };
+            };
+        };
+    };
+    previewRoute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    alias: string;
+                    model: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 试算结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            version?: number;
+                            /** @enum {string} */
+                            objective?: "balanced" | "cost" | "latency";
+                            models?: string[];
+                        };
+                    };
+                };
+            };
+        };
+    };
     rotateModelKey: {
         parameters: {
             query?: never;
@@ -5913,6 +6123,79 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Envelope"] & {
                         data?: components["schemas"]["DevflowExecution"];
+                    };
+                };
+            };
+        };
+    };
+    runDevflowPipeline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    env: "staging" | "prod";
+                };
+            };
+        };
+        responses: {
+            /** @description 流水线已请求；仅已通过审批的精确提交可执行 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DevflowExecution"];
+                    };
+                };
+            };
+        };
+    };
+    executeTrustedDevflowPipeline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: components["parameters"]["DevflowJobId"];
+                action: "context" | "prepare" | "ready" | "complete" | "status";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    env: "staging" | "prod";
+                    sha?: string;
+                    image?: string;
+                    gateRunId?: string;
+                    /** Format: uri */
+                    runUrl?: string;
+                    /** @enum {string} */
+                    status?: "RUNNING" | "SUCCEEDED" | "FAILED";
+                    message?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 可信流水线步骤结果；context 含候选文件与可见用例，不含隐藏内容 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            [key: string]: unknown;
+                        };
                     };
                 };
             };

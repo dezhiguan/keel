@@ -13,6 +13,30 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.*;
 
 class MetaAgentRulesTest {
+    @Test void reviewSessionCanAutoRepairSeveralCommitsButStopsAtItsCeiling() throws Exception {
+        var json = new ObjectMapper();
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree("""
+                {"sandboxAttemptCeiling":12,"sandboxStatus":"FAILED","sandboxAttempts":[{},{},{},{},{},{},{},{}]}
+                """);
+        assertThat(MetaAgentExecution.sandboxAttemptLimit(state)).isEqualTo(12);
+        assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(state)).isFalse();
+        for (int i = 0; i < 4; i++) state.withArray("sandboxAttempts").addObject();
+        assertThat(MetaAgentExecution.sandboxLimitBlocksRetry(state)).isTrue();
+    }
+    @Test void pipelineRequiresExactReviewedCandidateAndH4ForProd() throws Exception {
+        var json = new ObjectMapper();
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree("""
+                {"phase":"STAGING_READY","sandboxStatus":"PASS","delivery":{"sha":"abc"},
+                 "humanReview":{"approved":true,"headSha":"abc"},"modelReview":{"approved":true,"sha":"abc"}}
+                """);
+        assertThatCode(() -> MetaAgentExecution.validatePipelineState(state, "staging")).doesNotThrowAnyException();
+        assertThatThrownBy(() -> MetaAgentExecution.validatePipelineState(state, "prod")).isInstanceOf(KeelException.class);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("humanReview")).put("headSha", "stale");
+        assertThatThrownBy(() -> MetaAgentExecution.validatePipelineState(state, "staging")).isInstanceOf(KeelException.class);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("humanReview")).put("headSha", "abc");
+        state.put("phase", "RELEASING").put("mergeSha", "a".repeat(40));
+        assertThatCode(() -> MetaAgentExecution.validatePipelineState(state, "prod")).doesNotThrowAnyException();
+    }
     @Test void infrastructureRefreshHasItsOwnBoundedCounter() {
         assertThat(MetaAgentExecution.canRefreshInfrastructure(0)).isTrue();
         assertThat(MetaAgentExecution.canRefreshInfrastructure(1)).isTrue();

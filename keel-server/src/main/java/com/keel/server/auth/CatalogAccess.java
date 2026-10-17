@@ -5,6 +5,10 @@ public final class CatalogAccess {
     private CatalogAccess() {}
 
     public static boolean serviceAccessible(String method, String uri) {
+        if (uri != null && (("GET".equals(method) && uri.matches("/api/v1/devflow/holdout/DF-[0-9]+"))
+                || ("POST".equals(method) && (uri.equals("/api/v1/devflow/holdout-results")
+                    || uri.matches("/api/v1/devflow/ci/jobs/DF-[0-9]+/(context|prepare|ready|complete|status)")))))
+            return true;
         return readable(method, uri) || ("POST".equals(method) && uri != null
                 && uri.matches("/api/v1/tools/[a-z][a-z0-9.-]+/invoke"))
                 || ("GET".equals(method) && uri != null

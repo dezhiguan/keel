@@ -104,6 +104,8 @@ spec:
               value: http://keel-server.keel-system.svc.cluster.local:8080
             - name: KEEL_SERVICE_AUDIENCE
               value: keel-server
+            - name: KEEL_CI_CLIENT_ID
+              value: keel-devflow-ci
             - name: KEEL_GIT_CI_URL
               value: http://git-ci.keel-system.svc.cluster.local:8000
             - name: KEEL_SANDBOX_IMAGE

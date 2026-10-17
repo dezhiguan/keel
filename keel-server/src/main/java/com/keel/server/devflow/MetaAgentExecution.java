@@ -283,6 +283,72 @@ public class MetaAgentExecution {
         }
     }
 
+    public ObjectNode runPipeline(String id, String env) {
+        requireAdmin();
+        return tx.execute(status -> {
+            var state = lock(id);
+            validatePipelineState(state, env);
+            var previous = state.path("pipeline");
+            if (env.equals(previous.path("env").asText())
+                    && Set.of("DISPATCHED", "RUNNING").contains(previous.path("status").asText())
+                    && previous.path("startedAt").asText().compareTo(Instant.now().minusSeconds(1800).toString()) > 0)
+                return publicState(state);
+            git.dispatchPipeline(id, env);
+            state.putObject("pipeline").put("env", env).put("status", "DISPATCHED")
+                    .put("startedAt", Instant.now().toString());
+            save(id, state, "GATE");
+            return publicState(state);
+        });
+    }
+
+    public ObjectNode pipelineContext(String id, String env, boolean includeSnapshot) {
+        var state = stateInternal(id);
+        validatePipelineState(state, env);
+        var sha = "prod".equals(env) ? state.path("mergeSha").asText() : state.path("delivery").path("sha").asText();
+        var repo = state.path("delivery").path("repo").asText().replaceFirst("^[^/]+/", "");
+        var result = json.createObjectNode().put("jobId", id).put("env", env).put("sha", sha);
+        if (includeSnapshot) result.set("snapshot", read(git.fetch(id, repo, sha)));
+        var manifest = (ObjectNode) state.path("draft").path("manifest").deepCopy();
+        var name = manifest.path("metadata").path("name").asText();
+        ((ObjectNode) manifest.path("spec").path("runtime"))
+                .put("endpoint", "http://" + name + "-" + env + ".agents.svc.cluster.local:8000");
+        result.put("agent", name);
+        result.set("manifest", manifest);
+        result.set("visibleSeeds", state.path("visibleSeeds"));
+        result.set("prodGate", state.path("prodGate"));
+        return result;
+    }
+
+    static void validatePipelineState(JsonNode state, String env) {
+        if (state == null || !state.isObject()) throw invalid("任务没有可信执行状态");
+        boolean staging = "staging".equals(env) && Set.of("STAGING_READY", "STAGING_GATE_PASSED")
+                .contains(state.path("phase").asText());
+        boolean prod = "prod".equals(env) && "RELEASING".equals(state.path("phase").asText())
+                && state.path("mergeSha").asText().matches("[0-9a-f]{40}");
+        if ((!staging && !prod) || !"PASS".equals(state.path("sandboxStatus").asText())
+                || !state.path("humanReview").path("approved").asBoolean(false)
+                || !state.path("modelReview").path("approved").asBoolean(false)
+                || !state.path("delivery").path("sha").asText().equals(state.path("humanReview").path("headSha").asText())
+                || !state.path("delivery").path("sha").asText().equals(state.path("modelReview").path("sha").asText()))
+            throw invalid("流水线必须绑定通过 S4/H3 的候选，prod 还须完成 H4 合并");
+    }
+
+    public ObjectNode recordPipelineStatus(String id, String env, String sha, String runUrl, String status, String message) {
+        return tx.execute(transaction -> {
+            var state = lock(id);
+            var expected = "prod".equals(env) ? state.path("mergeSha").asText() : state.path("delivery").path("sha").asText();
+            if (!Set.of("staging", "prod").contains(env) || !expected.equals(sha)
+                    || !Set.of("RUNNING", "SUCCEEDED", "FAILED").contains(status)
+                    || !runUrl.matches("https://github.com/[A-Za-z0-9_.-]+/keel/actions/runs/[0-9]+"))
+                throw invalid("流水线回报与候选提交不一致");
+            state.putObject("pipeline").put("env", env).put("sha", sha).put("status", status)
+                    .put("runUrl", runUrl).put("startedAt", Instant.now().toString())
+                    .put("message", message == null ? "" : message.substring(0, Math.min(1000, message.length())));
+            save(id, state, "GATE");
+            return publicState(state);
+        });
+    }
+
     static void validateReviewChecks(JsonNode report) {
         for (var check : List.of("modelAccess", "toolAuthorization", "audit", "visibleCaseOverfit",
                 "releaseApproval", "behaviorTests", "hardcodedPrompt")) {
@@ -380,6 +446,9 @@ public class MetaAgentExecution {
                           AND subject_type='tool.call' AND subject_ref='git.pr.merge' AND status='APPROVED')
                     """, Boolean.class, ApprovalPolicyEngine.parseId(state.path("h4ApprovalId").asText()), result.jobId());
             if (!Boolean.TRUE.equals(h4)) throw invalid("H4 审批证据已失效");
+            if (!DeploymentEvidence.ready(cluster, state.path("requirement").path("target_agent").asText(),
+                    "prod", result.sha(), result.image()))
+                throw invalid("prod 实测 Deployment 未就绪或与合并提交镜像不一致");
             var hidden = jdbc.query("SELECT passed, score FROM devflow_holdout_result WHERE job_id=?",
                     (rs, row) -> new Object[]{rs.getBoolean(1), rs.getDouble(2)}, result.jobId());
             if (hidden.size() != 1 || !Boolean.TRUE.equals(hidden.getFirst()[0])) throw invalid("prod 隐藏考题尚未通过");
@@ -673,6 +742,13 @@ public class MetaAgentExecution {
                 if (infrastructureOnly) state.put("infrastructureRefreshes", refreshes + 1);
                 else if (s4Repair) state.put("s4RepairRounds", 1);
                 else if (!ciRefresh && !sdkRepair) state.put("reviewRepairRounds", reviewRepairs + 1);
+                if (s4Repair || (!infrastructureOnly && !ciRefresh && !sdkRepair)) {
+                    int ceiling = Math.min(20, attempt + 4);
+                    state.put("sandboxAttemptCeiling", ceiling);
+                    repair.put("maxAttempts", ceiling);
+                    if (modelReview.path("approved").isBoolean() && !modelReview.path("approved").asBoolean())
+                        repair.put("report", modelReview.path("findings").toString());
+                }
                 state.remove(List.of("humanReview", "modelReview", "modelReviewTraceId", "sandboxStatus", "sandboxRunId"));
                 state.put("phase", "QUEUED");
                 save(id, state, "DELIVER");
@@ -684,6 +760,9 @@ public class MetaAgentExecution {
                 return publicState(state);
             }
             if (!"FAILED".equals(state.path("phase").asText())) throw invalid("只有失败的执行可以重试");
+            if (!state.has("sandboxAttemptCeiling") && (state.path("repair").path("reviewRepair").asBoolean(false)
+                    || state.path("repair").path("s4Repair").asBoolean(false)))
+                state.put("sandboxAttemptCeiling", Math.min(20, state.path("repair").path("attempt").asInt() + 4));
             if (canRetryTrustedContract(state) && git != null) {
                 int completed = state.path("sandboxAttempts").size();
                 var last = state.path("sandboxAttempts").get(completed - 1);
@@ -736,7 +815,8 @@ public class MetaAgentExecution {
                     var previous = previousCandidate(json, read(git.fetch(id, repo, sha)));
                     var repair = state.putObject("repair");
                     repair.put("attempt", completed + 1).put("failedSha", sha).put("report", last.path("report").asText())
-                            .put("templateRefreshes", state.path("infrastructureRefreshes").asInt(0));
+                            .put("templateRefreshes", state.path("infrastructureRefreshes").asInt(0))
+                            .put("maxAttempts", sandboxAttemptLimit(state));
                     repair.set("previousCandidate", previous);
                 }
             }
@@ -832,6 +912,7 @@ public class MetaAgentExecution {
                             if (passed) {
                                 state.put("phase", "WAITING_REVIEW");
                                 state.remove("repair");
+                                state.remove("sandboxAttemptCeiling");
                                 save(id, state, "DELIVER");
                                 jobs.progress(id, "WAIT", "REVIEW", "第 " + attempt + " 轮沙箱通过，等待 code-review 与人工 PR review");
                             } else if (repairableSandbox(run.status(), run.report(), sha, attempt,
@@ -841,7 +922,8 @@ public class MetaAgentExecution {
                                 var previous = previousCandidate(json, snapshot);
                                 var repair = state.putObject("repair");
                                 repair.put("attempt", attempt + 1).put("failedSha", sha).put("report", run.report())
-                                        .put("templateRefreshes", state.path("infrastructureRefreshes").asInt(0));
+                                        .put("templateRefreshes", state.path("infrastructureRefreshes").asInt(0))
+                                        .put("maxAttempts", sandboxAttemptLimit(state));
                                 repair.set("previousCandidate", previous);
                                 state.put("phase", "QUEUED");
                                 save(id, state, "DELIVER");
@@ -880,7 +962,8 @@ public class MetaAgentExecution {
     }
 
     static int sandboxAttemptLimit(JsonNode state) {
-        return 5 + Math.min(2, Math.max(0, state.path("infrastructureRefreshes").asInt(0)));
+        return Math.max(5 + Math.min(2, Math.max(0, state.path("infrastructureRefreshes").asInt(0))),
+                Math.min(20, state.path("sandboxAttemptCeiling").asInt(0)));
     }
 
     static boolean canRetryTrustedContract(JsonNode state) {
@@ -927,6 +1010,8 @@ public class MetaAgentExecution {
     }
 
     static boolean sandboxLimitBlocksRetry(JsonNode state) {
+        if (state.has("sandboxAttemptCeiling")) return "FAILED".equals(state.path("sandboxStatus").asText())
+                && state.path("sandboxAttempts").size() >= sandboxAttemptLimit(state);
         if (state.path("repair").path("s4Repair").asBoolean(false)) {
             return "FAILED".equals(state.path("sandboxStatus").asText())
                     && state.path("sandboxAttempts").size() >= sandboxAttemptLimit(state);
@@ -1030,6 +1115,11 @@ public class MetaAgentExecution {
 
     private ObjectNode publicState(ObjectNode state) {
         var result = state.deepCopy();
+        int limit = sandboxAttemptLimit(state);
+        if (!state.has("sandboxAttemptCeiling") && (state.path("repair").path("reviewRepair").asBoolean(false)
+                || state.path("repair").path("s4Repair").asBoolean(false)))
+            limit = Math.max(limit, Math.min(20, state.path("repair").path("attempt").asInt() + 4));
+        result.put("sandboxAttemptLimit", limit);
         result.remove(List.of("catalog", "feedback", "confirmedVersion", "humanSeeds", "evalDraft", "repair"));
         if (state.has("acceptedAgentCount")) {
             var grants = jdbc.query("SELECT tool_name, version_range, granted_by FROM devflow_tool_grant WHERE job_id=? ORDER BY tool_name",

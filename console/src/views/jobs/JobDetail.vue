@@ -6,6 +6,7 @@ import {
   approveDevflowToolGrant,
   refreshDevflowHumanReview,
   runDevflowCodeReview,
+  runDevflowPipeline,
   requestDevflowH4,
   refreshDevflowH4,
   assistDevflowJob,
@@ -73,6 +74,7 @@ const canCancelCurrentJob = computed(() => {
 })
 const canRetryCurrentExecution = computed(() => {
   if (execution.value?.phase !== 'FAILED') return false
+  if (execution.value.sandboxAttemptLimit && (execution.value.sandboxAttempts?.length ?? 0) < execution.value.sandboxAttemptLimit) return true
   const attempts = execution.value.sandboxAttempts ?? []
   const last = attempts[attempts.length - 1]
   const refreshes = Math.min(2, Math.max(0, execution.value.infrastructureRefreshes ?? 0))
@@ -161,6 +163,13 @@ async function codeReview() {
 async function requestH4() {
   busy.value = true
   try { execution.value = await requestDevflowH4(jobId.value); await load(true) }
+  catch (error) { ElMessage.error(toKeelError(error).message) }
+  finally { busy.value = false }
+}
+
+async function pipeline(env: 'staging' | 'prod') {
+  busy.value = true
+  try { execution.value = await runDevflowPipeline(jobId.value, env); await load(true) }
   catch (error) { ElMessage.error(toKeelError(error).message) }
   finally { busy.value = false }
 }
@@ -281,6 +290,7 @@ onUnmounted(() => {
           </div>
           <div v-if="execution.sandboxAttempts?.length" class="card">
             <h3>隔离沙箱验证记录 · {{ execution.sandboxAttempts.length }} 次</h3>
+            <p v-if="execution.sandboxAttemptLimit" class="mut">当前修复窗口最多执行到第 {{ execution.sandboxAttemptLimit }} 次验证；每轮均验证新提交。</p>
             <p class="mut">岗位代码沙箱修正最多 5 轮；平台模板刷新 {{ execution.infrastructureRefreshes ?? 0 }}/2 次；评审阶段功能修复 {{ execution.reviewRepairRounds ?? 0 }}/1 次；候选 CI 修复 {{ (execution.sandboxAttempts?.length ?? 0) >= 11 || ((execution.s4RepairRounds ? (execution.sandboxAttempts?.length ?? 0) >= 10 : (execution.sandboxAttempts?.length ?? 0) >= 9)) ? 1 : 0 }}/1 次；S4 专项修复 {{ execution.s4RepairRounds ?? 0 }}/1 次；SDK 契约修复 {{ (execution.sandboxAttempts?.length ?? 0) >= 11 ? 1 : 0 }}/1 次。每次均重新验证提交。</p>
             <div v-for="attempt in execution.sandboxAttempts" :key="attempt.runId" class="kv">
               <span>第 {{ attempt.attempt }} 轮</span><b>{{ attempt.status === 'PASS' ? '通过' : '失败' }} · {{ attempt.runId }}</b>
@@ -306,6 +316,18 @@ onUnmounted(() => {
             <template v-for="(finding, index) in execution.modelReview.findings" :key="index">
               <span>{{ finding.severity }} · {{ finding.path }}:{{ finding.line }}</span><span>{{ finding.detail }}</span>
             </template>
+          </div>
+          <div v-if="execution.phase === 'STAGING_READY' || execution.phase === 'RELEASING' || execution.pipeline" class="kv">
+            <span>可信部署流水线</span>
+            <span v-if="execution.pipeline">
+              {{ execution.pipeline.env }} · {{ execution.pipeline.status }}
+              <a v-if="execution.pipeline.runUrl" :href="execution.pipeline.runUrl" target="_blank" rel="noreferrer">查看 CI →</a>
+              {{ execution.pipeline.message }}
+            </span>
+            <span v-else>尚未运行</span>
+            <span v-if="execution.phase === 'STAGING_READY' || execution.phase === 'RELEASING'">执行</span>
+            <button v-if="execution.phase === 'STAGING_READY'" v-write class="btn sm" :disabled="busy || ['DISPATCHED', 'RUNNING'].includes(execution.pipeline?.status || '')" @click="pipeline('staging')">运行 staging 部署与门禁</button>
+            <button v-if="execution.phase === 'RELEASING'" v-write class="btn sm" :disabled="busy || ['DISPATCHED', 'RUNNING'].includes(execution.pipeline?.status || '')" @click="pipeline('prod')">运行 prod 门禁并发布</button>
           </div>
           <div v-if="execution.gate" class="kv">
             <span>staging 门禁</span><span>{{ execution.gate.passed ? '通过' : '未通过' }} · {{ execution.gate.runId }}</span>

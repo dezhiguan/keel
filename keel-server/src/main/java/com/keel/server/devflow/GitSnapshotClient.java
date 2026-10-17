@@ -141,4 +141,19 @@ public class GitSnapshotClient {
             throw new KeelException(ErrorCode.GIT_UPSTREAM_FAILED, "受保护 PR 合并服务不可达");
         }
     }
+
+    public void dispatchPipeline(String jobId, String env) {
+        try {
+            var body = json.writeValueAsString(Map.of("repo", "keel", "workflow", "devflow-pipeline.yml",
+                    "ref", "main", "inputs", Map.of("job_id", jobId, "environment", env)));
+            var request = HttpRequest.newBuilder(URI.create(base.replaceAll("/$", "") + "/v1/tools/ci.workflow.dispatch"))
+                    .timeout(Duration.ofSeconds(30)).header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + token)
+                    .POST(HttpRequest.BodyPublishers.ofString(body)).build();
+            if (http.send(request, HttpResponse.BodyHandlers.discarding()).statusCode() != 200)
+                throw new IllegalStateException("dispatch rejected");
+        } catch (Exception error) {
+            throw new KeelException(ErrorCode.GIT_UPSTREAM_FAILED, "可信部署流水线启动失败");
+        }
+    }
 }

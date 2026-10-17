@@ -18,6 +18,16 @@ public class PromptCatalog {
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper json = new ObjectMapper();
+    @org.springframework.beans.factory.annotation.Value("${keel.ci.client-id:}")
+    private String ciClient = "";
+
+    private Actor actor() {
+        var principal = com.keel.server.auth.ConsolePrincipal.current();
+        if (principal != null && "SERVICE".equals(principal.mode()) && !ciClient.isBlank()
+                && ciClient.equals(principal.username()))
+            return new Actor(principal.username(), "", "ADMIN");
+        return Actor.current();
+    }
 
     public PromptCatalog(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
@@ -44,7 +54,7 @@ public class PromptCatalog {
     }
 
     public List<Item> declared(String agentFilter) {
-        return declared(agentFilter, Actor.current());
+        return declared(agentFilter, actor());
     }
 
     /** Background drift scans have no console request and must inspect every organization. */
@@ -94,7 +104,7 @@ public class PromptCatalog {
     }
 
     public void authorize(String agent) {
-        var actor = Actor.current();
+        var actor = actor();
         if (actor.admin()) {
             if (ownerOrg(agent) == null) {
                 throw new KeelException(ErrorCode.SERVER_NOT_FOUND, ErrorCode.SERVER_NOT_FOUND.message());
@@ -113,7 +123,7 @@ public class PromptCatalog {
     }
 
     private boolean visible(String ownerOrg) {
-        var actor = Actor.current();
+        var actor = actor();
         return actor.admin() || actor.org().equals(ownerOrg);
     }
 
