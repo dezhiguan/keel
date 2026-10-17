@@ -35,6 +35,12 @@ class Tools:
         self.overrides = overrides or {}
 
     async def call(self, name, **kwargs):
+        if name in {"ci.log.fetch", "git.pr.diff"}:
+            assert isinstance(kwargs.get("repo"), str) and kwargs["repo"].strip(), "repo must be a slug string"
+        if name == "git.pr.diff":
+            assert type(kwargs.get("number")) is int and kwargs["number"] > 0, "PR number must be a positive integer"
+        if name == "ci.log.fetch":
+            assert isinstance(kwargs.get("runId"), str) and kwargs["runId"].strip(), "runId must be a nonempty string"
         values = {
             "ci.log.fetch": {"log": "CI completed successfully; tests passed", "logsUnavailable": False},
             "git.pr.diff": {"diff": "diff --git a/role.py b/role.py\n+validated", "number": kwargs.get("number")},

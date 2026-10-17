@@ -10,8 +10,8 @@ from roles import ROLES
 
 GENERAL_TEMPLATES = {"tool-agent", "chat-rag", "graph-agent", "supervisor"}
 TOOL_CONTRACTS = {
-    "ci.log.fetch": {"kwargs": ["repo", "runId"], "returns": "dict: log (text), logsUnavailable (optional bool); repo is a keel-agents repository slug"},
-    "git.pr.diff": {"kwargs": ["repo", "number"], "returns": "dict: diff (text), number"},
+    "ci.log.fetch": {"kwargs": ["repo", "runId"], "types": {"repo": "repository slug string", "runId": "nonempty string (not int)"}, "returns": "dict: log (text), logsUnavailable (optional bool); repo is a keel-agents repository slug"},
+    "git.pr.diff": {"kwargs": ["repo", "number"], "types": {"repo": "repository slug string", "number": "positive int, not str or bool; cast extracted PR digits with int()"}, "returns": "dict: diff (text), number"},
     "devflow.job.read": {"kwargs": ["jobId"], "returns": "list of job records; empty list means no evidence"},
     "devflow.batch.read": {"kwargs": ["batchId"], "returns": "list of batch records; empty list means no evidence"},
     "devflow.catalog.search": {"kwargs": ["query"], "returns": "list of tool catalog records"},
@@ -41,6 +41,8 @@ async def generate(work: dict, ctx) -> dict:
         "只返回 JSON 对象，含 role.py、prompts/role.md 与 tests/test_role.py 三个 UTF-8 文件："
         '{"files":[{"path":"role.py","content":"..."},{"path":"prompts/role.md","content":"..."},'
         '{"path":"tests/test_role.py","content":"..."}]}。'
+        "保持实现紧凑：重复的阻塞结果用小函数构造，避免反复复制完整输出字典；"
+        "保留岗位正常路径、拒绝路径和必要回归测试，三个文件尽量控制在 12000 字符内。"
         f"岗位 {name}，模板 {role}，职责：{purpose}\n"
         f"人工 H1 已确认的需求：{json.dumps(confirmed, ensure_ascii=False)}\n"
         f"已选工具：{json.dumps(requirement.get('tools') or [], ensure_ascii=False)}。"
