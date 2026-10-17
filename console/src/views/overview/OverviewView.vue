@@ -228,7 +228,7 @@ watch([() => envStore.env, range], () => {
           <tr v-for="agent in rows" :key="agent.name" class="click" @click="open(agent.name)">
             <td><AgentName :id="agent.name" :display-name="agent.displayName" /></td>
             <td>
-              <span v-if="agentType(agent) === 'meta'" class="pill nd p-acc">元智能体</span>
+              <span v-if="agentType(agent) === 'meta'" class="pill nd p-warn">元智能体</span>
               <span v-else-if="agentType(agent) === 'biz'" class="pill nd p-teal">业务</span>
               <span v-else-if="agentType(agent) === 'dev'" class="pill nd p-acc">研发</span>
               <span v-else class="mut">—</span>
