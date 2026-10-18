@@ -537,7 +537,8 @@ def test_repair_patch_preserves_unchanged_files_and_requires_unique_anchors():
             expand_repair_edits(json.dumps({"edits": [edit]}), previous)
 
 
-def test_repair_review_rejects_partial_fix_before_returning_candidate():
+@pytest.mark.parametrize("with_feedback", [True, False])
+def test_repair_review_rejects_partial_fix_before_returning_candidate(with_feedback):
     previous = {"files": [{"path": "role.py", "content": ROLE_CODE},
         {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
         {"path": "tests/test_role.py", "content": TEST_CODE}]}
@@ -556,6 +557,8 @@ def test_repair_review_rejects_partial_fix_before_returning_candidate():
         "repair": {"attempt": 2, "previousCandidate": previous,
                    "feedback": "补充信任边界", "report": "UNTRUSTED_OLD_REPORT"},
         "hiddenSeeds": [{"secret": "MUST_NOT_REACH_REVIEW"}]}
+    if not with_feedback:
+        del work["repair"]["feedback"]
     result = asyncio.run(generate(work, type("Ctx", (), {"llm": Model()})()))
     assert result == corrected
     assert len(calls) == 4
@@ -565,7 +568,7 @@ def test_repair_review_rejects_partial_fix_before_returning_candidate():
         encoded = json.dumps(calls[index], ensure_ascii=False)
         assert "UNTRUSTED_OLD_REPORT" not in encoded
         assert "MUST_NOT_REACH_REVIEW" not in encoded
-        assert "补充信任边界" in calls[index][0]["content"]
+        assert ("补充信任边界" if with_feedback else "无额外澄清，遵循H1") in calls[index][0]["content"]
         assert "candidate" in json.loads(calls[index][1]["content"])
 
 

@@ -80,6 +80,8 @@ def test_failed_candidate_is_repaired_and_conditionally_pushed(tmp_path, monkeyp
 
         async def chat(self, messages, **kwargs):
             self.prompts.append(messages)
+            if messages[0]["content"].startswith("你是Keel修复一致性复核器"):
+                return json.dumps({"approved": True, "findings": []})
             return json.dumps(candidate(True))
 
     model = Model()
@@ -90,6 +92,8 @@ def test_failed_candidate_is_repaired_and_conditionally_pushed(tmp_path, monkeyp
     assert "snapshot=ok tests=FAIL" in model.prompts[0][1]["content"]
     assert "不可信数据" in model.prompts[0][0]["content"]
     assert "受信 agent.yaml 工具定义" in model.prompts[0][0]["content"]
+    assert len(model.prompts) == 2
+    assert "修复一致性复核器" in model.prompts[1][0]["content"]
     second = _deliver(work(corrected, repair))
     assert second["sha"] == SHA_B
     assert pushes[1]["expectedSha"] == SHA_A
