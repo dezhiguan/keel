@@ -524,7 +524,7 @@ watch(name, async (agent) => {
             <button v-write class="btn pri" type="button" :disabled="canStop || !draft.trim()" @click="sendChat">发送</button>
             <button class="btn" type="button" :disabled="!canStop" @click="stop">停止</button>
           </div>
-          <div class="hint">三栏都是滚动分页：会话列表滚到底加载下一页，对话和事件滚到顶加载更早的（每页会话 10 个、消息 10 条、事件 20 条）。调试是真实调用，消耗日预算，并写入链路和审计。</div>
+          <div class="hint">三栏都是滚动分页：会话列表滚到底加载下一页，对话和事件滚到顶加载更早的（接口按游标分页，每页会话 10 个、消息 10 条、事件 20 条）。调试是真实调用，消耗日预算，并写入链路和审计。</div>
         </div>
 
         <div class="card">
@@ -654,12 +654,15 @@ watch(name, async (agent) => {
   min-height: 0;
   display: grid;
   grid-template-columns: 230px minmax(0, 1fr) 270px;
+  grid-template-rows: minmax(0, 1fr);
   gap: 14px;
   overflow: hidden;
 }
 .dbg .card {
+  box-sizing: border-box;
   margin: 0;
   height: 100%;
+  max-height: 100%;
   display: flex;
   flex-direction: column;
   min-height: 0;

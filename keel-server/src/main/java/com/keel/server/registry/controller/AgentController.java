@@ -1,6 +1,8 @@
 package com.keel.server.registry.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.keel.server.common.ApiError;
+import com.keel.server.common.KeelException;
 import com.keel.server.common.PageResult;
 import com.keel.server.common.R;
 import com.keel.server.evaluation.EvalJobs;
@@ -124,9 +126,28 @@ public class AgentController {
         var sessionId = body.path("sessionId").asText("");
         var owner = sessions.requireOwner();
         var remember = request.getHeader("X-Keel-Eval-Run") == null;
-        chats.prepareStream(name, text, sessionId, owner, remember);
+        try {
+            chats.prepareStream(name, text, sessionId, owner, remember);
+        } catch (KeelException error) {
+            // produces 锁在 text/event-stream 时，异常体写成 JSON 会被内容协商丢掉，浏览器只能看到空的 500。
+            response.setStatus(error.code().http());
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            byte[] bytes;
+            try {
+                bytes = json.writeValueAsBytes(ApiError.of(error.code(), error.getMessage()));
+            } catch (com.fasterxml.jackson.core.JsonProcessingException failed) {
+                bytes = "{\"code\":\"SERVER_INTERNAL_ERROR\",\"message\":\"调用失败\",\"retryable\":true}"
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            }
+            var payload = bytes;
+            return output -> {
+                output.write(payload);
+                output.flush();
+            };
+        }
         response.setHeader("Cache-Control", "no-cache");
         response.setHeader("X-Accel-Buffering", "no");
+        response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
         return output -> {
             try {
                 chats.streamChat(name, text, sessionId, owner, remember, output);
