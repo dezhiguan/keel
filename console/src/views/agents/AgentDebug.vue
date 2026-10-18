@@ -648,6 +648,7 @@ watch(name, async (agent) => {
   overflow: hidden;
 }
 .pv .vh { margin-bottom: 14px; flex-shrink: 0; }
+/* Fill the main pane so the composer and delete button stay inside the columns. */
 .dbg {
   flex: 1;
   min-height: 0;

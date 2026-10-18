@@ -157,7 +157,7 @@ class LlmClient:
             return ChatResult(reply, tuple(calls))
 
     async def _stream(self, model: str, messages: list[dict], options: dict):
-        """Read the gateway SSE and emit each content delta before the call returns."""
+        """Read the gateway SSE and emit each content delta before the call returns. """
         stream_options = {**options, "stream": True, "stream_options": {"include_usage": True}}
         try:
             stream = await self.client.chat.completions.create(
