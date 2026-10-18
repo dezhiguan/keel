@@ -12,7 +12,7 @@ GENERAL_TEMPLATES = {"tool-agent", "chat-rag", "graph-agent", "supervisor"}
 TOOL_CONTRACTS = {
     "ci.log.fetch": {"kwargs": ["repo", "runId"], "types": {"repo": "repository slug string", "runId": "nonempty string (not int)"}, "returns": "dict: log (text), logsUnavailable (optional bool); repo is a keel-agents repository slug"},
     "git.pr.diff": {"kwargs": ["repo", "number"], "types": {"repo": "repository slug string", "number": "positive int, not str or bool; cast extracted PR digits with int()"}, "returns": "dict: diff (text), number"},
-    "devflow.job.read": {"kwargs": ["jobId"], "returns": "list of job records; empty list means no evidence"},
+    "devflow.job.read": {"kwargs": ["jobId"], "returns": "list of job records; empty list means no evidence; jobId is uppercase DF-<digits>, extracted case-insensitively and normalized with upper() before the call and before comparing returned id or jobId"},
     "devflow.batch.read": {"kwargs": ["batchId"], "returns": "list of batch records; empty list means no evidence"},
     "devflow.catalog.search": {"kwargs": ["query"], "returns": "list[dict], JSON dictionaries (not SDK objects): name, access (READ/WRITE/EXEC), risk (LOW/MID/HIGH), description; read with item.get('access')/item.get('risk'), never getattr(item,...); query='' lists the catalog; normalize enum case when comparing"},
     "keel.gate.report.read": {"kwargs": ["jobId"], "returns": "list of gate report artifact metadata (sha256/ref), not a PASS verdict"},
@@ -135,8 +135,13 @@ async def generate(work: dict, ctx) -> dict:
         "ctx.llm.chat 返回字符串；断言须符合 execute 实际返回的完整结构，"
         "有额外字段时只断言必要字段，不要把完整结果强行等同于只有 decision 的字典。"
         "另加模型明确返回 BLOCKED 且解释含 PASS 的测试，并断言最终仍为 BLOCKED。"
-        "正则表达式的原始字符串里，\\d、\\s、\\w 只写一个反斜杠；"
-        "例如 r\"DF-\\d+\"，不要写成 r\"DF-\\\\d+\"。"
+        "正则表达式的原始字符串里，\\d、\\s、\\w 只写一个反斜杠，不要写成双反斜杠。"
+        "提取 DF-数字任务编号时，必须在同一表达式里把原文或每个匹配结果转成大写，"
+        "再作为 jobId 调用工具，并与返回记录的 id 或 jobId 比较；"
+        "大小写不同的同一编号是同一任务。只加 re.IGNORECASE 仍会把小写编号传给工具。"
+        "同一候选里新增的测试必须被这份实现满足，不能只追加期望 PASS 的用例。"
+        "编号规范化、动作级否定和必需工具各保持一处，不要为同一规则继续堆叠另一套正则。"
+        "正常的限制性查询应能查询；否定一个动作后紧接另一个肯定写操作必须 BLOCKED。"
         "Python 布尔值和空值必须写 True、False、None，不要把 JSON 的 true、false、null 写进代码。"
     )
     repair = work.get("repair")
@@ -345,6 +350,35 @@ def expand_repair_edits(raw: str, previous: dict) -> str:
                              "请逐字引用上轮快照，并加上函数名等上下文区分重复断言")
         files[path] = files[path].replace(old, new, 1)
     return json.dumps({"files": [{"path": path, "content": content} for path, content in files.items()]}, ensure_ascii=False)
+
+
+def _task_id_case_errors(tree):
+    """A DF-id regex must uppercase the text or each match in the same statement."""
+    errors = []
+    seen = set()
+    for func in ast.walk(tree):
+        if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for stmt in func.body:
+            for call in ast.walk(stmt):
+                if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+                        and isinstance(call.func.value, ast.Name) and call.func.value.id == "re"
+                        and call.func.attr in {"compile", "search", "match", "fullmatch", "findall", "finditer"}):
+                    continue
+                pattern = call.args[0] if call.args else next(
+                    (keyword.value for keyword in call.keywords if keyword.arg == "pattern"), None)
+                if not (isinstance(pattern, ast.Constant) and isinstance(pattern.value, str)
+                        and re.search(r"df-\\d", pattern.value, re.IGNORECASE)):
+                    continue
+                uses_upper = any(isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                                 and node.func.attr == "upper" for node in ast.walk(stmt))
+                if uses_upper or func.name in seen:
+                    continue
+                seen.add(func.name)
+                errors.append(
+                    f"role.py:{func.lineno} {func.name} 提取任务编号后必须在同一表达式规范为大写，"
+                    "再调用工具和比对记录；只加 re.IGNORECASE 仍会传入小写编号")
+    return errors
 
 
 def snapshot_errors(candidate: object) -> list[str]:
@@ -585,6 +619,7 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
             errors.append("多工具岗位必须通过 prompt.compile() 读取版本化岗位指令，真实input/evidence通过user消息传入")
         if llm_calls and not any("prompt" in keywords for keywords in llm_calls):
             errors.append("多工具岗位调用 ctx.llm.chat 时必须传入 prompt=prompt 记录提示词版本")
+    errors.extend(_task_id_case_errors(role))
     tests = trees["tests/test_role.py"]
     errors.extend(_shared_mock_errors(tests))
     errors.extend(_async_test_errors(tests))

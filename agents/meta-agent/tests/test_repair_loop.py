@@ -209,3 +209,13 @@ def unsafe(llm_response):
               "infrastructureOnly": True, "report": "install new trusted platform checks"}
     assert _deliver(work(old, repair))["sha"] == SHA_B
     assert "tests/test_platform_contract.py" not in {item["path"] for item in pushes[1]["files"]}
+
+
+def test_cumulative_window_accepts_twenty_five_and_rejects_twenty_six(tmp_path, monkeypatch):
+    from tools import state
+
+    monkeypatch.setattr(state, "ROOT", tmp_path)
+    with pytest.raises(Exception, match="沙箱修复窗口无效"):
+        _deliver(work(candidate(True), {"attempt": 1, "maxAttempts": 26}))
+    with pytest.raises(Exception, match="上一轮不一致"):
+        _deliver(work(candidate(True), {"attempt": 25, "maxAttempts": 25, "failedSha": "not-a-sha"}))

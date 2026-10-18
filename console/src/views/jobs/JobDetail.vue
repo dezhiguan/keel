@@ -261,7 +261,7 @@ onUnmounted(() => {
           <b>{{ execution.phase === 'WAITING_REVIEW' ? '沙箱通过 · 等待 S4 代码与人工评审' : execution.phase === 'STAGING_READY' ? 'S4 已通过 · 等待 staging 门禁' : execution.phase === 'STAGING_GATE_PASSED' ? 'staging 门禁通过 · 待申请 H4' : execution.phase === 'WAITING_H4' ? '等待 H4 合并审批' : execution.phase === 'RELEASING' ? (execution.prodGate?.passed ? 'prod 门禁通过 · 等待 CI 发布' : 'H4 已合并 · 等待 prod 门禁') : execution.phase === 'WATCHING' ? 'prod 已发布 · 七天质量与成本观察中' : execution.phase === 'DONE' ? '七天观察完成 · 数字员工已上岗' : execution.phase === 'SANDBOX_PENDING' || execution.phase === 'SANDBOX_RUNNING' ? '候选代码正在隔离沙箱验证' : execution.phase === 'WAITING_SEEDS' ? '等待人工种子用例' : execution.phase === 'WAITING_EVAL' ? '等待 H2 评测确认' : execution.phase === 'WAITING' ? '等待 H1 需求确认' : execution.phase === 'FAILED' ? '执行失败' : execution.phase === 'CANCELLED' ? '任务已取消' : '元智能体处理中' }}</b>
           <span>{{ (execution.phase === 'FAILED' && execution.error) || '元智能体生产任务；沙箱、H2/H3、人工评审、staging 门禁、H4 与发布须逐项完成。' }}</span>
           <button v-if="canRetryCurrentExecution" v-write class="btn sm" :disabled="busy" :title="execution.error?.startsWith('五轮') ? '模板刷新不占五轮岗位代码修复额度' : undefined" @click="retry">重试执行</button>
-          <button v-if="execution.runtimeAdapterUpdateAvailable" v-write class="btn sm" :disabled="busy" title="刷新可信提示词边界检查；保留岗位文件先验证，失败后在最多五轮且累计二十轮内修复，新提交重新审批" @click="retry">更新运行适配</button>
+          <button v-if="execution.runtimeAdapterUpdateAvailable" v-write class="btn sm" :disabled="busy" title="刷新可信提示词边界检查；保留岗位文件先验证，失败后在最多五轮且累计二十五轮内修复，新提交重新审批" @click="retry">更新运行适配</button>
           <button v-if="execution.repairFeedbackAvailable" v-write class="btn sm" :disabled="busy" @click="instruction = ''; modal = 'feedback'">{{ execution.repairFeedbackCreatesWindow ? '补充说明并开启新修复窗口' : '补充修复说明' }}</button>
           <button v-if="execution.phase === 'WAITING_REVIEW' && (execution.infrastructureRefreshes ?? 0) < 2" v-write class="btn sm" :disabled="busy" @click="retry">刷新候选交付</button>
           <button v-if="execution.phase === 'WAITING_REVIEW' && (execution.infrastructureRefreshes ?? 0) >= 2 && (execution.reviewRepairRounds ?? 0) < 1" v-write class="btn sm" :disabled="busy" @click="retry">修复岗位功能</button>
@@ -545,7 +545,7 @@ onUnmounted(() => {
     <div v-if="modal === 'feedback'" class="modal on" role="dialog" aria-label="补充修复说明">
       <div class="mh">补充修复说明</div>
       <div class="mb">
-        <p v-if="execution?.repairFeedbackCreatesWindow">已开启 {{ execution.manualRepairWindows ?? 0 }}/3 次人工修复窗口，累计验证 {{ execution.sandboxAttempts?.length ?? 0 }}/20 次。提交本次说明将开启最多 {{ Math.min(5, 20 - (execution.sandboxAttempts?.length ?? 0)) }} 轮的新窗口，保留全部历史记录。新提交仍须重新测试和审批。</p>
+        <p v-if="execution?.repairFeedbackCreatesWindow">已开启 {{ execution.manualRepairWindows ?? 0 }}/4 次人工修复窗口，累计验证 {{ execution.sandboxAttempts?.length ?? 0 }}/25 次。提交本次说明将开启最多 {{ Math.min(5, 25 - (execution.sandboxAttempts?.length ?? 0)) }} 轮的新窗口，保留全部历史记录。新提交仍须重新测试和审批。</p>
         <p v-else>在现有修复窗口内继续生成，新提交需要重新测试和审批。</p>
         <label>明确需要修正的行为或业务含义</label>
         <textarea v-model="instruction" class="inp" maxlength="8000" placeholder="说明实际结果、期望行为及需要保留的要求" />

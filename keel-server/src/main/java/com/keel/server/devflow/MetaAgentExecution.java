@@ -37,6 +37,8 @@ public class MetaAgentExecution {
             "dev-lead", "supervisor", "spec-agent", "graph-agent", "dev-agent", "graph-agent",
             "eval-agent", "tool-agent", "code-review", "tool-agent", "ci-doctor", "tool-agent",
             "release-agent", "tool-agent");
+    static final int SANDBOX_ATTEMPT_CAP = 25;
+    static final int MANUAL_REPAIR_WINDOW_CAP = 4;
     private static final Set<String> GENERAL_TEMPLATES = Set.of("tool-agent", "chat-rag", "graph-agent", "supervisor");
     private static final Set<String> GENERAL_RUNTIME_TOOLS = Set.of(
             "devflow.job.read", "devflow.batch.read", "devflow.catalog.search",
@@ -743,7 +745,7 @@ public class MetaAgentExecution {
                 state.set("repair", repair);
                 if (newWindow) {
                     state.put("manualRepairWindows", state.path("manualRepairWindows").asInt(0) + 1);
-                    repair.put("maxAttempts", Math.min(20, state.path("sandboxAttempts").size() + 5));
+                    repair.put("maxAttempts", Math.min(SANDBOX_ATTEMPT_CAP, state.path("sandboxAttempts").size() + 5));
                 }
                 repair.put("attempt", state.path("sandboxAttempts").size() + 1).put("failedSha", sha)
                         .put("infrastructureOnly", false).put("feedback", feedback.trim())
@@ -756,7 +758,7 @@ public class MetaAgentExecution {
                 jobs.progress(id, "QUEUED", "BUILD", newWindow ? "开发者补充澄清并主动开启第 "
                         + state.path("manualRepairWindows").asInt() + " 次人工修复窗口，本次最多 "
                         + (repair.path("maxAttempts").asInt() - state.path("sandboxAttempts").size())
-                        + " 轮，累计验证仍不超过二十次" : "开发者已补充修复说明，在原有额度内继续生成并重新验证审批");
+                        + " 轮，累计验证仍不超过二十五次" : "开发者已补充修复说明，在原有额度内继续生成并重新验证审批");
                 return publicState(state);
             }
             if (canRefreshRuntimeAdapter(state)) {
@@ -766,7 +768,7 @@ public class MetaAgentExecution {
                 int attempt = state.path("sandboxAttempts").size() + 1;
                 var previous = previousCandidate(json, read(git.fetch(id, repo, sha)));
                 var repair = state.putObject("repair").put("attempt", attempt).put("failedSha", sha)
-                        .put("infrastructureOnly", true).put("maxAttempts", Math.min(20, attempt + 4))
+                        .put("infrastructureOnly", true).put("maxAttempts", Math.min(SANDBOX_ATTEMPT_CAP, attempt + 4))
                         .put("report", "升级 sandbox-checks-v3：先保留岗位文件，移除项目内的旧平台测试，由沙箱镜像注入可信验证。"
                                 + "后续如边界测试失败，岗位指令从ctx.prompt读取并放system；原始input/工具证据只放user。"
                                 + "prompt.compile须用user数据字段说明替代原文。模型输出章节仅约束ctx.llm.chat，"
@@ -775,7 +777,7 @@ public class MetaAgentExecution {
                 state.put("sandboxAttemptCeiling", repair.path("maxAttempts").asInt()).put("phase", "QUEUED");
                 state.remove(List.of("humanReview", "modelReview", "modelReviewTraceId", "sandboxStatus", "sandboxRunId"));
                 save(id, state, "DELIVER");
-                jobs.progress(id, "QUEUED", "BUILD", "刷新独立项目适配层，可信测试改由沙箱注入；最多五轮且累计不超过二十轮，新提交须重验与审批");
+                jobs.progress(id, "QUEUED", "BUILD", "刷新独立项目适配层，可信测试改由沙箱注入；最多五轮且累计不超过二十五轮，新提交须重验与审批");
                 return publicState(state);
             }
             if (canRepairStagingGate(state)) {
@@ -784,7 +786,7 @@ public class MetaAgentExecution {
                 String repo = delivery.path("repo").asText().replaceFirst("^[^/]+/", "");
                 var previous = previousCandidate(json, read(git.fetch(id, repo, sha)));
                 int attempt = state.path("sandboxAttempts").size() + 1;
-                int ceiling = Math.min(20, attempt + 4);
+                int ceiling = Math.min(SANDBOX_ATTEMPT_CAP, attempt + 4);
                 var repair = state.putObject("repair").put("attempt", attempt).put("failedSha", sha)
                         .put("reviewRepair", true).put("maxAttempts", ceiling)
                         .put("report", "staging 真实接口评测未通过。按 H1/H2 的业务语义修复根因，"
@@ -841,7 +843,7 @@ public class MetaAgentExecution {
                 else if (s4Repair) state.put("s4RepairRounds", 1);
                 else if (!ciRefresh && !sdkRepair) state.put("reviewRepairRounds", reviewRepairs + 1);
                 if (s4Repair || (!infrastructureOnly && !ciRefresh && !sdkRepair)) {
-                    int ceiling = Math.min(20, attempt + 4);
+                    int ceiling = Math.min(SANDBOX_ATTEMPT_CAP, attempt + 4);
                     state.put("sandboxAttemptCeiling", ceiling);
                     repair.put("maxAttempts", ceiling);
                     if (modelReview.path("approved").isBoolean() && !modelReview.path("approved").asBoolean())
@@ -860,7 +862,7 @@ public class MetaAgentExecution {
             if (!"FAILED".equals(state.path("phase").asText())) throw invalid("只有失败的执行可以重试");
             if (!state.has("sandboxAttemptCeiling") && (state.path("repair").path("reviewRepair").asBoolean(false)
                     || state.path("repair").path("s4Repair").asBoolean(false)))
-                state.put("sandboxAttemptCeiling", Math.min(20, state.path("repair").path("attempt").asInt() + 4));
+                state.put("sandboxAttemptCeiling", Math.min(SANDBOX_ATTEMPT_CAP, state.path("repair").path("attempt").asInt() + 4));
             if (canRetryTrustedContract(state) && git != null) {
                 int completed = state.path("sandboxAttempts").size();
                 var last = state.path("sandboxAttempts").get(completed - 1);
@@ -934,7 +936,7 @@ public class MetaAgentExecution {
                 && "FAILED".equals(state.path("pipeline").path("status").asText())
                 && state.path("pipeline").path("evaluationFailed").asBoolean(false)
                 && state.path("delivery").path("sha").asText().equals(state.path("pipeline").path("sha").asText())
-                && state.path("gateRepairRounds").asInt(0) < 1 && state.path("sandboxAttempts").size() < 20;
+                && state.path("gateRepairRounds").asInt(0) < 1 && state.path("sandboxAttempts").size() < SANDBOX_ATTEMPT_CAP;
     }
 
     static boolean canRefreshRuntimeAdapter(JsonNode state) {
@@ -943,7 +945,7 @@ public class MetaAgentExecution {
                 && (!state.path("draft").path("manifest").path("spec").path("delegates").isEmpty()
                     || state.path("requirement").path("tools").size() >= 2)
                 && !"sandbox-checks-v3".equals(state.path("delivery").path("runtimeAdapterVersion").asText())
-                && state.path("sandboxAttempts").size() < 20;
+                && state.path("sandboxAttempts").size() < SANDBOX_ATTEMPT_CAP;
     }
 
     static boolean canAcceptRepairFeedback(JsonNode state) {
@@ -965,22 +967,22 @@ public class MetaAgentExecution {
                 && sha.equals(last.path("sha").asText());
         return ((repairFeedbackPhase(state) && "PASS".equals(state.path("sandboxStatus").asText()))
                     || generationFailed)
-                && ceiling > attempts.size() && ceiling <= 20;
+                && ceiling > attempts.size() && ceiling <= SANDBOX_ATTEMPT_CAP;
     }
 
     static boolean canStartClarifiedRepairWindow(JsonNode state) {
         int windows = state.path("manualRepairWindows").asInt(0);
-        if (windows < 0 || windows >= 3 || state.hasNonNull("h4ApprovalId") || state.hasNonNull("mergeSha"))
+        if (windows < 0 || windows >= MANUAL_REPAIR_WINDOW_CAP || state.hasNonNull("h4ApprovalId") || state.hasNonNull("mergeSha"))
             return false;
         int ceiling = repairContext(state).path("maxAttempts").asInt();
         var attempts = state.path("sandboxAttempts");
         if (repairFeedbackPhase(state) && "PASS".equals(state.path("sandboxStatus").asText())
-                && !canAcceptRepairFeedback(state) && attempts.size() > 0 && attempts.size() < 20) return true;
+                && !canAcceptRepairFeedback(state) && attempts.size() > 0 && attempts.size() < SANDBOX_ATTEMPT_CAP) return true;
         String sha = state.path("delivery").path("sha").asText();
         var last = attempts.path(attempts.size() - 1);
         return "FAILED".equals(state.path("phase").asText()) && "FAILED".equals(state.path("sandboxStatus").asText())
                 && ceiling > 0 && !sha.isBlank()
-                && attempts.size() >= ceiling && attempts.size() < 20
+                && attempts.size() >= ceiling && attempts.size() < SANDBOX_ATTEMPT_CAP
                 && sha.equals(last.path("sha").asText())
                 && "FAILED".equals(last.path("status").asText())
                 && last.path("report").asText().startsWith("sha=" + sha + " snapshot=ok tests=FAIL\n");
@@ -1159,7 +1161,7 @@ public class MetaAgentExecution {
 
     static int sandboxAttemptLimit(JsonNode state) {
         return Math.max(5 + Math.min(2, Math.max(0, state.path("infrastructureRefreshes").asInt(0))),
-                Math.min(20, state.path("sandboxAttemptCeiling").asInt(0)));
+                Math.min(SANDBOX_ATTEMPT_CAP, state.path("sandboxAttemptCeiling").asInt(0)));
     }
 
     static boolean canRetryTrustedContract(JsonNode state) {
@@ -1316,10 +1318,10 @@ public class MetaAgentExecution {
         result.put("repairFeedbackCreatesWindow", canStartClarifiedRepairWindow(state));
         int limit = sandboxAttemptLimit(state);
         int windowLimit = repairContext(state).path("maxAttempts").asInt();
-        if (windowLimit > 0 && windowLimit <= 20) limit = Math.max(limit, windowLimit);
+        if (windowLimit > 0 && windowLimit <= SANDBOX_ATTEMPT_CAP) limit = Math.max(limit, windowLimit);
         if (!state.has("sandboxAttemptCeiling") && (state.path("repair").path("reviewRepair").asBoolean(false)
                 || state.path("repair").path("s4Repair").asBoolean(false)))
-            limit = Math.max(limit, Math.min(20, state.path("repair").path("attempt").asInt() + 4));
+            limit = Math.max(limit, Math.min(SANDBOX_ATTEMPT_CAP, state.path("repair").path("attempt").asInt() + 4));
         result.put("sandboxAttemptLimit", limit);
         result.remove(List.of("catalog", "feedback", "confirmedVersion", "humanSeeds", "evalDraft", "repair", "repairWindow"));
         if (state.has("acceptedAgentCount")) {

@@ -96,9 +96,11 @@ class MetaAgentRulesTest {
         state.put("manualRepairWindows", 1);
         assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
         state.put("manualRepairWindows", 3);
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
+        state.put("manualRepairWindows", 4);
         assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
     }
-    @Test void explicitClarificationCanContinueFailedWindowsButStopsAtThreeOrTwenty() throws Exception {
+    @Test void explicitClarificationCanContinueFailedWindowsButStopsAtFourOrTwentyFive() throws Exception {
         var state = (com.fasterxml.jackson.databind.node.ObjectNode) new ObjectMapper().readTree("""
                 {"phase":"FAILED","sandboxStatus":"FAILED","repair":{"maxAttempts":10},
                 "manualRepairWindows":1,"delivery":{"sha":"abc"},"sandboxAttempts":[]}
@@ -108,13 +110,13 @@ class MetaAgentRulesTest {
                 .put("status", "FAILED").put("report", "sha=abc snapshot=ok tests=FAIL\n");
         assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isFalse();
         assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
-        state.put("manualRepairWindows", 2);
-        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
         state.put("manualRepairWindows", 3);
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
+        state.put("manualRepairWindows", 4);
         assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
-        state.put("manualRepairWindows", 2);
+        state.put("manualRepairWindows", 3);
         var last = attempts.get(attempts.size() - 1).deepCopy();
-        while (attempts.size() < 19) attempts.add(last.deepCopy());
+        while (attempts.size() < 24) attempts.add(last.deepCopy());
         assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
         attempts.add(last.deepCopy());
         assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
@@ -182,7 +184,7 @@ class MetaAgentRulesTest {
                 "requirement":{"tools":["ci.log.fetch","git.pr.diff"]},"sandboxAttempts":[{}]}
                 """);
         assertThat(MetaAgentExecution.canRefreshRuntimeAdapter(state)).isTrue();
-        while (state.path("sandboxAttempts").size() < 20) state.withArray("sandboxAttempts").addObject();
+        while (state.path("sandboxAttempts").size() < MetaAgentExecution.SANDBOX_ATTEMPT_CAP) state.withArray("sandboxAttempts").addObject();
         assertThat(MetaAgentExecution.canRefreshRuntimeAdapter(state)).isFalse();
     }
     @Test void gateRepairRequiresExactFailedStagingEvaluationAndStopsAfterOneWindow() throws Exception {

@@ -361,6 +361,45 @@ def test_rejection():
     assert any("prompt.compile 是同步方法" in error for error in parse(json.dumps(bad))[1])
 
 
+def _role_candidate(role):
+    return {"files": [
+        {"path": "role.py", "content": role},
+        {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
+        {"path": "tests/test_role.py", "content": TEST_CODE},
+    ]}
+
+
+def test_task_id_extraction_must_uppercase_before_tool_use():
+    sensitive = '''import re
+async def execute(data, ctx):
+    prompt = await ctx.prompt("role")
+    prompt.compile()
+    return {"ids": re.findall(r"DF-\\d+", data.get("text") or "")}
+'''
+    ignore_only = '''import re
+async def execute(data, ctx):
+    prompt = await ctx.prompt("role")
+    prompt.compile()
+    return {"ids": re.findall(r"df-\\d+", data.get("text") or "", flags=re.IGNORECASE)}
+'''
+    upper_text = '''import re
+async def execute(data, ctx):
+    prompt = await ctx.prompt("role")
+    prompt.compile()
+    return {"ids": re.findall(r"DF-\\d+", (data.get("text") or "").upper())}
+'''
+    upper_match = '''import re
+async def execute(data, ctx):
+    prompt = await ctx.prompt("role")
+    prompt.compile()
+    return {"ids": [item.upper() for item in re.findall(r"df-\\d+", data.get("text") or "", flags=re.IGNORECASE)]}
+'''
+    assert any("规范为大写" in error for error in parse(json.dumps(_role_candidate(sensitive)))[1])
+    assert any("规范为大写" in error for error in parse(json.dumps(_role_candidate(ignore_only)))[1])
+    assert not any("规范为大写" in error for error in parse(json.dumps(_role_candidate(upper_text)))[1])
+    assert not any("规范为大写" in error for error in parse(json.dumps(_role_candidate(upper_match)))[1])
+
+
 def test_generated_role_rejects_double_escaped_regex_classes():
     bad_role = """import re
 async def execute(data, ctx):
