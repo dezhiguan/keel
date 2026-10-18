@@ -2,6 +2,7 @@ import asyncio
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -209,6 +210,12 @@ def unsafe(llm_response):
               "infrastructureOnly": True, "report": "install new trusted platform checks"}
     assert _deliver(work(old, repair))["sha"] == SHA_B
     assert "tests/test_platform_contract.py" not in {item["path"] for item in pushes[1]["files"]}
+
+
+def test_generated_entry_checks_text_type_before_json():
+    source = Path(__file__).resolve().parents[1].joinpath("workflow.py").read_text(encoding="utf-8")
+    assert "if not isinstance(raw, str):" in source
+    assert "输入 text 必须是字符串" in source
 
 
 def test_delivery_note_is_written_once():
