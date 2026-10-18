@@ -21,7 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.closeTo;
+import static org.assertj.core.api.Assertions.within;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -161,10 +161,11 @@ class SkillFlowTest {
         assertThat(skillVersionInManifest()).isEqualTo(2);
         assertThat(count("SELECT count(*) FROM agent_skill_grant WHERE agent_name = 'skill-agent' AND version = 1")).isEqualTo(1);
         insertRun("ev_skill_pass", "DONE", "{\"passed\":true,\"scoreTotal\":0.92,\"gate\":{\"minScore\":0.85}}", null);
-        mvc.perform(get("/api/v1/skills/cite-from-kb"))
+        var passed = mvc.perform(get("/api/v1/skills/cite-from-kb"))
                 .andExpect(jsonPath("$.data.users[0].version").value(2))
                 .andExpect(jsonPath("$.data.users[0].status").value("LATEST"))
-                .andExpect(jsonPath("$.data.users[0].score", closeTo(0.92, 0.001)));
+                .andReturn().getResponse().getContentAsString();
+        assertThat(JSON.readTree(passed).path("data").path("users").get(0).path("score").asDouble()).isCloseTo(0.92, within(0.001));
         publish("""
                 {"name":"cite-from-kb","ownerOrg":"平台组","description":"只依据检索作答","instructions":"再补一句拒答时找谁",
                  "note":"补咨询人","tools":["rag.search"],"examples":["结论要标出处"],"cases":[]}

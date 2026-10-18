@@ -25,6 +25,7 @@ keel-server/src/main/resources/db/migration/V27__skill_version_note.sql
 keel-server/src/main/java/com/keel/server/skill/SkillController.java
 keel-server/src/main/java/com/keel/server/skill/SkillService.java
 keel-server/src/test/java/com/keel/server/skill/SkillFlowTest.java
+keel-server/src/test/java/com/keel/server/SchemaMigrationTest.java
 ```
 
 ## 接口契约

@@ -1,20 +1,8 @@
 -- V21 / V22 already ran. Drop the foreign keys they created instead of editing those scripts.
-DO $$
-DECLARE
-    item record;
-BEGIN
-    FOR item IN
-        SELECT con.conname AS name, rel.relname AS table_name
-        FROM pg_constraint con
-        JOIN pg_class rel ON rel.oid = con.conrelid
-        JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
-        WHERE con.contype = 'f'
-          AND nsp.nspname = 'public'
-          AND rel.relname IN ('skill_version', 'agent_skill_grant', 'user_memory')
-    LOOP
-        EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', item.table_name, item.name);
-    END LOOP;
-END $$;
+ALTER TABLE skill_version DROP CONSTRAINT IF EXISTS skill_version_skill_name_fkey;
+ALTER TABLE agent_skill_grant DROP CONSTRAINT IF EXISTS agent_skill_grant_agent_name_fkey;
+ALTER TABLE agent_skill_grant DROP CONSTRAINT IF EXISTS agent_skill_grant_skill_name_fkey;
+ALTER TABLE user_memory DROP CONSTRAINT IF EXISTS user_memory_agent_name_fkey;
 
 ALTER TABLE skill_version ADD COLUMN note TEXT NOT NULL DEFAULT '';
 ALTER TABLE skill_version ADD COLUMN created_by VARCHAR(64) NOT NULL DEFAULT '';
