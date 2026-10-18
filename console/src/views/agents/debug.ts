@@ -82,3 +82,140 @@ export function stepRows(nodes: TraceNode[] = []): StepRow[] {
       output: node.outputSummary && node.outputSummary !== node.name ? node.outputSummary : '',
     }))
 }
+
+export const DEBUG_PAGE = { sessions: 10, messages: 10, events: 20 } as const
+export const SESSION_TTL_MS = 7 * 86_400_000
+export const EVENT_CAP = 500
+
+export interface DebugMessage {
+  role: 'user' | 'agent'
+  text: string
+  meta?: string
+  traceId?: string | null
+  error?: boolean
+}
+
+export type DebugEventKind = 'guardrail' | 'step' | 'tool' | 'token' | 'final' | 'error'
+
+export interface DebugEvent {
+  kind: DebugEventKind
+  text: string
+  hit?: boolean
+}
+
+export interface DebugSession {
+  id: string
+  title: string
+  messages: DebugMessage[]
+  events: DebugEvent[]
+  at: number
+}
+
+export type SseState = 'idle' | 'streaming' | 'done' | 'stopped' | 'blocked' | 'failed'
+
+export const SSE_LABEL: Record<SseState, { text: string; cls: string }> = {
+  idle: { text: '空闲', cls: 'p-mute' },
+  streaming: { text: '流式中', cls: 'p-ok' },
+  done: { text: '已完成', cls: 'p-mute' },
+  stopped: { text: '已停止', cls: 'p-warn' },
+  blocked: { text: '已拦截', cls: 'p-bad' },
+  failed: { text: '失败', cls: 'p-bad' },
+}
+
+export function newDebugSessionId() {
+  const bytes = crypto.getRandomValues(new Uint8Array(4))
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+  return `ss_${hex}`
+}
+
+export function createSession(now = Date.now()): DebugSession {
+  return { id: newDebugSessionId(), title: '', messages: [], events: [], at: now }
+}
+
+export function debugStoreKey(userId: string, agent: string, env: string) {
+  return `keel-debug:${userId}:${agent}:${env}`
+}
+
+export function byRecent<T extends { at: number }>(items: T[]) {
+  return [...items].sort((left, right) => right.at - left.at)
+}
+
+export function pruneSessions<T extends { at: number }>(items: T[], now = Date.now(), keepMs = SESSION_TTL_MS) {
+  return items.filter((item) => item.at >= now - keepMs)
+}
+
+export function visibleHead<T>(items: T[], shown: number) {
+  return items.slice(0, Math.max(0, shown))
+}
+
+export function visibleTail<T>(items: T[], shown: number) {
+  if (shown >= items.length) return items
+  return items.slice(items.length - Math.max(0, shown))
+}
+
+export function pageStatus(shown: number, total: number, unit: string, dir: 'up' | 'down', loading = false) {
+  if (loading) return '加载中…'
+  if (shown >= total) return `已全部加载 · 共 ${total} ${unit}`
+  return `${dir === 'up' ? '↑ 上滑' : '↓ 下滑'}加载更多 · 已显示 ${Math.min(shown, total)} / ${total} ${unit}`
+}
+
+export function appendEvents<T>(existing: T[], extra: T[], cap = EVENT_CAP) {
+  return [...existing, ...extra].slice(-cap)
+}
+
+export function sessionTitle(current: string, text: string) {
+  const next = text.trim().slice(0, 14)
+  return current || next
+}
+
+export function formatSessionTime(at: number) {
+  return new Date(at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+const EVENT_KIND: Record<string, DebugEventKind> = {
+  工具: 'tool',
+  护栏: 'guardrail',
+  模型: 'step',
+  检索: 'step',
+  智能体: 'step',
+  事件: 'step',
+}
+
+export function traceEvent(row: StepRow): DebugEvent {
+  const kind = EVENT_KIND[row.type] ?? 'step'
+  const text = [row.name, row.output].filter(Boolean).join(' · ')
+  return { kind, text, hit: kind === 'guardrail' && row.status !== 'ok' }
+}
+
+function isMessage(value: unknown): value is DebugMessage {
+  if (!value || typeof value !== 'object') return false
+  const row = value as DebugMessage
+  return (row.role === 'user' || row.role === 'agent') && typeof row.text === 'string'
+}
+
+function isEvent(value: unknown): value is DebugEvent {
+  if (!value || typeof value !== 'object') return false
+  const row = value as DebugEvent
+  return typeof row.kind === 'string' && typeof row.text === 'string'
+}
+
+function isSession(value: unknown): value is DebugSession {
+  if (!value || typeof value !== 'object') return false
+  const row = value as DebugSession
+  return typeof row.id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(row.id)
+    && typeof row.title === 'string'
+    && typeof row.at === 'number'
+    && Array.isArray(row.messages) && row.messages.every(isMessage)
+    && Array.isArray(row.events) && row.events.every(isEvent)
+}
+
+export function parseSessions(raw: string | null, now = Date.now()): DebugSession[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return byRecent(pruneSessions(parsed.filter(isSession), now))
+  } catch {
+    return []
+  }
+}

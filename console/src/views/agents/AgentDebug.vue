@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import StatusPill from '@/components/StatusPill.vue'
 import { chatWithAgent, getAgent, type AgentDetail } from '@/api/agents'
 import { toKeelError } from '@/api/http'
 import { getTrace, listTraces, type TraceSummary } from '@/api/traces'
+import { useUserStore } from '@/stores/user'
 import { agentStatus, fmtMs, hms, nodeStatus } from '@/utils/format'
-import { avatarColor, avatarLetter } from './agentDrawer'
-import { MODE_LABEL, debugBlocked, debugMode, debugWarning, describeCron, stepRows, type StepRow } from './debug'
+import {
+  DEBUG_PAGE, MODE_LABEL, SSE_LABEL, appendEvents, byRecent, createSession, debugBlocked, debugMode,
+  debugStoreKey, debugWarning, describeCron, formatSessionTime, pageStatus, parseSessions, sessionTitle,
+  stepRows, traceEvent, visibleHead, visibleTail, type DebugEvent, type DebugSession, type SseState, type StepRow,
+} from './debug'
 
 interface Call {
   id: number
@@ -20,13 +24,6 @@ interface Call {
   error?: string
 }
 
-interface Message {
-  role: 'user' | 'agent'
-  text: string
-  traceId?: string | null
-  error?: boolean
-}
-
 const RUNNER = {
   task: { title: '任务说明', placeholder: '描述要它完成的事，例如：WT-07 变桨系统报 F203，给出检修建议', button: '运行' },
   service: { title: '发送测试输入', placeholder: '模拟一次上游触发的输入，例如一段 PR 变更说明', button: '发送' },
@@ -35,15 +32,28 @@ const RUNNER = {
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 const detail = ref<AgentDetail | null>(null)
 const loading = ref(false)
 const calls = ref<Call[]>([])
 const busy = ref(false)
 
-const messages = ref<Message[]>([])
-const chatSession = ref(crypto.randomUUID())
+const sessions = ref<DebugSession[]>([])
+const currentId = ref<string | null>(null)
+const shown = reactive<Record<keyof typeof DEBUG_PAGE, number>>({
+  sessions: DEBUG_PAGE.sessions,
+  messages: DEBUG_PAGE.messages,
+  events: DEBUG_PAGE.events,
+})
+const paging = reactive({ sessions: false, messages: false, events: false })
+const sse = ref<SseState>('idle')
+const pendingEvents = ref<DebugEvent[]>([])
+const liveText = ref<string | null>(null)
+const canStop = ref(false)
 const draft = ref('')
-const thread = ref<HTMLElement | null>(null)
+const sessionEl = ref<HTMLElement | null>(null)
+const threadEl = ref<HTMLElement | null>(null)
+const eventEl = ref<HTMLElement | null>(null)
 
 const runInput = ref('')
 const lastRun = ref<Call | null>(null)
@@ -59,15 +69,105 @@ const blocked = computed(() => (detail.value ? debugBlocked(detail.value.status)
 const warning = computed(() => (detail.value ? debugWarning(detail.value.status) : null))
 const runner = computed(() => (mode.value === 'chat' ? null : RUNNER[mode.value]))
 const cronText = computed(() => describeCron(detail.value?.interaction?.schedule))
-const envVersion = computed(() => [detail.value?.env, detail.value?.version].filter(Boolean).join(' · ') || '—')
+const envVersion = computed(() => [detail.value?.env, detail.value?.version, MODE_LABEL[mode.value].name].filter(Boolean).join(' · ') || '—')
+const current = computed(() => sessions.value.find((item) => item.id === currentId.value) ?? null)
+const visibleSessions = computed(() => visibleHead(sessions.value, shown.sessions))
+const visibleMessages = computed(() => visibleTail(current.value?.messages ?? [], shown.messages))
+const combinedEvents = computed(() => [...(current.value?.events ?? []), ...pendingEvents.value])
+const visibleEvents = computed(() => visibleTail(combinedEvents.value, shown.events))
+const sseLabel = computed(() => SSE_LABEL[sse.value])
 
 let callSeq = 0
+let abort: AbortController | null = null
+let alive = true
+const pageTimers = { sessions: 0, messages: 0, events: 0 }
+
+function storeKey() {
+  const env = detail.value?.env
+  if (!name.value || !env) return ''
+  return debugStoreKey(userStore.user?.userId || 'anonymous', name.value, env)
+}
+
+function persist() {
+  const key = storeKey()
+  if (!key) return
+  try {
+    localStorage.setItem(key, JSON.stringify(sessions.value))
+  } catch {
+    // 本机配额满时这次会话只留在页面上。
+  }
+}
+
+function loadSessions() {
+  let list: DebugSession[] = []
+  try {
+    list = parseSessions(localStorage.getItem(storeKey()))
+  } catch {
+    list = []
+  }
+  if (!list.length) {
+    const created = createSession()
+    sessions.value = [created]
+    currentId.value = created.id
+    persist()
+  } else {
+    sessions.value = list
+    currentId.value = list[0].id
+  }
+  shown.sessions = DEBUG_PAGE.sessions
+  shown.messages = DEBUG_PAGE.messages
+  shown.events = DEBUG_PAGE.events
+  sse.value = 'idle'
+  pendingEvents.value = []
+  liveText.value = null
+  scrollEnd(threadEl.value)
+  scrollEnd(eventEl.value)
+}
+
+function scrollEnd(el: HTMLElement | null) {
+  nextTick(() => {
+    if (el) el.scrollTop = el.scrollHeight
+  })
+}
+
+function loadMore(which: 'sessions' | 'messages' | 'events', total: number, el: HTMLElement | null) {
+  if (!el || paging[which] || shown[which] >= total) return
+  paging[which] = true
+  const height = el.scrollHeight
+  const top = el.scrollTop
+  window.clearTimeout(pageTimers[which])
+  pageTimers[which] = window.setTimeout(() => {
+    shown[which] += DEBUG_PAGE[which]
+    paging[which] = false
+    if (which === 'sessions') return
+    nextTick(() => {
+      el.scrollTop = el.scrollHeight - height + top
+    })
+  }, 350)
+}
+
+function onSessionScroll() {
+  const el = sessionEl.value
+  if (!el) return
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 8) loadMore('sessions', sessions.value.length, el)
+}
+
+function onThreadScroll() {
+  const el = threadEl.value
+  if (el && el.scrollTop <= 8) loadMore('messages', current.value?.messages.length ?? 0, el)
+}
+
+function onEventScroll() {
+  const el = eventEl.value
+  if (el && el.scrollTop <= 8) loadMore('events', combinedEvents.value.length, el)
+}
+
 async function invoke(input: string): Promise<Call> {
   const started = performance.now()
   const call: Call = { id: ++callSeq, at: new Date().toISOString(), input, ms: 0 }
   busy.value = true
   try {
-    const answer = await chatWithAgent(name.value, input, mode.value === 'chat' ? chatSession.value : undefined)
+    const answer = await chatWithAgent(name.value, input)
     call.text = answer.text ?? ''
     call.traceId = answer.traceId ?? null
   } catch (error) {
@@ -82,21 +182,119 @@ async function invoke(input: string): Promise<Call> {
 
 async function sendChat() {
   const text = draft.value.trim()
-  if (!text || busy.value) return
+  const session = current.value
+  if (!text || canStop.value || busy.value || !session) return
   draft.value = ''
-  messages.value.push({ role: 'user', text })
-  scrollThread()
-  const call = await invoke(text)
-  messages.value.push(call.error
-    ? { role: 'agent', text: call.error, error: true }
-    : { role: 'agent', text: call.text || '（空回复）', traceId: call.traceId })
-  scrollThread()
+  session.messages.push({ role: 'user', text })
+  session.title = sessionTitle(session.title, text)
+  session.at = Date.now()
+  sessions.value = byRecent(sessions.value)
+  shown.messages = DEBUG_PAGE.messages
+  pendingEvents.value = [{ kind: 'step', text: '正在调用智能体' }]
+  shown.events = DEBUG_PAGE.events
+  liveText.value = ''
+  sse.value = 'streaming'
+  canStop.value = true
+  persist()
+  scrollEnd(threadEl.value)
+  scrollEnd(eventEl.value)
+
+  abort = new AbortController()
+  const started = performance.now()
+  try {
+    const answer = await chatWithAgent(name.value, text, session.id, abort.signal)
+    if (!alive) return
+    canStop.value = false
+    const ms = Math.round(performance.now() - started)
+    const events: DebugEvent[] = [...pendingEvents.value]
+    if (answer.traceId) {
+      try {
+        const trace = await getTrace(answer.traceId)
+        if (!alive) return
+        events.push(...stepRows(trace.nodes ?? []).map(traceEvent))
+      } catch {
+        // 链路还没写入时，回复先出来，事件里只留这次调用。
+      }
+    }
+    events.push({ kind: 'final', text: answer.traceId ? `${fmtMs(ms)} · ${answer.traceId}` : fmtMs(ms) })
+    session.messages.push({
+      role: 'agent',
+      text: answer.text?.trim() ? answer.text : '（空回复）',
+      traceId: answer.traceId ?? null,
+      meta: fmtMs(ms),
+    })
+    session.events = appendEvents(session.events, events)
+    session.at = Date.now()
+    sse.value = 'done'
+  } catch (error) {
+    if (!alive) return
+    const stopped = abort?.signal.aborted
+    if (stopped) {
+      session.messages.push({ role: 'agent', text: '（已停止）', meta: '已停止' })
+      session.events = appendEvents(session.events, [...pendingEvents.value, { kind: 'error', text: '已停止，这次调用已取消' }])
+      sse.value = 'stopped'
+    } else {
+      const message = toKeelError(error).message
+      const blockedCall = message.includes('GUARD_')
+      session.messages.push({ role: 'agent', text: message, error: true, meta: blockedCall ? '未调用模型' : undefined })
+      session.events = appendEvents(session.events, [...pendingEvents.value, { kind: 'error', text: message }])
+      sse.value = blockedCall ? 'blocked' : 'failed'
+    }
+    session.at = Date.now()
+  } finally {
+    if (!alive) return
+    pendingEvents.value = []
+    liveText.value = null
+    canStop.value = false
+    abort = null
+    sessions.value = byRecent(sessions.value)
+    persist()
+    scrollEnd(threadEl.value)
+    scrollEnd(eventEl.value)
+  }
 }
 
-function scrollThread() {
+function stop() {
+  if (canStop.value) abort?.abort()
+}
+
+function pick(id: string) {
+  if (canStop.value || id === currentId.value) return
+  currentId.value = id
+  shown.messages = DEBUG_PAGE.messages
+  shown.events = DEBUG_PAGE.events
+  sse.value = 'idle'
+  pendingEvents.value = []
+  scrollEnd(threadEl.value)
+  scrollEnd(eventEl.value)
+}
+
+function newSession() {
+  if (canStop.value) return
+  const created = createSession()
+  sessions.value = [created, ...sessions.value]
+  currentId.value = created.id
+  shown.messages = DEBUG_PAGE.messages
+  shown.events = DEBUG_PAGE.events
+  sse.value = 'idle'
+  pendingEvents.value = []
+  persist()
   nextTick(() => {
-    if (thread.value) thread.value.scrollTop = thread.value.scrollHeight
+    if (sessionEl.value) sessionEl.value.scrollTop = 0
   })
+}
+
+function delSession() {
+  if (canStop.value || !currentId.value) return
+  sessions.value = sessions.value.filter((item) => item.id !== currentId.value)
+  if (!sessions.value.length) sessions.value = [createSession()]
+  currentId.value = sessions.value[0].id
+  shown.messages = DEBUG_PAGE.messages
+  shown.events = DEBUG_PAGE.events
+  sse.value = 'idle'
+  pendingEvents.value = []
+  persist()
+  ElMessage.warning('会话已从本页删除')
 }
 
 async function run() {
@@ -143,16 +341,19 @@ function back() {
   router.push({ path: '/agents', query: { drawer: name.value } })
 }
 
-function clearChat() {
-  messages.value = []
-  chatSession.value = crypto.randomUUID()
-}
+onUnmounted(() => {
+  alive = false
+  window.clearTimeout(pageTimers.sessions)
+  window.clearTimeout(pageTimers.messages)
+  window.clearTimeout(pageTimers.events)
+  abort?.abort()
+})
 
 watch(name, async (agent) => {
   detail.value = null
   calls.value = []
-  messages.value = []
-  chatSession.value = crypto.randomUUID()
+  sessions.value = []
+  currentId.value = null
   lastRun.value = null
   recent.value = []
   if (!agent) return
@@ -168,7 +369,8 @@ watch(name, async (agent) => {
     loading.value = false
   }
   if (blocked.value) return
-  if (mode.value === 'service' || mode.value === 'schedule') loadRecent()
+  if (mode.value === 'chat') loadSessions()
+  else if (mode.value === 'service' || mode.value === 'schedule') loadRecent()
   const incoming = route.query.draft
   if (typeof incoming !== 'string' || !incoming) return
   if (mode.value === 'chat') draft.value = incoming
@@ -181,19 +383,89 @@ watch(name, async (agent) => {
 </script>
 
 <template>
-  <div v-loading="loading" class="pv">
+  <div v-loading="loading" class="pv" :class="{ fill: mode === 'chat' && !blocked }">
     <div class="vh">
-      <button class="btn sm" type="button" @click="back">← 返回详情</button>
-      <span class="av" :style="{ background: `${avatarColor(name)}22`, color: avatarColor(name) }">{{ avatarLetter(detail?.displayName || name) }}</span>
-      <h2>{{ detail?.displayName || name }}</h2>
+      <button class="btn sm ghost" type="button" @click="back">← 返回</button>
+      <h2>{{ name }} · 调试</h2>
       <StatusPill v-if="detail" v-bind="agentStatus(detail.status)" />
-      <span v-if="detail" class="pill nd p-acc" :title="MODE_LABEL[mode].hint">{{ MODE_LABEL[mode].name }}</span>
-      <span class="sub mono">{{ name }} · {{ envVersion }}</span>
+      <span v-if="detail" class="sub">{{ envVersion }}</span>
       <span class="sp" />
       <RouterLink class="btn ghost" to="/traces">全部链路 ↗</RouterLink>
     </div>
 
     <div v-if="detail && blocked" class="card"><p class="empty">{{ blocked }}</p></div>
+
+    <template v-else-if="detail && mode === 'chat'">
+      <div class="banner info">调试是真实调用：消耗该智能体的日预算，写链路和审计；高风险工具照常走审批。</div>
+      <div v-if="warning" class="banner warn">{{ warning }}</div>
+
+      <div class="dbg">
+        <div class="card">
+          <h3>会话 <small>{{ sessions.length }} 个 · 仅自己可见</small></h3>
+          <button class="btn pri new-session" type="button" :disabled="canStop" @click="newSession">+ 新会话</button>
+          <div ref="sessionEl" class="slist vlist" @scroll="onSessionScroll">
+            <div
+              v-for="item in visibleSessions"
+              :key="item.id"
+              class="vi"
+              :class="{ on: item.id === currentId }"
+              @click="pick(item.id)"
+            >
+              <b>{{ item.title || '新会话' }}</b>
+              <div class="m">{{ item.messages.length }} 条 · {{ formatSessionTime(item.at) }}</div>
+            </div>
+            <div class="pg" :class="{ loading: paging.sessions }">{{ pageStatus(shown.sessions, sessions.length, '个', 'down', paging.sessions) }}</div>
+          </div>
+          <button class="btn sm danger drop" type="button" :disabled="canStop || !current" @click="delSession">删除当前会话</button>
+        </div>
+
+        <div class="card">
+          <div class="store">
+            <span>会话 <b class="mono">{{ current?.id }}</b></span>
+            <span>存储 <b>本机 · 调用携带 sessionId</b></span>
+            <span>保留 <b>7 天</b></span>
+          </div>
+          <div ref="threadEl" class="thread" @scroll="onThreadScroll">
+            <div v-if="!current?.messages.length" class="mut empty-thread">新会话。刷新后仍能看到这段对话。</div>
+            <template v-else>
+              <div class="pg" :class="{ loading: paging.messages }">{{ pageStatus(shown.messages, current.messages.length, '条', 'up', paging.messages) }}</div>
+              <div v-for="(msg, index) in visibleMessages" :key="index" class="msg" :class="{ u: msg.role === 'user' }">
+                <div>
+                  <div class="bub" :class="{ err: msg.error }">{{ msg.text }}</div>
+                  <div v-if="msg.meta || msg.traceId" class="meta">
+                    <span v-if="msg.meta">{{ msg.meta }}</span>
+                    <RouterLink v-if="msg.traceId" :to="`/traces/${msg.traceId}`">查看链路</RouterLink>
+                  </div>
+                </div>
+              </div>
+              <div v-if="liveText !== null" class="msg">
+                <div><div class="bub cursor">{{ liveText }}</div></div>
+              </div>
+            </template>
+          </div>
+          <div class="compose">
+            <input v-model="draft" class="inp" placeholder="输入消息，回车发送" @keydown.enter.prevent="sendChat">
+            <button v-write class="btn pri" type="button" :disabled="canStop || !draft.trim()" @click="sendChat">发送</button>
+            <button class="btn" type="button" :disabled="!canStop" @click="stop">停止</button>
+          </div>
+          <div class="hint">三栏都是滚动分页：会话列表滚到底加载下一页，对话和事件滚到顶加载更早的（每页会话 10 个、消息 10 条、事件 20 条）。</div>
+        </div>
+
+        <div class="card">
+          <h3>实时事件 <span class="pill nd" :class="sseLabel.cls">{{ sseLabel.text }}</span><small v-if="combinedEvents.length">{{ combinedEvents.length }} 条</small></h3>
+          <div ref="eventEl" class="events" @scroll="onEventScroll">
+            <div v-if="!combinedEvents.length" class="mut ev-empty">发送消息后这里实时显示 SSE 事件。</div>
+            <template v-else>
+              <div class="pg" :class="{ loading: paging.events }">{{ pageStatus(shown.events, combinedEvents.length, '条', 'up', paging.events) }}</div>
+              <div v-for="(event, index) in visibleEvents" :key="index" class="ev" :class="[event.kind, { hit: event.hit }]">
+                <div class="k">event: {{ event.kind }}</div>
+                {{ event.text }}
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </template>
 
     <template v-else-if="detail">
       <div class="banner info">调试是真实调用：消耗该智能体的日预算，写链路和审计；高风险工具照常走审批。</div>
@@ -201,94 +473,76 @@ watch(name, async (agent) => {
 
       <div class="pv-grid">
         <div>
-          <div v-if="mode === 'chat'" class="card pv-chat">
-            <h3>对话 <small>同一对话使用同一会话，清空后开启新会话</small><span class="sp" /><button class="btn sm ghost" type="button" :disabled="!messages.length" @click="clearChat">清空</button></h3>
-            <div ref="thread" class="pv-thread">
-              <p v-if="!messages.length" class="empty">发一句话试试它。Enter 发送，Shift+Enter 换行。</p>
-              <div v-for="(msg, index) in messages" :key="index" class="pv-msg" :class="[msg.role, { err: msg.error }]">
-                <div class="bubble">{{ msg.text }}</div>
-                <RouterLink v-if="msg.traceId" class="pv-trace mono" :to="`/traces/${msg.traceId}`">链路 {{ msg.traceId }}</RouterLink>
-              </div>
-              <div v-if="busy" class="pv-msg agent"><div class="bubble mut">思考中…</div></div>
-            </div>
-            <div class="pv-composer">
-              <textarea v-model="draft" class="inp" rows="2" placeholder="输入问题" @keydown.enter.exact.prevent="sendChat" />
-              <button v-write class="btn pri" type="button" :disabled="busy || !draft.trim()" @click="sendChat">发送</button>
+          <div v-if="mode === 'service'" class="card">
+            <h3>触发方式</h3>
+            <div class="kv">
+              <span>触发方</span>
+              <b v-if="detail.interaction?.trigger">{{ detail.interaction.trigger }}</b>
+              <span v-else class="mut">agent.yaml 没有声明 interaction.trigger</span>
+              <span>用户入口</span><b>无，平时由上游调用；这里可以发一次测试输入</b>
             </div>
           </div>
 
-          <template v-else>
-            <div v-if="mode === 'service'" class="card">
-              <h3>触发方式</h3>
-              <div class="kv">
-                <span>触发方</span>
-                <b v-if="detail.interaction?.trigger">{{ detail.interaction.trigger }}</b>
-                <span v-else class="mut">agent.yaml 没有声明 interaction.trigger</span>
-                <span>用户入口</span><b>无，平时由上游调用；这里可以发一次测试输入</b>
-              </div>
+          <div v-if="mode === 'schedule'" class="card">
+            <h3>运行计划</h3>
+            <div class="kv">
+              <span>cron</span><b class="mono">{{ detail.interaction?.schedule || '—' }}</b>
+              <span>含义</span><b>{{ cronText || '—' }}</b>
+              <span>时区</span><b>{{ detail.interaction?.timezone || 'Asia/Shanghai' }}</b>
             </div>
+          </div>
 
-            <div v-if="mode === 'schedule'" class="card">
-              <h3>运行计划</h3>
-              <div class="kv">
-                <span>cron</span><b class="mono">{{ detail.interaction?.schedule || '—' }}</b>
-                <span>含义</span><b>{{ cronText || '—' }}</b>
-                <span>时区</span><b>{{ detail.interaction?.timezone || 'Asia/Shanghai' }}</b>
-              </div>
+          <div v-if="runner" class="card">
+            <h3>{{ runner.title }}</h3>
+            <textarea v-model="runInput" class="inp pv-input" rows="4" :placeholder="runner.placeholder" />
+            <div class="pv-actions">
+              <span class="sp" />
+              <button v-write class="btn pri" type="button" :disabled="busy || !runInput.trim()" @click="run">{{ busy ? '运行中…' : runner.button }}</button>
             </div>
+          </div>
 
-            <div v-if="runner" class="card">
-              <h3>{{ runner.title }}</h3>
-              <textarea v-model="runInput" class="inp pv-input" rows="4" :placeholder="runner.placeholder" />
-              <div class="pv-actions">
-                <span class="sp" />
-                <button v-write class="btn pri" type="button" :disabled="busy || !runInput.trim()" @click="run">{{ busy ? '运行中…' : runner.button }}</button>
-              </div>
-            </div>
+          <div v-if="lastRun" class="card">
+            <h3>
+              执行结果
+              <span class="pill" :class="lastRun.error ? 'p-bad' : 'p-ok'">{{ lastRun.error ? '失败' : '完成' }}</span>
+              <small>{{ fmtMs(lastRun.ms) }}</small>
+              <span class="sp" />
+              <RouterLink v-if="lastRun.traceId" class="btn sm ghost" :to="`/traces/${lastRun.traceId}`">查看链路 ↗</RouterLink>
+            </h3>
+            <pre class="pv-output" :class="{ err: lastRun.error }">{{ lastRun.error || lastRun.text || '（空输出）' }}</pre>
+            <h4 class="pv-sub">执行步骤</h4>
+            <p v-if="!lastRun.traceId" class="mut">这次调用没有返回 traceId，无法读取步骤。</p>
+            <p v-else-if="stepState === 'loading'" class="mut">读取链路中…</p>
+            <p v-else-if="stepState === 'pending'" class="mut">链路还在写入 Langfuse。<a href="javascript:;" @click="loadSteps(lastRun.traceId!)">刷新</a></p>
+            <table v-else-if="steps.length" class="t">
+              <thead><tr><th>步骤</th><th>类型</th><th>耗时</th><th>状态</th></tr></thead>
+              <tbody>
+                <tr v-for="row in steps" :key="row.id">
+                  <td :style="{ paddingLeft: `${8 + row.depth * 16}px` }">{{ row.name }}<small v-if="row.output" class="pv-out mut">{{ row.output }}</small></td>
+                  <td>{{ row.type }}</td>
+                  <td class="mono">{{ fmtMs(row.durationMs) }}</td>
+                  <td><StatusPill v-bind="nodeStatus(row.status)" /></td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-else class="mut">链路里没有子步骤。</p>
+          </div>
 
-            <div v-if="lastRun" class="card">
-              <h3>
-                执行结果
-                <span class="pill" :class="lastRun.error ? 'p-bad' : 'p-ok'">{{ lastRun.error ? '失败' : '完成' }}</span>
-                <small>{{ fmtMs(lastRun.ms) }}</small>
-                <span class="sp" />
-                <RouterLink v-if="lastRun.traceId" class="btn sm ghost" :to="`/traces/${lastRun.traceId}`">查看链路 ↗</RouterLink>
-              </h3>
-              <pre class="pv-output" :class="{ err: lastRun.error }">{{ lastRun.error || lastRun.text || '（空输出）' }}</pre>
-              <h4 class="pv-sub">执行步骤</h4>
-              <p v-if="!lastRun.traceId" class="mut">这次调用没有返回 traceId，无法读取步骤。</p>
-              <p v-else-if="stepState === 'loading'" class="mut">读取链路中…</p>
-              <p v-else-if="stepState === 'pending'" class="mut">链路还在写入 Langfuse。<a href="javascript:;" @click="loadSteps(lastRun.traceId!)">刷新</a></p>
-              <table v-else-if="steps.length" class="t">
-                <thead><tr><th>步骤</th><th>类型</th><th>耗时</th><th>状态</th></tr></thead>
-                <tbody>
-                  <tr v-for="row in steps" :key="row.id">
-                    <td :style="{ paddingLeft: `${8 + row.depth * 16}px` }">{{ row.name }}<small v-if="row.output" class="pv-out mut">{{ row.output }}</small></td>
-                    <td>{{ row.type }}</td>
-                    <td class="mono">{{ fmtMs(row.durationMs) }}</td>
-                    <td><StatusPill v-bind="nodeStatus(row.status)" /></td>
-                  </tr>
-                </tbody>
-              </table>
-              <p v-else class="mut">链路里没有子步骤。</p>
-            </div>
-
-            <div v-if="mode !== 'task'" class="card">
-              <h3>最近运行 <small>近 7 天 · {{ detail.env }}</small><span class="sp" /><button class="btn sm ghost" type="button" @click="loadRecent">刷新</button></h3>
-              <table v-loading="recentLoading" class="t">
-                <thead><tr><th>时间</th><th>输入</th><th>耗时</th><th>状态</th></tr></thead>
-                <tbody>
-                  <tr v-if="!recent.length"><td colspan="4" class="empty">近 7 天没有运行记录</td></tr>
-                  <tr v-for="row in recent" :key="row.traceId" class="click" @click="router.push(`/traces/${row.traceId}`)">
-                    <td class="mono">{{ hms(row.startedAt) }}</td>
-                    <td class="pv-q">{{ row.question || '—' }}</td>
-                    <td class="mono">{{ fmtMs(row.durationMs) }}</td>
-                    <td><StatusPill v-bind="nodeStatus(row.status)" /></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </template>
+          <div v-if="mode !== 'task'" class="card">
+            <h3>最近运行 <small>近 7 天 · {{ detail.env }}</small><span class="sp" /><button class="btn sm ghost" type="button" @click="loadRecent">刷新</button></h3>
+            <table v-loading="recentLoading" class="t">
+              <thead><tr><th>时间</th><th>输入</th><th>耗时</th><th>状态</th></tr></thead>
+              <tbody>
+                <tr v-if="!recent.length"><td colspan="4" class="empty">近 7 天没有运行记录</td></tr>
+                <tr v-for="row in recent" :key="row.traceId" class="click" @click="router.push(`/traces/${row.traceId}`)">
+                  <td class="mono">{{ hms(row.startedAt) }}</td>
+                  <td class="pv-q">{{ row.question || '—' }}</td>
+                  <td class="mono">{{ fmtMs(row.durationMs) }}</td>
+                  <td><StatusPill v-bind="nodeStatus(row.status)" /></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <aside class="card pv-side">
@@ -309,17 +563,70 @@ watch(name, async (agent) => {
 
 <style scoped>
 .pv { min-height: 240px; }
+.pv.fill {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 92px);
+  min-height: 560px;
+}
+.pv .vh { margin-bottom: 14px; }
+.dbg {
+  flex: 1;
+  min-height: 440px;
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr) 270px;
+  gap: 14px;
+}
+.dbg .card {
+  margin: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.new-session { margin-bottom: 10px; align-self: flex-start; }
+.drop { margin-top: 8px; align-self: flex-start; }
+.slist { overflow: auto; flex: 1; min-height: 0; }
+.slist .vi .m { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.thread, .events { flex: 1; overflow: auto; min-height: 0; }
+.thread { padding: 4px 2px; }
+.pg { font-size: 11.5px; color: var(--mute); text-align: center; padding: 6px 0; }
+.pg.loading { color: var(--acc); }
+.msg { display: flex; margin: 8px 0; }
+.msg.u { justify-content: flex-end; }
+.msg > div { max-width: 78%; }
+.msg.u > div { text-align: right; }
+.bub {
+  display: inline-block;
+  text-align: left;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  white-space: pre-wrap;
+}
+.msg.u .bub { background: #2a1a12; border-color: #5a3220; color: var(--white); }
+.bub.err { color: var(--bad); border-color: #5a2a2e; background: #1c1216; }
+.meta { font-size: 11px; color: var(--mute); margin-top: 3px; display: flex; gap: 8px; }
+.msg.u .meta { justify-content: flex-end; }
+.meta a { color: var(--soft); text-decoration: none; }
+.compose { display: flex; gap: 8px; margin-top: 10px; }
+.compose .inp { flex: 1; min-width: 0; }
+.hint { font-size: 11.5px; color: var(--mute); margin-top: 6px; }
+.store { font-size: 11.5px; color: var(--mute); display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.store b { color: var(--text); font-weight: 500; }
+.empty-thread, .ev-empty { text-align: center; padding: 40px 0; font-size: 12.5px; }
+.ev-empty { text-align: left; padding: 0; font-size: 12px; }
+.ev { font-size: 12px; border-left: 2px solid var(--line2); padding: 2px 0 6px 10px; margin-left: 4px; }
+.ev .k { font-family: var(--mono); font-size: 11px; color: var(--soft); }
+.ev.guardrail .k { color: var(--violet); }
+.ev.guardrail.hit { border-left-color: var(--violet); }
+.ev.step .k { color: var(--acc); }
+.ev.final .k { color: var(--ok); }
+.ev.error .k { color: var(--bad); }
+.bub.cursor::after { content: "▍"; color: var(--acc); animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: 0; } }
 .pv-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; align-items: start; }
-.pv-chat { display: flex; flex-direction: column; height: calc(100vh - 250px); min-height: 420px; }
-.pv-thread { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 4px 2px 12px; }
-.pv-msg { display: flex; flex-direction: column; max-width: 78%; }
-.pv-msg.user { align-self: flex-end; align-items: flex-end; }
-.pv-msg .bubble { white-space: pre-wrap; line-height: 1.6; font-size: 13px; padding: 8px 12px; border-radius: 10px; background: var(--panel2); border: 1px solid var(--line2); }
-.pv-msg.user .bubble { background: rgba(255, 122, 69, 0.12); border-color: rgba(255, 122, 69, 0.35); color: var(--white); }
-.pv-msg.err .bubble { color: var(--bad); border-color: #5a2a2e; background: #1c1216; }
-.pv-trace { font-size: 11px; color: var(--soft); margin-top: 4px; text-decoration: none; }
-.pv-composer { display: flex; gap: 8px; align-items: flex-end; border-top: 1px solid var(--line); padding-top: 12px; }
-.pv-composer textarea { flex: 1; resize: none; }
 .pv-input { width: 100%; box-sizing: border-box; resize: vertical; }
 .pv-actions { display: flex; margin-top: 10px; }
 .pv-output { white-space: pre-wrap; background: #0a0f18; border: 1px solid var(--line); border-radius: 9px; padding: 12px 14px; line-height: 1.65; color: #c9d4e3; margin: 0; font-family: inherit; font-size: 13px; }
@@ -333,5 +640,12 @@ watch(name, async (agent) => {
 .pv-calls .row { display: flex; gap: 8px; align-items: center; }
 .pv-calls .q { margin: 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pv-calls a { color: var(--soft); font-size: 11.5px; text-decoration: none; }
-@media (max-width: 1100px) { .pv-grid { grid-template-columns: 1fr; } .pv-side { position: static; } }
+@media (max-width: 1100px) {
+  .pv.fill { height: auto; }
+  .dbg { grid-template-columns: 1fr; height: auto; }
+  .dbg .card { height: auto; min-height: 280px; }
+  .slist, .thread, .events { max-height: 420px; }
+  .pv-grid { grid-template-columns: 1fr; }
+  .pv-side { position: static; }
+}
 </style>

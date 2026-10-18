@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { debugBlocked, debugMode, debugWarning, describeCron, stepRows } from './debug'
+import {
+  appendEvents, byRecent, debugBlocked, debugMode, debugStoreKey, debugWarning, describeCron,
+  pageStatus, parseSessions, pruneSessions, sessionTitle, stepRows, traceEvent, visibleHead, visibleTail,
+} from './debug'
 
 describe('agent debug', () => {
   it('falls back to chat when the manifest does not declare a mode', () => {
@@ -42,5 +45,40 @@ describe('agent debug', () => {
     expect(rows[0]).toMatchObject({ name: 'rag.fault-manual', type: '检索', depth: 0, status: 'fallback', output: '' })
     expect(rows[1]).toMatchObject({ type: '工具', depth: 1, durationMs: null, status: 'ok' })
     expect(rows[2]).toMatchObject({ name: '生成建议', type: '模型', output: '建议先检查变桨' })
+  })
+
+  it('pages the three columns and keeps only the latest window', () => {
+    const items = ['a', 'b', 'c', 'd']
+    expect(visibleHead(items, 2)).toEqual(['a', 'b'])
+    expect(visibleTail(items, 2)).toEqual(['c', 'd'])
+    expect(visibleTail(items, 9)).toEqual(items)
+    expect(pageStatus(2, 4, '个', 'down')).toBe('↓ 下滑加载更多 · 已显示 2 / 4 个')
+    expect(pageStatus(2, 4, '条', 'up', true)).toBe('加载中…')
+    expect(pageStatus(4, 4, '条', 'up')).toBe('已全部加载 · 共 4 条')
+    expect(appendEvents([1, 2], [3, 4], 3)).toEqual([2, 3, 4])
+  })
+
+  it('keeps a week of this browser sessions and names them from the first line', () => {
+    const now = Date.parse('2026-10-18T09:00:00Z')
+    const week = 7 * 86_400_000
+    expect(pruneSessions([{ at: now - week - 1 }, { at: now - 1000 }], now)).toEqual([{ at: now - 1000 }])
+    expect(byRecent([{ at: 1 }, { at: 3 }, { at: 2 }]).map((item) => item.at)).toEqual([3, 2, 1])
+    expect(sessionTitle('', '我叫小林，在找产品经理岗位的建议')).toBe('我叫小林，在找产品经理岗位的')
+    expect(sessionTitle('已有标题', '新的一句')).toBe('已有标题')
+    expect(debugStoreKey('u_88', 'careermate', 'dev')).toBe('keel-debug:u_88:careermate:dev')
+    const raw = JSON.stringify([
+      { id: 'ss_ok', title: '改简历', at: now - 1000, messages: [{ role: 'user', text: '你好' }], events: [{ kind: 'final', text: '1.2s' }] },
+      { id: 'bad id', title: '', at: now, messages: [], events: [] },
+      { id: 'ss_old', title: '', at: now - week - 5, messages: [], events: [] },
+    ])
+    expect(parseSessions(raw, now).map((item) => item.id)).toEqual(['ss_ok'])
+    expect(parseSessions('not-json')).toEqual([])
+  })
+
+  it('turns a trace step into a realtime event', () => {
+    expect(traceEvent({ id: '1', name: 'memory.recall', type: '工具', depth: 0, durationMs: 12, status: 'ok', output: '2 条' }))
+      .toEqual({ kind: 'tool', text: 'memory.recall · 2 条', hit: false })
+    expect(traceEvent({ id: '2', name: '输入注入', type: '护栏', depth: 0, durationMs: 4, status: 'failed', output: '' }))
+      .toMatchObject({ kind: 'guardrail', hit: true })
   })
 })
