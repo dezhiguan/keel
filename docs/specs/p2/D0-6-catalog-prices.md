@@ -26,6 +26,7 @@ keel-server/src/main/java/com/keel/server/registry/service/RegisterManifest.java
 keel-server/src/main/java/com/keel/server/registry/service/CareerMateRegistrar.java
 keel-server/src/main/java/com/keel/server/provisioning/EchoCredentialWriter.java
 deploy/ci/provision-meta-agent.py
+ci/backend-gate.sh
 ```
 
 ## 接口契约

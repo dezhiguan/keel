@@ -11,12 +11,12 @@ import sys
 from pathlib import Path
 
 text = Path("keel-llm/src/main/resources/application.yaml").read_text()
-for name in ("qwen-plus", "deepseek-v3"):
+for name in ("qwen3.8-flash", "deepseek-flash"):
     if name not in text:
         sys.exit(f"薄网关配置缺少模型 {name}")
-prices = re.findall(r'(?:input|output)-cny-per-token:\s*"?([0-9.]+)"?', text)
-if len(prices) < 4:
-    sys.exit("单价没配齐：qwen-plus 和 deepseek-v3 都要有输入、输出单价")
+prices = re.findall(r'(?:input|output|cache)-cny-per-token:\s*"?([0-9.]+)"?', text)
+if len(prices) < 6:
+    sys.exit("单价没配齐：qwen3.8-flash 和 deepseek-flash 都要有输入、输出、缓存单价")
 for value in prices:
     if float(value) <= 0:
         sys.exit("单价写成了 0，进程会拒绝启动")
