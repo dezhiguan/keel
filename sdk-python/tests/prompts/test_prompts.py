@@ -102,6 +102,22 @@ def test_dev_encodes_the_name_and_reads_the_label(tmp_path):
         server.shutdown()
 
 
+def test_dev_without_langfuse_uses_the_local_copy(tmp_path, monkeypatch):
+    (tmp_path / "prompts").mkdir()
+    (tmp_path / "prompts" / "answer.md").write_text("本地 {{question}}", encoding="utf-8")
+    monkeypatch.delenv("LANGFUSE_HOST", raising=False)
+    monkeypatch.delenv("LANGFUSE_PUBLIC_KEY", raising=False)
+    monkeypatch.delenv("LANGFUSE_SECRET_KEY", raising=False)
+    prompt = run(PromptClient(Manifest(Prompts([Item("answer", "text")])), "dev", tmp_path)
+                 .get("prompt-lab", "answer", "trace-1"))
+    assert prompt.fallback is True
+    assert prompt.compile(question="hi") == "本地 hi"
+    with pytest.raises(KeelError) as exc:
+        run(PromptClient(Manifest(Prompts([Item("answer", "text")])), "staging", tmp_path)
+            .get("prompt-lab", "answer", "trace-1"))
+    assert exc.value.code is ErrorCode.PROMPT_UNAVAILABLE
+
+
 def test_dev_404_uses_the_local_copy_and_staging_does_not(tmp_path, monkeypatch):
     (tmp_path / "prompts").mkdir()
     (tmp_path / "prompts" / "answer.md").write_text("本地 {{question}}", encoding="utf-8")

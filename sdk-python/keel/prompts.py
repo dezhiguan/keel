@@ -77,6 +77,12 @@ class PromptClient:
             return _local(self.root, full_name, declared, trace_id, agent)
         try:
             remote = await _langfuse(full_name, label)
+        except KeelError as exc:
+            if self.env in ("dev", "test") and str(exc) == "Langfuse 未配置":
+                logger.warning("langfuse is not configured, using local copy trace_id=%s agent=%s name=%s",
+                               trace_id, agent, full_name)
+                return _local(self.root, full_name, declared, trace_id, agent)
+            raise
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code == 404 and self.env in ("dev", "test"):
                 logger.warning("prompt label missing, using local copy trace_id=%s agent=%s name=%s",
