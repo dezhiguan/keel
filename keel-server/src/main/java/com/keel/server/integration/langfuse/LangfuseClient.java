@@ -196,6 +196,21 @@ public class LangfuseClient {
                 + URLEncoder.encode(traceId, StandardCharsets.UTF_8));
     }
 
+    /**
+     * One page of guardrail observations since {@code from}. Does not follow the cursor:
+     * Hobby allows 30 general reads a minute, and the guard page must not page through history.
+     */
+    public JsonNode guardrailObservations(Instant from) {
+        if (baseUrl.isBlank() || authorization.isBlank()) {
+            throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
+        }
+        var filter = "[{\"type\":\"stringOptions\",\"column\":\"type\",\"operator\":\"any of\",\"value\":[\"GUARDRAIL\"]}]";
+        var path = "/api/public/v2/observations?limit=100&fields=core,basic,io,metadata&filter="
+                + URLEncoder.encode(filter, StandardCharsets.UTF_8)
+                + "&fromStartTime=" + URLEncoder.encode(from.toString(), StandardCharsets.UTF_8);
+        return get(path);
+    }
+
     /** Dataset id/name pairs. v4 lists datasets at /v2/datasets; the unversioned path is the fallback. */
     public JsonNode datasets() {
         if (baseUrl.isBlank() || authorization.isBlank()) {

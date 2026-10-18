@@ -1,4 +1,4 @@
-import { del, get, post } from './http'
+import { del, get, post, put } from './http'
 import type { components, operations } from './schema'
 
 export type AgentSummary = components['schemas']['AgentSummary']
@@ -84,6 +84,18 @@ export function retireAgent(name: string, env: 'dev' | 'test' | 'staging' | 'pro
 
 export function deleteAgent(name: string) {
   return del<unknown>(`/agents/${encodeURIComponent(name)}`)
+}
+
+export function getAgentGuardrails(name: string) {
+  return get<import('@/views/agents/guard').GuardPage>(`/agents/${encodeURIComponent(name)}/guardrails`)
+}
+
+export function saveAgentGuardrails(name: string, modes: Record<string, string>) {
+  return put<import('@/views/agents/guard').GuardPage>(`/agents/${encodeURIComponent(name)}/guardrails`, modes)
+}
+
+export function checkAgentGuard(name: string, source: string, text: string) {
+  return get<import('@/views/agents/guard').GuardCheckResult>(`/agents/${encodeURIComponent(name)}/guard/check`, { params: { source, text } })
 }
 
 export function chatWithAgent(name: string, text: string, sessionId?: string, signal?: AbortSignal) {

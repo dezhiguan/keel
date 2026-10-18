@@ -437,6 +437,89 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
 
+  /agents/{name}/guardrails:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+    get:
+      tags: [agents]
+      operationId: getAgentGuardrails
+      summary: 智能体护栏页
+      description: |
+        模式读最近一次登记的 agent.yaml spec.guardrails。命中数和链路来自近 7 天 Langfuse 的 GUARDRAIL 观测，只取一页。
+        网关基线层还没有配置接口，gatewayAvailable 为 false。
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/AgentGuardrails" }
+        "404":
+          $ref: "#/components/responses/Error"
+    put:
+      tags: [agents]
+      operationId: saveAgentGuardrails
+      summary: 把护栏模式写进已登记的 manifest
+      description: 只改注册中心里的 spec.guardrails。正在跑的实例要等下次部署才读到。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AgentGuardrailModes" }
+      responses:
+        "200":
+          description: 保存后的护栏页
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/AgentGuardrails" }
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /agents/{name}/guard/check:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+    get:
+      tags: [agents]
+      operationId: checkAgentGuard
+      summary: 按已登记的模式做一次规则检测
+      description: |
+        不转发到智能体，不进 agent loop，不调工具，不写记忆和审计。预览身份可以调用。
+        用户输入看 inputInjection，工具返回和知识库片段看 indirectInjection。
+      parameters:
+        - name: source
+          in: query
+          required: true
+          schema: { type: string, enum: [user, tool, kb] }
+        - name: text
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: 检测结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/AgentGuardCheck" }
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
   /agents/{name}/releases:
     parameters:
       - $ref: "#/components/parameters/AgentName"
@@ -3243,6 +3326,66 @@ components:
         delegateCount:
           type: integer
           description: spec.delegates 的个数，列表卡片用来显示「编排 N 个」
+
+    AgentGuardrailModes:
+      type: object
+      properties:
+        input: { type: string, enum: [off, shadow, enforce] }
+        indirect: { type: string, enum: [off, shadow, enforce] }
+        tainted: { type: string, enum: ["审批", "拦截"] }
+        canary: { type: string, enum: [off, enforce] }
+        pii: { type: string, enum: [off, mask] }
+
+    AgentGuardrails:
+      type: object
+      required: [agent, checks, gatewayAvailable, callers, trace]
+      properties:
+        agent: { type: string }
+        version: { type: string, nullable: true }
+        env: { type: string, nullable: true }
+        instanceId: { type: string, nullable: true }
+        checks:
+          type: array
+          items: { $ref: "#/components/schemas/AgentGuardrailCheck" }
+        gatewayAvailable: { type: boolean }
+        callers:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              key: { type: string }
+              layer: { type: string, enum: [sdk, unknown] }
+        traceId: { type: string, nullable: true }
+        trace:
+          type: array
+          items:
+            type: object
+            properties:
+              text: { type: string }
+              tone: { type: string, enum: ["", warn, soft, ok] }
+
+    AgentGuardrailCheck:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        detail: { type: string }
+        mode: { type: string }
+        options: { type: array, items: { type: string } }
+        hits: { type: integer, nullable: true, description: Langfuse 读失败时为空 }
+
+    AgentGuardCheck:
+      type: object
+      properties:
+        source: { type: string, enum: [user, tool, kb] }
+        mode: { type: string }
+        kind: { type: string, enum: [clear, blocked, stripped, shadow, off] }
+        tone: { type: string, enum: [ok, warn, bad] }
+        hit: { type: boolean }
+        instanceId: { type: string, nullable: true }
+        version: { type: string, nullable: true }
+        latencyMs: { type: integer }
 
     AgentDetail:
       allOf:

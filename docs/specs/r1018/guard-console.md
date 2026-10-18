@@ -24,7 +24,10 @@ console/src/layouts/ConsoleLayout.vue
 
 ## 接口契约
 
-无。命中数、调用方清单和链路片段沿用优化稿里的演示数据。保存和网关开关只改页面状态并提示，不写 agent.yaml，不调 keel-server。
+- `GET /api/v1/agents/{name}/guardrails`：模式来自最近一次登记的 `spec.guardrails`，命中和链路来自近 7 天 Langfuse 的一页 `GUARDRAIL` 观测。
+- `PUT /api/v1/agents/{name}/guardrails`：把模式写回注册中心的 manifest。正在跑的实例下次部署才读到。
+- `GET /api/v1/agents/{name}/guard/check?source=&text=`：按已登记模式做规则判断。不转发到智能体，不调模型，不写记忆和审计。预览身份可以调用。
+- 网关基线层没有配置接口，`gatewayAvailable` 为 false。
 
 ## 界面对齐
 
@@ -54,7 +57,7 @@ cd console && npx vitest related src/views/agents/guard.test.ts src/views/agents
 
 ## 明确不做
 
-- 不实现 `injection.py`、`POST /v1/guard/check`、污点审批、canary 或网关规则热更新
-- 不改 `contracts/`、agent.yaml 和薄网关
+- 不实现 `injection.py`，也不把检测转发到智能体。智能体还没有 `POST /v1/guard/check`。
+- 不做污点审批、canary 拦截和网关规则热更新。这些模式可以先记在 manifest 里。
 - 不改调试页的 SSE、会话记忆，只接收本页带过去的用户输入
 - 不改工具与技能、模型与成本

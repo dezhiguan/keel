@@ -2,11 +2,12 @@ export type GuardMode = 'off' | 'shadow' | 'enforce' | '审批' | '拦截' | 'ma
 export type ProbeSource = 'user' | 'tool' | 'kb'
 
 export interface GuardCheck {
+  id?: string
   name: string
   detail: string
   mode: GuardMode
   options: GuardMode[]
-  hits: number
+  hits: number | null
 }
 
 export const AGENT_GUARDS: GuardCheck[] = [
@@ -102,6 +103,44 @@ export function probeMessage(view: ProbeView): string {
 
 export function canOpenDebug(source: ProbeSource): boolean {
   return source === 'user'
+}
+
+export function formatHits(hits: number | null | undefined): string {
+  return hits == null ? '—' : String(hits)
+}
+
+export interface GuardCaller {
+  name: string
+  key: string
+  layer: 'sdk' | 'unknown' | 'none' | 'bypass'
+}
+
+export interface GuardTraceLine {
+  text: string
+  tone?: '' | 'warn' | 'soft' | 'ok'
+}
+
+export interface GuardPage {
+  agent?: string
+  version?: string | null
+  env?: string | null
+  instanceId?: string | null
+  checks?: GuardCheck[]
+  gatewayAvailable?: boolean
+  callers?: GuardCaller[]
+  traceId?: string | null
+  trace?: GuardTraceLine[]
+}
+
+export interface GuardCheckResult {
+  source: ProbeSource
+  mode: GuardMode
+  kind: ProbeKind
+  tone: 'ok' | 'warn' | 'bad'
+  hit: boolean
+  instanceId?: string | null
+  version?: string | null
+  latencyMs?: number
 }
 
 export function probePod(agent: string, roll = Math.random()): string {

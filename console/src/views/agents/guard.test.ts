@@ -9,6 +9,7 @@ import {
   probeLatency,
   probeMessage,
   probePod,
+  formatHits,
   sdkCaller,
 } from './guard'
 
@@ -26,6 +27,8 @@ describe('guard page', () => {
     expect(GUARD_ACTION.审批.label).toBe('转人工审批')
     expect(GUARD_ACTION.mask.label).toBe('脱敏')
     expect(sdkCaller('careermate')).toEqual({ name: 'careermate（走 ctx.llm）', key: 'careermate-prod', layer: 'sdk' })
+    expect(formatHits(null)).toBe('—')
+    expect(formatHits(0)).toBe('0')
   })
 
   it('detects the same injection phrases as the proposal', () => {
