@@ -120,6 +120,8 @@ async def generate(work: dict, ctx) -> dict:
         "tests/test_role.py 至少包含一个覆盖岗位正常输入和一个拒绝/失败场景的 test_ 函数，"
         "用假 ctx 测试行为，不能连接真实服务。不要只测试文件存在或字符串常量。"
         "测试须导入 role.execute 并调用它；prompt.compile 是同步方法，用 MagicMock 模拟；"
+        "沙箱已安装pytest-asyncio。async def test_*必须加@pytest.mark.asyncio，或模块级pytestmark=pytest.mark.asyncio。"
+        "也可用同步def test_*实际调用asyncio.run(execute(...))；只添加未使用的run_async函数不会修复异步测试。"
         "每个参数化输入使用独立ctx/side_effect，不能循环消耗同一份工具返回列表。"
         "优先使用pytest.mark.parametrize；如用for循环，ctx或ctx.tools.call.side_effect必须在循环内重新创建。"
         "H1/H2及可信测试不可修改；自编测试与H1冲突时须纠正错误断言，保留场景覆盖，"
@@ -205,6 +207,32 @@ async def generate(work: dict, ctx) -> dict:
                         else "可用精确edits或三个完整文件重新返回。") + "错误："
                      + "；".join(errors[:6]) + fallback}]
     raise KeelError(ErrorCode.AGENT_MANIFEST_INVALID, "岗位代码校验失败：" + "；".join(errors[:6]))
+
+
+def _async_test_errors(tree):
+    marks = {"pytest.mark.asyncio", "pytest.mark.anyio"}
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "pytest":
+                    marks.update(f"{alias.asname or alias.name}.mark.{kind}" for kind in ("asyncio", "anyio"))
+        if isinstance(node, ast.ImportFrom) and node.module == "pytest":
+            for alias in node.names:
+                if alias.name == "mark":
+                    marks.update(f"{alias.asname or alias.name}.{kind}" for kind in ("asyncio", "anyio"))
+
+    def marked(expressions):
+        return any(isinstance(node, ast.Attribute) and ast.unparse(node) in marks
+                   for expression in expressions for node in ast.walk(expression))
+
+    module_marks = [node.value for node in tree.body if isinstance(node, ast.Assign)
+                    and any(isinstance(target, ast.Name) and target.id == "pytestmark" for target in node.targets)]
+    if marked(module_marks):
+        return []
+    return [f"tests/test_role.py:{node.lineno} {node.name} 是未标记的异步测试；"
+            "添加@pytest.mark.asyncio或模块pytestmark，或改为同步测试实际调用asyncio.run"
+            for node in tree.body if isinstance(node, ast.AsyncFunctionDef)
+            and node.name.startswith("test_") and not marked(node.decorator_list)]
 
 
 def _shared_mock_errors(tree):
@@ -515,6 +543,7 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
             errors.append("多工具岗位调用 ctx.llm.chat 时必须传入 prompt=prompt 记录提示词版本")
     tests = trees["tests/test_role.py"]
     errors.extend(_shared_mock_errors(tests))
+    errors.extend(_async_test_errors(tests))
     if any(isinstance(node, ast.Assign)
            and any(isinstance(target, ast.Attribute) and target.attr == "chat"
                    and isinstance(target.value, ast.Attribute) and target.value.attr == "llm"

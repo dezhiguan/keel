@@ -47,6 +47,7 @@
 - 元智能体按实际 dev 环境读取提示词标签，移除硬编码 production 标签；draft v2 在 dev 生效，对齐已提交的新模型示例。生成超时通过薄网关按 alias/model 设置有限思考预算处理，参见 P1-2，不改候选项目和隐藏评测。
 
 - 测试中的有限 Mock.side_effect 不得在多次 execute 循环中共享；静态检查定位该循环和替身，要求参数化独立用例或循环内重建。检查不执行候选代码，也不修改断言或可信测试。
+- async def test_* 必须有 pytest asyncio/anyio 标记（函数或模块 pytestmark）；否则在 Git 交付前返回具体行号。沙箱已有 pytest-asyncio，新增未使用的 asyncio.run 辅助函数不能解决未标记的异步测试；同步测试应实际用 asyncio.run 调用岗位。
 - 人工澄清要求完整重写时，保留旧岗位代码和提示词供继续开发，但不再把旧自编测试正文及失败断言反复送入生成上下文。提供失败测试名称供定位，按 H1/H2 与澄清重新编写测试；完整旧快照继续保留于审计和 Git。
 - 元智能体 manifest 与新建项目默认模型统一使用当前已部署目录的 qwen3.8-flash；新建清单从元智能体受信 manifest 取默认模型，不在生成逻辑写第二份常量。旧候选清单不自动改写。
 - 模型迁移通过 agents/meta-agent/migrate_model_key.py 在应用节点执行：先核对目录与 meta-agent-dev 现有策略，仅轮换此虚拟 Key 并更新 keel-meta-agent Secret，保留预算、限流、fallback 和 blocked 状态（blocked 时拒绝迁移），不清零用量。完成后由正常 CD 部署新 manifest。幂等标记与 Key 同一次 Secret 更新，重复执行不重复轮换；原始密钥不输出。

@@ -562,6 +562,7 @@ def test_developer_clarification_requires_complete_files_without_extra_model_rev
 
 def test_candidate_rejects_exhausted_mock_loop_before_git_delivery():
     tests = TEST_CODE + '''
+@pytest.mark.asyncio
 async def test_chinese_inputs():
     ctx = MagicMock()
     ctx.tools.call.side_effect = [[{"status": "RUN"}], [{"name": "reader"}]]
@@ -595,3 +596,25 @@ def test_mock_loop_allows_fresh_context_or_stateless_double(setup):
         await execute({{"text": text}}, ctx)
 '''
     assert _shared_mock_errors(ast.parse(source)) == []
+
+
+def test_async_tests_are_rejected_even_with_an_unused_run_async_helper():
+    candidate = {"files": [{"path": "role.py", "content": ROLE_CODE},
+        {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
+        {"path": "tests/test_role.py", "content": TEST_CODE + '''
+def run_async(coro):
+    return asyncio.run(coro)
+
+async def test_extra():
+    await execute({}, None)
+'''}]}
+    assert any("test_extra 是未标记的异步测试" in error for error in parse(json.dumps(candidate))[1])
+    candidate["files"][2]["content"] += "\npytestmark = pytest.mark.asyncio\n"
+    assert parse(json.dumps(candidate))[1] == []
+
+
+@pytest.mark.parametrize("mark", ["@pytest.mark.asyncio", "@pytest.mark.anyio", "@pytest.mark.asyncio(loop_scope='module')"])
+def test_async_test_markers_are_accepted(mark):
+    import ast
+    from candidate import _async_test_errors
+    assert _async_test_errors(ast.parse(mark + "\nasync def test_extra():\n    await execute({}, None)")) == []
