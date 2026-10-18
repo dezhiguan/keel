@@ -13,6 +13,22 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.*;
 
 class MetaAgentRulesTest {
+    @Test void clarificationUsesLatestExactCandidateReportAndPrioritizesRealGateFailure() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) new ObjectMapper().readTree("""
+                {"delivery":{"sha":"new"},"repairWindow":{"report":"old failure"},
+                 "sandboxAttempts":[{"sha":"old","report":"old failure"},
+                                    {"sha":"new","report":"sha=new snapshot=ok tests=PASS"}]}
+                """);
+        assertThat(MetaAgentExecution.repairFeedbackReport(state)).isEqualTo("sha=new snapshot=ok tests=PASS");
+        state.putObject("pipeline").put("evaluationFailed", true).put("message", "visible evaluation failed");
+        assertThat(MetaAgentExecution.repairFeedbackReport(state)).isEqualTo("visible evaluation failed");
+        state.remove("pipeline");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("delivery")).put("sha", "unverified");
+        assertThat(MetaAgentExecution.repairFeedbackReport(state)).isEmpty();
+        state.remove("sandboxAttempts");
+        assertThat(MetaAgentExecution.repairFeedbackReport(state)).isEmpty();
+    }
+
     @Test void failedGenerationCanReceiveClarificationOnlyWithinTheExistingUnmergedWindow() throws Exception {
         var state = (com.fasterxml.jackson.databind.node.ObjectNode) new ObjectMapper().readTree("""
                 {"phase":"FAILED","delivery":{"sha":"abc"},

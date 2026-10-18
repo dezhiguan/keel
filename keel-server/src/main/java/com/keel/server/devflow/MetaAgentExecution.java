@@ -715,6 +715,16 @@ public class MetaAgentExecution {
         return retry(id, null);
     }
 
+    static String repairFeedbackReport(JsonNode state) {
+        if (state.path("pipeline").path("evaluationFailed").asBoolean(false))
+            return state.path("pipeline").path("message").asText();
+        var attempts = state.path("sandboxAttempts");
+        var last = attempts.path(attempts.size() - 1);
+        String sha = state.path("delivery").path("sha").asText();
+        return !sha.isBlank() && sha.equals(last.path("sha").asText())
+                ? last.path("report").asText() : "";
+    }
+
     public ObjectNode retry(String id, String feedback) {
         requireAdmin();
         return tx.execute(status -> {
@@ -736,11 +746,10 @@ public class MetaAgentExecution {
                 repair.put("attempt", state.path("sandboxAttempts").size() + 1).put("failedSha", sha)
                         .put("infrastructureOnly", false).put("feedback", feedback.trim())
                         .put("feedbackActor", ConsolePrincipal.current().username());
-                if (state.path("pipeline").path("evaluationFailed").asBoolean(false))
-                    repair.put("report", state.path("pipeline").path("message").asText());
+                repair.put("report", repairFeedbackReport(state));
                 repair.set("previousCandidate", previous);
                 state.put("sandboxAttemptCeiling", repair.path("maxAttempts").asInt()).put("phase", "QUEUED");
-                state.remove(List.of("humanReview", "modelReview", "modelReviewTraceId", "sandboxStatus", "sandboxRunId", "gate", "pipeline"));
+                state.remove(List.of("error", "humanReview", "modelReview", "modelReviewTraceId", "sandboxStatus", "sandboxRunId", "gate", "pipeline"));
                 save(id, state, "DELIVER");
                 jobs.progress(id, "QUEUED", "BUILD", newWindow ? "开发者补充澄清并主动开启一次五轮修复窗口，累计验证仍不超过二十次" : "开发者已补充修复说明，在原有额度内继续生成并重新验证审批");
                 return publicState(state);
@@ -1063,6 +1072,7 @@ public class MetaAgentExecution {
                             state.put("sandboxStatus", passed ? "PASS" : "FAILED");
                             if (passed) {
                                 state.put("phase", "WAITING_REVIEW");
+                                state.remove("error");
                                 if (state.path("repair").isObject()) state.set("repairWindow", state.path("repair").deepCopy());
                                 state.remove("repair");
                                 state.remove("sandboxAttemptCeiling");

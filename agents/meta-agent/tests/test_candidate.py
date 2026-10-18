@@ -561,6 +561,31 @@ def test_developer_clarification_requires_complete_files_without_extra_model_rev
     assert "MUST_NOT_REACH_GENERATION" not in json.dumps(model.prompts)
 
 
+def test_passed_candidate_feedback_patches_without_discarding_regression_tests():
+    previous = {"files": [{"path": "role.py", "content": ROLE_CODE},
+        {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
+        {"path": "tests/test_role.py", "content": TEST_CODE}]}
+    partial = {"edits": [{"path": "role.py", "old": 'data.get("requirement")',
+                           "new": 'data.get("requirement") or ""'}]}
+    model = FakeModel([json.dumps(partial)])
+    work = {"requirement": {"target_agent": "spec-agent", "template": "graph-agent", "tools": []},
+        "draft": {"spec": {"goal": "分析需求"}, "manifest": {"spec": {"tools": []}}},
+        "repair": {"attempt": 3, "failedSha": "abc", "previousCandidate": previous,
+                   "feedback": "只修空输入", "report": "sha=abc snapshot=ok tests=PASS\n2 passed"}}
+    result = asyncio.run(generate(work, type("Ctx", (), {"llm": model})()))
+    assert len(model.prompts) == 1
+    assert result["files"][1:] == previous["files"][1:]
+    assert 'data.get("requirement") or ""' in result["files"][0]["content"]
+    assert json.loads(model.prompts[0][1]["content"])["previousCandidate"] == previous
+
+    # A stale PASS elsewhere in a failed report must not select incremental mode.
+    for report in ["sha=stale snapshot=ok tests=PASS\n", "failed\nsha=abc snapshot=ok tests=PASS\n"]:
+        work["repair"]["report"] = report
+        model = FakeModel([json.dumps(previous)])
+        asyncio.run(generate(work, type("Ctx", (), {"llm": model})()))
+        assert len(json.loads(model.prompts[0][1]["content"])["previousCandidate"]["files"]) == 2
+
+
 def test_candidate_rejects_exhausted_mock_loop_before_git_delivery():
     tests = TEST_CODE + '''
 @pytest.mark.asyncio
