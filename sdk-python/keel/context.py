@@ -101,7 +101,8 @@ class Context:
         tool_specs = manifest.spec.tools if manifest else None
         audit_spec = manifest.spec.audit if manifest else None
         self.llm = llm_client or (LlmClient(agent, models.default_ if models else None,
-                                            trace_id, self._tracer) if models else _UnimplementedClient("llm"))
+                                            trace_id, self._tracer, on_token=self.token)
+                                  if models else _UnimplementedClient("llm"))
         self.knowledge = knowledge_client or (KnowledgeClient(agent, self._tracer)
                                               if knowledge else _UnimplementedClient("knowledge"))
         from keel.audit.lite_reporter import LiteAuditReporter

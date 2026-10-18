@@ -203,7 +203,7 @@ watch(() => envStore.env, (env) => {
 .me { color: var(--mute); font-size: 12px; padding: 12px 10px 0; border-top: 1px solid var(--line); line-height: 1.6; }
 .me b { color: var(--white); }
 .me a { color: var(--soft); cursor: pointer; }
-.body { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.body { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .top {
   height: 52px;
   display: flex;
@@ -243,7 +243,7 @@ watch(() => envStore.env, (env) => {
   cursor: pointer;
 }
 .envsel button.on { background: var(--panel3); color: var(--white); }
-.main { flex: 1; overflow: auto; padding: 20px; }
+.main { flex: 1; overflow: auto; padding: 20px; min-height: 0; }
 .main.fit { overflow: hidden; display: flex; flex-direction: column; }
-.main.fit > :deep(*) { flex: 1; min-height: 0; }
+.main.fit > :deep(*) { flex: 1; min-height: 0; overflow: hidden; }
 </style>

@@ -363,6 +363,35 @@ def test_async_audit_spools_on_full_queue_and_replays_in_order(tmp_path, monkeyp
     assert reporter.spool_path.read_text() == ""
 
 
+def test_stream_emits_each_content_delta_before_the_full_reply(monkeypatch):
+    monkeypatch.setenv("KEEL_LLM_BASE_URL", "https://gateway.test/v1")
+    monkeypatch.setenv("KEEL_LLM_KEY", "test-virtual-key")
+    seen = []
+
+    def chunk(text, finish=None):
+        body = {"id": "1", "object": "chat.completion.chunk", "created": 1, "model": "qwen-plus",
+                "choices": [{"index": 0, "delta": {"content": text} if text else {}, "finish_reason": finish}]}
+        return "data: " + json.dumps(body) + "\n\n"
+
+    def handle(request):
+        payload = json.loads(request.content)
+        assert payload["stream"] is True
+        raw = chunk("你") + chunk("好") + chunk("", "stop") + "data: [DONE]\n\n"
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=raw.encode())
+
+    client = LlmClient("echo", "qwen-plus", "trace-1", on_token=seen.append,
+                       http_client=httpx.AsyncClient(transport=httpx.MockTransport(handle)))
+
+    async def scenario():
+        try:
+            return await client.chat([{"role": "user", "content": "你好"}])
+        finally:
+            await client.aclose()
+
+    assert run(scenario()) == "你好"
+    assert seen == ["你", "好"]
+
+
 def test_no_vendor_sdk_direct_imports():
     forbidden = ("dashscope", "anthropic", "google.generativeai")
     for source in (ROOT / "sdk-python/keel").rglob("*.py"):

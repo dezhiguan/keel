@@ -524,7 +524,7 @@ watch(name, async (agent) => {
             <button v-write class="btn pri" type="button" :disabled="canStop || !draft.trim()" @click="sendChat">发送</button>
             <button class="btn" type="button" :disabled="!canStop" @click="stop">停止</button>
           </div>
-          <div class="hint">调试是真实调用：消耗该智能体的日预算，写链路和审计；高风险工具照常走审批。三栏都是滚动分页：会话列表滚到底加载下一页，对话和事件滚到顶加载更早的（每页会话 10 个、消息 10 条、事件 20 条）。</div>
+          <div class="hint">三栏都是滚动分页：会话列表滚到底加载下一页，对话和事件滚到顶加载更早的（每页会话 10 个、消息 10 条、事件 20 条）。调试是真实调用，消耗日预算，并写入链路和审计。</div>
         </div>
 
         <div class="card">
@@ -638,20 +638,23 @@ watch(name, async (agent) => {
 </template>
 
 <style scoped>
-.pv { min-height: 240px; }
+.pv { min-height: 0; }
 .pv.fill {
   display: flex;
   flex-direction: column;
   min-height: 0;
   height: 100%;
+  max-height: 100%;
+  overflow: hidden;
 }
-.pv .vh { margin-bottom: 14px; }
+.pv .vh { margin-bottom: 14px; flex-shrink: 0; }
 .dbg {
   flex: 1;
-  min-height: 440px;
+  min-height: 0;
   display: grid;
   grid-template-columns: 230px minmax(0, 1fr) 270px;
   gap: 14px;
+  overflow: hidden;
 }
 .dbg .card {
   margin: 0;
@@ -659,7 +662,14 @@ watch(name, async (agent) => {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
+.dbg .card > h3,
+.store,
+.compose,
+.hint,
+.new-session,
+.drop { flex-shrink: 0; }
 .new-session { margin-bottom: 10px; align-self: flex-start; }
 .drop { margin-top: 8px; align-self: flex-start; }
 .slist { overflow: auto; flex: 1; min-height: 0; }
@@ -688,7 +698,7 @@ watch(name, async (agent) => {
 .meta a { color: var(--soft); text-decoration: none; }
 .compose { display: flex; gap: 8px; margin-top: 10px; }
 .compose .inp { flex: 1; min-width: 0; }
-.hint { font-size: 11.5px; color: var(--mute); margin-top: 6px; }
+.hint { font-size: 11.5px; color: var(--mute); margin-top: 6px; line-height: 1.45; }
 .store { font-size: 11.5px; color: var(--mute); display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 .store b { color: var(--text); font-weight: 500; }
 .empty-thread, .ev-empty { text-align: center; padding: 40px 0; font-size: 12.5px; }
@@ -717,10 +727,10 @@ watch(name, async (agent) => {
 .pv-calls .q { margin: 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pv-calls a { color: var(--soft); font-size: 11.5px; text-decoration: none; }
 @media (max-width: 1100px) {
-  .pv.fill { height: auto; }
-  .dbg { grid-template-columns: 1fr; height: auto; }
-  .dbg .card { height: auto; min-height: 280px; }
-  .slist, .thread, .events { max-height: 420px; }
+  .pv.fill { height: auto; max-height: none; overflow: visible; }
+  .dbg { grid-template-columns: 1fr; height: auto; overflow: visible; }
+  .dbg .card { height: 520px; min-height: 0; }
+  .slist, .thread, .events { max-height: none; }
   .pv-grid { grid-template-columns: 1fr; }
   .pv-side { position: static; }
 }

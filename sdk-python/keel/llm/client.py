@@ -54,7 +54,7 @@ def _observation_input(messages: list[dict]) -> str:
 
 class LlmClient:
     def __init__(self, agent: str, default_model: str | None, trace_id: str,
-                 tracer=None, http_client: httpx.AsyncClient | None = None):
+                 tracer=None, http_client: httpx.AsyncClient | None = None, on_token=None):
         from keel.runtime import standalone
 
         base_url = _openai_base(os.environ.get("KEEL_LLM_BASE_URL"))
@@ -67,6 +67,7 @@ class LlmClient:
         self.agent = agent
         self.default_model = default_model
         self.trace_id = trace_id
+        self.on_token = on_token
         self.tracer = tracer or trace.get_tracer("keel.llm")
         headers = {"X-Trace-Id": trace_id} if trace_id else None
         self.client = openai.AsyncOpenAI(base_url=base_url, api_key=api_key, max_retries=0,
@@ -101,6 +102,13 @@ class LlmClient:
                     options["tools"] = tools
                 if not self.standalone:
                     options["extra_body"] = {"metadata": {"caller_agent": self.agent}}
+                if self.on_token is not None:
+                    reply, calls, usage = await self._stream(chosen, messages, options)
+                    self._record_usage(span, usage)
+                    span.set_attribute(attrs.OBSERVATION_OUTPUT, reply)
+                    if tools is None:
+                        return reply
+                    return ChatResult(reply, tuple(calls))
                 try:
                     response = await self.client.chat.completions.create(
                         model=chosen, messages=messages, **options)
@@ -147,6 +155,59 @@ class LlmClient:
                     raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型工具参数必须是 JSON 对象")
                 calls.append(ToolCall(call.id, call.function.name, arguments))
             return ChatResult(reply, tuple(calls))
+
+    async def _stream(self, model: str, messages: list[dict], options: dict):
+        """Read the gateway SSE and emit each content delta before the call returns."""
+        stream_options = {**options, "stream": True, "stream_options": {"include_usage": True}}
+        try:
+            stream = await self.client.chat.completions.create(
+                model=model, messages=messages, **stream_options)
+        except openai.APIStatusError as first:
+            if first.status_code not in (500, 502, 503, 504):
+                raise
+            await asyncio.sleep(0.2)
+            stream = await self.client.chat.completions.create(
+                model=model, messages=messages, **stream_options)
+        parts: list[str] = []
+        tools: dict[int, dict[str, str]] = {}
+        usage = None
+        async for chunk in stream:
+            if getattr(chunk, "usage", None):
+                usage = chunk.usage
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            if delta is None:
+                continue
+            if delta.content:
+                parts.append(delta.content)
+                self.on_token(delta.content)
+            for call in delta.tool_calls or []:
+                slot = tools.setdefault(call.index, {"id": "", "name": "", "arguments": ""})
+                if call.id:
+                    slot["id"] = call.id
+                function = call.function
+                if function and function.name:
+                    slot["name"] += function.name
+                if function and function.arguments:
+                    slot["arguments"] += function.arguments
+        parsed = []
+        for index in sorted(tools):
+            slot = tools[index]
+            try:
+                arguments = json.loads(slot["arguments"] or "{}")
+            except (TypeError, ValueError) as exc:
+                raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型工具参数不是有效 JSON") from exc
+            if not isinstance(arguments, dict):
+                raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型工具参数必须是 JSON 对象")
+            parsed.append(ToolCall(slot["id"], slot["name"], arguments))
+        return "".join(parts), parsed, usage
+
+    def _record_usage(self, span, usage) -> None:
+        if not usage:
+            return
+        span.set_attribute(attrs.INPUT_TOKENS, usage.prompt_tokens)
+        span.set_attribute(attrs.OUTPUT_TOKENS, usage.completion_tokens)
 
     async def aclose(self):
         await self.client.close()
