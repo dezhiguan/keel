@@ -6,7 +6,7 @@ import sys
 import pytest
 
 from candidate import generate, parse
-from workflow import _cached_delivery_candidate, _deliver
+from workflow import _cached_delivery_candidate, _deliver, _readme_with_job_note
 
 
 SHA_A = "a" * 40
@@ -209,6 +209,15 @@ def unsafe(llm_response):
               "infrastructureOnly": True, "report": "install new trusted platform checks"}
     assert _deliver(work(old, repair))["sha"] == SHA_B
     assert "tests/test_platform_contract.py" not in {item["path"] for item in pushes[1]["files"]}
+
+
+def test_delivery_note_is_written_once():
+    note = _readme_with_job_note("# demo\n", "DF-0017")
+    section = note.split("# demo", 1)[1]
+    again = _readme_with_job_note(note.rstrip() + section, "DF-0017")
+    assert again.count("## 生产任务 DF-0017") == 1
+    assert again.startswith("# demo\n")
+    assert "缺少绑定会明确失败。" in again
 
 
 def test_cumulative_window_accepts_twenty_five_and_rejects_twenty_six(tmp_path, monkeypatch):

@@ -255,6 +255,24 @@ def _cached_delivery_candidate(work):
     return candidate if not errors else None
 
 
+def _readme_with_job_note(existing: str, job_id: str) -> str:
+    """Keep one delivery note. Repeated repairs must not append the same section again."""
+    note = (
+        f"## 生产任务 {job_id}\n\n"
+        "模型生成的研发岗位代码候选，需通过隔离沙箱、人工 PR review、评测门禁和发布审批。\n"
+        "多智能体项目运行时需配置 KEEL_DELEGATE_ROUTES，按 agent.yaml 中的子智能体名称映射其登记 endpoint 和 env。"
+        "例如 `{\"child-name\":{\"endpoint\":\"http://child-service:8000\",\"env\":\"dev\"}}`。"
+        "Keel 可信流水线会自动注入；独立部署时由开发者配置，缺少绑定会明确失败。\n"
+    )
+    stripped = re.sub(
+        rf"(?:\n*## 生产任务 {re.escape(job_id)}\n\n"
+        r"模型生成的研发岗位代码候选[\s\S]*?缺少绑定会明确失败。\n?)+",
+        "",
+        existing,
+    )
+    return stripped.rstrip() + "\n\n" + note
+
+
 def deliver(work):
     from tools.state import folder
     job_id = work.get("jobId")
@@ -523,12 +541,7 @@ app = agent.asgi()
         (project / "tests/test_platform_contract.py").unlink(missing_ok=True)
         readme = project / "README.md"
         existing = readme.read_text(encoding="utf-8") if readme.is_file() else f"# {project.name}\n"
-        readme.write_text(existing.rstrip() + f"\n\n## 生产任务 {job_id}\n\n"
-            "模型生成的研发岗位代码候选，需通过隔离沙箱、人工 PR review、评测门禁和发布审批。\n"
-            "多智能体项目运行时需配置 KEEL_DELEGATE_ROUTES，按 agent.yaml 中的子智能体名称映射其登记 endpoint 和 env。"
-            "例如 `{\"child-name\":{\"endpoint\":\"http://child-service:8000\",\"env\":\"dev\"}}`。"
-            "Keel 可信流水线会自动注入；独立部署时由开发者配置，缺少绑定会明确失败。\n",
-            encoding="utf-8")
+        readme.write_text(_readme_with_job_note(existing, job_id), encoding="utf-8")
     else:
         spec = json.loads((project / "spec.json").read_text(encoding="utf-8"))
         write_prompt_scaffold(project, spec)
