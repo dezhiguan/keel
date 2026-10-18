@@ -35,5 +35,6 @@ describe('skill grant', () => {
     expect(formatSkillWhen('2026-10-18T14:02:00+08:00')).toBe('10-18 14:02')
     expect(versionMeta({ createdBy: '官德志', createdAt: '2026-10-18T14:02:00+08:00', note: '引用必须带段落号' }))
       .toBe('官德志 · 10-18 14:02 · 引用必须带段落号')
+    expect(versionMeta({ createdAt: '2026-10-18T14:02:00+08:00' })).toBe('10-18 14:02')
   })
 })

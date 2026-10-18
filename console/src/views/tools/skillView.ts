@@ -60,7 +60,7 @@ export function formatSkillWhen(value?: string) {
 }
 
 export function versionMeta(version: { createdBy?: string; createdAt?: string; note?: string }) {
-  return [version.createdBy || '—', formatSkillWhen(version.createdAt), version.note?.trim()].filter(Boolean).join(' · ')
+  return [version.createdBy?.trim(), formatSkillWhen(version.createdAt), version.note?.trim()].filter(Boolean).join(' · ')
 }
 
 export function sourceLabel(source?: string) {
