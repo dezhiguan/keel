@@ -153,6 +153,7 @@ export interface paths {
         /**
          * 总览页全部数据
          * @description 一次返回页面所需的全部内容，前端不做二次聚合。
+         *     agents 按 agent.created_at 从新到旧，创建时间相同再按 name 升序。
          */
         get: operations["getOverview"];
         put?: never;
@@ -3225,7 +3226,7 @@ export interface components {
             repairFeedbackAvailable?: boolean;
             /** @description 原自动窗口已耗尽，本次明确澄清将主动开启一次最多五轮的新窗口，累计上限二十轮 */
             repairFeedbackCreatesWindow?: boolean;
-            /** @description 开发者补充澄清后主动开启的新修复窗口次数 */
+            /** @description 管理员补充澄清后主动开启的新修复窗口次数；每次最多五轮，所有沙箱提交累计不超过二十次 */
             manualRepairWindows?: number;
             pipeline?: {
                 /** @enum {string} */

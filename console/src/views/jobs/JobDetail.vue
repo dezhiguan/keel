@@ -193,7 +193,7 @@ async function confirmFeedback() {
     execution.value = await retryDevflowExecution(jobId.value, instruction.value.trim())
     modal.value = null
     await load(true)
-    ElMessage.success(newWindow ? '已按澄清开启一次新的五轮窗口' : '已在原有修复额度内继续生成')
+    ElMessage.success(newWindow ? '已按澄清开启新修复窗口，历史轮次保留' : '已在原有修复额度内继续生成')
   } catch (error) { ElMessage.error(toKeelError(error).message) }
   finally { busy.value = false }
 }
@@ -545,7 +545,7 @@ onUnmounted(() => {
     <div v-if="modal === 'feedback'" class="modal on" role="dialog" aria-label="补充修复说明">
       <div class="mh">补充修复说明</div>
       <div class="mb">
-        <p v-if="execution?.repairFeedbackCreatesWindow">本次澄清会主动开启一次最多 5 轮的新修复窗口，所有窗口累计上限 20 次。新提交仍须重新测试和审批。</p>
+        <p v-if="execution?.repairFeedbackCreatesWindow">已开启 {{ execution.manualRepairWindows ?? 0 }}/3 次人工修复窗口，累计验证 {{ execution.sandboxAttempts?.length ?? 0 }}/20 次。提交本次说明将开启最多 {{ Math.min(5, 20 - (execution.sandboxAttempts?.length ?? 0)) }} 轮的新窗口，保留全部历史记录。新提交仍须重新测试和审批。</p>
         <p v-else>在现有修复窗口内继续生成，新提交需要重新测试和审批。</p>
         <label>明确需要修正的行为或业务含义</label>
         <textarea v-model="instruction" class="inp" maxlength="8000" placeholder="说明实际结果、期望行为及需要保留的要求" />

@@ -94,18 +94,60 @@ class MetaAgentRulesTest {
         assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isFalse();
         assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
         state.put("manualRepairWindows", 1);
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
+        state.put("manualRepairWindows", 3);
         assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
     }
-    @Test void onlyExplicitClarificationCanOpenOneNewFailedWindowWithinAbsoluteLimit() throws Exception {
+    @Test void explicitClarificationCanContinueFailedWindowsButStopsAtThreeOrTwenty() throws Exception {
         var state = (com.fasterxml.jackson.databind.node.ObjectNode) new ObjectMapper().readTree("""
-                {"phase":"FAILED","sandboxStatus":"FAILED","repair":{"maxAttempts":1},
-                "delivery":{"sha":"abc"},"sandboxAttempts":[{"sha":"abc","report":"sha=abc snapshot=ok tests=FAIL"}]}
+                {"phase":"FAILED","sandboxStatus":"FAILED","repair":{"maxAttempts":10},
+                "manualRepairWindows":1,"delivery":{"sha":"abc"},"sandboxAttempts":[]}
                 """);
+        var attempts = state.withArray("sandboxAttempts");
+        for (int i = 0; i < 10; i++) attempts.addObject().put("sha", "abc")
+                .put("status", "FAILED").put("report", "sha=abc snapshot=ok tests=FAIL\n");
         assertThat(MetaAgentExecution.canAcceptRepairFeedback(state)).isFalse();
         assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
-        state.put("manualRepairWindows", 1);
+        state.put("manualRepairWindows", 2);
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
+        state.put("manualRepairWindows", 3);
         assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
-        state.put("manualRepairWindows", 0).put("phase", "RELEASING");
+        state.put("manualRepairWindows", 2);
+        var last = attempts.get(attempts.size() - 1).deepCopy();
+        while (attempts.size() < 19) attempts.add(last.deepCopy());
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
+        attempts.add(last.deepCopy());
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
+    }
+    @Test void newFailedWindowRequiresExactCompletedFailureAndUnmergedIdleTask() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) new ObjectMapper().readTree("""
+                {"phase":"FAILED","sandboxStatus":"FAILED","repair":{"maxAttempts":1},
+                "manualRepairWindows":1,"delivery":{"sha":"abc"},
+                "sandboxAttempts":[{"sha":"abc","status":"FAILED","report":"sha=abc snapshot=ok tests=FAIL\\n"}]}
+                """);
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
+        for (String phase : List.of("QUEUED", "DELIVERING", "SANDBOX_RUNNING", "RELEASING", "WATCHING")) {
+            state.put("phase", phase);
+            assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
+        }
+        state.put("phase", "FAILED");
+        for (String field : List.of("h4ApprovalId", "mergeSha")) {
+            state.put(field, "already-approved-or-merged");
+            assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
+            state.remove(field);
+        }
+        var last = (com.fasterxml.jackson.databind.node.ObjectNode) state.path("sandboxAttempts").get(0);
+        for (String report : List.of("tests=FAIL", "sha=other snapshot=ok tests=FAIL\n", "sha=abc snapshot=failed tests=FAIL\n")) {
+            last.put("report", report);
+            assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
+        }
+        last.put("report", "sha=abc snapshot=ok tests=FAIL\n").put("sha", "other");
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
+        last.put("sha", "abc").put("status", "RUNNING");
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
+        last.put("status", "FAILED");
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("repair")).put("maxAttempts", 5);
         assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
     }
     @Test void developerFeedbackCannotExtendOrReopenAnExhaustedRepairWindow() throws Exception {

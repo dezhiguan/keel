@@ -742,7 +742,7 @@ public class MetaAgentExecution {
                 var repair = previousRepair.isObject() ? (ObjectNode) previousRepair.deepCopy() : json.createObjectNode();
                 state.set("repair", repair);
                 if (newWindow) {
-                    state.put("manualRepairWindows", 1);
+                    state.put("manualRepairWindows", state.path("manualRepairWindows").asInt(0) + 1);
                     repair.put("maxAttempts", Math.min(20, state.path("sandboxAttempts").size() + 5));
                 }
                 repair.put("attempt", state.path("sandboxAttempts").size() + 1).put("failedSha", sha)
@@ -753,7 +753,10 @@ public class MetaAgentExecution {
                 state.put("sandboxAttemptCeiling", repair.path("maxAttempts").asInt()).put("phase", "QUEUED");
                 state.remove(List.of("error", "humanReview", "modelReview", "modelReviewTraceId", "sandboxStatus", "sandboxRunId", "gate", "pipeline"));
                 save(id, state, "DELIVER");
-                jobs.progress(id, "QUEUED", "BUILD", newWindow ? "开发者补充澄清并主动开启一次五轮修复窗口，累计验证仍不超过二十次" : "开发者已补充修复说明，在原有额度内继续生成并重新验证审批");
+                jobs.progress(id, "QUEUED", "BUILD", newWindow ? "开发者补充澄清并主动开启第 "
+                        + state.path("manualRepairWindows").asInt() + " 次人工修复窗口，本次最多 "
+                        + (repair.path("maxAttempts").asInt() - state.path("sandboxAttempts").size())
+                        + " 轮，累计验证仍不超过二十次" : "开发者已补充修复说明，在原有额度内继续生成并重新验证审批");
                 return publicState(state);
             }
             if (canRefreshRuntimeAdapter(state)) {
@@ -966,16 +969,21 @@ public class MetaAgentExecution {
     }
 
     static boolean canStartClarifiedRepairWindow(JsonNode state) {
+        int windows = state.path("manualRepairWindows").asInt(0);
+        if (windows < 0 || windows >= 3 || state.hasNonNull("h4ApprovalId") || state.hasNonNull("mergeSha"))
+            return false;
         int ceiling = repairContext(state).path("maxAttempts").asInt();
         var attempts = state.path("sandboxAttempts");
         if (repairFeedbackPhase(state) && "PASS".equals(state.path("sandboxStatus").asText())
-                && !canAcceptRepairFeedback(state) && attempts.size() > 0 && attempts.size() < 20
-                && state.path("manualRepairWindows").asInt(0) < 1) return true;
+                && !canAcceptRepairFeedback(state) && attempts.size() > 0 && attempts.size() < 20) return true;
+        String sha = state.path("delivery").path("sha").asText();
+        var last = attempts.path(attempts.size() - 1);
         return "FAILED".equals(state.path("phase").asText()) && "FAILED".equals(state.path("sandboxStatus").asText())
-                && state.path("manualRepairWindows").asInt(0) < 1 && ceiling > 0
+                && ceiling > 0 && !sha.isBlank()
                 && attempts.size() >= ceiling && attempts.size() < 20
-                && attempts.path(attempts.size() - 1).path("sha").asText().equals(state.path("delivery").path("sha").asText())
-                && attempts.path(attempts.size() - 1).path("report").asText().contains("tests=FAIL");
+                && sha.equals(last.path("sha").asText())
+                && "FAILED".equals(last.path("status").asText())
+                && last.path("report").asText().startsWith("sha=" + sha + " snapshot=ok tests=FAIL\n");
     }
 
     private static JsonNode repairContext(JsonNode state) {
