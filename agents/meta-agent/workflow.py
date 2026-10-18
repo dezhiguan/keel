@@ -86,7 +86,7 @@ async def execute(work, ctx):
                                          "endpoint": f"http://{target}.agents.svc.cluster.local:8000"},
                              "kind": "workflow",
                              "auth": {"audience": target},
-                             "models": {"default": "qwen-plus", "budget": {"dailyCny": requirement["dailyBudgetCny"]}},
+                             "models": {"default": ctx.manifest.spec.models.default_, "budget": {"dailyCny": requirement["dailyBudgetCny"]}},
                              "tools": tools, "knowledge": [],
                              "delegates": requirement.get("delegates") or [],
                              "guardrails": {"inputInjection": "enforce", "grounding": "off", "pii": "mask"},

@@ -29,7 +29,7 @@ runtime.endpoint 由平台按约定填写，manifest 里不要写这一项。
     "spec": {
       "runtime": {"type": "code", "language": "python", "liveness": "k8s"},
       "auth": {"audience": "与 metadata.name 相同"},
-      "models": {"default": "qwen-plus", "budget": {"dailyCny": 20}},
+      "models": {"default": "qwen3.8-flash", "budget": {"dailyCny": 20}},
       "tools": [{"name": "工具名", "access": "read", "risk": "low", "approval": "none"}],
       "audit": {"captureFields": ["只列不含个人信息的字段"]},
       "eval": {"dataset": "{name}/seed"}

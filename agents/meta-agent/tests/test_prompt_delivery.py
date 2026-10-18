@@ -86,6 +86,9 @@ def test_draft_declares_prompt_knowledge_and_guardrails(monkeypatch):
     class Context:
         def __init__(self, llm):
             self.llm = llm
+            from pathlib import Path
+            from keel.manifest import load_manifest
+            self.manifest = load_manifest(Path(__file__).resolve().parents[1] / "agent.yaml")
 
         async def prompt(self, name):
             assert name == "draft"

@@ -28,6 +28,9 @@ def test_general_supervisor_draft_declares_selected_delegates(gateway):
     assert kind == "final"
     manifest = json.loads(event["answer"])["manifest"]
     assert manifest["spec"]["delegates"] == ["qa-ci-investigator-1017"]
+    # Ignore the outdated model in the draft model response; use trusted configuration.
+    assert manifest["spec"]["models"]["default"] == "qwen3.8-flash"
+    assert gateway.requests[0]["model"] == "qwen3.8-flash"
 
 
 def test_bootstrap_code_review_is_bound_to_snapshot_and_fails_closed():

@@ -121,6 +121,7 @@ async def generate(work: dict, ctx) -> dict:
         "用假 ctx 测试行为，不能连接真实服务。不要只测试文件存在或字符串常量。"
         "测试须导入 role.execute 并调用它；prompt.compile 是同步方法，用 MagicMock 模拟；"
         "每个参数化输入使用独立ctx/side_effect，不能循环消耗同一份工具返回列表。"
+        "优先使用pytest.mark.parametrize；如用for循环，ctx或ctx.tools.call.side_effect必须在循环内重新创建。"
         "H1/H2及可信测试不可修改；自编测试与H1冲突时须纠正错误断言，保留场景覆盖，"
         "不能为通过错误断言修改业务含义，也不能只追加相反断言而保留原错误。"
         "ctx.llm.chat 返回字符串；断言须符合 execute 实际返回的完整结构，"
@@ -166,6 +167,13 @@ async def generate(work: dict, ctx) -> dict:
                    "由平台完整验证；有授权澄清须返回完整files，其余修复可用edits。")
         repair_data = {"attempt": repair.get("attempt"), "previousCandidate": previous,
                        "sandboxReport": str(repair.get("report") or "")[:8000]}
+        if repair.get("feedback"):
+            prompt += ("\n本轮完整重写的旧自编测试正文已隔离，避免沿用错误断言；"
+                       "根据受信H1/H2和开发者澄清重新编写完整tests/test_role.py。"
+                       "失败测试名称仅用于定位，不构成需求。岗位代码和提示词仍供继续开发参考。")
+            repair_data = {"attempt": repair.get("attempt"), "previousCandidate": {"files": [
+                item for item in previous["files"] if item["path"] != "tests/test_role.py"]},
+                "failedTests": re.findall(r"(?m)^FAILED\s+(\S+)", str(repair.get("report") or ""))[:20]}
     errors = []
     initial_messages = [{"role": "system", "content": prompt}]
     initial_messages.append({"role": "user", "content": json.dumps(
@@ -197,6 +205,36 @@ async def generate(work: dict, ctx) -> dict:
                         else "可用精确edits或三个完整文件重新返回。") + "错误："
                      + "；".join(errors[:6]) + fallback}]
     raise KeelError(ErrorCode.AGENT_MANIFEST_INVALID, "岗位代码校验失败：" + "；".join(errors[:6]))
+
+
+def _shared_mock_errors(tree):
+    """Reject finite side_effect lists shared by repeated execute calls, without running code."""
+    errors = []
+    for function in tree.body:
+        if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        finite = {}
+        for statement in function.body:
+            if isinstance(statement, ast.Assign):
+                for target in statement.targets:
+                    if (isinstance(target, ast.Attribute) and target.attr == "side_effect"
+                            and isinstance(statement.value, (ast.List, ast.Tuple))):
+                        finite[ast.unparse(target)] = target
+            if not isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
+                continue
+            calls = [node for node in ast.walk(statement) if isinstance(node, ast.Call)
+                     and ((isinstance(node.func, ast.Name) and node.func.id == "execute")
+                          or (isinstance(node.func, ast.Attribute) and node.func.attr == "execute"))]
+            contexts = {ast.unparse(call.args[1]) for call in calls if len(call.args) > 1
+                        and isinstance(call.args[1], ast.Name)}
+            resets = {ast.unparse(target) for node in statement.body if isinstance(node, ast.Assign)
+                      for target in node.targets}
+            for name in finite:
+                if any(name.startswith(ctx + ".") for ctx in contexts) and not any(
+                        name == reset or name.startswith(reset + ".") for reset in resets):
+                    errors.append(f"tests/test_role.py:{statement.lineno} {function.name} 循环共享有限{name}；"
+                                  "改为pytest.mark.parametrize或在循环内重建ctx/side_effect，避免第二次execute耗尽Mock")
+    return errors
 
 
 def _prompt_call_errors(tree, prompt_names):
@@ -476,6 +514,7 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
         if llm_calls and not any("prompt" in keywords for keywords in llm_calls):
             errors.append("多工具岗位调用 ctx.llm.chat 时必须传入 prompt=prompt 记录提示词版本")
     tests = trees["tests/test_role.py"]
+    errors.extend(_shared_mock_errors(tests))
     if any(isinstance(node, ast.Assign)
            and any(isinstance(target, ast.Attribute) and target.attr == "chat"
                    and isinstance(target.value, ast.Attribute) and target.value.attr == "llm"

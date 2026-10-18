@@ -125,6 +125,7 @@ async def _draft(ctx, prompt, messages: list[dict], target: str | None, version:
         reply = await ctx.llm.chat(messages, prompt=prompt)
         draft, errors = _parse(reply)
         if not errors:
+            draft["manifest"]["spec"].setdefault("models", {})["default"] = ctx.manifest.spec.models.default_
             errors = await ctx.tools.call("manifest.validate", manifest=draft["manifest"],
                                           target_agent=target, version=version)
         if not errors:

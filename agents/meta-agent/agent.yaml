@@ -13,7 +13,7 @@ spec:
   auth:
     audience: meta-agent
   models:
-    default: qwen-plus
+    default: qwen3.8-flash
     budget:
       dailyCny: 50
   tools:
