@@ -438,6 +438,14 @@ def _scaffold(project: Path, job_id: str, candidate: dict | None = None):
     (project / "evals/seed.jsonl").write_text("", encoding="utf-8")
     (project / "evals/scorers.py").write_text("# Add scorers after humans provide evaluation cases.\n", encoding="utf-8")
     if candidate is not None:
+        (project / "AGENTS.md").write_text(
+            f"# {project.name} 开发说明\n\n"
+            "这是一个独立智能体项目。先阅读 README.md、agent.yaml、提示词和评测样例。\n"
+            "app.py 是协议入口与适配层；role.py 是岗位业务模块，execute(data, ctx) 执行业务逻辑。\n"
+            "辅助业务模块可以按需放在 tools/，不要求把 role.py 的逻辑搬到入口或 tools/。\n"
+            "行为改动同步维护 prompts/、tests/ 和可见评测，提交前运行项目测试。\n"
+            "平台运行时通过版本化 keel-sdk 引入，不把底座源码、契约或密钥复制进项目。\n",
+            encoding="utf-8")
         (project / "evals/scorers.py").write_text('''import json
 import re
 import unicodedata
