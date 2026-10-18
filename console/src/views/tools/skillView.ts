@@ -12,6 +12,7 @@ export interface SkillContent {
 }
 
 export const SKILL_NAME = /^[a-z][a-z0-9-]{0,62}[a-z0-9]$/
+export const SKILL_NAME_HINT = '小写字母、数字和连字符，例如 cite-from-kb。大写会自动改成小写。'
 
 export function normalizeSkillName(value: string) {
   return value.trim().toLowerCase()

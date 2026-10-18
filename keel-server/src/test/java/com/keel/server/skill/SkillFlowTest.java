@@ -125,6 +125,14 @@ class SkillFlowTest {
                 .andExpect(jsonPath("$.data.items[0].users[0]").value("skill-agent"));
     }
 
+    @Test void aMixedCaseNameIsStoredLikeThePrototype() throws Exception {
+        mvc.perform(post("/api/v1/skills").contentType("application/json").content("""
+                {"name":" Cite-From-KB ","ownerOrg":"平台组","description":"引用","instructions":"写出出处"}
+                """)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("cite-from-kb"))
+                .andExpect(jsonPath("$.data.version").value(1));
+    }
+
     @Test void editingKeepsOldVersionsAndPromotesOnlyAfterRegression() throws Exception {
         jdbc.update("DELETE FROM eval_run WHERE agent_name = 'skill-agent'");
         publish("""

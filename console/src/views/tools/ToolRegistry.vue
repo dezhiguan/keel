@@ -10,7 +10,7 @@ import { getSkill, listSkills, publishSkill, revokeSkill, upgradeSkill, type Ski
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { RISK, fmtN } from '@/utils/format'
-import { cleanCases, cleanExamples, lineDiff, normalizeSkillName, sameSkillContent, skillNameError, sourceLabel, splitList, versionMeta, type SkillCaseDraft } from './skillView'
+import { cleanCases, cleanExamples, lineDiff, normalizeSkillName, sameSkillContent, SKILL_NAME_HINT, skillNameError, sourceLabel, splitList, versionMeta, type SkillCaseDraft } from './skillView'
 
 const ACCESS = { READ: '读', WRITE: '写', EXEC: '执行' } as const
 const SCOPE = { PRIVATE: '私有', SHARED: '共享' } as const
@@ -515,7 +515,7 @@ watch(() => envStore.env, () => {
         <div class="field">
           <label>技能名</label>
           <input v-model="skillForm.name" class="inp" :class="{ err: nameInvalid }" placeholder="如 cite-from-kb" @input="nameInvalid = false" />
-          <div class="mut" style="font-size: 12px; margin-top: 4px">小写字母、数字和连字符，例如 cite-from-kb。大写会自动改成小写。</div>
+          <div class="mut" style="font-size: 12px; margin-top: 4px">{{ SKILL_NAME_HINT }}</div>
         </div>
         <div class="field"><label>所有者</label><input v-model="skillForm.ownerOrg" class="inp" /></div>
         <div class="field"><label>说明</label><input v-model="skillForm.description" class="inp" /></div>
