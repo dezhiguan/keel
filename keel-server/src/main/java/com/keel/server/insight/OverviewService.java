@@ -71,7 +71,7 @@ public class OverviewService {
 
     public Overview overview(String env, String range) {
         var scope = env == null || env.isBlank() ? "all" : env;
-        var listed = agentRegistryService.listAll().stream()
+        var listed = agentRegistryService.listNewestFirst().stream()
                 .filter(agent -> agent.status() != AgentStatus.RETIRED)
                 .filter(agent -> "all".equals(scope) || scope.equals(agent.env()))
                 .toList();

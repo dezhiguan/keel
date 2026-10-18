@@ -10,6 +10,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
@@ -34,6 +36,14 @@ class AgentListOrderTest {
         assertThat(page.total()).isEqualTo(4);
         assertThat(page.items()).extracting(AgentSummary::name)
                 .containsExactly("sort-order-newer", "sort-order-same-a", "sort-order-same-b", "sort-order-older");
+        assertThat(names(registry.listNewestFirst()))
+                .containsExactly("sort-order-newer", "sort-order-same-a", "sort-order-same-b", "sort-order-older");
+        assertThat(names(registry.listAll()))
+                .containsExactly("sort-order-newer", "sort-order-older", "sort-order-same-a", "sort-order-same-b");
+    }
+
+    private List<String> names(List<AgentSummary> agents) {
+        return agents.stream().map(AgentSummary::name).filter(name -> name.startsWith("sort-order-")).toList();
     }
 
     private void insert(String name, String kind, boolean removed, String createdAt) {

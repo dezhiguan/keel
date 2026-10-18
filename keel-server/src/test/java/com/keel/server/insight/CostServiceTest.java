@@ -48,6 +48,7 @@ class CostServiceTest {
             var costs = new CostService(new LiteLlmClient(base, "admin"));
             var registry = new AgentRegistryService(null, null, null, null, new ObjectMapper(), null) {
                 @Override public List<com.keel.server.registry.model.dto.AgentSummary> listAll() { return List.of(); }
+                @Override public List<com.keel.server.registry.model.dto.AgentSummary> listNewestFirst() { return List.of(); }
             };
             var overview = new OverviewService(registry, costs, new QualityService(new LangfuseClient("", "", "")), env -> 0);
             for (var expected : List.of(new Object[]{"24h", 1.0}, new Object[]{"7d", 3.0}, new Object[]{"30d", 6.0})) {
@@ -93,6 +94,7 @@ class CostServiceTest {
             });
             var registry = new AgentRegistryService(null, null, null, null, new ObjectMapper(), null) {
                 @Override public List<com.keel.server.registry.model.dto.AgentSummary> listAll() { return List.of(); }
+                @Override public List<com.keel.server.registry.model.dto.AgentSummary> listNewestFirst() { return List.of(); }
             };
             var overview = new OverviewService(registry, costs, new QualityService(new LangfuseClient("", "", "")),
                     env -> 0).overview("dev", "24h");
@@ -173,6 +175,7 @@ class CostServiceTest {
         });
         var registry = new AgentRegistryService(null, null, null, null, new ObjectMapper(), null) {
             @Override public List<com.keel.server.registry.model.dto.AgentSummary> listAll() { return List.of(); }
+            @Override public List<com.keel.server.registry.model.dto.AgentSummary> listNewestFirst() { return List.of(); }
         };
         var overview = new OverviewService(registry, costs, new QualityService(langfuse), env -> 0).overview("all", "24h");
         assertThat(overview.kpi().modelCostCny()).isEqualTo(53.0);

@@ -230,7 +230,9 @@ paths:
       tags: [overview]
       operationId: getOverview
       summary: 总览页全部数据
-      description: 一次返回页面所需的全部内容，前端不做二次聚合。
+      description: |
+        一次返回页面所需的全部内容，前端不做二次聚合。
+        agents 按 agent.created_at 从新到旧，创建时间相同再按 name 升序。
       parameters:
         - $ref: "#/components/parameters/Env"
         - name: range

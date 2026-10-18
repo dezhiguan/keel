@@ -168,11 +168,20 @@ public class AgentRegistryService {
     }
 
     public List<AgentSummary> listAll() {
+        return summaries(agentsOnly().orderByAsc(Agent::getName));
+    }
+
+    /** 运行总览表格：注册时间从新到旧，相同时间按 name 升序。 */
+    public List<AgentSummary> listNewestFirst() {
+        return summaries(agentsOnly().orderByDesc(Agent::getCreatedAt).orderByAsc(Agent::getName));
+    }
+
+    private List<AgentSummary> summaries(LambdaQueryWrapper<Agent> query) {
         var versions = versionMapper.latestByAgent("all").stream()
                 .collect(Collectors.toMap(AgentVersion::getAgentName, Function.identity(), (left, right) -> left));
         var instances = instanceMapper.selectList(new LambdaQueryWrapper<>()).stream()
                 .collect(Collectors.groupingBy(AgentInstance::getAgentName));
-        return agentMapper.selectList(agentsOnly().orderByAsc(Agent::getName)).stream().map(agent -> {
+        return agentMapper.selectList(query).stream().map(agent -> {
             var rows = instances.getOrDefault(agent.getName(), List.of());
             var ready = rows.stream().filter(AgentInstance::isReady).count();
             var label = rows.isEmpty() ? null : ready + "/" + rows.size();
