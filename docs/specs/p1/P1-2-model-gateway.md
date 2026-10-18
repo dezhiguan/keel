@@ -15,6 +15,7 @@
 ```
 keel-llm/**
 deploy/k3s/keel-llm/**
+deploy/k3s/services/keel-llm.yaml
 docs/specs/p1/P1-2-model-gateway.md
 ```
 
@@ -50,6 +51,8 @@ alias, models, fallback, dailyBudgetCny, allowFallback
 `GET /admin/v1/spend` 必须能分页拉完。一条明细至少含 `alias`、`model`、`inputTokens`、`outputTokens`、`costCny`、`requestId`、`ts`。
 
 ## 实现要点
+
+- 2026-10-18 元智能体升级 qwen3.8-flash 后，真实生成请求触发 180 秒上游超时。新增 Secret `keel-llm/request-defaults` 注入 `KEEL_LLM_REQUEST_DEFAULTS`：JSON 按虚拟 Key alias、实际模型名精确匹配，仅为缺省的 `thinking_budget` / `enable_thinking` / `preserve_thinking` 补参数，不影响其他 Key、模型或 embeddings。首次配置仅 meta-agent-dev/qwen3.8-flash，thinking_budget=2048、preserve_thinking=false；不增加超时、重试、日预算或修复额度。显式 reasoning_effort 不再补 thinking_budget，防止参数冲突。配置错误拒绝启动；不得配置模型、消息、身份或密钥等任意请求字段。依据[百炼 Chat API](https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions/)，思考预算与力度不可同时指定，3.8 默认开启思考且预算较大。智能体继续只调用 ctx.llm。
 
 - **预算单位是人民币，与 `budget.dailyCny` 相同。** 不做美元换算。计数放 Redis，按 Asia/Shanghai 的自然日清零，两个副本共用这一份计数。达到日预算返回 HTTP 429，错误码 `LLM_BUDGET_EXCEEDED`。
 - **缺单价的模型拒绝启动。** 单价写在网关配置里，单位与花费同为人民币。不允许调用成功后把成本记成 0。

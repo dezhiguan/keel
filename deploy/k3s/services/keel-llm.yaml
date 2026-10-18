@@ -29,6 +29,12 @@ spec:
           ports:
             - containerPort: 8088
           env:
+            - name: KEEL_LLM_REQUEST_DEFAULTS
+              valueFrom:
+                secretKeyRef:
+                  name: keel-llm
+                  key: request-defaults
+                  optional: true
             - name: KEEL_LLM_ADMIN_KEY
               valueFrom:
                 secretKeyRef:

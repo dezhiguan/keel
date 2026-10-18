@@ -30,6 +30,7 @@ public final class Gateway {
     private final RoutePolicy routes;
     private final AlertRules alertRules;
     private final ProbeMarks probed;
+    private final RequestDefaults requestDefaults;
 
     public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream) {
         this(catalog, budget, upstream, new KeyDirectory());
@@ -60,6 +61,12 @@ public final class Gateway {
 
     public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream, KeyDirectory keys, SpendLog spendLog,
                    SpendLedger history, Admission admission, ProbeMarks probed, RoutePolicy routes, AlertRules alertRules) {
+        this(catalog, budget, upstream, keys, spendLog, history, admission, probed, routes, alertRules, new RequestDefaults(""));
+    }
+
+    Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream, KeyDirectory keys, SpendLog spendLog,
+            SpendLedger history, Admission admission, ProbeMarks probed, RoutePolicy routes, AlertRules alertRules,
+            RequestDefaults requestDefaults) {
         this.catalog = catalog;
         this.budget = budget;
         this.upstream = upstream;
@@ -70,6 +77,7 @@ public final class Gateway {
         this.probed = probed == null ? new ProbeMarks(null) : probed;
         this.routes = routes;
         this.alertRules = alertRules;
+        this.requestDefaults = requestDefaults;
     }
 
     public synchronized Created create(String alias, List<String> models, List<String> fallback, BigDecimal dailyBudgetCny, boolean allowFallback) {
@@ -212,7 +220,7 @@ public final class Gateway {
                     if (i < attempts.size() - 1) continue;
                     throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "可用模型渠道已熔断");
                 }
-                var forwarded = forwarding.deepCopy().put("model", used).toString();
+                var forwarded = requestDefaults.apply(forwarding, key.alias(), used, path);
                 var started = System.nanoTime();
                 try {
                     result = upstream.post(model.upstream(), model.upstreamKey(), path, forwarded, timeout);
@@ -296,7 +304,7 @@ public final class Gateway {
                     if (i < attempts.size() - 1) continue;
                     throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "可用模型渠道已熔断");
                 }
-                var forwarded = forwarding.deepCopy().put("model", used).toString();
+                var forwarded = requestDefaults.apply(forwarding, key.alias(), used, path);
                 var started = System.nanoTime();
                 Upstream.Stream opened;
                 try {

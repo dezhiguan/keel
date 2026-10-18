@@ -34,7 +34,6 @@ spec:
     dataset: meta-agent/dev-employee-specs
   prompts:
     source: langfuse
-    label: production
     items:
       - name: draft
         type: text

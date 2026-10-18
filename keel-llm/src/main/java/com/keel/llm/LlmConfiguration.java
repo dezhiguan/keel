@@ -47,7 +47,8 @@ public class LlmConfiguration {
             history = new JdbcSpendLedger(properties.getJdbcUrl(), properties.getJdbcUsername(), properties.getJdbcPassword());
         }
         return new Gateway(catalog, budget, new Upstream(), new KeyDirectory(redis), new SpendLog(redis), history,
-                new Admission(redis), new ProbeMarks(redis), new RoutePolicy(redis), new AlertRules(redis));
+                new Admission(redis), new ProbeMarks(redis), new RoutePolicy(redis), new AlertRules(redis),
+                new RequestDefaults(properties.getRequestDefaults()));
     }
 
     @Bean
@@ -79,9 +80,12 @@ public class LlmConfiguration {
         private String jdbcUrl = "";
         private String jdbcUsername = "";
         private String jdbcPassword = "";
+        private String requestDefaults = "";
         private Map<String, ModelProperties> models = new LinkedHashMap<>();
 
         public String getAdminKey() { return adminKey; }
+        public String getRequestDefaults() { return requestDefaults; }
+        public void setRequestDefaults(String requestDefaults) { this.requestDefaults = requestDefaults; }
         public void setAdminKey(String adminKey) { this.adminKey = adminKey; }
         public String getRedis() { return redis; }
         public void setRedis(String redis) { this.redis = redis; }
