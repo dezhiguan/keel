@@ -396,7 +396,6 @@ watch(name, async (agent) => {
     <div v-if="detail && blocked" class="card"><p class="empty">{{ blocked }}</p></div>
 
     <template v-else-if="detail && mode === 'chat'">
-      <div class="banner info">调试是真实调用：消耗该智能体的日预算，写链路和审计；高风险工具照常走审批。</div>
       <div v-if="warning" class="banner warn">{{ warning }}</div>
 
       <div class="dbg">
@@ -422,7 +421,7 @@ watch(name, async (agent) => {
         <div class="card">
           <div class="store">
             <span>会话 <b class="mono">{{ current?.id }}</b></span>
-            <span>存储 <b>本机 · 调用携带 sessionId</b></span>
+            <span>存储 <b>本机会话</b></span>
             <span>保留 <b>7 天</b></span>
           </div>
           <div ref="threadEl" class="thread" @scroll="onThreadScroll">
@@ -448,7 +447,7 @@ watch(name, async (agent) => {
             <button v-write class="btn pri" type="button" :disabled="canStop || !draft.trim()" @click="sendChat">发送</button>
             <button class="btn" type="button" :disabled="!canStop" @click="stop">停止</button>
           </div>
-          <div class="hint">三栏都是滚动分页：会话列表滚到底加载下一页，对话和事件滚到顶加载更早的（每页会话 10 个、消息 10 条、事件 20 条）。</div>
+          <div class="hint">调试是真实调用：消耗该智能体的日预算，写链路和审计；高风险工具照常走审批。三栏都是滚动分页：会话列表滚到底加载下一页，对话和事件滚到顶加载更早的（每页会话 10 个、消息 10 条、事件 20 条）。</div>
         </div>
 
         <div class="card">
@@ -566,8 +565,8 @@ watch(name, async (agent) => {
 .pv.fill {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 92px);
-  min-height: 560px;
+  min-height: 0;
+  height: 100%;
 }
 .pv .vh { margin-bottom: 14px; }
 .dbg {

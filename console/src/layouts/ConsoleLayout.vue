@@ -156,7 +156,7 @@ watch(() => envStore.env, (env) => {
         <span><b>预览模式 · 只读</b>，所有写操作已禁用</span>
         <button class="btn sm" type="button" @click="toLogin">登录</button>
       </div>
-      <main class="main">
+      <main class="main" :class="{ fit: !!debugAgent }">
         <RouterView />
       </main>
     </div>
@@ -242,4 +242,6 @@ watch(() => envStore.env, (env) => {
 }
 .envsel button.on { background: var(--panel3); color: var(--white); }
 .main { flex: 1; overflow: auto; padding: 20px; }
+.main.fit { overflow: hidden; display: flex; flex-direction: column; }
+.main.fit > :deep(*) { flex: 1; min-height: 0; }
 </style>
