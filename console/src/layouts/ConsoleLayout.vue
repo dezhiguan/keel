@@ -32,6 +32,24 @@ const promptCrumb = computed(() => {
   if (!match) return ''
   return `${decodeURIComponent(match[1])}/${decodeURIComponent(match[2])}`
 })
+const guardAgent = computed(() => {
+  const match = route.path.match(/^\/agents\/([^/]+)\/guard$/)
+  if (!match) return ''
+  try {
+    return decodeURIComponent(match[1])
+  } catch {
+    return match[1]
+  }
+})
+const debugAgent = computed(() => {
+  const match = route.path.match(/^\/agents\/([^/]+)\/debug$/)
+  if (!match) return ''
+  try {
+    return decodeURIComponent(match[1])
+  } catch {
+    return match[1]
+  }
+})
 
 onMounted(async () => {
   if (userStore.loaded) return
@@ -111,6 +129,12 @@ watch(() => envStore.env, (env) => {
           </template>
           <template v-else-if="promptCrumb">
             <RouterLink to="/prompts">提示词</RouterLink> / <b class="mono">{{ promptCrumb }}</b>
+          </template>
+          <template v-else-if="debugAgent">
+            <RouterLink to="/agents">智能体目录</RouterLink> / <b>{{ debugAgent }} › 调试</b>
+          </template>
+          <template v-else-if="guardAgent">
+            <RouterLink to="/agents">智能体目录</RouterLink> / <b>{{ guardAgent }} › 护栏</b>
           </template>
           <b v-else>{{ title }}</b>
         </div>

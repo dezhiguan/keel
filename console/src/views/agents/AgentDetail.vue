@@ -668,6 +668,7 @@ onUnmounted(() => {
             <button v-write class="btn danger" type="button" @click="deleting = true">删除</button>
           </template>
           <template v-else>
+            <RouterLink v-if="detail" class="btn" :to="`/agents/${encodeURIComponent(name)}/guard`">护栏</RouterLink>
             <RouterLink v-if="detail && detail.status !== 'DRAFT'" class="btn" :to="`/agents/${encodeURIComponent(name)}/debug`">调试</RouterLink>
             <button class="btn ghost" type="button" @click="viewTraces">查看链路</button>
             <button v-if="detail" v-write class="btn danger" type="button" @click="retiring = true">下线</button>

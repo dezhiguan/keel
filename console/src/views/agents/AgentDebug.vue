@@ -167,7 +167,16 @@ watch(name, async (agent) => {
   } finally {
     loading.value = false
   }
-  if (!blocked.value && (mode.value === 'service' || mode.value === 'schedule')) loadRecent()
+  if (blocked.value) return
+  if (mode.value === 'service' || mode.value === 'schedule') loadRecent()
+  const incoming = route.query.draft
+  if (typeof incoming !== 'string' || !incoming) return
+  if (mode.value === 'chat') draft.value = incoming
+  else runInput.value = incoming
+  const query = { ...route.query }
+  delete query.draft
+  router.replace({ path: route.path, query })
+  ElMessage.info('已带入输入，按回车发送，看右侧 guardrail 事件')
 }, { immediate: true })
 </script>
 
