@@ -44,6 +44,9 @@
 
 ### 生成修复一致性（2026-10-18）
 
+- 独立项目不再复制平台可信测试：将 platform_contract_test.py 随隔离沙箱镜像发布，执行精确候选快照时注入运行目录，覆盖候选中遗留的同名测试。项目交付清除旧的 tests/test_platform_contract.py，平台测试不能由模型修改或关闭。runtimeAdapterVersion 升为 sandbox-checks-v3，当前任务可从页面刷新适配层；不自动改旧项目。沙箱报告标明 trusted_checks=injected。
+- 可信检查补充 job/catalog 的非对象列表元素及任务缺 status 等异常证据，即使模型返回PASS也必须BLOCKED。只转述结构化事实的岗位应从真实证据组装回答，不能透传未经事实校验的模型answer；由正常页面修复澄清保持当前岗位代码、提示词和自编测试一致。
+
 - 元智能体按实际 dev 环境读取提示词标签，移除硬编码 production 标签；draft v2 在 dev 生效，对齐已提交的新模型示例。生成超时通过薄网关按 alias/model 设置有限思考预算处理，参见 P1-2，不改候选项目和隐藏评测。
 
 - 测试中的有限 Mock.side_effect 不得在多次 execute 循环中共享；静态检查定位该循环和替身，要求参数化独立用例或循环内重建。检查不执行候选代码，也不修改断言或可信测试。

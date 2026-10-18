@@ -111,6 +111,8 @@ class MetaAgentRulesTest {
         ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("delivery")).put("runtimeAdapterVersion", "registered-env-v1");
         assertThat(MetaAgentExecution.canRefreshRuntimeAdapter(state)).isTrue();
         ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("delivery")).put("runtimeAdapterVersion", "prompt-boundary-v2");
+        assertThat(MetaAgentExecution.canRefreshRuntimeAdapter(state)).isTrue();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("delivery")).put("runtimeAdapterVersion", "sandbox-checks-v3");
         assertThat(MetaAgentExecution.canRefreshRuntimeAdapter(state)).isFalse();
         ((com.fasterxml.jackson.databind.node.ObjectNode) state.path("delivery")).remove("runtimeAdapterVersion");
         state.put("phase", "STAGING_READY");

@@ -364,7 +364,7 @@ def _deliver(work):
                 + ("模型生成岗位代码候选，测试、人工评审、门禁和发布尚未完成。" if functional
                    else "骨架交付，待人工开发、评测和发布。")})
         result = {**opened, "sha": state["push"]["sha"], "branch": "draft",
-                  "runtimeAdapterVersion": "prompt-boundary-v2",
+                  "runtimeAdapterVersion": "sandbox-checks-v3",
                   "checks": "ENABLED",
                   "capabilityStatus": "UNVERIFIED" if functional else "SCAFFOLD",
                   "gateStatus": "NOT_RUN",
@@ -511,8 +511,8 @@ app = agent.asgi()
             output = project / item["path"]
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(item["content"], encoding="utf-8")
-        shutil.copy2(Path(__file__).with_name("platform_contract_test.py"),
-                     project / "tests/test_platform_contract.py")
+        # Trusted checks belong to the sandbox image, never the independent project.
+        (project / "tests/test_platform_contract.py").unlink(missing_ok=True)
         readme = project / "README.md"
         existing = readme.read_text(encoding="utf-8") if readme.is_file() else f"# {project.name}\n"
         readme.write_text(existing.rstrip() + f"\n\n## 生产任务 {job_id}\n\n"

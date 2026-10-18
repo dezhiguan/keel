@@ -215,6 +215,29 @@ def test_lost_push_response_recovers_only_direct_task_commit_without_writing():
         Lost(message="Human edit").push_scaffold("qa", "DF-9001", "retry", [], expected_sha="a" * 40)
 
 
+def test_scaffold_refresh_removes_only_legacy_platform_test_from_parent_tree():
+    class Capture(GitHub):
+        def __init__(self):
+            super().__init__("http://unused", "test")
+            self.written = None
+
+        def request(self, method, path, payload=None, **kwargs):
+            if method == "GET":
+                return {"tree": [{"path": "tests/test_platform_contract.py"}, {"path": "human_notes.md"}]}
+            self.written = payload
+            return {"sha": "new-tree"}
+
+    client = Capture()
+    files = [{"path": "role.py", "content": "business code"}]
+    client._tree("qa", files, "old-tree", scaffold=True)
+    assert client.written == {"base_tree": "old-tree", "tree": [
+        {"path": "role.py", "mode": "100644", "type": "blob", "content": "business code"},
+        {"path": "tests/test_platform_contract.py", "mode": "100644", "type": "blob", "sha": None},
+    ]}
+    client._tree("qa", files, "old-tree")
+    assert all("sha" not in entry for entry in client.written["tree"])
+
+
 def test_scaffold_pr_is_created_as_a_draft_and_ready_repair_reuses_same_pr():
     class Capture(GitHub):
         def __init__(self, ready=False):

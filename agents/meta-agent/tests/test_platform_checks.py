@@ -17,15 +17,17 @@ def checks(tmp_path, monkeypatch):
         {'name': 'devflow.job.read'}, {'name': 'devflow.catalog.search'}]}}))
     (tmp_path / 'evals/seed.jsonl').write_text(json.dumps({
         'input': {'text': '请查询任务DF-1234的状态'}, 'expected': {'decision': 'PASS'}}))
-    source = Path(__file__).resolve().parents[1] / 'platform_contract_test.py'
+    source = Path(__file__).resolve().parents[3] / 'services/sandbox-sidecar/platform_contract_test.py'
     target = tmp_path / 'tests/test_platform_contract.py'
     target.write_text(source.read_text())
-    behavior = {'invalid_json': False, 'promote_data': False, 'ignore_empty': False}
+    behavior = {'invalid_json': False, 'promote_data': False, 'ignore_empty': False, 'ignore_shape': False}
 
     async def execute(data, ctx):
         job = await ctx.tools.call('devflow.job.read', jobId='DF-1234')
         catalog = await ctx.tools.call('devflow.catalog.search', query='')
-        assert catalog[0]['access'] == 'READ' and catalog[0]['risk'] == 'LOW'
+        if not behavior['ignore_shape'] and (any(not isinstance(item, dict) or not item.get('status') for item in job)
+                or any(not isinstance(item, dict) for item in catalog)):
+            return {'decision': 'BLOCKED'}
         if not job and not behavior['ignore_empty']:
             return {'decision': 'BLOCKED'}
         prompt = await ctx.prompt('role')
@@ -70,3 +72,14 @@ def test_contract_detects_empty_job_evidence(checks):
     behavior['ignore_empty'] = True
     with pytest.raises(AssertionError):
         module.test_empty_task_evidence_is_blocked()
+
+
+def test_contract_detects_malformed_records_even_if_model_says_pass(checks):
+    module, behavior = checks
+    for tool, value in [('devflow.job.read', [None]), ('devflow.job.read', ['invalid']),
+                        ('devflow.job.read', [{}]), ('devflow.catalog.search', [None]),
+                        ('devflow.catalog.search', ['invalid'])]:
+        module.test_malformed_record_evidence_is_blocked_before_model_pass(tool, value)
+    behavior['ignore_shape'] = True
+    with pytest.raises(AssertionError):
+        module.test_malformed_record_evidence_is_blocked_before_model_pass('devflow.job.read', [None])

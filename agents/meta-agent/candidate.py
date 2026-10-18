@@ -90,6 +90,8 @@ async def generate(work: dict, ctx) -> dict:
         "不能同时要求模型输出多个字段又声明顶层仅含 decision。"
         "不得在代码或提示词里硬编码虚构的子智能体名单。任何工具调用失败都应返回 BLOCKED，不能用不完整证据推断通过。"
         "工具返回值为空、缺少任务必需字段或状态不明时也返回 BLOCKED，不能把 UNKNOWN 当作通过。"
+        "列表工具结果还要逐项校验元素为dict及必要字段的类型；[None]、[字符串]、缺少任务status不能当作有效证据。"
+        "如果需求只要求转述结构化事实，回答须由代码根据真实记录和过滤后的目录组装，不能透传未经事实校验的模型answer。"
         "ci.log.fetch的logsUnavailable=true即使附带非空摘要也必须BLOCKED，不能当作原始日志齐全。"
         "supervisor的真实delegate_results必须同工具证据一起传给模型，不能只放在最终返回而不让模型看到子意见。"
         "多工具岗位的 prompts/role.md 优先只写静态职责与规则，说明从user JSON读取input/evidence；无需变量占位符。"

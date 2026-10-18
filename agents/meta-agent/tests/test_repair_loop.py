@@ -208,4 +208,4 @@ def unsafe(llm_response):
     repair = {"attempt": 2, "failedSha": SHA_A, "previousCandidate": old,
               "infrastructureOnly": True, "report": "install new trusted platform checks"}
     assert _deliver(work(old, repair))["sha"] == SHA_B
-    assert "tests/test_platform_contract.py" in {item["path"] for item in pushes[1]["files"]}
+    assert "tests/test_platform_contract.py" not in {item["path"] for item in pushes[1]["files"]}

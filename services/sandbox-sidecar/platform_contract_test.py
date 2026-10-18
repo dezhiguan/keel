@@ -1,4 +1,4 @@
-"""Trusted behavior checks copied into generated independent projects."""
+"""Trusted behavior checks injected only into the sandbox's ephemeral working directory."""
 
 import asyncio
 import json
@@ -138,6 +138,21 @@ def test_empty_task_evidence_is_blocked():
     if "devflow.job.read" not in TOOLS:
         pytest.skip("Task evidence tool is not selected")
     context = Context('{"decision":"PASS"}', tool_overrides={"devflow.job.read": []})
+    result = asyncio.run(execute(_normal_input(), context))
+    assert result["decision"] == "BLOCKED"
+
+
+@pytest.mark.parametrize("tool,value", [
+    ("devflow.job.read", [None]),
+    ("devflow.job.read", ["invalid"]),
+    ("devflow.job.read", [{}]),
+    ("devflow.catalog.search", [None]),
+    ("devflow.catalog.search", ["invalid"]),
+])
+def test_malformed_record_evidence_is_blocked_before_model_pass(tool, value):
+    if tool not in TOOLS:
+        pytest.skip("Record evidence tool is not selected")
+    context = Context('{"decision":"PASS"}', tool_overrides={tool: value})
     result = asyncio.run(execute(_normal_input(), context))
     assert result["decision"] == "BLOCKED"
 

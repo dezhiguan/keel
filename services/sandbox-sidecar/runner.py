@@ -13,6 +13,7 @@ import urllib.request
 
 MAX_FILES = 100
 MAX_BYTES = 700 * 1024
+TRUSTED_CHECKS = Path(__file__).with_name("platform_contract_test.py")
 
 
 def check(llm_url, langfuse_url, *, snapshot_path=None, work_dir=None, attempts=20, pause=0.25):
@@ -54,6 +55,12 @@ def check(llm_url, langfuse_url, *, snapshot_path=None, work_dir=None, attempts=
             raise ValueError("agent entry or manifest missing")
         if not (work_dir / "tests").is_dir() or not any((work_dir / "tests").glob("test_*.py")):
             raise ValueError("business tests missing")
+        injected = (work_dir / "role.py").is_file()
+        if injected:
+            # This copy comes from the trusted runner image, outside the Git snapshot.
+            # A legacy candidate file cannot disable or replace these assertions.
+            (work_dir / "tests/test_platform_contract.py").write_text(
+                TRUSTED_CHECKS.read_text(encoding="utf-8"), encoding="utf-8")
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
         return f"snapshot=invalid reason={exc} tests=NOT_RUN", False
 
@@ -67,7 +74,8 @@ def check(llm_url, langfuse_url, *, snapshot_path=None, work_dir=None, attempts=
     except subprocess.TimeoutExpired:
         return f"sha={sha} snapshot=ok tests=TIMEOUT", False
     output = (result.stdout + "\n" + result.stderr).strip()
-    report = f"sha={sha} snapshot=ok tests={'PASS' if result.returncode == 0 else 'FAIL'}\n{output}"
+    report = f"sha={sha} snapshot=ok tests={'PASS' if result.returncode == 0 else 'FAIL'}\n"
+    report += ("trusted_checks=injected\n" if injected else "") + output
     return report[:64 * 1024], result.returncode == 0
 
 

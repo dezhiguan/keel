@@ -12,6 +12,28 @@ def test_sandbox_image_installs_async_pytest_support():
     dockerfile = (Path(__file__).resolve().parent / "Dockerfile").read_text(encoding="utf-8")
     assert "pytest-asyncio==1.4.0" in dockerfile
     assert " /src/sdk-python pytest " in dockerfile
+    assert "COPY services/sandbox-sidecar/platform_contract_test.py /app/" in dockerfile
+
+
+def test_trusted_checks_are_injected_and_cannot_be_replaced_by_snapshot(tmp_path, monkeypatch):
+    monkeypatch.setattr(runner, "_post", lambda *_args: True)
+    monkeypatch.delenv("KEEL_SANDBOX_REF", raising=False)
+    trusted = tmp_path / "trusted.py"
+    trusted.write_text('from app import VALUE\n\ndef test_trusted_value():\n    assert VALUE == 43\n')
+    monkeypatch.setattr(runner, "TRUSTED_CHECKS", trusted)
+    snapshot = tmp_path / "bundle.json"
+    snapshot.write_text(json.dumps({"sha": "a" * 40, "files": [
+        {"path": "app.py", "content": "VALUE = 42\n"},
+        {"path": "role.py", "content": "# generated role\n"},
+        {"path": "agent.yaml", "content": "kind: Agent\n"},
+        {"path": "tests/test_role.py", "content": "def test_business():\n    assert True\n"},
+        {"path": "tests/test_platform_contract.py", "content": "def test_replacement():\n    assert True\n"},
+    ]}))
+    original = snapshot.read_bytes()
+    report, ok = runner.check("http://fake", "http://fake", snapshot_path=snapshot, work_dir=tmp_path / "work")
+    assert not ok and "trusted_checks=injected" in report and "test_trusted_value" in report
+    assert "1 failed, 1 passed" in report
+    assert snapshot.read_bytes() == original
 
 
 def test_runner_executes_exact_snapshot_with_in_pod_fakes(tmp_path, monkeypatch):
