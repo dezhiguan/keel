@@ -440,7 +440,7 @@ watch(() => envStore.env, load, { immediate: true })
             <span>今日已用</span><b class="mono">{{ yuan(selectedKey.spentCny) }} + {{ yuan(selectedKey.reservedCny) }}</b>
           </div>
           <div class="field">
-            <label>日预算：<b class="budget-now">¥{{ nextBudget }}</b></label>
+            <label>调整为：<b class="budget-now">¥{{ nextBudget }}</b> <span class="mut">当前 ¥{{ selectedKey.dailyBudgetCny }}</span></label>
             <input v-model.number="nextBudget" class="budget-range" type="range" min="10" max="200" step="5" :disabled="selectedKey.status === 'BLOCKED'">
           </div>
           <div class="ops">
