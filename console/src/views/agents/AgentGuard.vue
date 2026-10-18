@@ -26,7 +26,7 @@ const router = useRouter()
 const name = computed(() => decodeURIComponent(String(route.params.name ?? '')))
 
 const checks = ref<GuardCheck[]>([])
-const gateway = ref<GuardCheck[]>(GATEWAY_GUARDS.map((row) => ({ ...row, mode: '' as GuardMode, hits: null })))
+const gateway = ref<GuardCheck[]>(GATEWAY_GUARDS.map((row) => ({ ...row, options: [...row.options], hits: null })))
 const source = ref<ProbeSource>('user')
 const probe = ref(DEFAULT_PROBE)
 const result = ref<ProbeView | null>(null)
@@ -146,12 +146,13 @@ function layerPill(layer: GuardCaller['layer']) {
   <div v-loading="loading" class="guard">
     <div class="vh">
       <h2>{{ name }} · 护栏</h2>
-      <span class="sub">智能体目录 › {{ name }} › 护栏</span>
-      <span class="tag-prop">提案</span>
-    </div>
-
-    <div class="todo">
-      <b>要做</b>现在 injection.py 只有 TODO。补：信任分层（system 只来自 ctx.prompt）、入口检测、工具/知识库内容检测、污点后高风险工具强制审批、canary 防泄露、命中内容不写记忆、注入用例进门禁。新字段先改 contracts，一律可选。
+      <span class="sub trail">
+        <RouterLink to="/agents">智能体目录</RouterLink>
+        ›
+        <RouterLink :to="{ path: '/agents', query: { drawer: name } }">{{ name }}</RouterLink>
+        ›
+        <RouterLink :to="`/agents/${encodeURIComponent(name)}/guard`">护栏</RouterLink>
+      </span>
     </div>
 
     <div class="guard-grid">
@@ -208,11 +209,11 @@ function layerPill(layer: GuardCaller['layer']) {
     </div>
 
     <div class="card">
-      <h3>网关基线层 <small>所有调用方都经过 keel-llm，按 Key 配置；只用规则不调模型。信任分层、污点、审批仍只在智能体 SDK 里</small><span class="tag-prop">提案</span></h3>
+      <h3>网关基线层 <small>所有调用方都经过 keel-llm，按 Key 配置；只用规则不调模型。信任分层、污点、审批仍只在智能体 SDK 里</small></h3>
       <table class="t">
         <thead><tr><th>网关检查</th><th>模式</th><th>近 7 天命中</th></tr></thead>
         <tbody>
-          <tr v-for="row in gateway" :key="row.name">
+          <tr v-for="(row, index) in gateway" :key="row.name">
             <td>{{ row.name }}</td>
             <td>
               <div class="seg">
@@ -221,9 +222,8 @@ function layerPill(layer: GuardCaller['layer']) {
                   :key="option"
                   type="button"
                   :class="{ on: option === row.mode }"
-                    :data-mode="option"
-                    disabled
-                    title="网关基线还没有配置接口"
+                  :data-mode="option"
+                  @click="setMode(gateway, index, option)"
                 >{{ option }}</button>
               </div>
             </td>
@@ -257,9 +257,8 @@ function layerPill(layer: GuardCaller['layer']) {
 <style scoped>
 .guard-grid { display: grid; grid-template-columns: 1.25fr 1fr; gap: 14px; align-items: start; }
 .guard-grid > .card { margin-bottom: 14px; }
-.tag-prop { display: inline-block; font-size: 10.5px; line-height: 17px; background: rgba(180, 140, 242, 0.14); color: var(--violet); border: 1px solid #4a3a6e; border-radius: 4px; padding: 0 6px; font-weight: 500; }
-.todo { border: 1px dashed #4a3a6e; background: rgba(180, 140, 242, 0.05); border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; font-size: 12.5px; }
-.todo b { color: var(--violet); font-weight: 500; margin-right: 6px; }
+.trail a { color: var(--soft); text-decoration: none; }
+.trail a:hover { color: var(--white); }
 .gname b { color: var(--white); font-weight: 500; display: block; }
 .gname small { color: var(--mute); font-size: 11.5px; }
 .seg { display: inline-flex; background: var(--bg); border: 1px solid var(--line2); border-radius: 8px; padding: 2px; gap: 2px; }

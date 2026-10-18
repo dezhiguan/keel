@@ -134,7 +134,9 @@ watch(() => envStore.env, (env) => {
             <RouterLink to="/agents">智能体目录</RouterLink> / <b>{{ debugAgent }} › 调试</b>
           </template>
           <template v-else-if="guardAgent">
-            <RouterLink to="/agents">智能体目录</RouterLink> / <b>{{ guardAgent }} › 护栏</b>
+            <RouterLink to="/agents">智能体目录</RouterLink> /
+            <RouterLink :to="{ path: '/agents', query: { drawer: guardAgent } }">{{ guardAgent }}</RouterLink> /
+            <b>护栏</b>
           </template>
           <b v-else>{{ title }}</b>
         </div>
