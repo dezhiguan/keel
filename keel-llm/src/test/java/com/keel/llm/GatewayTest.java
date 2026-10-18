@@ -341,9 +341,15 @@ class GatewayTest {
             assertThat(input).isNotNull();
             Map<String, Object> root = new org.yaml.snakeyaml.Yaml().load(input);
             var models = (Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) root.get("keel")).get("llm")).get("models");
+            assertThat(models.keySet()).containsExactlyInAnyOrder("qwen3.8-flash", "deepseek-flash");
             var flash = (Map<String, Object>) models.get("qwen3.8-flash");
             assertThat(flash.get("input-cny-per-token")).isEqualTo("0.0000008");
             assertThat(flash.get("output-cny-per-token")).isEqualTo("0.0000027");
+            assertThat(flash.get("cache-cny-per-token")).isEqualTo("0.0000001");
+            var deepseek = (Map<String, Object>) models.get("deepseek-flash");
+            assertThat(deepseek.get("input-cny-per-token")).isEqualTo("0.0000010083");
+            assertThat(deepseek.get("output-cny-per-token")).isEqualTo("0.0000040332");
+            assertThat(deepseek.get("cache-cny-per-token")).isEqualTo("0.000000020166");
         }
         var catalog = new ModelCatalog(Map.of("qwen3.8-flash", new ModelCatalog.Model(
                 "qwen3.8-flash", new BigDecimal("0.0000008"), new BigDecimal("0.0000027"),

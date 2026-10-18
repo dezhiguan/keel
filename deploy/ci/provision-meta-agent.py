@@ -39,7 +39,7 @@ if not exists("keel-meta-agent"):
 import json,sys,httpx
 admin=sys.stdin.read()
 r=httpx.post('http://keel-llm.keel-system.svc.cluster.local:8088/admin/v1/keys',
- headers={'Authorization':'Bearer '+admin},json={'alias':'meta-agent-dev','models':['qwen-plus'],
+ headers={'Authorization':'Bearer '+admin},json={'alias':'meta-agent-dev','models':['qwen3.8-flash'],
  'fallback':[],'dailyBudgetCny':10,'allowFallback':False},timeout=30)
 r.raise_for_status()
 print(json.dumps({'key':r.json()['key']}))

@@ -39,7 +39,7 @@ public class EchoCredentialWriter {
         if (hasKey && gateway.hasAlias(alias)) {
             return;
         }
-        var key = gateway.generate(alias, List.of("qwen-plus"), List.of(), BigDecimal.valueOf(30), false);
+        var key = gateway.generate(alias, List.of("qwen3.8-flash"), List.of(), BigDecimal.valueOf(30), false);
         var data = new java.util.LinkedHashMap<String, String>();
         data.put("KEEL_LLM_KEY", encode(key));
         data.put("KEEL_LLM_BASE_URL", encode("http://keel-llm.keel-system.svc.cluster.local:8088"));

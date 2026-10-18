@@ -30,7 +30,7 @@ public class CatalogController {
                         template("java-spring", "Java 服务", "java")),
                 "tools", wizardCatalog.sharedTools(),
                 "knowledgeBases", wizardCatalog.knowledgeBases(),
-                "models", List.of("qwen-plus", "deepseek-v3"),
+                "models", List.of("qwen3.8-flash", "deepseek-flash"),
                 "orgs", List.of(),
                 "approvalPolicies", wizardCatalog.approvalPolicies()));
     }

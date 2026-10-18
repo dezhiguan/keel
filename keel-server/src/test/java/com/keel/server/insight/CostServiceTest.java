@@ -115,7 +115,7 @@ class CostServiceTest {
             paths.add(path);
             String body = switch (path) {
                 case "/admin/v1/spend" -> query.contains("page=1") ? page(50, "askdb-dev", "qwen-plus", 1)
-                        : query.contains("page=2") ? page(1, "wind-prod", "deepseek-v3", 3)
+                        : query.contains("page=2") ? page(1, "wind-prod", "deepseek-flash", 3)
                         : "{\"data\":[]}";
                 case "/admin/v1/models" -> "{\"data\":[{\"name\":\"qwen-plus\",\"priceConfigured\":true},{\"name\":\"draft\",\"priceConfigured\":false}]}";
                 case "/admin/v1/keys" -> "{\"data\":[{\"alias\":\"askdb-dev\",\"version\":4,\"models\":[\"qwen-plus\"],\"dailyBudgetCny\":30,\"spentCny\":1.5,\"reservedCny\":2.25,\"blocked\":false}]}";
@@ -160,7 +160,7 @@ class CostServiceTest {
             assertThat(model.status()).isEqualTo("ok");
         });
         assertThat(result.stats()).anySatisfy(model -> {
-            assertThat(model.name()).isEqualTo("deepseek-v3");
+            assertThat(model.name()).isEqualTo("deepseek-flash");
             assertThat(model.provider()).isEqualTo("DeepSeek");
             assertThat(model.role()).isEqualTo("降级备选");
             assertThat(model.calls()).isEqualTo(1);
@@ -200,9 +200,9 @@ class CostServiceTest {
             var path = exchange.getRequestURI().getPath();
             String body = switch (path) {
                 case "/admin/v1/spend", "/admin/v1/keys" -> "{\"data\":[]}";
-                case "/admin/v1/models" -> "{\"data\":[{\"name\":\"qwen-plus\",\"priceConfigured\":true,\"provider\":\"DashScope\"},{\"name\":\"deepseek-v3\",\"priceConfigured\":true}]}";
+                case "/admin/v1/models" -> "{\"data\":[{\"name\":\"qwen-plus\",\"priceConfigured\":true,\"provider\":\"DashScope\"},{\"name\":\"deepseek-flash\",\"priceConfigured\":true}]}";
                 case "/api/public/v2/observations" -> """
-                        {"data":[{"type":"GENERATION","name":"llm.chat","model":"qwen-plus","startTime":"%s","endTime":"%s","metadata":{"keel.llm.key_alias":"askdb-dev","keel.fallback_from":"deepseek-v3"}}],"meta":{}}
+                        {"data":[{"type":"GENERATION","name":"llm.chat","model":"qwen-plus","startTime":"%s","endTime":"%s","metadata":{"keel.llm.key_alias":"askdb-dev","keel.fallback_from":"deepseek-flash"}}],"meta":{}}
                         """.formatted(start, end);
                 default -> "{\"data\":[]}";
             };
@@ -225,7 +225,7 @@ class CostServiceTest {
             assertThat(model.status()).isEqualTo("ok");
         });
         assertThat(result.stats()).anySatisfy(model -> {
-            assertThat(model.name()).isEqualTo("deepseek-v3");
+            assertThat(model.name()).isEqualTo("deepseek-flash");
             assertThat(model.role()).isEqualTo("降级备选");
             assertThat(model.calls()).isEqualTo(1);
             assertThat(model.timeoutRate()).isEqualTo(1.0);

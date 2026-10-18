@@ -221,7 +221,7 @@ public final class RegisterManifest {
             return nested;
         }
         var flat = text(form, "model");
-        return flat.isBlank() ? "qwen-plus" : flat;
+        return flat.isBlank() ? "qwen3.8-flash" : flat;
     }
 
     private static java.math.BigDecimal budget(JsonNode form) {

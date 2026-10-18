@@ -57,7 +57,7 @@ public class CareerMateRegistrar implements ApplicationRunner {
 
     static String manifest(String endpoint) {
         return """
-                {"apiVersion":"keel/v1","kind":"Agent","metadata":{"name":"careermate","displayName":"职业助手","owner":"人力数字化组 / lin"},"spec":{"runtime":{"type":"code","language":"java","endpoint":"%s","liveness":"k8s"},"auth":{"audience":"careermate"},"models":{"default":"qwen-plus","budget":{"dailyCny":30}},"eval":{"dataset":"careermate/resume-review"}}}
+                {"apiVersion":"keel/v1","kind":"Agent","metadata":{"name":"careermate","displayName":"职业助手","owner":"人力数字化组 / lin"},"spec":{"runtime":{"type":"code","language":"java","endpoint":"%s","liveness":"k8s"},"auth":{"audience":"careermate"},"models":{"default":"qwen3.8-flash","budget":{"dailyCny":30}},"eval":{"dataset":"careermate/resume-review"}}}
                 """.formatted(endpoint).trim();
     }
 
