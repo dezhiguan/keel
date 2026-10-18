@@ -17,6 +17,9 @@ async def expand(work: dict, ctx) -> dict:
         "\"tags\":[\"boundary\"],\"reason\":\"...\"}]}。"
         "至少 1 条，最多 20 条；覆盖边界、失败、对抗或输入注入。"
         "不可修改人工原例，不可重复原例，不可读写隐藏考题。"
+        "每条理由必须对应已确认H1，不得自行增加输出格式、Unicode空白或只接受成功任务等限制。"
+        "使用标准JSON转义；控制字符必须用合法Unicode转义，不得使用C/Python专用转义。"
+        f"已确认H1：{json.dumps(work.get('draft', {}).get('spec') or work['requirement'], ensure_ascii=False)}"
         f"人工原例：{json.dumps(seeds, ensure_ascii=False)}"
     )
     errors = []
@@ -36,8 +39,8 @@ def parse(reply: str | None, human: list[dict]) -> tuple[dict, list[str]]:
         return {}, ["缺少 JSON 对象"]
     try:
         value = json.loads(raw[start:end + 1])
-    except json.JSONDecodeError:
-        return {}, ["JSON 解析失败"]
+    except json.JSONDecodeError as error:
+        return {}, [f"JSON 解析失败：{error.msg}，第{error.lineno}行第{error.colno}列"]
     cases = value.get("cases") if isinstance(value, dict) else None
     if not isinstance(cases, list) or not 1 <= len(cases) <= 20:
         return {}, ["扩充用例应为 1～20 条"]

@@ -30,3 +30,16 @@ def test_expansion_rejects_reused_human_case_and_input():
     assert any("重复" in error for error in errors)
     _, errors = parse(json.dumps({"cases": [{**AGENT["cases"][0], "caseId": "h-1"}]}), HUMAN)
     assert errors
+
+
+def test_expansion_uses_confirmed_spec_and_reports_invalid_json_position():
+    prompts = []
+    class Llm:
+        async def chat(self, messages):
+            prompts.append(messages[0]["content"])
+            return '{"cases": [{"input": "\\x00"}]}' if len(prompts) == 1 else json.dumps(AGENT)
+    work = {"requirement": {"target_agent": "guide"}, "humanSeeds": HUMAN,
+            "draft": {"spec": {"io": "仅一个任务编号，中文紧邻编号合法"}}}
+    assert asyncio.run(expand(work, type("Ctx", (), {"llm": Llm()})())) == AGENT
+    assert "中文紧邻编号合法" in prompts[0]
+    assert "Invalid" in prompts[1] and "行第" in prompts[1]
