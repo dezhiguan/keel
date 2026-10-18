@@ -337,20 +337,22 @@ class GatewayTest {
     @Test
     @SuppressWarnings("unchecked")
     void codingModelUsesTheSameDayListPrice() throws Exception {
-        try (var input = GatewayTest.class.getResourceAsStream("/application.yaml")) {
-            assertThat(input).isNotNull();
-            Map<String, Object> root = new org.yaml.snakeyaml.Yaml().load(input);
-            var models = (Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) root.get("keel")).get("llm")).get("models");
-            assertThat(models.keySet()).containsExactlyInAnyOrder("qwen3.8-flash", "deepseek-flash");
-            var flash = (Map<String, Object>) models.get("qwen3.8-flash");
-            assertThat(flash.get("input-cny-per-token")).isEqualTo("0.0000008");
-            assertThat(flash.get("output-cny-per-token")).isEqualTo("0.0000027");
-            assertThat(flash.get("cache-cny-per-token")).isEqualTo("0.0000001");
-            var deepseek = (Map<String, Object>) models.get("deepseek-flash");
-            assertThat(deepseek.get("input-cny-per-token")).isEqualTo("0.0000010083");
-            assertThat(deepseek.get("output-cny-per-token")).isEqualTo("0.0000040332");
-            assertThat(deepseek.get("cache-cny-per-token")).isEqualTo("0.000000020166");
-        }
+        var sources = new org.springframework.boot.env.YamlPropertySourceLoader()
+                .load("application", new org.springframework.core.io.ClassPathResource("application.yaml"));
+        var binder = new org.springframework.boot.context.properties.bind.Binder(
+                org.springframework.boot.context.properties.source.ConfigurationPropertySources.from(sources));
+        var properties = binder.bind("keel.llm", org.springframework.boot.context.properties.bind.Bindable
+                .of(LlmConfiguration.LlmProperties.class)).get();
+        var models = properties.getModels();
+        assertThat(models.keySet()).containsExactlyInAnyOrder("qwen3.8-flash", "deepseek-flash");
+        var flash = models.get("qwen3.8-flash");
+        assertThat(flash.getInputCnyPerToken()).isEqualTo("0.0000008");
+        assertThat(flash.getOutputCnyPerToken()).isEqualTo("0.0000027");
+        assertThat(flash.getCacheCnyPerToken()).isEqualTo("0.0000001");
+        var deepseek = models.get("deepseek-flash");
+        assertThat(deepseek.getInputCnyPerToken()).isEqualTo("0.0000010083");
+        assertThat(deepseek.getOutputCnyPerToken()).isEqualTo("0.0000040332");
+        assertThat(deepseek.getCacheCnyPerToken()).isEqualTo("0.000000020166");
         var catalog = new ModelCatalog(Map.of("qwen3.8-flash", new ModelCatalog.Model(
                 "qwen3.8-flash", new BigDecimal("0.0000008"), new BigDecimal("0.0000027"),
                 "https://dashscope.aliyuncs.com/compatible-mode", "")));

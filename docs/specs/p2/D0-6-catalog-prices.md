@@ -36,6 +36,7 @@ ci/backend-gate.sh
 ## 实现要点
 
 - 目录不再保留 `qwen-plus`、`deepseek-v3`。
+- `qwen3.8-flash` 这个名字里有点号。Spring 绑 Map 时会把点号当成下一层，键要写成 `"[qwen3.8-flash]"`，绑出来的名字仍是 `qwen3.8-flash`。
 - 缓存单价写入 `cache-cny-per-token`。上游 usage 带 `cached_tokens` 时按这个单价计，不再按输入价计。
 - `deepseek-flash` 上游仍是 `https://api.deepseek.com`。上下文 1M，最大输出 384K。
 - 控制台可选模型和新建 Key 的默认模型改成这两个名字。已发出的虚拟 Key 仍写着旧模型名，要重新开通才会改。
