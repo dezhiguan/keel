@@ -1,4 +1,4 @@
-import { get, post } from './http'
+import { del, get, post } from './http'
 
 export interface SkillSummary {
   name: string
@@ -26,6 +26,36 @@ export interface SkillCase {
   expectedOutput?: string
 }
 
+export interface SkillVersion {
+  version: number
+  instructions: string
+  note?: string
+  createdBy?: string
+  createdAt?: string
+  tools?: string[]
+  examples?: string[]
+  cases?: SkillCase[]
+}
+
+export interface SkillUser {
+  agent: string
+  version: number
+  status?: 'LATEST' | 'BEHIND' | 'RUNNING'
+  score?: number
+  threshold?: number
+  upgradeError?: string
+}
+
+export interface SkillDetail {
+  name: string
+  ownerOrg?: string
+  description?: string
+  source?: 'AUTHORED' | 'EXPERIENCE'
+  latest: number
+  versions?: SkillVersion[]
+  users?: SkillUser[]
+}
+
 export function listSkills() {
   return get<{ items?: SkillSummary[] }>('/skills')
 }
@@ -39,8 +69,23 @@ export function publishSkill(body: {
   tools?: string[]
   examples?: string[]
   cases?: SkillCase[]
+  note?: string
 }) {
   return post<{ name?: string; version?: number }>('/skills', body)
+}
+
+export function getSkill(name: string) {
+  return get<SkillDetail>(`/skills/${encodeURIComponent(name)}`)
+}
+
+export function revokeSkill(agent: string, name: string) {
+  return del<{ agent?: string; skill?: string }>(`/agents/${encodeURIComponent(agent)}/skills/${encodeURIComponent(name)}`)
+}
+
+export function upgradeSkill(agent: string, name: string) {
+  return post<{ agent?: string; skill?: string; version?: number; runId?: string; status?: string }>(
+    `/agents/${encodeURIComponent(agent)}/skills/${encodeURIComponent(name)}/upgrade`,
+  )
 }
 
 export function listAgentSkills(agent: string) {

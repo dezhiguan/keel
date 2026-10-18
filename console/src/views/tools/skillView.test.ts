@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { grantPayload } from '@/api/skills'
-import { sourceLabel, splitList } from './skillView'
+import { cleanCases, cleanExamples, formatSkillWhen, lineDiff, sameSkillContent, sourceLabel, splitList, versionMeta } from './skillView'
 
 describe('skill grant', () => {
   it('sends only the skill name and version', () => {
@@ -12,5 +12,28 @@ describe('skill grant', () => {
     expect(splitList('rag.search, sql.execute\nrag.search')).toEqual(['rag.search', 'sql.execute'])
     expect(sourceLabel('EXPERIENCE')).toBe('经验沉淀')
     expect(sourceLabel('AUTHORED')).toBe('人工编写')
+  })
+
+  it('keeps several examples and cases, and ignores blank rows', () => {
+    expect(cleanExamples([' 引用出处 ', '', '引用出处'])).toEqual(['引用出处'])
+    expect(cleanCases([
+      { id: 'case-1', input: ' 没有资料 ', expectedOutput: '无法确认' },
+      { input: '   ', expectedOutput: '丢掉' },
+    ])).toEqual([{ id: 'case-1', input: '没有资料', expectedOutput: '无法确认' }])
+  })
+
+  it('diffs a version against the previous one and refuses an unchanged body', () => {
+    expect(lineDiff('写出文档名。\n不要编造。', '写出文档名和段落号。\n不要编造。')).toEqual([
+      { kind: 'del', text: '写出文档名。' },
+      { kind: 'add', text: '写出文档名和段落号。' },
+      { kind: 'same', text: '不要编造。' },
+    ])
+    expect(sameSkillContent(
+      { instructions: '引用', tools: ['rag.search'], examples: ['甲'], cases: [{ input: '问', expectedOutput: '答' }] },
+      { instructions: '引用 ', tools: ['rag.search'], examples: ['甲'], cases: [{ input: '问', expectedOutput: '答' }] },
+    )).toBe(true)
+    expect(formatSkillWhen('2026-10-18T14:02:00+08:00')).toBe('10-18 14:02')
+    expect(versionMeta({ createdBy: '官德志', createdAt: '2026-10-18T14:02:00+08:00', note: '引用必须带段落号' }))
+      .toBe('官德志 · 10-18 14:02 · 引用必须带段落号')
   })
 })

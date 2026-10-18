@@ -814,6 +814,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/skills/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        /** 技能详情、版本历史和使用方 */
+        get: operations["getSkill"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agents/{name}/skills": {
         parameters: {
             query?: never;
@@ -848,6 +867,27 @@ export interface paths {
         get: operations["getAgentSkill"];
         put?: never;
         post?: never;
+        /** 撤销技能授权。不撤销依赖工具 */
+        delete: operations["revokeSkill"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{name}/skills/{skill}/upgrade": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                skill: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 把 spec.skills 改到最新版并启动回归。通过前不改锁定版本 */
+        post: operations["upgradeSkill"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2677,6 +2717,44 @@ export interface components {
                 input: string;
                 expectedOutput?: string;
             }[];
+            /** @description 变更说明。已有版本时必填；正文、示例、用例和依赖工具都没变则不生成新版本 */
+            note?: string;
+        };
+        SkillDetail: {
+            name?: string;
+            ownerOrg?: string;
+            description?: string;
+            /** @enum {string} */
+            source?: "AUTHORED" | "EXPERIENCE";
+            latest?: number;
+            versions?: components["schemas"]["SkillVersion"][];
+            users?: components["schemas"]["SkillUser"][];
+        };
+        SkillVersion: {
+            version?: number;
+            instructions?: string;
+            note?: string;
+            createdBy?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            tools?: string[];
+            examples?: string[];
+            cases?: {
+                id?: string;
+                input?: string;
+                expectedOutput?: string;
+            }[];
+        };
+        SkillUser: {
+            agent?: string;
+            version?: number;
+            /** @enum {string} */
+            status?: "LATEST" | "BEHIND" | "RUNNING";
+            /** Format: float */
+            score?: number | null;
+            /** Format: float */
+            threshold?: number | null;
+            upgradeError?: string | null;
         };
         ToolSummary: {
             /** @example work_order_create */
@@ -4769,6 +4847,30 @@ export interface operations {
             };
         };
     };
+    getSkill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["SkillDetail"];
+                    };
+                };
+            };
+        };
+    };
     listAgentSkills: {
         parameters: {
             query?: never;
@@ -4851,6 +4953,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    revokeSkill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                skill: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    upgradeSkill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                skill: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            agent?: string;
+                            skill?: string;
+                            version?: number;
+                            runId?: string;
+                            /** @enum {string} */
+                            status?: "RUNNING";
+                        };
+                    };
                 };
             };
         };

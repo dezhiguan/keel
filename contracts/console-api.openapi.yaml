@@ -1173,6 +1173,24 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Envelope" }
+  /skills/{name}:
+    parameters:
+      - { name: name, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [tools]
+      operationId: getSkill
+      summary: 技能详情、版本历史和使用方
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/SkillDetail" }
   /agents/{name}/skills:
     parameters:
       - $ref: "#/components/parameters/AgentName"
@@ -1244,6 +1262,42 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Envelope" }
+    delete:
+      tags: [tools]
+      operationId: revokeSkill
+      summary: 撤销技能授权。不撤销依赖工具
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+  /agents/{name}/skills/{skill}/upgrade:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+      - { name: skill, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [tools]
+      operationId: upgradeSkill
+      summary: 把 spec.skills 改到最新版并启动回归。通过前不改锁定版本
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          agent: { type: string }
+                          skill: { type: string }
+                          version: { type: integer }
+                          runId: { type: string }
+                          status: { type: string, enum: [RUNNING] }
 
   # ---------------------------------------------------------------- 工具
   /tools/{name}/invoke:
@@ -3782,6 +3836,52 @@ components:
               id: { type: string }
               input: { type: string }
               expectedOutput: { type: string }
+        note: { type: string, description: 变更说明。已有版本时必填；正文、示例、用例和依赖工具都没变则不生成新版本 }
+    SkillDetail:
+      type: object
+      properties:
+        name: { type: string }
+        ownerOrg: { type: string }
+        description: { type: string }
+        source: { type: string, enum: [AUTHORED, EXPERIENCE] }
+        latest: { type: integer }
+        versions:
+          type: array
+          items: { $ref: "#/components/schemas/SkillVersion" }
+        users:
+          type: array
+          items: { $ref: "#/components/schemas/SkillUser" }
+    SkillVersion:
+      type: object
+      properties:
+        version: { type: integer }
+        instructions: { type: string }
+        note: { type: string }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        tools:
+          type: array
+          items: { type: string }
+        examples:
+          type: array
+          items: { type: string }
+        cases:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              input: { type: string }
+              expectedOutput: { type: string }
+    SkillUser:
+      type: object
+      properties:
+        agent: { type: string }
+        version: { type: integer }
+        status: { type: string, enum: [LATEST, BEHIND, RUNNING] }
+        score: { type: number, format: float, nullable: true }
+        threshold: { type: number, format: float, nullable: true }
+        upgradeError: { type: string, nullable: true }
     ToolSummary:
       type: object
       properties:

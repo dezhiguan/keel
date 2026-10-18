@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { computed, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import Pager from '@/components/Pager.vue'
 import ToolDrawer from './ToolDrawer.vue'
 import ToolStatusPill from './ToolStatusPill.vue'
 import { listTools, registerTool as createTool, type ListToolsQuery, type ToolPage } from '@/api/tools'
-import { listSkills, publishSkill, type SkillSummary } from '@/api/skills'
+import { getSkill, listSkills, publishSkill, revokeSkill, upgradeSkill, type SkillDetail, type SkillSummary, type SkillUser } from '@/api/skills'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { RISK, fmtN } from '@/utils/format'
-import { sourceLabel, splitList } from './skillView'
+import { cleanCases, cleanExamples, lineDiff, sameSkillContent, sourceLabel, splitList, versionMeta, type SkillCaseDraft } from './skillView'
 
 const ACCESS = { READ: '读', WRITE: '写', EXEC: '执行' } as const
 const SCOPE = { PRIVATE: '私有', SHARED: '共享' } as const
@@ -21,19 +21,32 @@ const envStore = useEnvStore()
 const result = ref<ToolPage | null>(null)
 const loading = ref(false)
 const registering = ref(false)
-const tab = ref<'tool' | 'skill'>('tool')
+const tab = ref<'tool' | 'skill'>(route.query.skill ? 'skill' : 'tool')
 const skills = ref<SkillSummary[]>([])
+const detail = ref<SkillDetail | null>(null)
+const selectedVersion = ref<number | null>(null)
 const publishing = ref(false)
+const editing = ref(false)
+const noteInvalid = ref(false)
+const savingSkill = ref(false)
+const registryOnly = ref(false)
+const seenStatus = new Map<string, string>()
+let pollTimer: ReturnType<typeof setInterval> | undefined
 const skillForm = reactive({
   name: '',
   ownerOrg: '',
   description: '',
   instructions: '',
   tools: '',
-  example: '',
-  caseInput: '',
-  caseOutput: '',
+  examples: [''] as string[],
+  cases: [{ input: '', expectedOutput: '' }] as SkillCaseDraft[],
   source: 'AUTHORED' as 'AUTHORED' | 'EXPERIENCE',
+})
+const editForm = reactive({
+  instructions: '',
+  note: '',
+  examples: [''] as string[],
+  cases: [{ input: '', expectedOutput: '' }] as SkillCaseDraft[],
 })
 const form = reactive({
   name: '',
@@ -51,6 +64,28 @@ const filter = reactive<{ scope: NonNullable<ListToolsQuery['scope']>; page: num
   size: 10,
 })
 
+const selectedSkill = computed(() => typeof route.query.skill === 'string' ? route.query.skill : '')
+const versions = computed(() => [...(detail.value?.versions ?? [])].sort((left, right) => right.version - left.version))
+const latestVersion = computed(() => versions.value.find((item) => item.version === detail.value?.latest) ?? versions.value[0] ?? null)
+const currentVersion = computed(() => versions.value.find((item) => item.version === selectedVersion.value) ?? latestVersion.value)
+const previousVersion = computed(() => {
+  const ordered = [...(detail.value?.versions ?? [])].sort((left, right) => left.version - right.version)
+  const index = ordered.findIndex((item) => item.version === currentVersion.value?.version)
+  return index > 0 ? ordered[index - 1] : null
+})
+const diffTitle = computed(() => {
+  if (!currentVersion.value) return ''
+  return previousVersion.value
+    ? `v${previousVersion.value.version} → v${currentVersion.value.version}`
+    : `v${currentVersion.value.version}（初版）`
+})
+const diffLines = computed(() => {
+  if (!currentVersion.value) return []
+  return previousVersion.value
+    ? lineDiff(previousVersion.value.instructions, currentVersion.value.instructions)
+    : currentVersion.value.instructions.split('\n').map((text) => ({ kind: 'same' as const, text }))
+})
+
 async function loadSkills() {
   try {
     skills.value = (await listSkills()).items ?? []
@@ -59,15 +94,74 @@ async function loadSkills() {
   }
 }
 
+function rememberUsers(users: SkillUser[]) {
+  for (const user of users) {
+    const before = seenStatus.get(user.agent)
+    if (before === 'RUNNING' && user.status === 'LATEST') {
+      const score = user.score == null ? '' : ` ${user.score.toFixed(2)} ≥ ${(user.threshold ?? 0.85).toFixed(2)}`
+      ElMessage.success(`${user.agent} 回归通过${score}，待重新部署后生效`)
+    } else if (before === 'RUNNING' && user.status !== 'RUNNING') {
+      ElMessage.warning(user.upgradeError || `${user.agent} 回归未通过，仍锁定 v${user.version}`)
+    }
+    if (user.status) seenStatus.set(user.agent, user.status)
+  }
+}
+
+function stopPoll() {
+  if (pollTimer) clearInterval(pollTimer)
+  pollTimer = undefined
+}
+
+function startPoll() {
+  if (pollTimer) return
+  pollTimer = setInterval(() => {
+    if (selectedSkill.value) loadDetail()
+  }, 2000)
+}
+
+async function loadDetail() {
+  if (!selectedSkill.value) {
+    detail.value = null
+    stopPoll()
+    return
+  }
+  try {
+    const next = await getSkill(selectedSkill.value)
+    rememberUsers(next.users ?? [])
+    detail.value = next
+    if (selectedVersion.value == null || !(next.versions ?? []).some((item) => item.version === selectedVersion.value)) {
+      selectedVersion.value = next.latest
+    }
+    if ((next.users ?? []).some((user) => user.status === 'RUNNING')) startPoll()
+    else stopPoll()
+  } catch (error) {
+    ElMessage.error(`加载技能失败：${toKeelError(error).message}`)
+  }
+}
+
+function selectSkill(name: string) {
+  registryOnly.value = false
+  selectedVersion.value = null
+  seenStatus.clear()
+  router.push({ query: { ...route.query, skill: name } })
+}
+
+function showRegistry() {
+  registryOnly.value = true
+  stopPoll()
+  const query = { ...route.query }
+  delete query.skill
+  router.push({ query })
+}
+
 function openPublish() {
   skillForm.name = ''
   skillForm.ownerOrg = ''
   skillForm.description = ''
   skillForm.instructions = ''
   skillForm.tools = ''
-  skillForm.example = ''
-  skillForm.caseInput = ''
-  skillForm.caseOutput = ''
+  skillForm.examples = ['']
+  skillForm.cases = [{ input: '', expectedOutput: '' }]
   skillForm.source = 'AUTHORED'
   publishing.value = true
 }
@@ -77,24 +171,108 @@ async function submitSkill() {
     ElMessage.warning('技能名、所有者、说明和正文都不能为空')
     return
   }
+  const name = skillForm.name.trim()
   try {
     const saved = await publishSkill({
-      name: skillForm.name.trim(),
+      name,
       ownerOrg: skillForm.ownerOrg.trim(),
       description: skillForm.description.trim(),
       instructions: skillForm.instructions.trim(),
       source: skillForm.source,
       tools: splitList(skillForm.tools),
-      examples: splitList(skillForm.example),
-      cases: skillForm.caseInput.trim() ? [{ input: skillForm.caseInput.trim(), expectedOutput: skillForm.caseOutput.trim() }] : [],
+      examples: cleanExamples(skillForm.examples),
+      cases: cleanCases(skillForm.cases),
     })
     publishing.value = false
-    ElMessage.success(`已发布 ${skillForm.name.trim()} v${saved.version}，没有授予工具`)
+    ElMessage.success(`已发布 ${name} v${saved.version}，没有授予工具`)
     await loadSkills()
+    selectSkill(name)
   } catch (error) {
     ElMessage.error(toKeelError(error).message)
   }
 }
+
+function openEdit() {
+  const latest = latestVersion.value
+  if (!latest) return
+  editForm.instructions = latest.instructions
+  editForm.note = ''
+  editForm.examples = (latest.examples ?? []).length ? [...(latest.examples ?? [])] : ['']
+  editForm.cases = (latest.cases ?? []).length
+    ? (latest.cases ?? []).map((item) => ({ id: item.id, input: item.input, expectedOutput: item.expectedOutput ?? '' }))
+    : [{ input: '', expectedOutput: '' }]
+  noteInvalid.value = false
+  editing.value = true
+}
+
+async function saveSkill() {
+  const latest = latestVersion.value
+  const skill = detail.value
+  if (!latest || !skill) return
+  const note = editForm.note.trim()
+  if (!note) {
+    noteInvalid.value = true
+    return
+  }
+  const examples = cleanExamples(editForm.examples)
+  const cases = cleanCases(editForm.cases)
+  const instructions = editForm.instructions.trim()
+  if (sameSkillContent(
+    { instructions, tools: latest.tools ?? [], examples, cases },
+    { instructions: latest.instructions, tools: latest.tools ?? [], examples: latest.examples ?? [], cases: latest.cases ?? [] },
+  )) {
+    ElMessage.warning('内容没有变化，不生成新版本')
+    return
+  }
+  savingSkill.value = true
+  try {
+    const saved = await publishSkill({
+      name: skill.name,
+      ownerOrg: skill.ownerOrg ?? '',
+      description: skill.description ?? '',
+      instructions,
+      source: skill.source,
+      tools: latest.tools ?? [],
+      examples,
+      cases,
+      note,
+    })
+    editing.value = false
+    selectedVersion.value = saved.version ?? null
+    ElMessage.success(`已发布 v${saved.version}，使用方不会自动升级`)
+    await loadSkills()
+    await loadDetail()
+  } catch (error) {
+    ElMessage.error(toKeelError(error).message)
+  } finally {
+    savingSkill.value = false
+  }
+}
+
+async function upgrade(user: SkillUser) {
+  if (!detail.value) return
+  try {
+    await upgradeSkill(user.agent, detail.value.name)
+    ElMessage.info(`${user.agent}：已改 spec.skills 为 v${detail.value.latest}，回归运行中…`)
+    await loadDetail()
+  } catch (error) {
+    ElMessage.error(toKeelError(error).message)
+  }
+}
+
+async function revoke(user: SkillUser) {
+  if (!detail.value) return
+  try {
+    await revokeSkill(user.agent, detail.value.name)
+    ElMessage.warning(`已撤销 ${user.agent} 的技能授权；依赖工具授权不受影响`)
+    await loadSkills()
+    await loadDetail()
+  } catch (error) {
+    ElMessage.error(toKeelError(error).message)
+  }
+}
+
+onUnmounted(stopPoll)
 
 async function load() {
   loading.value = true
@@ -161,9 +339,20 @@ async function submitRegister() {
   }
 }
 
-watch(tab, () => {
-  if (tab.value === 'skill') loadSkills()
+async function openSkillTab() {
+  await loadSkills()
+  if (!registryOnly.value && !selectedSkill.value && skills.value[0]) selectSkill(skills.value[0].name)
+  else if (selectedSkill.value) await loadDetail()
+}
+
+watch(tab, (value) => {
+  if (value === 'skill') openSkillTab()
+  else stopPoll()
 })
+watch(selectedSkill, (name) => {
+  if (tab.value === 'skill' && name && !registryOnly.value) loadDetail()
+})
+if (tab.value === 'skill') openSkillTab()
 watch(() => [filter.page, filter.size], load)
 watch(() => envStore.env, () => {
   if (filter.page === 1) load()
@@ -175,7 +364,9 @@ watch(() => envStore.env, () => {
   <div>
     <div class="vh">
       <h2>工具与技能</h2>
-      <span class="sub">统一注册，声明读写属性和风险等级。高风险工具的每次调用都会被挂起，送到审批中心</span>
+      <span v-if="tab === 'skill' && selectedSkill && !registryOnly" class="sub">技能 › {{ selectedSkill }}</span>
+      <span v-if="tab === 'skill' && selectedSkill && !registryOnly" class="tag-prop">提案</span>
+      <span v-else-if="tab === 'tool'" class="sub">统一注册，声明读写属性和风险等级。高风险工具的每次调用都会被挂起，送到审批中心</span>
       <span class="sp" />
       <button v-if="tab === 'tool'" v-write class="btn pri" @click="openRegister">+ 注册 MCP 工具</button>
       <button v-else v-write class="btn pri" @click="openPublish">+ 发布技能</button>
@@ -183,6 +374,10 @@ watch(() => envStore.env, () => {
     <div class="chipsel" style="margin-bottom: 14px">
       <button :class="{ on: tab === 'tool' }" @click="tab = 'tool'">工具 · {{ result?.total ?? 0 }}</button>
       <button :class="{ on: tab === 'skill' }" @click="tab = 'skill'">技能 · {{ skills.length }}</button>
+    </div>
+    <div v-if="tab === 'skill'" class="chipsel" style="margin-bottom: 14px">
+      <button :class="{ on: registryOnly || !selectedSkill }" @click="showRegistry">注册表</button>
+      <button v-for="skill in skills" :key="skill.name" :class="{ on: !registryOnly && selectedSkill === skill.name }" @click="selectSkill(skill.name)">{{ skill.name }}</button>
     </div>
     <div v-if="tab === 'tool'" class="toolbar">
       <div class="chipsel">
@@ -213,12 +408,12 @@ watch(() => envStore.env, () => {
       </table>
       <Pager v-model:page="filter.page" v-model:size="filter.size" :total="result?.total ?? 0" />
     </div>
-    <div v-else class="card">
+    <div v-else-if="registryOnly || !selectedSkill" class="card">
       <table class="t">
         <thead><tr><th>技能</th><th>所有者</th><th>版本</th><th>依赖工具</th><th>风险</th><th>使用方</th><th>来源</th></tr></thead>
         <tbody>
           <tr v-if="!skills.length"><td colspan="7" class="empty">还没有技能</td></tr>
-          <tr v-for="skill in skills" :key="skill.name">
+          <tr v-for="skill in skills" :key="skill.name" class="click" @click="selectSkill(skill.name)">
             <td class="nm"><b class="mono">{{ skill.name }}</b><small>{{ skill.description }}</small></td>
             <td>{{ skill.ownerOrg }}</td>
             <td class="mono">v{{ skill.version }}</td>
@@ -229,6 +424,51 @@ watch(() => envStore.env, () => {
           </tr>
         </tbody>
       </table>
+    </div>
+    <div v-else-if="detail" class="todo"><b>要做</b>技能详情 + 版本历史 + 版本对比；编辑 = 预填当前版另存为下一版，旧版只读；撤销授权；使用方锁在旧版时提示升级并跑回归；示例、用例支持多条；顺手去掉 V21 / V22 里的 REFERENCES。</div>
+    <div v-if="tab === 'skill' && !registryOnly && selectedSkill && detail" class="row2 skill">
+      <div class="card">
+        <h3>版本 <small>点击查看，与上一版对比</small><span class="sp" /><button v-write class="btn pri sm" type="button" @click="openEdit">编辑（另存为新版本）</button></h3>
+        <div class="skill-split">
+          <div class="vlist">
+            <div v-for="item in versions" :key="item.version" class="vi" :class="{ on: item.version === currentVersion?.version }" @click="selectedVersion = item.version">
+              <b>v{{ item.version }}</b>
+              <span v-if="item.version === detail.latest" class="pill nd p-ok">最新</span>
+              <span v-else class="pill nd p-mute">只读</span>
+              <div class="m">{{ versionMeta(item) }}</div>
+            </div>
+          </div>
+          <div>
+            <div class="mut" style="font-size: 12px; margin-bottom: 6px">{{ diffTitle }}</div>
+            <div class="diff code" style="padding: 8px 0; background: #0b1220; border: 1px solid var(--line)">
+              <div v-for="(line, index) in diffLines" :key="index" :class="line.kind">{{ line.text }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>使用方</h3>
+        <table class="t">
+          <thead><tr><th>智能体</th><th>锁定版本</th><th>状态</th><th></th></tr></thead>
+          <tbody>
+            <tr v-if="!(detail.users ?? []).length"><td colspan="4" class="mut">没有使用方</td></tr>
+            <tr v-for="user in detail.users ?? []" :key="user.agent">
+              <td class="nm"><b>{{ user.agent }}</b></td>
+              <td class="mono">v{{ user.version }}</td>
+              <td>
+                <span v-if="user.status === 'RUNNING'" class="pill p-soft">回归中</span>
+                <span v-else-if="user.status === 'LATEST'" class="pill p-ok">最新</span>
+                <span v-else class="pill p-warn">有新版本 v{{ detail.latest }}</span>
+              </td>
+              <td style="text-align: right; white-space: nowrap">
+                <button v-if="user.version < detail.latest && user.status !== 'RUNNING'" v-write class="btn sm" type="button" @click="upgrade(user)">升级并跑回归</button>
+                <button v-write class="btn sm danger" type="button" style="margin-left: 6px" @click="revoke(user)">撤销授权</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="pbanner warn" style="font-size: 12px; margin-top: 10px">升级 = 改 agent.yaml 的 spec.skills 版本 → 跑回归 → 通过后重新部署。未升级的智能体继续用锁定版本。</div>
+      </div>
     </div>
     <el-dialog v-model="registering" title="注册 MCP 工具" width="480px">
       <el-form label-width="100px">
@@ -263,28 +503,81 @@ watch(() => envStore.env, () => {
         <button v-write class="btn pri" style="margin-left: 8px" @click="submitRegister">确认注册</button>
       </template>
     </el-dialog>
-    <el-dialog v-model="publishing" title="发布技能" width="520px">
-      <el-form label-width="100px">
-        <el-form-item label="技能名"><el-input v-model="skillForm.name" placeholder="如 cite-from-kb" /></el-form-item>
-        <el-form-item label="所有者"><el-input v-model="skillForm.ownerOrg" /></el-form-item>
-        <el-form-item label="说明"><el-input v-model="skillForm.description" /></el-form-item>
-        <el-form-item label="正文"><el-input v-model="skillForm.instructions" type="textarea" :rows="3" /></el-form-item>
-        <el-form-item label="依赖工具"><el-input v-model="skillForm.tools" placeholder="逗号分隔，须已注册" /></el-form-item>
-        <el-form-item label="示例"><el-input v-model="skillForm.example" /></el-form-item>
-        <el-form-item label="用例输入"><el-input v-model="skillForm.caseInput" /></el-form-item>
-        <el-form-item label="期望输出"><el-input v-model="skillForm.caseOutput" /></el-form-item>
-        <el-form-item label="来源">
-          <el-select v-model="skillForm.source" style="width: 100%">
-            <el-option label="人工编写" value="AUTHORED" />
-            <el-option label="经验沉淀" value="EXPERIENCE" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <button class="btn" @click="publishing = false">取消</button>
-        <button v-write class="btn pri" style="margin-left: 8px" @click="submitSkill">发布</button>
-      </template>
-    </el-dialog>
+    <div v-if="publishing" class="mask on" @click="publishing = false" />
+    <div v-if="publishing" class="modal wide on" role="dialog" aria-label="发布技能">
+      <div class="mh">发布技能</div>
+      <div class="mb">
+        <div class="field"><label>技能名</label><input v-model="skillForm.name" class="inp" placeholder="如 cite-from-kb" /></div>
+        <div class="field"><label>所有者</label><input v-model="skillForm.ownerOrg" class="inp" /></div>
+        <div class="field"><label>说明</label><input v-model="skillForm.description" class="inp" /></div>
+        <div class="field"><label>正文</label><textarea v-model="skillForm.instructions" class="inp" /></div>
+        <div class="field"><label>依赖工具</label><input v-model="skillForm.tools" class="inp" placeholder="逗号分隔，须已注册" /></div>
+        <div class="field">
+          <label>示例</label>
+          <div v-for="(_, index) in skillForm.examples" :key="index" style="display: flex; gap: 8px; margin-bottom: 6px">
+            <input v-model="skillForm.examples[index]" class="inp" />
+            <button class="btn sm" type="button" @click="skillForm.examples.splice(index, 1)">删除</button>
+          </div>
+          <button class="btn sm" type="button" @click="skillForm.examples.push('')">+ 添加示例</button>
+        </div>
+        <div class="field">
+          <label>用例</label>
+          <div v-for="(item, index) in skillForm.cases" :key="index" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-bottom: 6px">
+            <input v-model="item.input" class="inp" placeholder="输入" />
+            <input v-model="item.expectedOutput" class="inp" placeholder="期望输出" />
+            <button class="btn sm" type="button" @click="skillForm.cases.splice(index, 1)">删除</button>
+          </div>
+          <button class="btn sm" type="button" @click="skillForm.cases.push({ input: '', expectedOutput: '' })">+ 添加用例</button>
+        </div>
+        <div class="field">
+          <label>来源</label>
+          <select v-model="skillForm.source" class="inp">
+            <option value="AUTHORED">人工编写</option>
+            <option value="EXPERIENCE">经验沉淀</option>
+          </select>
+        </div>
+      </div>
+      <div class="mf">
+        <button class="btn" type="button" @click="publishing = false">取消</button>
+        <button v-write class="btn pri" type="button" @click="submitSkill">发布</button>
+      </div>
+    </div>
+    <div v-if="editing" class="mask on" @click="editing = false" />
+    <div v-if="editing" class="modal wide on" role="dialog" aria-label="编辑技能">
+      <div class="mh">编辑 {{ detail?.name }} · 另存为 v{{ (detail?.latest ?? 0) + 1 }}</div>
+      <div class="mb">
+        <div class="field"><label>正文</label><textarea v-model="editForm.instructions" class="inp" style="min-height: 110px" /></div>
+        <div class="field"><label>变更说明</label><input v-model="editForm.note" class="inp" :class="{ err: noteInvalid }" placeholder="必填，例如：拒答时附上可咨询的人" @input="noteInvalid = false" /></div>
+        <div class="field">
+          <label>示例</label>
+          <div v-for="(_, index) in editForm.examples" :key="index" style="display: flex; gap: 8px; margin-bottom: 6px">
+            <input v-model="editForm.examples[index]" class="inp" />
+            <button class="btn sm" type="button" @click="editForm.examples.splice(index, 1)">删除</button>
+          </div>
+          <button class="btn sm" type="button" @click="editForm.examples.push('')">+ 添加示例</button>
+        </div>
+        <div class="field">
+          <label>用例</label>
+          <div v-for="(item, index) in editForm.cases" :key="index" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-bottom: 6px">
+            <input v-model="item.input" class="inp" placeholder="输入" />
+            <input v-model="item.expectedOutput" class="inp" placeholder="期望输出" />
+            <button class="btn sm" type="button" @click="editForm.cases.splice(index, 1)">删除</button>
+          </div>
+          <button class="btn sm" type="button" @click="editForm.cases.push({ input: '', expectedOutput: '' })">+ 添加用例</button>
+        </div>
+        <div class="mut" style="font-size: 12px">保存后旧版本只读；使用方不会自动升级。</div>
+      </div>
+      <div class="mf">
+        <button class="btn" type="button" @click="editing = false">取消</button>
+        <button v-write class="btn pri" type="button" :disabled="savingSkill" @click="saveSkill">保存为新版本</button>
+      </div>
+    </div>
     <ToolDrawer @changed="load" />
   </div>
 </template>
+
+<style scoped>
+.tag-prop { display: inline-block; font-size: 10.5px; line-height: 17px; background: rgba(180, 140, 242, 0.14); color: var(--violet); border: 1px solid #4a3a6e; border-radius: 4px; padding: 0 6px; font-weight: 500; }
+.todo { border: 1px dashed #4a3a6e; background: rgba(180, 140, 242, 0.05); border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; font-size: 12.5px; }
+.todo b { color: var(--violet); font-weight: 500; margin-right: 6px; }
+</style>

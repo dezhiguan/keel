@@ -21,6 +21,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.closeTo;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -55,6 +57,7 @@ class SkillFlowTest {
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired SkillService skills;
 
     @BeforeEach
     void reset() {
@@ -120,6 +123,103 @@ class SkillFlowTest {
         mvc.perform(get("/api/v1/skills"))
                 .andExpect(jsonPath("$.data.items[0].risk").value("MID"))
                 .andExpect(jsonPath("$.data.items[0].users[0]").value("skill-agent"));
+    }
+
+    @Test void editingKeepsOldVersionsAndPromotesOnlyAfterRegression() throws Exception {
+        jdbc.update("DELETE FROM eval_run WHERE agent_name = 'skill-agent'");
+        publish("""
+                {"name":"cite-from-kb","ownerOrg":"平台组","description":"只依据检索作答","instructions":"找不到依据时说无法确认",
+                 "tools":["rag.search"],"examples":["结论要标出处"],"cases":[{"input":"没有资料时怎么说","expectedOutput":"无法确认"}]}
+                """, 1);
+        mvc.perform(post("/api/v1/skills").contentType("application/json").content("""
+                {"name":"cite-from-kb","ownerOrg":"平台组","description":"只依据检索作答","instructions":"引用段落号",
+                 "note":"","tools":["rag.search"],"examples":["结论要标出处"],"cases":[]}
+                """)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("变更说明不能为空"));
+        mvc.perform(post("/api/v1/skills").contentType("application/json").content("""
+                {"name":"cite-from-kb","ownerOrg":"平台组","description":"只依据检索作答","instructions":"找不到依据时说无法确认",
+                 "note":"没改","tools":["rag.search"],"examples":["结论要标出处"],
+                 "cases":[{"input":"没有资料时怎么说","expectedOutput":"无法确认"}]}
+                """)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("内容没有变化，不生成新版本"));
+        publish("""
+                {"name":"cite-from-kb","ownerOrg":"平台组","description":"只依据检索作答","instructions":"引用段落号",
+                 "note":"引用必须带段落号","tools":["rag.search"],"examples":["结论要标出处","没有依据就拒答"],
+                 "cases":[{"input":"没有资料时怎么说","expectedOutput":"无法确认"},{"input":"段落怎么写","expectedOutput":"写出段落号"}]}
+                """, 2);
+        grant(1);
+        mvc.perform(get("/api/v1/skills/cite-from-kb"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.latest").value(2))
+                .andExpect(jsonPath("$.data.versions.length()").value(2))
+                .andExpect(jsonPath("$.data.versions[0].instructions").value("找不到依据时说无法确认"))
+                .andExpect(jsonPath("$.data.versions[1].examples.length()").value(2))
+                .andExpect(jsonPath("$.data.versions[1].cases.length()").value(2))
+                .andExpect(jsonPath("$.data.versions[1].note").value("引用必须带段落号"))
+                .andExpect(jsonPath("$.data.users[0].version").value(1))
+                .andExpect(jsonPath("$.data.users[0].status").value("BEHIND"));
+        var toolsBefore = count("SELECT count(*) FROM agent_tool_grant WHERE agent_name = 'skill-agent'");
+        skills.trackUpgrade("skill-agent", "cite-from-kb", "dev", "ev_skill_pass");
+        assertThat(skillVersionInManifest()).isEqualTo(2);
+        assertThat(count("SELECT count(*) FROM agent_skill_grant WHERE agent_name = 'skill-agent' AND version = 1")).isEqualTo(1);
+        insertRun("ev_skill_pass", "DONE", "{\"passed\":true,\"scoreTotal\":0.92,\"gate\":{\"minScore\":0.85}}", null);
+        mvc.perform(get("/api/v1/skills/cite-from-kb"))
+                .andExpect(jsonPath("$.data.users[0].version").value(2))
+                .andExpect(jsonPath("$.data.users[0].status").value("LATEST"))
+                .andExpect(jsonPath("$.data.users[0].score", closeTo(0.92, 0.001)));
+        publish("""
+                {"name":"cite-from-kb","ownerOrg":"平台组","description":"只依据检索作答","instructions":"再补一句拒答时找谁",
+                 "note":"补咨询人","tools":["rag.search"],"examples":["结论要标出处"],"cases":[]}
+                """, 3);
+        skills.trackUpgrade("skill-agent", "cite-from-kb", "dev", "ev_skill_fail");
+        insertRun("ev_skill_fail", "FAILED", "{}", "回归失败");
+        mvc.perform(get("/api/v1/skills/cite-from-kb"))
+                .andExpect(jsonPath("$.data.users[0].version").value(2))
+                .andExpect(jsonPath("$.data.users[0].status").value("BEHIND"))
+                .andExpect(jsonPath("$.data.users[0].upgradeError").value("回归失败"));
+        assertThat(skillVersionInManifest()).isEqualTo(2);
+        mvc.perform(delete("/api/v1/agents/skill-agent/skills/cite-from-kb"))
+                .andExpect(status().isOk());
+        assertThat(count("SELECT count(*) FROM agent_skill_grant WHERE agent_name = 'skill-agent'")).isZero();
+        assertThat(count("SELECT count(*) FROM agent_tool_grant WHERE agent_name = 'skill-agent'")).isEqualTo(toolsBefore);
+        assertThat(count("""
+                SELECT count(*) FROM information_schema.table_constraints
+                WHERE constraint_type = 'FOREIGN KEY'
+                  AND table_name IN ('skill_version', 'agent_skill_grant', 'user_memory')
+                """)).isZero();
+    }
+
+    private void publish(String body, int version) throws Exception {
+        mvc.perform(post("/api/v1/skills").contentType("application/json").content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value(version));
+    }
+
+    private void grant(int version) throws Exception {
+        mvc.perform(post("/api/v1/agents/skill-agent/skills").contentType("application/json")
+                        .content("{\"name\":\"cite-from-kb\",\"version\":" + version + "}")
+                        .with(request -> {
+                            ConsolePrincipal.set(request, ConsolePrincipal.dev());
+                            return request;
+                        }))
+                .andExpect(status().isOk());
+    }
+
+    private void insertRun(String id, String state, String result, String error) {
+        jdbc.update("""
+                INSERT INTO eval_run(run_id, agent_name, env, namespace, source_pod, image, endpoint, dataset, requested_by, state, result, error)
+                VALUES (?, 'skill-agent', 'dev', 'ns', 'pod', 'image', 'http://127.0.0.1', 'skill-agent/smoke', 'dev', ?, ?::jsonb, ?)
+                """, id, state, result, error);
+    }
+
+    private int skillVersionInManifest() throws Exception {
+        var raw = jdbc.queryForObject(
+                "SELECT manifest_json::text FROM agent_version WHERE agent_name = 'skill-agent' AND env = 'dev'", String.class);
+        var skills = JSON.readTree(raw).path("spec").path("skills");
+        for (var item : skills) {
+            if ("cite-from-kb".equals(item.path("name").asText())) {
+                return item.path("version").asInt();
+            }
+        }
+        return 0;
     }
 
     private int count(String sql) {
