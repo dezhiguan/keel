@@ -22,6 +22,7 @@ keel-server/src/main/java/com/keel/server/registry/service/AgentChatService.java
 keel-server/src/main/java/com/keel/server/registry/controller/AgentController.java
 keel-server/src/main/java/com/keel/server/integration/agent/AgentEndpointClient.java
 keel-server/src/test/java/com/keel/server/registry/service/DebugSseRelayTest.java
+keel-server/src/test/java/com/keel/server/SchemaMigrationTest.java
 console/src/api/agents.ts
 console/src/views/agents/debug.ts
 console/src/views/agents/debug.test.ts

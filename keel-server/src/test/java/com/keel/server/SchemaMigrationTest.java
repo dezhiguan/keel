@@ -22,7 +22,7 @@ class SchemaMigrationTest {
     @Test
     @Transactional
     void migratesAllPlatformTablesAndRunConstraints() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("27");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("28");
 
         List<String> tables = jdbc.queryForList("""
             SELECT tablename FROM pg_tables
@@ -39,7 +39,8 @@ class SchemaMigrationTest {
             "devflow_execution", "devflow_artifact", "devflow_holdout", "devflow_holdout_result", "devflow_setting", "devflow_sandbox_run",
             "devflow_tool_grant",
             "usage_daily", "skill", "skill_version", "agent_skill_grant",
-            "user_memory", "channel", "channel_credential", "channel_usage", "channel_feedback");
+            "user_memory", "channel", "channel_credential", "channel_usage", "channel_feedback",
+            "agent_session", "session_message");
 
         List<String> runConstraints = jdbc.queryForList("""
             SELECT conname FROM pg_constraint WHERE conrelid = 'agent_run'::regclass
