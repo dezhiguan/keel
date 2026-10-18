@@ -2560,7 +2560,7 @@ paths:
             schema:
               type: object
               properties:
-                feedback: { type: string, maxLength: 8000, description: 开发者补充明确澄清；在已有额度内继续，或按任务可用性主动开启一次五轮窗口，累计上限二十五 }
+                feedback: { type: string, maxLength: 8000, description: 开发者补充明确澄清；在已有额度内继续，或按任务可用性主动开启一次五轮窗口，累计上限三十 }
       tags: [devflow]
       parameters:
         - { name: jobId, in: path, required: true, schema: { type: string } }
@@ -4685,11 +4685,11 @@ components:
         traceId: { type: string }
         sandboxRunId: { type: string }
         sandboxStatus: { type: string, enum: [PASS, FAILED] }
-        sandboxAttemptLimit: { type: integer, minimum: 1, maximum: 25, description: 当前有上限的沙箱修复窗口终点 }
+        sandboxAttemptLimit: { type: integer, minimum: 1, maximum: 30, description: 当前有上限的沙箱修复窗口终点 }
         runtimeAdapterUpdateAvailable: { type: boolean, description: 协作候选缺少当前运行适配，可以保留岗位代码更新模板并重新验证审批 }
         repairFeedbackAvailable: { type: boolean, description: 当前任务可接受开发者补充澄清后继续修复 }
-        repairFeedbackCreatesWindow: { type: boolean, description: 原自动窗口已耗尽，本次明确澄清将主动开启一次最多五轮的新窗口，累计上限二十五轮 }
-        manualRepairWindows: { type: integer, minimum: 0, maximum: 4, description: 管理员补充澄清后主动开启的新修复窗口次数；每次最多五轮，所有沙箱提交累计不超过二十五次 }
+        repairFeedbackCreatesWindow: { type: boolean, description: 原自动窗口已耗尽，本次明确澄清将主动开启一次最多五轮的新窗口，累计上限三十轮 }
+        manualRepairWindows: { type: integer, minimum: 0, maximum: 5, description: 管理员补充澄清后主动开启的新修复窗口次数；每次最多五轮，所有沙箱提交累计不超过三十次 }
         pipeline:
           type: object
           properties:

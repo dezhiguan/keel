@@ -98,9 +98,11 @@ class MetaAgentRulesTest {
         state.put("manualRepairWindows", 3);
         assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
         state.put("manualRepairWindows", 4);
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
+        state.put("manualRepairWindows", 5);
         assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
     }
-    @Test void explicitClarificationCanContinueFailedWindowsButStopsAtFourOrTwentyFive() throws Exception {
+    @Test void explicitClarificationCanContinueFailedWindowsButStopsAtFiveOrThirty() throws Exception {
         var state = (com.fasterxml.jackson.databind.node.ObjectNode) new ObjectMapper().readTree("""
                 {"phase":"FAILED","sandboxStatus":"FAILED","repair":{"maxAttempts":10},
                 "manualRepairWindows":1,"delivery":{"sha":"abc"},"sandboxAttempts":[]}
@@ -113,10 +115,12 @@ class MetaAgentRulesTest {
         state.put("manualRepairWindows", 3);
         assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
         state.put("manualRepairWindows", 4);
+        assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
+        state.put("manualRepairWindows", 5);
         assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();
-        state.put("manualRepairWindows", 3);
+        state.put("manualRepairWindows", 4);
         var last = attempts.get(attempts.size() - 1).deepCopy();
-        while (attempts.size() < 24) attempts.add(last.deepCopy());
+        while (attempts.size() < 29) attempts.add(last.deepCopy());
         assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isTrue();
         attempts.add(last.deepCopy());
         assertThat(MetaAgentExecution.canStartClarifiedRepairWindow(state)).isFalse();

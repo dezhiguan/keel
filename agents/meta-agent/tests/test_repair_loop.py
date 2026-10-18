@@ -220,11 +220,11 @@ def test_delivery_note_is_written_once():
     assert "缺少绑定会明确失败。" in again
 
 
-def test_cumulative_window_accepts_twenty_five_and_rejects_twenty_six(tmp_path, monkeypatch):
+def test_cumulative_window_accepts_thirty_and_rejects_thirty_one(tmp_path, monkeypatch):
     from tools import state
 
     monkeypatch.setattr(state, "ROOT", tmp_path)
     with pytest.raises(Exception, match="沙箱修复窗口无效"):
-        _deliver(work(candidate(True), {"attempt": 1, "maxAttempts": 26}))
+        _deliver(work(candidate(True), {"attempt": 1, "maxAttempts": 31}))
     with pytest.raises(Exception, match="上一轮不一致"):
-        _deliver(work(candidate(True), {"attempt": 25, "maxAttempts": 25, "failedSha": "not-a-sha"}))
+        _deliver(work(candidate(True), {"attempt": 30, "maxAttempts": 30, "failedSha": "not-a-sha"}))
