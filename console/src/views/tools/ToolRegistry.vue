@@ -10,7 +10,7 @@ import { getSkill, listSkills, publishSkill, revokeSkill, upgradeSkill, type Ski
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { RISK, fmtN } from '@/utils/format'
-import { cleanCases, cleanExamples, lineDiff, sameSkillContent, sourceLabel, splitList, versionMeta, type SkillCaseDraft } from './skillView'
+import { cleanCases, cleanExamples, lineDiff, normalizeSkillName, sameSkillContent, skillNameError, sourceLabel, splitList, versionMeta, type SkillCaseDraft } from './skillView'
 
 const ACCESS = { READ: '读', WRITE: '写', EXEC: '执行' } as const
 const SCOPE = { PRIVATE: '私有', SHARED: '共享' } as const
@@ -26,6 +26,7 @@ const skills = ref<SkillSummary[]>([])
 const detail = ref<SkillDetail | null>(null)
 const selectedVersion = ref<number | null>(null)
 const publishing = ref(false)
+const nameInvalid = ref(false)
 const editing = ref(false)
 const noteInvalid = ref(false)
 const savingSkill = ref(false)
@@ -163,15 +164,22 @@ function openPublish() {
   skillForm.examples = ['']
   skillForm.cases = [{ input: '', expectedOutput: '' }]
   skillForm.source = 'AUTHORED'
+  nameInvalid.value = false
   publishing.value = true
 }
 
 async function submitSkill() {
-  if (!skillForm.name.trim() || !skillForm.ownerOrg.trim() || !skillForm.description.trim() || !skillForm.instructions.trim()) {
-    ElMessage.warning('技能名、所有者、说明和正文都不能为空')
+  const name = normalizeSkillName(skillForm.name)
+  const nameError = skillNameError(skillForm.name)
+  if (nameError) {
+    nameInvalid.value = true
+    ElMessage.warning(nameError)
     return
   }
-  const name = skillForm.name.trim()
+  if (!skillForm.ownerOrg.trim() || !skillForm.description.trim() || !skillForm.instructions.trim()) {
+    ElMessage.warning('所有者、说明和正文都不能为空')
+    return
+  }
   try {
     const saved = await publishSkill({
       name,
@@ -364,9 +372,7 @@ watch(() => envStore.env, () => {
   <div>
     <div class="vh">
       <h2>工具与技能</h2>
-      <span v-if="tab === 'skill' && selectedSkill && !registryOnly" class="sub">技能 › {{ selectedSkill }}</span>
-      <span v-if="tab === 'skill' && selectedSkill && !registryOnly" class="tag-prop">提案</span>
-      <span v-else-if="tab === 'tool'" class="sub">统一注册，声明读写属性和风险等级。高风险工具的每次调用都会被挂起，送到审批中心</span>
+      <span v-if="tab === 'tool'" class="sub">统一注册，声明读写属性和风险等级。高风险工具的每次调用都会被挂起，送到审批中心</span>
       <span class="sp" />
       <button v-if="tab === 'tool'" v-write class="btn pri" @click="openRegister">+ 注册 MCP 工具</button>
       <button v-else v-write class="btn pri" @click="openPublish">+ 发布技能</button>
@@ -425,7 +431,6 @@ watch(() => envStore.env, () => {
         </tbody>
       </table>
     </div>
-    <div v-else-if="detail" class="todo"><b>要做</b>技能详情 + 版本历史 + 版本对比；编辑 = 预填当前版另存为下一版，旧版只读；撤销授权；使用方锁在旧版时提示升级并跑回归；示例、用例支持多条；顺手去掉 V21 / V22 里的 REFERENCES。</div>
     <div v-if="tab === 'skill' && !registryOnly && selectedSkill && detail" class="row2 skill">
       <div class="card">
         <h3>版本 <small>点击查看，与上一版对比</small><span class="sp" /><button v-write class="btn pri sm" type="button" @click="openEdit">编辑（另存为新版本）</button></h3>
@@ -507,7 +512,11 @@ watch(() => envStore.env, () => {
     <div v-if="publishing" class="modal wide on" role="dialog" aria-label="发布技能">
       <div class="mh">发布技能</div>
       <div class="mb">
-        <div class="field"><label>技能名</label><input v-model="skillForm.name" class="inp" placeholder="如 cite-from-kb" /></div>
+        <div class="field">
+          <label>技能名</label>
+          <input v-model="skillForm.name" class="inp" :class="{ err: nameInvalid }" placeholder="如 cite-from-kb" @input="nameInvalid = false" />
+          <div class="mut" style="font-size: 12px; margin-top: 4px">小写字母、数字和连字符，例如 cite-from-kb。大写会自动改成小写。</div>
+        </div>
         <div class="field"><label>所有者</label><input v-model="skillForm.ownerOrg" class="inp" /></div>
         <div class="field"><label>说明</label><input v-model="skillForm.description" class="inp" /></div>
         <div class="field"><label>正文</label><textarea v-model="skillForm.instructions" class="inp" /></div>
@@ -576,8 +585,3 @@ watch(() => envStore.env, () => {
   </div>
 </template>
 
-<style scoped>
-.tag-prop { display: inline-block; font-size: 10.5px; line-height: 17px; background: rgba(180, 140, 242, 0.14); color: var(--violet); border: 1px solid #4a3a6e; border-radius: 4px; padding: 0 6px; font-weight: 500; }
-.todo { border: 1px dashed #4a3a6e; background: rgba(180, 140, 242, 0.05); border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; font-size: 12.5px; }
-.todo b { color: var(--violet); font-weight: 500; margin-right: 6px; }
-</style>

@@ -50,9 +50,9 @@ public class SkillService {
     }
 
     public Map<String, Object> publish(JsonNode body) {
-        var name = body.path("name").asText("").trim();
+        var name = body.path("name").asText("").trim().toLowerCase(java.util.Locale.ROOT);
         if (!NAME.matcher(name).matches()) {
-            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "技能名无效");
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "技能名只能是小写字母、数字和连字符，例如 cite-from-kb");
         }
         var owner = body.path("ownerOrg").asText("").trim();
         var description = body.path("description").asText("").trim();

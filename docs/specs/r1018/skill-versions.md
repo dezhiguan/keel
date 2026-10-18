@@ -41,7 +41,7 @@ V21、V22 已经进过库，不能改脚本。V27 去掉 `skill_version`、`agen
 
 - 原型位置：`docs/console/Keel-优化效果-20261018.html` 的「工具与技能」技能详情。版本列表在左，和上一版的行对比在右；使用方表格有升级并跑回归、撤销授权；编辑弹窗预填最新版正文。
 - 对齐清单：无现成行。工具注册表和技能注册表保留，点进技能后用上面的详情布局。
-- 页面数据来自 `GET /skills`、`GET /skills/{name}`、`POST /skills`、`DELETE /agents/{name}/skills/{skill}`、`POST /agents/{name}/skills/{skill}/upgrade`。标题旁保留原型的「提案」和「要做」，方便对照设计稿。
+- 页面数据来自 `GET /skills`、`GET /skills/{name}`、`POST /skills`、`DELETE /agents/{name}/skills/{skill}`、`POST /agents/{name}/skills/{skill}/upgrade`。不放原型里的「技能 › 名称」「提案」和「要做」。技能名规则与原型一致：小写字母、数字和连字符，例如 cite-from-kb。
 
 ## 实现要点
 

@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { grantPayload } from '@/api/skills'
-import { cleanCases, cleanExamples, formatSkillWhen, lineDiff, sameSkillContent, sourceLabel, splitList, versionMeta } from './skillView'
+import { cleanCases, cleanExamples, formatSkillWhen, lineDiff, sameSkillContent, skillNameError, sourceLabel, splitList, versionMeta } from './skillView'
 
 describe('skill grant', () => {
   it('sends only the skill name and version', () => {
     expect(grantPayload('cite-from-kb', 3)).toEqual({ name: 'cite-from-kb', version: 3 })
     expect(grantPayload('cite-from-kb', 3)).not.toHaveProperty('tools')
+  })
+
+  it('accepts a prototype skill name and explains an invalid one', () => {
+    expect(skillNameError(' Cite-From-KB ')).toBe('')
+    expect(skillNameError('cite-from-kb')).toBe('')
+    expect(skillNameError('引用知识库')).toBe('技能名只能是小写字母、数字和连字符，例如 cite-from-kb')
+    expect(skillNameError('')).toBe('技能名不能为空')
   })
 
   it('splits tool names and labels the source', () => {

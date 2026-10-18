@@ -11,6 +11,19 @@ export interface SkillContent {
   cases?: SkillCaseDraft[]
 }
 
+export const SKILL_NAME = /^[a-z][a-z0-9-]{0,62}[a-z0-9]$/
+
+export function normalizeSkillName(value: string) {
+  return value.trim().toLowerCase()
+}
+
+export function skillNameError(value: string) {
+  const name = normalizeSkillName(value)
+  if (!name) return '技能名不能为空'
+  if (!SKILL_NAME.test(name)) return '技能名只能是小写字母、数字和连字符，例如 cite-from-kb'
+  return ''
+}
+
 export function splitList(value: string) {
   return [...new Set(value.split(/[,，\n]/).map((item) => item.trim()).filter(Boolean))]
 }
