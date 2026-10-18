@@ -11,7 +11,7 @@ import pytest
 import uvicorn
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,10 +45,21 @@ class FakeGateway:
         body = await request.json()
         self.requests.append(body)
         content = self.replies.pop(0) if self.replies else "{}"
+        model = body.get("model")
+        usage = {"prompt_tokens": 10, "completion_tokens": 10, "total_tokens": 20}
+        if body.get("stream"):
+            chunks = [
+                {"id": "chatcmpl-fake", "object": "chat.completion.chunk", "created": 1, "model": model,
+                 "choices": [{"index": 0, "delta": {"role": "assistant", "content": content}, "finish_reason": None}]},
+                {"id": "chatcmpl-fake", "object": "chat.completion.chunk", "created": 1, "model": model,
+                 "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}], "usage": usage},
+            ]
+            payload = "".join(f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n" for chunk in chunks) + "data: [DONE]\n\n"
+            return Response(payload, media_type="text/event-stream")
         return JSONResponse({
-            "id": "chatcmpl-fake", "object": "chat.completion", "created": 1, "model": body.get("model"),
+            "id": "chatcmpl-fake", "object": "chat.completion", "created": 1, "model": model,
             "choices": [{"index": 0, "message": {"role": "assistant", "content": content}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 10, "total_tokens": 20},
+            "usage": usage,
         })
 
 

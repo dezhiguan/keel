@@ -11,9 +11,10 @@
 
 ## 修改文件
 
-`contracts/console-api.openapi.yaml`、`console/src/api/schema.d.ts`、`console/src/views/jobs/JobDetail.vue`、`keel-server/.../MetaAgentExecution.java`、`MetaAgentRulesTest.java`、`agents/meta-agent/workflow.py`、`agents/meta-agent/tests/test_repair_loop.py`、`docs/specs/r1014/ui-checklist.md`。
+`contracts/console-api.openapi.yaml`、`console/src/api/schema.d.ts`、`console/src/views/jobs/JobDetail.vue`、`keel-server/.../MetaAgentExecution.java`、`MetaAgentRulesTest.java`、`agents/meta-agent/workflow.py`、`agents/meta-agent/tests/test_repair_loop.py`、`agents/meta-agent/tests/conftest.py`、`docs/specs/r1014/ui-checklist.md`。
 
 ## 验收
 
 - 已开启四次窗口、累计二十五轮且当前 SHA 有完整沙箱报告时，可以开启第五次窗口，终点为三十轮。
 - 第五次窗口或累计三十轮后不能再开。`maxAttempts` 为 31 仍被拒绝。
+- 元智能体测试网关在 `stream: true` 时返回 SSE。当前 SDK 会走流式补全，JSON 补全会被当成没有岗位 JSON。
