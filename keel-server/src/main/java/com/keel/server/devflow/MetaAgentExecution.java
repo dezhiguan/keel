@@ -27,6 +27,8 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /** Durable minimal workflow. No user ticket or in-memory SDK resume token is kept between H1 turns. */
 @Service
@@ -1016,6 +1018,17 @@ public class MetaAgentExecution {
                 """, (rs, n) -> new Work(rs.getString(1), read(rs.getString(2)), rs.getString(3)), lease);
         if (claimed.isEmpty()) return;
         var work = claimed.getFirst();
+        var heartbeat = Executors.newSingleThreadScheduledExecutor(
+                Thread.ofPlatform().daemon(true).name("meta-agent-lease").factory());
+        heartbeat.scheduleWithFixedDelay(() -> {
+            try {
+                renewLease(work.id, lease);
+            } catch (RuntimeException error) {
+                org.slf4j.LoggerFactory.getLogger(MetaAgentExecution.class).warn(
+                        "meta-agent lease renewal failed trace_id= agent=meta-agent job={} error={}",
+                        work.id, error.getClass().getSimpleName());
+            }
+        }, 30, 30, TimeUnit.SECONDS);
         try {
             var request = work.state.deepCopy();
             request.put("workflow", true).put("action", work.action);
@@ -1027,7 +1040,16 @@ public class MetaAgentExecution {
                     "meta-agent execution failed trace_id= agent=meta-agent job={} error={} message={}",
                     work.id, error.getClass().getSimpleName(), error.getMessage());
             complete(work, lease, null, null, "元智能体执行失败，请检查运行服务和 Git 服务后重试");
+        } finally {
+            heartbeat.shutdownNow();
         }
+    }
+
+    int renewLease(String id, String lease) {
+        return jdbc.update("""
+                UPDATE devflow_execution SET lease_until=now()+interval '5 minutes'
+                WHERE job_id=? AND lease_token=? AND state_json->>'phase' IN ('RUNNING','DELIVERING')
+                """, id, lease);
     }
 
     @Scheduled(fixedDelay = 5000, initialDelay = 7000)

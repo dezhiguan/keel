@@ -561,7 +561,8 @@ def test_developer_clarification_requires_complete_files_without_extra_model_rev
     assert "MUST_NOT_REACH_GENERATION" not in json.dumps(model.prompts)
 
 
-def test_passed_candidate_feedback_patches_without_discarding_regression_tests():
+@pytest.mark.parametrize("outcome", ["PASS", "FAIL"])
+def test_verified_candidate_feedback_patches_without_discarding_regression_tests(outcome):
     previous = {"files": [{"path": "role.py", "content": ROLE_CODE},
         {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
         {"path": "tests/test_role.py", "content": TEST_CODE}]}
@@ -571,12 +572,13 @@ def test_passed_candidate_feedback_patches_without_discarding_regression_tests()
     work = {"requirement": {"target_agent": "spec-agent", "template": "graph-agent", "tools": []},
         "draft": {"spec": {"goal": "分析需求"}, "manifest": {"spec": {"tools": []}}},
         "repair": {"attempt": 3, "failedSha": "abc", "previousCandidate": previous,
-                   "feedback": "只修空输入", "report": "sha=abc snapshot=ok tests=PASS\n2 passed"}}
+                   "feedback": "只修空输入", "report": f"sha=abc snapshot=ok tests={outcome}\nactual sandbox details"}}
     result = asyncio.run(generate(work, type("Ctx", (), {"llm": model})()))
     assert len(model.prompts) == 1
     assert result["files"][1:] == previous["files"][1:]
     assert 'data.get("requirement") or ""' in result["files"][0]["content"]
     assert json.loads(model.prompts[0][1]["content"])["previousCandidate"] == previous
+    assert json.loads(model.prompts[0][1]["content"])["sandboxReport"] == work["repair"]["report"]
 
     # A stale PASS elsewhere in a failed report must not select incremental mode.
     for report in ["sha=stale snapshot=ok tests=PASS\n", "failed\nsha=abc snapshot=ok tests=PASS\n"]:
@@ -584,6 +586,18 @@ def test_passed_candidate_feedback_patches_without_discarding_regression_tests()
         model = FakeModel([json.dumps(previous)])
         asyncio.run(generate(work, type("Ctx", (), {"llm": model})()))
         assert len(json.loads(model.prompts[0][1]["content"])["previousCandidate"]["files"]) == 2
+
+
+def test_long_regex_pattern_is_not_mistaken_for_a_hardcoded_prompt():
+    pattern = r"(?:不要|不得|禁止|不能|别|不用|无需|不须|不许|do\s*not|don't|without|never|donot)\s*(?:调用|使用|执行|run|invoke|use|execute|call|calling|using|running|invoking)\s*(?:任何|所有|全部|any|all)\s*(?:工具|tools?)"
+    assert len(pattern) > 160
+    candidate = {"files": [{"path": "role.py", "content": "import re\n" + ROLE_CODE
+        + "\nSKIP_TOOLS = re.compile(" + repr(pattern) + ", re.IGNORECASE)\n"},
+        {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
+        {"path": "tests/test_role.py", "content": TEST_CODE}]}
+    assert parse(json.dumps(candidate))[1] == []
+    candidate["files"][0]["content"] += "\nSYSTEM_INSTRUCTION = " + repr("你是一个助手，必须遵守以下工作规则。" * 20)
+    assert "role.py 不得硬编码大段提示词" in parse(json.dumps(candidate))[1]
 
 
 def test_candidate_rejects_exhausted_mock_loop_before_git_delivery():

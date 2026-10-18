@@ -34,6 +34,25 @@ class MetaAgentPersistenceTest {
     @Autowired WizardCatalog catalog;
     @AfterEach void clear() { RequestContextHolder.resetRequestAttributes(); }
 
+    @Test @Transactional void leaseRenewalPreventsASecondWorkerFromClaimingLiveWork() {
+        var request = new MockHttpServletRequest();
+        ConsolePrincipal.set(request, ConsolePrincipal.dev());
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        var client = new FakeClient();
+        var owner = service(client);
+        var job = owner.create(MetaAgentRulesTest.draft("DEV", "CREATE", 0, 7), "QA");
+        jdbc.update("""
+                UPDATE devflow_execution SET lease_token='owner', lease_until=now()-interval '1 second',
+                state_json=jsonb_set(state_json,'{phase}','"DELIVERING"') WHERE job_id=?
+                """, job.jobId());
+        assertThat(owner.renewLease(job.jobId(), "old-owner")).isZero();
+        assertThat(owner.renewLease(job.jobId(), "owner")).isEqualTo(1);
+        service(client).tick();
+        assertThat(client.calls).isZero();
+        jdbc.update("UPDATE devflow_execution SET state_json=jsonb_set(state_json,'{phase}','\"FAILED\"') WHERE job_id=?", job.jobId());
+        assertThat(owner.renewLease(job.jobId(), "owner")).isZero();
+    }
+
     @Test @Transactional void draftReviewDeliveryUsesOneJobAndSurvivesServiceReplacement() throws Exception {
         var request = new MockHttpServletRequest();
         ConsolePrincipal.set(request, ConsolePrincipal.dev());
