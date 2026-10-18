@@ -437,76 +437,20 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
 
-  /agents/{name}/guardrails:
+  /agents/{name}/sessions:
     parameters:
       - $ref: "#/components/parameters/AgentName"
     get:
       tags: [agents]
-      operationId: getAgentGuardrails
-      summary: 智能体护栏页
-      description: |
-        模式读最近一次登记的 agent.yaml spec.guardrails。命中数和链路来自近 7 天 Langfuse 的 GUARDRAIL 观测，只取一页。
-        网关基线层还没有配置接口，gatewayAvailable 为 false。
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/Envelope"
-                  - type: object
-                    properties:
-                      data: { $ref: "#/components/schemas/AgentGuardrails" }
-        "404":
-          $ref: "#/components/responses/Error"
-    put:
-      tags: [agents]
-      operationId: saveAgentGuardrails
-      summary: 把护栏模式写进已登记的 manifest
-      description: 只改注册中心里的 spec.guardrails。正在跑的实例要等下次部署才读到。
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/AgentGuardrailModes" }
-      responses:
-        "200":
-          description: 保存后的护栏页
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/Envelope"
-                  - type: object
-                    properties:
-                      data: { $ref: "#/components/schemas/AgentGuardrails" }
-        "400":
-          $ref: "#/components/responses/Error"
-        "404":
-          $ref: "#/components/responses/Error"
-
-  /agents/{name}/guard/check:
-    parameters:
-      - $ref: "#/components/parameters/AgentName"
-    get:
-      tags: [agents]
-      operationId: checkAgentGuard
-      summary: 按已登记的模式做一次规则检测
-      description: |
-        不转发到智能体，不进 agent loop，不调工具，不写记忆和审计。预览身份可以调用。
-        用户输入看 inputInjection，工具返回和知识库片段看 indirectInjection。
+      operationId: listDebugSessions
+      summary: 当前登录人在该智能体下的调试会话
       parameters:
-        - name: source
-          in: query
-          required: true
-          schema: { type: string, enum: [user, tool, kb] }
-        - name: text
+        - name: cursor
           in: query
           schema: { type: string }
       responses:
         "200":
-          description: 检测结果
+          description: 按更新时间倒序，每页 10 个
           content:
             application/json:
               schema:
@@ -514,11 +458,112 @@ paths:
                   - $ref: "#/components/schemas/Envelope"
                   - type: object
                     properties:
-                      data: { $ref: "#/components/schemas/AgentGuardCheck" }
-        "400":
-          $ref: "#/components/responses/Error"
-        "404":
-          $ref: "#/components/responses/Error"
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items: { $ref: "#/components/schemas/DebugSession" }
+                          total: { type: integer }
+                          nextCursor: { type: string, nullable: true }
+    post:
+      tags: [agents]
+      operationId: createDebugSession
+      summary: 新建一条空的调试会话
+      responses:
+        "200":
+          description: 新建的会话
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/DebugSession" }
+
+  /agents/{name}/sessions/{id}:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      tags: [agents]
+      operationId: deleteDebugSession
+      summary: 删除自己的调试会话
+      responses:
+        "200":
+          description: 已删除
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          id: { type: string }
+
+  /agents/{name}/sessions/{id}/messages:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [agents]
+      operationId: listDebugMessages
+      summary: 调试会话里的消息，每页 10 条
+      parameters:
+        - name: before
+          in: query
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: before 为空时返回最新一页
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items: { $ref: "#/components/schemas/DebugMessage" }
+                          nextCursor: { type: integer, format: int64, nullable: true }
+
+  /agents/{name}/chat/stream:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+    post:
+      tags: [agents]
+      operationId: streamAgentChat
+      summary: 把智能体 SSE 转到调试页，结束后写入会话
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text, sessionId]
+              properties:
+                text: { type: string }
+                sessionId: { type: string, pattern: '^[A-Za-z0-9_-]{1,128}$' }
+      responses:
+        "200":
+          description: 智能体的 SSE。final 之后才写入 session_message
+          content:
+            text/event-stream:
+              schema: { type: string }
 
   /agents/{name}/releases:
     parameters:
@@ -3083,6 +3128,21 @@ components:
         traceId: { type: string }
         data: {}
 
+    DebugSession:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        messageCount: { type: integer }
+        updatedAt: { type: string, format: date-time }
+    DebugMessage:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        role: { type: string, enum: [user, agent] }
+        text: { type: string }
+        traceId: { type: string, nullable: true }
+
     ApiError:
       type: object
       required: [code, message, traceId, retryable]
@@ -3326,66 +3386,6 @@ components:
         delegateCount:
           type: integer
           description: spec.delegates 的个数，列表卡片用来显示「编排 N 个」
-
-    AgentGuardrailModes:
-      type: object
-      properties:
-        input: { type: string, enum: [off, shadow, enforce] }
-        indirect: { type: string, enum: [off, shadow, enforce] }
-        tainted: { type: string, enum: ["审批", "拦截"] }
-        canary: { type: string, enum: [off, enforce] }
-        pii: { type: string, enum: [off, mask] }
-
-    AgentGuardrails:
-      type: object
-      required: [agent, checks, gatewayAvailable, callers, trace]
-      properties:
-        agent: { type: string }
-        version: { type: string, nullable: true }
-        env: { type: string, nullable: true }
-        instanceId: { type: string, nullable: true }
-        checks:
-          type: array
-          items: { $ref: "#/components/schemas/AgentGuardrailCheck" }
-        gatewayAvailable: { type: boolean }
-        callers:
-          type: array
-          items:
-            type: object
-            properties:
-              name: { type: string }
-              key: { type: string }
-              layer: { type: string, enum: [sdk, unknown] }
-        traceId: { type: string, nullable: true }
-        trace:
-          type: array
-          items:
-            type: object
-            properties:
-              text: { type: string }
-              tone: { type: string, enum: ["", warn, soft, ok] }
-
-    AgentGuardrailCheck:
-      type: object
-      properties:
-        id: { type: string }
-        name: { type: string }
-        detail: { type: string }
-        mode: { type: string }
-        options: { type: array, items: { type: string } }
-        hits: { type: integer, nullable: true, description: Langfuse 读失败时为空 }
-
-    AgentGuardCheck:
-      type: object
-      properties:
-        source: { type: string, enum: [user, tool, kb] }
-        mode: { type: string }
-        kind: { type: string, enum: [clear, blocked, stripped, shadow, off] }
-        tone: { type: string, enum: [ok, warn, bad] }
-        hit: { type: boolean }
-        instanceId: { type: string, nullable: true }
-        version: { type: string, nullable: true }
-        latencyMs: { type: integer }
 
     AgentDetail:
       allOf:

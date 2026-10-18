@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   appendEvents, byRecent, debugBlocked, debugMode, debugStoreKey, debugWarning, describeCron,
-  pageStatus, parseSessions, pruneSessions, sessionTitle, stepRows, traceEvent, visibleHead, visibleTail,
+  describeLiveFrame, pageStatus, parseSessions, pruneSessions, sessionTitle, stepRows, takeSseFrames,
+  traceEvent, visibleHead, visibleTail,
 } from './debug'
 
 describe('agent debug', () => {
@@ -73,6 +74,17 @@ describe('agent debug', () => {
     ])
     expect(parseSessions(raw, now).map((item) => item.id)).toEqual(['ss_ok'])
     expect(parseSessions('not-json')).toEqual([])
+  })
+
+  it('splits SSE frames and reads token, final and guardrail events', () => {
+    const first = takeSseFrames('event: token\ndata: {"text":"你"}\n\nevent: fin')
+    expect(first.frames).toEqual([{ event: 'token', data: '{"text":"你"}' }])
+    expect(first.rest).toBe('event: fin')
+    const done = takeSseFrames(`${first.rest}al\ndata: {"answer":"你好","trace_id":"tr_1","run_id":"r"}\n\n`)
+    expect(describeLiveFrame(done.frames[0].event, done.frames[0].data)).toMatchObject({ kind: 'final', answer: '你好', traceId: 'tr_1' })
+    expect(describeLiveFrame('token', '{"text":"你"}')?.token).toBe('你')
+    expect(describeLiveFrame('error', '{"code":"GUARD_INJECTION_BLOCKED","message":"拦截"}')?.blocked).toBe(true)
+    expect(describeLiveFrame('guardrail', '{"message":"输入注入 · 命中"}')?.hit).toBe(true)
   })
 
   it('turns a trace step into a realtime event', () => {

@@ -3,15 +3,18 @@ import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import StatusPill from '@/components/StatusPill.vue'
-import { chatWithAgent, getAgent, type AgentDetail } from '@/api/agents'
+import {
+  chatWithAgent, createDebugSession, deleteDebugSession, getAgent, listDebugMessages, listDebugSessions,
+  streamAgentChat, type AgentDetail, type DebugMessageRow, type DebugSessionSummary,
+} from '@/api/agents'
 import { toKeelError } from '@/api/http'
 import { getTrace, listTraces, type TraceSummary } from '@/api/traces'
 import { useUserStore } from '@/stores/user'
 import { agentStatus, fmtMs, hms, nodeStatus } from '@/utils/format'
 import {
-  DEBUG_PAGE, MODE_LABEL, SSE_LABEL, appendEvents, byRecent, createSession, debugBlocked, debugMode,
-  debugStoreKey, debugWarning, describeCron, formatSessionTime, pageStatus, parseSessions, sessionTitle,
-  stepRows, traceEvent, visibleHead, visibleTail, type DebugEvent, type DebugSession, type SseState, type StepRow,
+  DEBUG_PAGE, MODE_LABEL, SSE_LABEL, appendEvents, debugBlocked, debugMode, debugWarning, describeCron,
+  describeLiveFrame, formatSessionTime, pageStatus, sessionTitle, stepRows, visibleTail,
+  type DebugEvent, type DebugMessage, type DebugSession, type SseState, type StepRow,
 } from './debug'
 
 interface Call {
@@ -71,55 +74,68 @@ const runner = computed(() => (mode.value === 'chat' ? null : RUNNER[mode.value]
 const cronText = computed(() => describeCron(detail.value?.interaction?.schedule))
 const envVersion = computed(() => [detail.value?.env, detail.value?.version, MODE_LABEL[mode.value].name].filter(Boolean).join(' · ') || '—')
 const current = computed(() => sessions.value.find((item) => item.id === currentId.value) ?? null)
-const visibleSessions = computed(() => visibleHead(sessions.value, shown.sessions))
-const visibleMessages = computed(() => visibleTail(current.value?.messages ?? [], shown.messages))
 const combinedEvents = computed(() => [...(current.value?.events ?? []), ...pendingEvents.value])
 const visibleEvents = computed(() => visibleTail(combinedEvents.value, shown.events))
 const sseLabel = computed(() => SSE_LABEL[sse.value])
+const sessionTotal = ref(0)
+const sessionCursor = ref<string | null>(null)
 
 let callSeq = 0
 let abort: AbortController | null = null
 let alive = true
 const pageTimers = { sessions: 0, messages: 0, events: 0 }
 
-function storeKey() {
-  const env = detail.value?.env
-  if (!name.value || !env) return ''
-  return debugStoreKey(userStore.user?.userId || 'anonymous', name.value, env)
-}
-
-function persist() {
-  const key = storeKey()
-  if (!key) return
-  try {
-    localStorage.setItem(key, JSON.stringify(sessions.value))
-  } catch {
-    // 本机配额满时这次会话只留在页面上。
+function asSession(row: DebugSessionSummary): DebugSession {
+  return {
+    id: row.id,
+    title: row.title || '',
+    messages: [],
+    events: [],
+    at: Date.parse(row.updatedAt) || Date.now(),
+    messageCount: row.messageCount ?? 0,
   }
 }
 
-function loadSessions() {
-  let list: DebugSession[] = []
-  try {
-    list = parseSessions(localStorage.getItem(storeKey()))
-  } catch {
-    list = []
-  }
-  if (!list.length) {
-    const created = createSession()
-    sessions.value = [created]
-    currentId.value = created.id
-    persist()
-  } else {
-    sessions.value = list
-    currentId.value = list[0].id
-  }
+function asMessage(row: DebugMessageRow): DebugMessage {
+  return { role: row.role, text: row.text, traceId: row.traceId }
+}
+
+async function loadMessages(session: DebugSession) {
+  const page = await listDebugMessages(name.value, session.id)
+  session.messages = (page.items ?? []).map(asMessage)
+  session.messageCount = Math.max(session.messageCount, session.messages.length)
+  session.older = page.nextCursor ?? null
+}
+
+async function loadSessions() {
   shown.sessions = DEBUG_PAGE.sessions
   shown.messages = DEBUG_PAGE.messages
   shown.events = DEBUG_PAGE.events
   sse.value = 'idle'
   pendingEvents.value = []
   liveText.value = null
+  try {
+    const page = await listDebugSessions(name.value)
+    if (!alive) return
+    let items = page.items ?? []
+    sessionTotal.value = page.total ?? items.length
+    sessionCursor.value = page.nextCursor ?? null
+    if (!items.length && !userStore.readOnly) {
+      const created = await createDebugSession(name.value)
+      if (!alive) return
+      items = [created]
+      sessionTotal.value = 1
+      sessionCursor.value = null
+    }
+    sessions.value = items.map(asSession)
+    currentId.value = sessions.value[0]?.id ?? null
+    if (current.value) await loadMessages(current.value)
+  } catch (error) {
+    if (!alive) return
+    sessions.value = []
+    currentId.value = null
+    if (!userStore.readOnly) ElMessage.error(`加载会话失败：${toKeelError(error).message}`)
+  }
   scrollEnd(threadEl.value)
   scrollEnd(eventEl.value)
 }
@@ -146,15 +162,44 @@ function loadMore(which: 'sessions' | 'messages' | 'events', total: number, el: 
   }, 350)
 }
 
-function onSessionScroll() {
+async function onSessionScroll() {
   const el = sessionEl.value
-  if (!el) return
-  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 8) loadMore('sessions', sessions.value.length, el)
+  if (!el || paging.sessions || !sessionCursor.value) return
+  if (el.scrollTop + el.clientHeight < el.scrollHeight - 8) return
+  paging.sessions = true
+  try {
+    const page = await listDebugSessions(name.value, sessionCursor.value)
+    const more = (page.items ?? []).map(asSession)
+    sessions.value = [...sessions.value, ...more]
+    sessionCursor.value = page.nextCursor ?? null
+    if (page.total != null) sessionTotal.value = page.total
+  } catch (error) {
+    ElMessage.error(`加载会话失败：${toKeelError(error).message}`)
+  } finally {
+    paging.sessions = false
+  }
 }
 
-function onThreadScroll() {
+async function onThreadScroll() {
   const el = threadEl.value
-  if (el && el.scrollTop <= 8) loadMore('messages', current.value?.messages.length ?? 0, el)
+  const session = current.value
+  if (!el || !session || paging.messages || session.older == null || el.scrollTop > 8) return
+  paging.messages = true
+  const height = el.scrollHeight
+  const top = el.scrollTop
+  try {
+    const page = await listDebugMessages(name.value, session.id, session.older)
+    const older = (page.items ?? []).map(asMessage)
+    session.messages = [...older, ...session.messages]
+    session.older = page.nextCursor ?? null
+  } catch (error) {
+    ElMessage.error(`加载消息失败：${toKeelError(error).message}`)
+  } finally {
+    paging.messages = false
+    nextTick(() => {
+      el.scrollTop = el.scrollHeight - height + top
+    })
+  }
 }
 
 function onEventScroll() {
@@ -188,44 +233,55 @@ async function sendChat() {
   session.messages.push({ role: 'user', text })
   session.title = sessionTitle(session.title, text)
   session.at = Date.now()
-  sessions.value = byRecent(sessions.value)
-  shown.messages = DEBUG_PAGE.messages
-  pendingEvents.value = [{ kind: 'step', text: '正在调用智能体' }]
+  sessions.value = [session, ...sessions.value.filter((item) => item.id !== session.id)]
   shown.events = DEBUG_PAGE.events
+  pendingEvents.value = []
   liveText.value = ''
   sse.value = 'streaming'
   canStop.value = true
-  persist()
   scrollEnd(threadEl.value)
   scrollEnd(eventEl.value)
 
   abort = new AbortController()
   const started = performance.now()
+  let answer = ''
+  let traceId: string | null = null
+  let failed = ''
+  let blockedCall = false
   try {
-    const answer = await chatWithAgent(name.value, text, session.id, abort.signal)
-    if (!alive) return
-    canStop.value = false
-    const ms = Math.round(performance.now() - started)
-    const events: DebugEvent[] = [...pendingEvents.value]
-    if (answer.traceId) {
-      try {
-        const trace = await getTrace(answer.traceId)
-        if (!alive) return
-        events.push(...stepRows(trace.nodes ?? []).map(traceEvent))
-      } catch {
-        // 链路还没写入时，回复先出来，事件里只留这次调用。
+    await streamAgentChat(name.value, text, session.id, abort.signal, (frame) => {
+      const live = describeLiveFrame(frame.event, frame.data)
+      if (!live) return
+      if (live.token) {
+        liveText.value = `${liveText.value ?? ''}${live.token}`
+        scrollEnd(threadEl.value)
       }
-    }
-    events.push({ kind: 'final', text: answer.traceId ? `${fmtMs(ms)} · ${answer.traceId}` : fmtMs(ms) })
-    session.messages.push({
-      role: 'agent',
-      text: answer.text?.trim() ? answer.text : '（空回复）',
-      traceId: answer.traceId ?? null,
-      meta: fmtMs(ms),
+      if (live.answer) answer = live.answer
+      if (live.traceId) traceId = live.traceId
+      if (live.kind === 'error') {
+        failed = live.text
+        blockedCall = !!live.blocked
+      }
+      if (live.kind !== 'final') pendingEvents.value = [...pendingEvents.value, { kind: live.kind, text: live.text, hit: live.hit }]
+      scrollEnd(eventEl.value)
     })
-    session.events = appendEvents(session.events, events)
+    if (!alive) return
+    const ms = Math.round(performance.now() - started)
+    if (failed) {
+      session.messages.push({ role: 'agent', text: failed, error: true, meta: blockedCall ? '未调用模型' : undefined })
+      sse.value = blockedCall ? 'blocked' : 'failed'
+    } else if (answer || traceId) {
+      const textAnswer = answer.trim() || liveText.value || '（空回复）'
+      session.messages.push({ role: 'agent', text: textAnswer, traceId, meta: fmtMs(ms) })
+      session.messageCount += 2
+      pendingEvents.value = [...pendingEvents.value, { kind: 'final', text: traceId ? `${fmtMs(ms)} · ${traceId}` : fmtMs(ms) }]
+      sse.value = 'done'
+    } else {
+      session.messages.push({ role: 'agent', text: liveText.value || '没有收到完整回复', error: true })
+      sse.value = 'failed'
+    }
+    session.events = appendEvents(session.events, pendingEvents.value)
     session.at = Date.now()
-    sse.value = 'done'
   } catch (error) {
     if (!alive) return
     const stopped = abort?.signal.aborted
@@ -235,10 +291,10 @@ async function sendChat() {
       sse.value = 'stopped'
     } else {
       const message = toKeelError(error).message
-      const blockedCall = message.includes('GUARD_')
-      session.messages.push({ role: 'agent', text: message, error: true, meta: blockedCall ? '未调用模型' : undefined })
+      const blockedError = message.includes('GUARD_')
+      session.messages.push({ role: 'agent', text: message, error: true, meta: blockedError ? '未调用模型' : undefined })
       session.events = appendEvents(session.events, [...pendingEvents.value, { kind: 'error', text: message }])
-      sse.value = blockedCall ? 'blocked' : 'failed'
+      sse.value = blockedError ? 'blocked' : 'failed'
     }
     session.at = Date.now()
   } finally {
@@ -247,8 +303,6 @@ async function sendChat() {
     liveText.value = null
     canStop.value = false
     abort = null
-    sessions.value = byRecent(sessions.value)
-    persist()
     scrollEnd(threadEl.value)
     scrollEnd(eventEl.value)
   }
@@ -258,43 +312,65 @@ function stop() {
   if (canStop.value) abort?.abort()
 }
 
-function pick(id: string) {
+async function pick(id: string) {
   if (canStop.value || id === currentId.value) return
   currentId.value = id
-  shown.messages = DEBUG_PAGE.messages
   shown.events = DEBUG_PAGE.events
   sse.value = 'idle'
   pendingEvents.value = []
+  const session = current.value
+  if (session && !session.messages.length && session.messageCount) {
+    try {
+      await loadMessages(session)
+    } catch (error) {
+      ElMessage.error(`加载消息失败：${toKeelError(error).message}`)
+    }
+  }
   scrollEnd(threadEl.value)
   scrollEnd(eventEl.value)
 }
 
-function newSession() {
+async function newSession() {
   if (canStop.value) return
-  const created = createSession()
-  sessions.value = [created, ...sessions.value]
-  currentId.value = created.id
-  shown.messages = DEBUG_PAGE.messages
-  shown.events = DEBUG_PAGE.events
-  sse.value = 'idle'
-  pendingEvents.value = []
-  persist()
-  nextTick(() => {
-    if (sessionEl.value) sessionEl.value.scrollTop = 0
-  })
+  try {
+    const created = asSession(await createDebugSession(name.value))
+    sessions.value = [created, ...sessions.value]
+    sessionTotal.value += 1
+    currentId.value = created.id
+    shown.events = DEBUG_PAGE.events
+    sse.value = 'idle'
+    pendingEvents.value = []
+    nextTick(() => {
+      if (sessionEl.value) sessionEl.value.scrollTop = 0
+    })
+  } catch (error) {
+    ElMessage.error(`新建会话失败：${toKeelError(error).message}`)
+  }
 }
 
-function delSession() {
+async function delSession() {
   if (canStop.value || !currentId.value) return
-  sessions.value = sessions.value.filter((item) => item.id !== currentId.value)
-  if (!sessions.value.length) sessions.value = [createSession()]
-  currentId.value = sessions.value[0].id
-  shown.messages = DEBUG_PAGE.messages
+  const id = currentId.value
+  try {
+    await deleteDebugSession(name.value, id)
+  } catch (error) {
+    ElMessage.error(`删除会话失败：${toKeelError(error).message}`)
+    return
+  }
+  sessions.value = sessions.value.filter((item) => item.id !== id)
+  sessionTotal.value = Math.max(0, sessionTotal.value - 1)
+  if (!sessions.value.length) {
+    currentId.value = null
+  } else {
+    currentId.value = sessions.value[0].id
+    if (current.value && !current.value.messages.length) {
+      loadMessages(current.value).catch(() => undefined)
+    }
+  }
   shown.events = DEBUG_PAGE.events
   sse.value = 'idle'
   pendingEvents.value = []
-  persist()
-  ElMessage.warning('会话已从本页删除')
+  ElMessage.warning('会话已删除')
 }
 
 async function run() {
@@ -401,34 +477,35 @@ watch(name, async (agent) => {
       <div class="dbg">
         <div class="card">
           <h3>会话 <small>{{ sessions.length }} 个 · 仅自己可见</small></h3>
-          <button class="btn pri new-session" type="button" :disabled="canStop" @click="newSession">+ 新会话</button>
+          <button v-write class="btn pri new-session" type="button" :disabled="canStop" @click="newSession">+ 新会话</button>
           <div ref="sessionEl" class="slist vlist" @scroll="onSessionScroll">
             <div
-              v-for="item in visibleSessions"
+              v-for="item in sessions"
               :key="item.id"
               class="vi"
               :class="{ on: item.id === currentId }"
               @click="pick(item.id)"
             >
               <b>{{ item.title || '新会话' }}</b>
-              <div class="m">{{ item.messages.length }} 条 · {{ formatSessionTime(item.at) }}</div>
+              <div class="m">{{ item.messageCount }} 条 · {{ formatSessionTime(item.at) }}</div>
             </div>
-            <div class="pg" :class="{ loading: paging.sessions }">{{ pageStatus(shown.sessions, sessions.length, '个', 'down', paging.sessions) }}</div>
+            <div class="pg" :class="{ loading: paging.sessions }">{{ pageStatus(sessions.length, sessionTotal, '个', 'down', paging.sessions) }}</div>
           </div>
-          <button class="btn sm danger drop" type="button" :disabled="canStop || !current" @click="delSession">删除当前会话</button>
+          <button v-write class="btn sm danger drop" type="button" :disabled="canStop || !current" @click="delSession">删除当前会话</button>
         </div>
 
         <div class="card">
           <div class="store">
             <span>会话 <b class="mono">{{ current?.id }}</b></span>
-            <span>存储 <b>本机会话</b></span>
+            <span>存储 <b>keel-server PG · session_message</b></span>
             <span>保留 <b>7 天</b></span>
           </div>
           <div ref="threadEl" class="thread" @scroll="onThreadScroll">
-            <div v-if="!current?.messages.length" class="mut empty-thread">新会话。刷新后仍能看到这段对话。</div>
+            <div v-if="!current" class="mut empty-thread">还没有会话。点「新会话」开始。</div>
+            <div v-else-if="!current.messages.length" class="mut empty-thread">新会话。历史保存在 keel-server，刷新后还能读回。</div>
             <template v-else>
-              <div class="pg" :class="{ loading: paging.messages }">{{ pageStatus(shown.messages, current.messages.length, '条', 'up', paging.messages) }}</div>
-              <div v-for="(msg, index) in visibleMessages" :key="index" class="msg" :class="{ u: msg.role === 'user' }">
+              <div class="pg" :class="{ loading: paging.messages }">{{ pageStatus(current.messages.length, current.messageCount, '条', 'up', paging.messages) }}</div>
+              <div v-for="(msg, index) in current.messages" :key="index" class="msg" :class="{ u: msg.role === 'user' }">
                 <div>
                   <div class="bub" :class="{ err: msg.error }">{{ msg.text }}</div>
                   <div v-if="msg.meta || msg.traceId" class="meta">

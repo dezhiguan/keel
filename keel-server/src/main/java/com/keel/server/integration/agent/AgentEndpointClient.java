@@ -8,6 +8,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.io.InputStream;
 import java.io.OutputStream;
 
 /** Calls an agent's own /v1/health, /v1/manifest, /v1/invoke, and /v1/runs/{id}/resume. */
@@ -49,6 +50,34 @@ public class AgentEndpointClient {
 
     public Answer probe(String endpoint, String agent, String env) {
         return invoke(endpoint, "probe", null, agent, env, null, "self-check");
+    }
+
+    /** Open the agent invoke stream. The caller closes it. */
+    public InputStream openStream(String endpoint, String text, String bridgeToken, String agent, String env,
+                                  String userId, String ragToken, String ragKbIds, String sessionId) {
+        try {
+            var payload = json.createObjectNode();
+            payload.putObject("input").put("text", text);
+            if (sessionId != null && !sessionId.isBlank()) payload.put("session_id", sessionId);
+            if (userId != null && !userId.isBlank()) payload.putObject("context").put("user_id", userId);
+            var builder = HttpRequest.newBuilder(URI.create(trim(endpoint) + "/v1/invoke"))
+                    .timeout(Duration.ofMinutes(3)).header("Content-Type", "application/json")
+                    .header("Accept", "text/event-stream").header("X-Keel-Agent", agent).header("X-Keel-Env", env);
+            if (bridgeToken != null && !bridgeToken.isBlank()) builder.header("X-Keel-Bridge", bridgeToken);
+            if (ragToken != null && !ragToken.isBlank()) builder.header("X-Keel-Rag-Token", ragToken);
+            if (ragKbIds != null && !ragKbIds.isBlank()) builder.header("X-Keel-Rag-Kb-Ids", ragKbIds);
+            var response = http.send(builder.POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(payload))).build(),
+                    HttpResponse.BodyHandlers.ofInputStream());
+            if (response.statusCode() >= 300) {
+                response.body().close();
+                throw new IllegalStateException("智能体返回 HTTP " + response.statusCode());
+            }
+            return response.body();
+        } catch (IllegalStateException error) {
+            throw error;
+        } catch (Exception error) {
+            throw new IllegalStateException("调用智能体失败");
+        }
     }
 
     /** Relay agent SSE unchanged so token, suspend and error events retain their meaning. */

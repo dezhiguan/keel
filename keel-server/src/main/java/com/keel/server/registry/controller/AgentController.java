@@ -20,8 +20,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @RestController
 @RequestMapping("/api/v1/agents")
@@ -31,13 +36,17 @@ public class AgentController {
     private final AgentChatService chats;
     private final AgentUsageService usage;
     private final EvalJobs evaluations;
+    private final com.keel.server.registry.service.DebugSessionService sessions;
+    private final ObjectMapper json = new ObjectMapper();
 
     public AgentController(AgentRegistryService agentRegistryService, LifecycleService lifecycleService,
-                           AgentChatService chats, AgentUsageService usage, EvalJobs evaluations) {
+                           AgentChatService chats, AgentUsageService usage, EvalJobs evaluations,
+                           com.keel.server.registry.service.DebugSessionService sessions) {
         this.agentRegistryService = agentRegistryService;
         this.lifecycleService = lifecycleService;
         this.chats = chats;
         this.usage = usage;
+        this.sessions = sessions;
         this.evaluations = evaluations;
     }
 
@@ -80,6 +89,55 @@ public class AgentController {
     public R<java.util.Map<String, Object>> chat(@PathVariable String name, @RequestBody JsonNode body) {
         return R.ok(chats.chat(name, body.path("text").asText(""),
                 body.hasNonNull("sessionId") ? body.path("sessionId").asText() : null));
+    }
+
+    @GetMapping("/{name}/sessions")
+    public R<java.util.Map<String, Object>> sessions(@PathVariable String name, @RequestParam(required = false) String cursor) {
+        var owner = sessions.requireOwner();
+        var env = agentRegistryService.detail(name).summary().env();
+        return R.ok(sessions.list(name, env, owner, cursor));
+    }
+
+    @PostMapping("/{name}/sessions")
+    public R<java.util.Map<String, Object>> createSession(@PathVariable String name) {
+        var owner = sessions.requireOwner();
+        var env = agentRegistryService.detail(name).summary().env();
+        return R.ok(sessions.create(name, env, owner));
+    }
+
+    @DeleteMapping("/{name}/sessions/{id}")
+    public R<java.util.Map<String, Object>> deleteSession(@PathVariable String name, @PathVariable String id) {
+        sessions.delete(name, sessions.requireOwner(), id);
+        return R.ok(java.util.Map.of("id", id));
+    }
+
+    @GetMapping("/{name}/sessions/{id}/messages")
+    public R<java.util.Map<String, Object>> sessionMessages(@PathVariable String name, @PathVariable String id,
+                                                            @RequestParam(required = false) Long before) {
+        return R.ok(sessions.messages(name, sessions.requireOwner(), id, before));
+    }
+
+    @PostMapping(value = "/{name}/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public StreamingResponseBody streamChat(@PathVariable String name, @RequestBody JsonNode body,
+                                            HttpServletRequest request, HttpServletResponse response) {
+        var text = body.path("text").asText("");
+        var sessionId = body.path("sessionId").asText("");
+        var owner = sessions.requireOwner();
+        var remember = request.getHeader("X-Keel-Eval-Run") == null;
+        chats.prepareStream(name, text, sessionId, owner, remember);
+        response.setHeader("Cache-Control", "no-cache");
+        response.setHeader("X-Accel-Buffering", "no");
+        return output -> {
+            try {
+                chats.streamChat(name, text, sessionId, owner, remember, output);
+            } catch (RuntimeException error) {
+                var message = error.getMessage() == null ? "调用失败" : error.getMessage();
+                var frame = "event: error\ndata: " + json.writeValueAsString(java.util.Map.of(
+                        "code", "SERVER_INTERNAL_ERROR", "message", message, "trace_id", "", "run_id", "", "retryable", true)) + "\n\n";
+                output.write(frame.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                output.flush();
+            }
+        };
     }
 
     @DeleteMapping("/{name}")

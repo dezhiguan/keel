@@ -109,6 +109,65 @@ export interface DebugSession {
   messages: DebugMessage[]
   events: DebugEvent[]
   at: number
+  messageCount: number
+  older?: number | null
+}
+
+export interface SseFrame {
+  event: string
+  data: string
+}
+
+export interface LiveFrame {
+  kind: DebugEventKind
+  text: string
+  hit?: boolean
+  token?: string
+  answer?: string
+  traceId?: string | null
+  blocked?: boolean
+}
+
+export function takeSseFrames(buffer: string): { frames: SseFrame[]; rest: string } {
+  const frames: SseFrame[] = []
+  let rest = buffer.replace(/\r\n/g, '\n')
+  while (true) {
+    const split = rest.indexOf('\n\n')
+    if (split < 0) break
+    const raw = rest.slice(0, split)
+    rest = rest.slice(split + 2)
+    let event = 'message'
+    const data: string[] = []
+    for (const line of raw.split('\n')) {
+      if (!line || line.startsWith(':')) continue
+      if (line.startsWith('event:')) event = line.slice(6).trim()
+      else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''))
+    }
+    if (raw.trim()) frames.push({ event, data: data.join('\n') })
+  }
+  return { frames, rest }
+}
+
+export function describeLiveFrame(event: string, data: string): LiveFrame | null {
+  let body: Record<string, unknown> = {}
+  try {
+    body = data ? JSON.parse(data) as Record<string, unknown> : {}
+  } catch {
+    body = { message: data }
+  }
+  const text = (key: string) => (typeof body[key] === 'string' ? body[key] as string : '')
+  if (event === 'token') return { kind: 'token', text: text('text'), token: text('text') }
+  if (event === 'step') return { kind: 'step', text: text('name') || data }
+  if (event === 'tool') return { kind: 'tool', text: text('name') || data }
+  if (event === 'final') return { kind: 'final', text: text('trace_id'), answer: text('answer'), traceId: text('trace_id') || null }
+  if (event === 'error') {
+    const message = text('message') || data
+    const blocked = message.includes('GUARD_') || text('code').includes('GUARD_')
+    return { kind: 'error', text: message, blocked }
+  }
+  if (event === 'guardrail') return { kind: 'guardrail', text: text('message') || text('text') || data, hit: data.includes('命中') }
+  if (event === 'suspend') return { kind: 'step', text: text('prompt') || '等待继续' }
+  return null
 }
 
 export type SseState = 'idle' | 'streaming' | 'done' | 'stopped' | 'blocked' | 'failed'
@@ -129,7 +188,7 @@ export function newDebugSessionId() {
 }
 
 export function createSession(now = Date.now()): DebugSession {
-  return { id: newDebugSessionId(), title: '', messages: [], events: [], at: now }
+  return { id: newDebugSessionId(), title: '', messages: [], events: [], at: now, messageCount: 0 }
 }
 
 export function debugStoreKey(userId: string, agent: string, env: string) {

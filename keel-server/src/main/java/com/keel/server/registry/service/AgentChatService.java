@@ -4,6 +4,7 @@ import com.keel.common.error.ErrorCode;
 import com.keel.server.auth.ConsolePrincipal;
 import com.keel.server.common.KeelException;
 import com.keel.server.integration.agent.AgentEndpointClient;
+import com.keel.server.registry.model.dto.AgentDetail;
 import com.keel.server.integration.audit.AuditStore;
 import com.keel.server.provisioning.EchoCredentialWriter;
 import com.keel.server.provisioning.SecretWriter;
@@ -26,18 +27,19 @@ public class AgentChatService {
     private final String careerMateToken;
     private final SavedTraces saved;
     private final SecretWriter secrets;
+    private final DebugSessionService sessions;
 
     public AgentChatService(AgentRegistryService registry, AgentEndpointClient endpoints, AuditStore audits,
                             EchoCredentialWriter credentials,
                             String careerMateToken) {
-        this(registry, endpoints, audits, credentials, careerMateToken, SavedTraces.EMPTY, null);
+        this(registry, endpoints, audits, credentials, careerMateToken, SavedTraces.EMPTY, null, null);
     }
 
     @Autowired
     public AgentChatService(AgentRegistryService registry, AgentEndpointClient endpoints, AuditStore audits,
                             EchoCredentialWriter credentials,
                             @Value("${KEEL_CAREERMATE_TOKEN:}") String careerMateToken, SavedTraces saved,
-                            SecretWriter secrets) {
+                            SecretWriter secrets, DebugSessionService sessions) {
         this.registry = registry;
         this.endpoints = endpoints;
         this.audits = audits;
@@ -45,6 +47,7 @@ public class AgentChatService {
         this.careerMateToken = careerMateToken == null ? "" : careerMateToken;
         this.saved = saved;
         this.secrets = secrets;
+        this.sessions = sessions;
     }
 
     public Map<String, Object> chat(String name, String text) {
@@ -104,6 +107,71 @@ public class AgentChatService {
         return body;
     }
 
+    /** Reject a debug stream before the response is committed. */
+    public void prepareStream(String name, String text, String sessionId, String owner, boolean remember) {
+        if (sessionId == null || !sessionId.matches("[A-Za-z0-9_-]{1,128}")) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "sessionId 格式不正确");
+        }
+        var detail = ready(name, text);
+        if (remember) sessions.require(name, detail.summary().env(), owner, sessionId);
+    }
+
+    /** Copy the agent SSE stream. A finished final is stored for this console user. */
+    public void streamChat(String name, String text, String sessionId, String owner, boolean remember, OutputStream output) {
+        var detail = ready(name, text);
+        var env = detail.summary().env();
+        if (remember) sessions.require(name, env, owner, sessionId);
+        if ("echo".equals(name)) credentials.ensure(name);
+        var endpoint = registry.invokeEndpoint(name);
+        var userId = callerLabel();
+        var rag = secrets == null ? null : secrets.knowledgeCredential(name);
+        var bridge = "careermate".equals(name) ? careerMateToken : null;
+        long started = System.nanoTime();
+        try (var input = endpoints.openStream(endpoint, text, bridge, name, env, userId,
+                rag == null ? null : rag.token(), rag == null ? null : rag.kbIds(),
+                scopedSessionId(owner, sessionId))) {
+            var fin = DebugSseRelay.copy(input, output);
+            var traceId = fin == null ? null : fin.traceId();
+            audits.append(name, env, "invoke", "low", fin == null ? "error" : "allowed", name, traceId);
+            if (fin != null && remember) {
+                sessions.appendTurn(name, owner, sessionId, text, fin.answer(), traceId);
+            }
+            if (traceId != null && !traceId.isBlank()) {
+                saved.save(name, env, traceId, "", (int) ((System.nanoTime() - started) / 1_000_000));
+            }
+        } catch (java.io.IOException error) {
+            audits.append(name, env, "invoke", "low", "error", name, null);
+            throw new KeelException(ErrorCode.SERVER_INTERNAL_ERROR, "调试连接已断开");
+        } catch (RuntimeException error) {
+            audits.append(name, env, "invoke", "low", "error", name, null);
+            if (error instanceof KeelException keel) throw keel;
+            throw new KeelException(ErrorCode.SERVER_INTERNAL_ERROR,
+                    error.getMessage() == null ? ErrorCode.SERVER_INTERNAL_ERROR.message() : error.getMessage());
+        }
+    }
+
+    private AgentDetail ready(String name, String text) {
+        if (text == null || text.isBlank()) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, ErrorCode.SERVER_INVALID_PARAM.message());
+        }
+        var detail = registry.detail(name);
+        var status = detail.summary().status();
+        var env = detail.summary().env();
+        if (status == com.keel.server.registry.model.enums.AgentStatus.RETIRED
+                || status == com.keel.server.registry.model.enums.AgentStatus.DRAFT
+                || env == null || env.isBlank()
+                || detail.resources().stream().anyMatch(row ->
+                    ("litellm_key".equals(row.type()) || "secret".equals(row.type()))
+                            && !"ACTIVE".equals(row.status()))) {
+            throw new KeelException(ErrorCode.GW_AGENT_OFFLINE, "智能体未完成开通或已下线，不能调试");
+        }
+        var endpoint = registry.invokeEndpoint(name);
+        if (!"echo".equals(name) && endpoint.contains("//echo-agent.")) {
+            throw new KeelException(ErrorCode.GW_AGENT_OFFLINE, "请部署该智能体的独立运行服务并登记地址，避免共用回声服务的预算凭据");
+        }
+        return detail;
+    }
+
     public void channelStream(String name, String text, String channel, String userId, OutputStream output) {
         if (text == null || text.isBlank()) throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "输入不能为空");
         var detail = registry.detail(name);
@@ -143,6 +211,16 @@ public class AgentChatService {
     private static String scopedSessionId(String id) {
         var principal = ConsolePrincipal.current();
         var owner = principal == null || principal.userId() == null ? "anonymous" : principal.userId();
+        try {
+            var digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest((owner + ":" + id).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(digest);
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
+
+    private static String scopedSessionId(String owner, String id) {
         try {
             var digest = java.security.MessageDigest.getInstance("SHA-256")
                     .digest((owner + ":" + id).getBytes(java.nio.charset.StandardCharsets.UTF_8));
