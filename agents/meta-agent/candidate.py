@@ -481,6 +481,15 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
                     and node.iter.id in manifest_tool_names):
                 manifest_tool_item_names.add(node.target.id)
     regex_literals = set()
+    pattern_bindings = {}
+    for node in ast.walk(role):
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                if isinstance(target, ast.Name) and node.value is not None:
+                    pattern_bindings.setdefault(target.id, []).append(node.value)
+        elif isinstance(node, (ast.For, ast.comprehension)) and isinstance(node.target, ast.Name):
+            pattern_bindings.setdefault(node.target.id, []).append(node.iter)
     for call in ast.walk(role):
         if (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
                 and isinstance(call.func.value, ast.Name) and call.func.value.id == "re"
@@ -488,7 +497,18 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
             pattern = call.args[0] if call.args else next(
                 (keyword.value for keyword in call.keywords if keyword.arg == "pattern"), None)
             if pattern is not None:
-                regex_literals.update(id(item) for item in ast.walk(pattern) if isinstance(item, ast.Constant))
+                pending, visited = [pattern], set()
+                while pending:
+                    item = pending.pop()
+                    if id(item) in visited:
+                        continue
+                    visited.add(id(item))
+                    if isinstance(item, ast.Constant):
+                        regex_literals.add(id(item))
+                    elif isinstance(item, ast.Name):
+                        pending.extend(pattern_bindings.get(item.id, []))
+                    else:
+                        pending.extend(ast.iter_child_nodes(item))
     for node in ast.walk(role):
         if (isinstance(node, ast.Constant) and isinstance(node.value, str) and len(node.value) > 160
                 and id(node) not in regex_literals):

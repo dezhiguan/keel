@@ -46,7 +46,7 @@
 
 - 长时间生成期间由持有 lease_token 的 worker 每30秒续租原五分钟租约，完成后停止；仅更新同一任务、同一 token 且仍 RUNNING/DELIVERING 的租约。防止两个服务端副本在一次多轮生成超过五分钟后重复调用；进程退出后仍按原五分钟过期恢复，不扩容模型预算或验证轮数。过期旧worker不得续租新的任务所有权。
 
-- 禁止源码硬编码大段提示词的检查按用途区分：直接传入 re.compile/search/match/fullmatch 等正则 API 的模式字面量不因超过160字符而判为提示词。普通大段指令仍拒绝，提示词文件、ctx.prompt及行为门禁不变。实测177字符的多语言工具禁止正则被连续三次误拒，须增加对应回归。
+- 禁止源码硬编码大段提示词的检查按用途区分：传入 re.compile/search/match/fullmatch 等正则 API 的模式字面量不因超过160字符而判为提示词；通过赋值变量、模式列表及for/生成器迭代传入的模式也须沿AST引用识别，不能只豁免直接实参。普通大段指令仍拒绝，提示词文件、ctx.prompt及行为门禁不变。实测177字符的多语言工具禁止正则被连续三次误拒，须增加对应回归。
 
 - 独立项目不再复制平台可信测试：将 platform_contract_test.py 随隔离沙箱镜像发布，执行精确候选快照时注入运行目录，覆盖候选中遗留的同名测试。项目交付清除旧的 tests/test_platform_contract.py，平台测试不能由模型修改或关闭。runtimeAdapterVersion 升为 sandbox-checks-v3，当前任务可从页面刷新适配层；不自动改旧项目。沙箱报告标明 trusted_checks=injected。
 - 可信检查补充 job/catalog 的非对象列表元素及任务缺 status 等异常证据，即使模型返回PASS也必须BLOCKED。只转述结构化事实的岗位应从真实证据组装回答，不能透传未经事实校验的模型answer；由正常页面修复澄清保持当前岗位代码、提示词和自编测试一致。

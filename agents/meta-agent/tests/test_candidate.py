@@ -596,6 +596,15 @@ def test_long_regex_pattern_is_not_mistaken_for_a_hardcoded_prompt():
         {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
         {"path": "tests/test_role.py", "content": TEST_CODE}]}
     assert parse(json.dumps(candidate))[1] == []
+    # Generated guards commonly keep patterns in lists and iterate using a
+    # generator expression; increasing one verb must not turn regex into prose.
+    candidate["files"][0]["content"] = ("import re\n" + ROLE_CODE + "\nPATTERN = " + repr(pattern)
+        + "\nPATTERNS = [PATTERN]\n"
+        + "def rejects(text):\n    return any(re.search(p, text) for p in PATTERNS)\n")
+    assert parse(json.dumps(candidate))[1] == []
+    candidate["files"][0]["content"] += ("\ndef also_rejects(text):\n"
+        + "    for pattern in PATTERNS:\n        if re.search(pattern, text):\n            return True\n")
+    assert parse(json.dumps(candidate))[1] == []
     candidate["files"][0]["content"] += "\nSYSTEM_INSTRUCTION = " + repr("你是一个助手，必须遵守以下工作规则。" * 20)
     assert "role.py 不得硬编码大段提示词" in parse(json.dumps(candidate))[1]
 
