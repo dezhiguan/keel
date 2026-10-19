@@ -712,6 +712,33 @@ class GatewayTest {
         }
     }
 
+    @Test void streamDropsOptionsAfterTheUpstreamRejectsThem() throws Exception {
+        var bodies = new ArrayList<String>();
+        var server = server((model, exchange) -> {
+            bodies.add(lastRequestBody);
+            if (lastRequestBody.contains("stream_options")) {
+                write(exchange, 500, "{\"error\":{\"message\":\"stream_options\"}}");
+                return;
+            }
+            var payload = "data: {\"choices\":[{\"delta\":{\"content\":\"你\"}}]}\n\n".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, payload.length);
+            exchange.getResponseBody().write(payload);
+            exchange.close();
+        });
+        try {
+            var gateway = gateway(server);
+            var key = gateway.create("echo-dev", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false);
+            var out = new java.io.ByteArrayOutputStream();
+            gateway.stream("Bearer " + key.key(), "/v1/chat/completions",
+                    "{\"model\":\"qwen-plus\",\"stream\":true}", Duration.ofSeconds(2), out, "trace-stream");
+            assertThat(bodies).hasSize(2);
+            assertThat(bodies.get(1)).doesNotContain("stream_options");
+            assertThat(out.toString(StandardCharsets.UTF_8)).contains("你");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static HttpServer server(Handler handler) {
         try {
             var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);

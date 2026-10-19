@@ -320,6 +320,12 @@ public final class Gateway {
                 Upstream.Stream opened;
                 try {
                     opened = upstream.open(model.upstream(), model.upstreamKey(), path, forwarded, timeout);
+                    if (streamRejected(opened) && forwarding.has("stream_options")) {
+                        opened.close();
+                        forwarding.remove("stream_options");
+                        forwarded = requestDefaults.apply(forwarding, key.alias(), used, path);
+                        opened = upstream.open(model.upstream(), model.upstreamKey(), path, forwarded, timeout);
+                    }
                 } catch (RuntimeException error) {
                     observe(key, used, true, 0);
                     line(key.alias(), used, 0, 0, BigDecimal.ZERO, requestId, 0, true, "FAILED", BigDecimal.ZERO, traceId, route(i), -1);
@@ -328,18 +334,20 @@ public final class Gateway {
                 }
                 long latencyMs = Math.max(0L, (System.nanoTime() - started) / 1_000_000L);
                 if (opened.retryable()) {
+                    var detail = upstreamDetail(opened);
                     opened.close();
                     observe(key, used, true, latencyMs);
                     line(key.alias(), used, 0, 0, BigDecimal.ZERO, requestId, latencyMs, opened.status() == 504,
                             "FAILED", BigDecimal.ZERO, traceId, route(i), -1);
                     if (i < attempts.size() - 1) continue;
-                    throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "上游失败");
+                    throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, upstreamFailure(opened.status(), detail));
                 }
                 if (opened.status() >= 400) {
+                    var detail = upstreamDetail(opened);
                     opened.close();
                     observe(key, used, false, latencyMs);
                     line(key.alias(), used, 0, 0, BigDecimal.ZERO, requestId, latencyMs, false, "FAILED", BigDecimal.ZERO, traceId, route(i), -1);
-                    return null;
+                    throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, upstreamFailure(opened.status(), detail));
                 }
                 var captured = new StringBuilder();
                 var cancelled = false;
@@ -456,6 +464,27 @@ public final class Gateway {
         }
         var version = routes.current();
         return new Preview(version.version(), version.objective(), routes.plan(key, live, false, catalog, breakerKey(key, live)));
+    }
+
+    private static boolean streamRejected(Upstream.Stream opened) {
+        return opened.retryable() || opened.status() >= 400;
+    }
+
+    private static String upstreamDetail(Upstream.Stream opened) {
+        try {
+            var text = new String(opened.body().readNBytes(240), java.nio.charset.StandardCharsets.UTF_8)
+                    .replaceAll("\\s+", " ").trim();
+            return text.length() > 180 ? text.substring(0, 180) : text;
+        } catch (Exception error) {
+            return "";
+        }
+    }
+
+    private static String upstreamFailure(int status, String detail) {
+        if (detail == null || detail.isBlank()) {
+            return "上游失败 " + status;
+        }
+        return "上游失败 " + status + " " + detail;
     }
 
     /** Keys issued before the catalog rename still name qwen-plus and deepseek-v3. */
