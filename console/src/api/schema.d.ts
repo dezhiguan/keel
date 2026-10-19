@@ -3312,6 +3312,18 @@ export interface components {
                 /** @enum {string} */
                 objective?: "balanced" | "cost" | "latency";
             } | null;
+            /** @description 已发布的逻辑模型。请求写逻辑模型名时，薄网关按环境和权重换成具体模型。 */
+            logicalRoutes?: {
+                logical?: string;
+                condition?: string;
+                env?: string;
+                primary?: string;
+                secondary?: string;
+                /** @description 主模型权重，0 到 100 */
+                primaryWeight?: number;
+                fallback?: string;
+                gray?: string;
+            }[];
             alertRules?: {
                 id?: string;
                 name?: string;

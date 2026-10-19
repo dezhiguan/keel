@@ -127,6 +127,20 @@ public class LlmController {
         return Map.of("data", rows, "page", page, "size", size);
     }
 
+    @GetMapping("/admin/v1/logical-routes")
+    Map<String, Object> logicalRoutes(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        admin(authorization);
+        return Map.of("data", LogicalRoutes.ROWS.stream().map(row -> Map.of(
+                "logical", row.logical(),
+                "condition", row.condition(),
+                "env", row.env(),
+                "primary", row.primary(),
+                "secondary", row.secondary(),
+                "primaryWeight", row.primaryWeight(),
+                "fallback", row.fallback(),
+                "gray", row.gray())).toList());
+    }
+
     @GetMapping("/admin/v1/route-policy")
     Map<String, Object> routePolicy(@RequestHeader(value = "Authorization", required = false) String authorization) {
         admin(authorization);

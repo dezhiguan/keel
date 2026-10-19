@@ -685,6 +685,29 @@ class GatewayTest {
 
     private static volatile String lastRequestBody;
 
+    @Test void logicalModelResolvesBeforeTheUpstreamCall() throws Exception {
+        var seen = new ArrayList<String>();
+        var server = server((model, exchange) -> {
+            seen.add(model);
+            write(exchange, 200, usage("qwen3.8-flash", 4, 2));
+        });
+        try {
+            var base = "http://127.0.0.1:" + server.getAddress().getPort();
+            var flash = new ModelCatalog.Model("qwen3.8-flash", new BigDecimal("0.0000008"), new BigDecimal("0.0000027"),
+                    base, "vendor", 4096, 4096);
+            var gateway = new Gateway(new ModelCatalog(Map.of("qwen3.8-flash", flash)), new BudgetCounter(), new Upstream());
+            var created = gateway.create("echo-dev", List.of("chat-default"), List.of(),
+                    new BigDecimal("30"), false);
+            var completion = gateway.complete("Bearer " + created.key(), "/v1/chat/completions",
+                    "{\"model\":\"chat-default\"}", Duration.ofSeconds(2));
+            assertThat(completion.status()).isEqualTo(200);
+            assertThat(completion.spend().model()).isEqualTo("qwen3.8-flash");
+            assertThat(seen).containsExactly("qwen3.8-flash");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     @Test void retiredAliasUsesTheCurrentCatalogModel() throws Exception {
         var seen = new ArrayList<String>();
         var server = server((model, exchange) -> {

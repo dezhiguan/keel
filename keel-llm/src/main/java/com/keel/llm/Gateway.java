@@ -101,7 +101,19 @@ public final class Gateway {
         if (dailyBudgetCny == null || dailyBudgetCny.signum() <= 0) {
             throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "dailyBudgetCny 必须大于 0");
         }
-        models.forEach(catalog::require);
+        var expanded = new ArrayList<String>();
+        for (var model : models) {
+            if (!expanded.contains(model)) {
+                expanded.add(model);
+            }
+            for (var concrete : LogicalRoutes.targets(model)) {
+                if (catalog.models().containsKey(concrete) && !expanded.contains(concrete)) {
+                    expanded.add(concrete);
+                }
+            }
+        }
+        expanded.stream().filter(model -> !LogicalRoutes.isLogical(model)).forEach(catalog::require);
+        models = expanded;
         limit(rpm);
         limit(tpm);
         limit(concurrency);
@@ -204,7 +216,7 @@ public final class Gateway {
         var key = virtualKey(bearer);
         var request = read(body);
         var named = request.path("model").asText("");
-        var requested = liveModel(named);
+        var requested = liveModel(named, key.alias());
         if (!key.models.contains(named) && !key.models.contains(requested)) {
             throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "模型不在该 Key 的允许列表里");
         }
@@ -288,7 +300,7 @@ public final class Gateway {
         var key = virtualKey(bearer);
         var request = read(body);
         var named = request.path("model").asText("");
-        var requested = liveModel(named);
+        var requested = liveModel(named, key.alias());
         if (!key.models.contains(named) && !key.models.contains(requested)) {
             throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "模型不在该 Key 的允许列表里");
         }
@@ -459,7 +471,7 @@ public final class Gateway {
 
     public Preview preview(String alias, String model) {
         var key = requireAlias(alias);
-        var live = liveModel(model);
+        var live = liveModel(model, alias);
         if (!key.models().contains(model) && !key.models().contains(live)) {
             throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "模型不在该 Key 的允许列表里");
         }
@@ -488,10 +500,16 @@ public final class Gateway {
         return "上游失败 " + status + " " + detail;
     }
 
-    /** Keys issued before the catalog rename still name qwen-plus and deepseek-v3. */
-    private String liveModel(String requested) {
+    /** Keys issued before the catalog rename still name qwen-plus and deepseek-v3. Logical names resolve first. */
+    private String liveModel(String requested, String alias) {
         if (requested != null && catalog.models().containsKey(requested)) {
             return requested;
+        }
+        if (LogicalRoutes.isLogical(requested)) {
+            var concrete = LogicalRoutes.resolve(requested, envOf(alias), java.util.concurrent.ThreadLocalRandom.current().nextInt(100));
+            if (catalog.models().containsKey(concrete)) {
+                return concrete;
+            }
         }
         var replacement = switch (requested == null ? "" : requested) {
             case "qwen-plus" -> "qwen3.8-flash";

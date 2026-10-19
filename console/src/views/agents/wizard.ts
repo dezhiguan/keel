@@ -169,6 +169,14 @@ export function devflowBody(form: DevflowForm, ownerOrg: string) {
   }
 }
 
+/** Concrete models a logical name may select. The key must allow them or the call cannot leave the gateway. */
+export function logicalTargets(model: string) {
+  if (model === 'chat-default' || model === 'chat-cheap' || model === 'long-context') {
+    return ['qwen3.8-flash', 'deepseek-flash']
+  }
+  return []
+}
+
 export function registerBody(form: WizardForm) {
   return {
     name: form.name.trim(),
@@ -183,7 +191,7 @@ export function registerBody(form: WizardForm) {
     ...(form.endpoint?.trim() ? { endpoint: form.endpoint.trim() } : {}),
     models: {
       default: form.model,
-      fallback: [] as string[],
+      fallback: logicalTargets(form.model),
       dailyBudgetCny: form.dailyBudgetCny,
     },
     tools: [...form.tools],

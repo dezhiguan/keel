@@ -80,6 +80,10 @@ describe('wizard', () => {
       promptType: 'chat',
     })
     expect(registerBody({ ...form, promptType: 'text' }).promptType).toBe('text')
+    expect(registerBody({ ...form, model: 'chat-default' }).models).toMatchObject({
+      default: 'chat-default',
+      fallback: ['qwen3.8-flash', 'deepseek-flash'],
+    })
     expect(registerBody(form)).not.toHaveProperty('approvalPolicyId')
     expect(registerBody({ ...form, approvalPolicyId: '9' })).toMatchObject({ approvalPolicyId: '9' })
     expect(registerBody({ ...form, language: 'java', template: 'java-spring' }).language).toBe('java')

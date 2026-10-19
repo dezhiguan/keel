@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { checkAgentName, getCatalog, previewManifest, registerAgent, type CatalogKnowledgeBase, type CatalogPolicy, type CatalogTool, type SelfCheckReport } from '@/api/agents'
-import { getModelGateway } from '@/api/models'
+import { getModelGateway, type ModelGateway } from '@/api/models'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { useUserStore } from '@/stores/user'
@@ -36,7 +36,7 @@ const form = reactive<WizardForm>({
   language: 'python',
   endpoint: '',
   template: 'echo',
-  model: 'qwen-plus',
+  model: 'chat-default',
   dailyBudgetCny: 30,
   env: envStore.env === 'all' ? 'dev' : envStore.env,
   tools: [],
@@ -48,11 +48,14 @@ const catalogTools = ref<CatalogTool[]>([])
 const catalogKnowledge = ref<CatalogKnowledgeBase[]>([])
 const policies = ref<CatalogPolicy[]>([])
 const catalogError = ref('')
-const gatewayModels = ref<{ name: string; provider: string }[]>([])
+const logicalRoutes = ref<NonNullable<ModelGateway['logicalRoutes']>>([])
 const modelError = ref('')
 
 const idError = computed(() => (form.name ? nameError(form.name, taken.value) : ''))
-const modelChoices = computed(() => gatewayModels.value)
+const modelChoices = computed(() => {
+  const names = [...new Set(logicalRoutes.value.map((row) => row.logical).filter((name): name is string => !!name))]
+  return names.length ? names : ['chat-default', 'chat-cheap', 'long-context']
+})
 const visibleTemplates = computed(() => templatesFor(form.language))
 const selectedHigh = computed(() => form.tools.some((name) => catalogTools.value.find((tool) => tool.name === name)?.risk === 'HIGH'))
 const canNext = computed(() => {
@@ -61,23 +64,19 @@ const canNext = computed(() => {
   return true
 })
 
-async function loadGatewayModels() {
+async function loadLogicalRoutes() {
   try {
     const gateway = await getModelGateway({ env: form.env, range: '24h' })
-    gatewayModels.value = (gateway.models ?? [])
-      .filter((item) => item.model && !item.embedding)
-      .map((item) => ({ name: item.model!, provider: item.provider || '' }))
-    if (!gatewayModels.value.some((item) => item.name === form.model)) {
-      form.model = gatewayModels.value[0]?.name ?? form.model
-    }
-    modelError.value = gatewayModels.value.length ? '' : '模型网关还没有可选用的对话模型'
+    logicalRoutes.value = gateway.logicalRoutes ?? []
+    if (!modelChoices.value.includes(form.model)) form.model = modelChoices.value[0]
+    modelError.value = ''
   } catch (error) {
     modelError.value = toKeelError(error).message
   }
 }
 
 onMounted(async () => {
-  void loadGatewayModels()
+  void loadLogicalRoutes()
   try {
     const catalog = await getCatalog()
     catalogTools.value = (catalog.tools ?? []).filter((tool) => tool.name)
@@ -88,7 +87,7 @@ onMounted(async () => {
   }
 })
 
-watch(() => form.env, () => { void loadGatewayModels() })
+watch(() => form.env, () => { void loadLogicalRoutes() })
 
 function setLanguage(language: 'python' | 'java') {
   form.language = language
@@ -232,13 +231,12 @@ async function submit() {
           </div>
           <div class="row2e">
             <div class="field">
-              <label>默认模型</label>
+              <label>逻辑模型</label>
               <select v-model="form.model" class="inp">
-                <option v-for="item in modelChoices" :key="item.name" :value="item.name">{{ item.provider ? `${item.name} · ${item.provider}` : item.name }}</option>
-                <option v-if="!modelChoices.length && form.model" :value="form.model">{{ form.model }}</option>
+                <option v-for="name in modelChoices" :key="name" :value="name">{{ name }}</option>
               </select>
               <div v-if="modelError" class="hint err">{{ modelError }}</div>
-              <div v-else class="hint">选项来自模型网关当前目录，向量模型不在这里选。</div>
+              <div v-else class="hint">不绑定具体模型。路由表按环境和权重选择 qwen3.8-flash 或 deepseek-flash。</div>
             </div>
             <div class="field">
               <label>日预算（人民币）</label>

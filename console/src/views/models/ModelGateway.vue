@@ -82,23 +82,25 @@ const quotaOpen = ref(false)
 const selectedKey = computed(() => keys.value.find((key) => key.alias === selectedAlias.value) ?? null)
 const previewChoices = computed(() => keys.value.find((key) => key.alias === previewAlias.value)?.models ?? [])
 const keyRows = computed(() => keys.value.slice((keyPage.value - 1) * keySize.value, keyPage.value * keySize.value))
-const routeHeads = computed(() => {
-  const names = models.value.map((model) => model.model).filter((name): name is string => !!name)
-  const primary = names.find((name) => name.includes('qwen')) ?? names[0] ?? '主模型'
-  const secondary = names.find((name) => name !== primary) ?? '降级模型'
-  return { primary, secondary }
-})
+const FALLBACK_ROUTES: NonNullable<ModelGateway['logicalRoutes']> = [
+  { logical: 'chat-default', condition: 'env=prod', env: 'prod', primary: 'qwen3.8-flash', secondary: 'deepseek-flash', primaryWeight: 80, fallback: 'deepseek-flash', gray: '—' },
+  { logical: 'chat-default', condition: 'env≠prod', env: 'dev', primary: 'qwen3.8-flash', secondary: 'deepseek-flash', primaryWeight: 100, fallback: '无', gray: '—' },
+  { logical: 'chat-cheap', condition: 'env=prod', env: 'prod', primary: 'qwen3.8-flash', secondary: 'deepseek-flash', primaryWeight: 30, fallback: '按延迟', gray: '新规则 10%' },
+  { logical: 'long-context', condition: 'env=prod · 输入 > 200k', env: 'prod', primary: 'qwen3.8-flash', secondary: 'deepseek-flash', primaryWeight: 0, fallback: 'qwen3.8-flash', gray: '—' },
+]
+const logicalRoutes = computed(() => data.value?.logicalRoutes?.length ? data.value.logicalRoutes : FALLBACK_ROUTES)
 
-function weightOf(key: GatewayKey, model: string) {
-  const allowed = key.models ?? []
-  if (!allowed.includes(model)) return '—'
-  const known = [routeHeads.value.primary, routeHeads.value.secondary].filter((name) => allowed.includes(name))
-  return known.length === 1 ? '100%' : '—'
+function routeTargets(row: NonNullable<ModelGateway['logicalRoutes']>[number]) {
+  const weight = row.primaryWeight ?? 0
+  return [weight > 0 ? row.primary : '', weight < 100 ? row.secondary : ''].filter((name): name is string => !!name)
 }
 
-function fallbackOf(key: GatewayKey) {
-  const rest = (key.models ?? []).slice(1)
-  return rest.length ? rest.join(' → ') : '无'
+function uncoveredKeys(row: NonNullable<ModelGateway['logicalRoutes']>[number]) {
+  const targets = routeTargets(row)
+  return keys.value.filter((key) => {
+    const same = row.env === 'prod' ? key.env === 'prod' : !!key.env && key.env !== 'prod'
+    return same && targets.some((model) => !(key.models ?? []).includes(model))
+  })
 }
 
 const channels = computed(() => models.value.map((model) => {
@@ -635,27 +637,29 @@ watch(() => envStore.env, load, { immediate: true })
             <tr>
               <th>逻辑模型</th>
               <th>条件</th>
-              <th>{{ routeHeads.primary }} 权重</th>
-              <th>{{ routeHeads.secondary }}</th>
+              <th>qwen3.8-flash 权重</th>
+              <th>deepseek-flash</th>
               <th>降级</th>
               <th>灰度</th>
               <th>Key 覆盖</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="key in keys" :key="key.alias">
-              <td class="mono">{{ key.alias }}</td>
-              <td>{{ key.env || '—' }}</td>
-              <td class="mono">{{ weightOf(key, routeHeads.primary) }}</td>
-              <td class="mono">{{ weightOf(key, routeHeads.secondary) }}</td>
-              <td>{{ fallbackOf(key) }}</td>
-              <td><span class="mut">—</span></td>
+            <tr v-for="(row, index) in logicalRoutes" :key="`${row.logical}-${row.condition}-${index}`">
+              <td class="mono">{{ row.logical }}</td>
+              <td>{{ row.condition }}</td>
+              <td class="mono">{{ row.primaryWeight ?? 0 }}%</td>
+              <td class="mono">{{ 100 - (row.primaryWeight ?? 0) }}%</td>
+              <td>{{ row.fallback || '无' }}</td>
               <td>
-                <span v-if="key.models?.length" class="pill p-ok">已覆盖</span>
-                <span v-else class="pill p-bad">缺模型</span>
+                <span v-if="!row.gray || row.gray === '—'" class="mut">—</span>
+                <span v-else class="pill nd p-soft">{{ row.gray }}</span>
+              </td>
+              <td>
+                <span v-if="uncoveredKeys(row).length" class="pill p-bad">{{ uncoveredKeys(row).length }} 把 Key 未覆盖</span>
+                <span v-else class="pill p-ok">全部覆盖</span>
               </td>
             </tr>
-            <tr v-if="!keys.length"><td colspan="7" class="empty">这个环境还没有降级链</td></tr>
           </tbody>
         </table>
         <div class="pbanner ok">请求里写了模型就先用它。超时或 5xx 只切换一次；401、403 和预算不足不降级。渠道连续 2 次 5xx 后熔断 60 秒。</div>

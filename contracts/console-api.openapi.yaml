@@ -4534,6 +4534,20 @@ components:
           properties:
             version: { type: integer }
             objective: { type: string, enum: [balanced, cost, latency] }
+        logicalRoutes:
+          type: array
+          description: 已发布的逻辑模型。请求写逻辑模型名时，薄网关按环境和权重换成具体模型。
+          items:
+            type: object
+            properties:
+              logical: { type: string, example: chat-default }
+              condition: { type: string }
+              env: { type: string }
+              primary: { type: string }
+              secondary: { type: string }
+              primaryWeight: { type: integer, description: 主模型权重，0 到 100 }
+              fallback: { type: string }
+              gray: { type: string }
         alertRules:
           type: array
           items:

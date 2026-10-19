@@ -155,6 +155,18 @@ public class InsightController {
         if (policy != null) {
             body.put("routePolicy", java.util.Map.of("version", policy.version(), "objective", policy.objective()));
         }
+        body.put("logicalRoutes", costs.logicalRoutes().stream().map(row -> {
+            var item = new LinkedHashMap<String, Object>();
+            item.put("logical", row.logical());
+            item.put("condition", row.condition());
+            item.put("env", row.env());
+            item.put("primary", row.primary());
+            item.put("secondary", row.secondary());
+            item.put("primaryWeight", row.primaryWeight());
+            item.put("fallback", row.fallback());
+            item.put("gray", row.gray());
+            return item;
+        }).toList());
         body.put("channels", costs.channels().stream().map(channel -> {
             var row = new LinkedHashMap<String, Object>();
             row.put("id", channel.id());

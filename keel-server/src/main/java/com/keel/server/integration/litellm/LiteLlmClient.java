@@ -282,6 +282,20 @@ public class LiteLlmClient {
         send("/admin/v1/models/" + name + "/probe", Map.of());
     }
 
+    public List<LogicalRoute> logicalRoutes() {
+        var rows = new ArrayList<LogicalRoute>();
+        get("/admin/v1/logical-routes").path("data").forEach(row -> rows.add(new LogicalRoute(
+                row.path("logical").asText(""),
+                row.path("condition").asText(""),
+                row.path("env").asText(""),
+                row.path("primary").asText(""),
+                row.path("secondary").asText(""),
+                row.path("primaryWeight").asInt(0),
+                row.path("fallback").asText(""),
+                row.path("gray").asText("—"))));
+        return rows;
+    }
+
     public List<Channel> channels() {
         var rows = new ArrayList<Channel>();
         get("/admin/v1/channels").path("data").forEach(row -> rows.add(channel(row)));
@@ -358,6 +372,9 @@ public class LiteLlmClient {
                         String requestId, Integer inputTokens, Integer outputTokens, double reservedCny,
                         String status, String attemptId, String traceId, String priceVersion, String routeVersion,
                         Integer cacheTokens) {}
+
+    public record LogicalRoute(String logical, String condition, String env, String primary, String secondary,
+                               int primaryWeight, String fallback, String gray) {}
 
     public record Channel(String id, String name, String model, String env, String host, Integer rpm,
                           boolean builtin, boolean prod, String breaker, long openUntil, int bound) {}

@@ -120,6 +120,14 @@ public class CostService {
         gateway.probe(model);
     }
 
+    public List<LiteLlmClient.LogicalRoute> logicalRoutes() {
+        try {
+            return gateway.logicalRoutes();
+        } catch (RuntimeException error) {
+            return List.of();
+        }
+    }
+
     public List<LiteLlmClient.Channel> channels() {
         try {
             return gateway.channels();
