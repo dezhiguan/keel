@@ -134,3 +134,10 @@ qa-tools 首轮52条中有5条超时/断流被SDK丢弃，页面47条仍通过�
 - routing ev_119e296a07534fec9a4eb21249c46ce6：51条、1.00、完整通过，prodVersion=production。四轮共206条均完成，原始分数、失败和发布记录保留。
 - 检查2pt回归来源发现门禁代码读取最近prod/DONE而非实际release绑定证据，遗漏从dev评测后发布prod的基线，且未发布评分可污染下一轮。故不能以四个总分通过冒充门禁逻辑全部正确。补published-eval-baseline.md，修复后仍需部署与记忆完整复验；记忆已存在的质量失败及当时发布保留记录，不抹除。
 - ec8真实最终请求Qwen/DeepSeek均hasTools=false、choice=none、0工具调用且有效正文；正式PII模型输出和SSE均掩码。工具2b655097967317a46c0667666979def4调用树首次临时失败、点击页面重试恢复，generation实测Qwen/answer v2/SETTLED/¥0.001703；guard PII链路e98d298552ca7283c4f4f3e3c254c890的generation输出掩码，DeepSeek/SETTLED/¥0.001847。
+
+## 已发布基线部署后的验证与启动504
+
+- 51607b5 CD39274477210成功，服务端332项测试全部通过，其中EvalPersistenceTest五项真实PG测试0跳过。CI单独Java任务因Maven中央仓库下载jacoco插件连接重置失败，已重跑该失败任务，不能称首轮CI全绿。
+- memory部署后ev_ce67d496752e4c56a518af32607b24a8：51条、1.00、完整通过；tool prodScore=0.95、catalog prodScore=0.80，正确来自当时已发布的ev68，而非旧dev/prod混用。暂未发布这一新1.00，准备下一轮核验未发布结果不污染基线。
+- 下一次启动连续两次约60秒504，active接口200且无新任务；页面持续错误已恢复，未虚构运行号。定位EvalJobs.start/reconcile误用包含外部链路证据的详情查询，至多8个串行trace读取阻塞控制路径。补eval-start-without-observation.md，控制路径只读登记数据，保留资源ACTIVE与实例就绪校验；待部署验证。
+- 正式RPM1页面验证首请求成功trace2ad6be18a8e013e5324c1f305f7b4a19，第二次LLM_RATE_LIMITED trace75fa22fd15dc8c5ce75a7478f231bcc9，限制与预算已恢复并回读验证。恢复后的新会话正常返回final、trace4509a3b5fdc8a6ae3ef1ad5a00ec6842。

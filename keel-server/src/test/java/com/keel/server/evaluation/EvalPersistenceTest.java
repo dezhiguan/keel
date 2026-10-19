@@ -17,6 +17,10 @@ import static org.assertj.core.api.Assertions.*;
 class EvalPersistenceTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired ObjectMapper json;
+    @Autowired com.keel.server.registry.mapper.AgentMapper agents;
+    @Autowired com.keel.server.registry.mapper.AgentVersionMapper versions;
+    @Autowired com.keel.server.registry.mapper.AgentInstanceMapper instances;
+    @Autowired com.keel.server.provisioning.ResourceLedger ledger;
 
     @Test @Transactional void anotherServiceInstanceReadsTheSameCompletedRunAndFailure() {
         jdbc.update("""
@@ -103,6 +107,29 @@ class EvalPersistenceTest {
             INSERT INTO agent(name,display_name,kind,runtime,language,owner_org,owner_user,status,liveness)
             VALUES ('qa-baseline','baseline','AGENT','code','python','平台','dev','ONLINE','k8s')
             """);
+    }
+
+    @Test @Transactional void registeredControlDataDoesNotWaitForExternalObservationEvidence() {
+        seedBaselineAgent();
+        jdbc.update("""
+            INSERT INTO agent_version(agent_name,version,env,manifest_json,manifest_hash,released_by)
+            VALUES ('qa-baseline','v1','prod','{"spec":{"eval":{"dataset":"qa-baseline/smoke"}}}','hash','test')
+            """);
+        ledger.activate("qa-baseline", "prod", "litellm_key", "qa-baseline-prod");
+        var registry = new com.keel.server.registry.service.AgentRegistryService(agents,versions,instances,ledger,json,null);
+        var unavailable = new com.keel.server.registry.service.ElementEvidence(jdbc,null) {
+            @Override public com.keel.server.registry.model.dto.AgentDetail apply(com.keel.server.registry.model.dto.AgentDetail detail) {
+                throw new IllegalStateException("external observation unavailable");
+            }
+        };
+        org.springframework.test.util.ReflectionTestUtils.setField(registry,"elementEvidence",unavailable);
+        var detail = registry.registeredDetail("qa-baseline");
+        assertThat(detail.summary().env()).isEqualTo("prod");
+        assertThat(detail.summary().language()).isEqualTo("python");
+        assertThat(detail.resources()).hasSize(1);
+        assertThat(detail.resources().getFirst().status()).isEqualTo("ACTIVE");
+        assertThatThrownBy(() -> registry.detail("qa-baseline")).isInstanceOf(IllegalStateException.class)
+                .hasMessage("external observation unavailable");
     }
 
     private void baselineRun(String id, String env, double score) {

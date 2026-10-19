@@ -119,6 +119,15 @@ public class AgentRegistryService {
     }
 
     public AgentDetail detail(String name) {
+        return readDetail(name, true);
+    }
+
+    /** Stored registration and resource checks for control operations; no external observation reads. */
+    public AgentDetail registeredDetail(String name) {
+        return readDetail(name, false);
+    }
+
+    private AgentDetail readDetail(String name, boolean evidence) {
         var agent = require(name);
         var versions = versionMapper.listByAgent(name);
         var latest = versions.isEmpty() ? null : versions.get(0);
@@ -141,12 +150,12 @@ public class AgentRegistryService {
         }
         var detail = AgentDetail.of(agent, latest, instanceLabel, instances, manifest, resources)
                 .withVersions(versions.stream().map(AgentDetail.VersionRow::of).toList());
-        if (memories != null && manifest != null) {
+        if (evidence && memories != null && manifest != null) {
             var counts = memories.counts(name);
             detail = detail.withMemory(AgentDetail.memoryStatus(agent, manifest, counts.user(), counts.task(), counts.experience()));
         }
-        if (elementEvidence != null) detail = elementEvidence.apply(detail);
-        return selfCheckRecords == null ? detail : selfCheckRecords.apply(detail);
+        if (evidence && elementEvidence != null) detail = elementEvidence.apply(detail);
+        return !evidence || selfCheckRecords == null ? detail : selfCheckRecords.apply(detail);
     }
 
     public Map<String, Object> nameCheck(String name) {

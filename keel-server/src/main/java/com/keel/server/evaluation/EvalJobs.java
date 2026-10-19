@@ -36,7 +36,7 @@ public class EvalJobs {
 
     public String start(String agent) {
         catalog.authorize(agent);
-        var detail = registry.detail(agent);
+        var detail = registry.registeredDetail(agent);
         if (detail.summary().status()==AgentStatus.RETIRED || detail.summary().status()==AgentStatus.DRAFT
                 || detail.resources().isEmpty() || detail.resources().stream().anyMatch(r -> !"ACTIVE".equals(r.status())))
             throw new KeelException(ErrorCode.GW_AGENT_OFFLINE, "智能体未开通或已下线");
@@ -162,7 +162,7 @@ public class EvalJobs {
         var job=cluster.batch().v1().jobs().inNamespace(row.namespace).withName(name).get();
         if(job==null) {
             if(!"QUEUED".equals(row.state)) { fail(row.id,"评测 Job 已丢失，未自动重复调用模型");return; }
-            var detail=registry.detail(row.agent);
+            var detail=registry.registeredDetail(row.agent);
             if(detail.summary().status()==AgentStatus.RETIRED) { fail(row.id,"智能体已下线");return; }
             var pod=cluster.pods().inNamespace(row.namespace).withName(row.pod).get();
             if(pod==null || !row.image.equals(pod.getSpec().getContainers().getFirst().getImage())) {
