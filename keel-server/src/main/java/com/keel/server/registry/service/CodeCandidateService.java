@@ -7,6 +7,7 @@ import com.keel.common.error.ErrorCode;
 import com.keel.server.auth.ConsolePrincipal;
 import com.keel.server.common.KeelException;
 import com.keel.server.integration.audit.AuditStore;
+import com.keel.server.integration.agent.AgentEndpointClient;
 import com.keel.server.prompt.PromptCatalog;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -27,11 +28,15 @@ public class CodeCandidateService {
     private final ManifestValidator validator;
     private final PromptCatalog catalog;
     private final AuditStore audit;
+    private final AgentEndpointClient endpoints;
+    private final String metaBridgeToken;
 
     public CodeCandidateService(JdbcTemplate jdbc, ObjectMapper json, ManifestValidator validator,
-                                PromptCatalog catalog, AuditStore audit) {
+                                PromptCatalog catalog, AuditStore audit, AgentEndpointClient endpoints,
+                                @org.springframework.beans.factory.annotation.Value("${KEEL_META_AGENT_TOKEN:}") String metaBridgeToken) {
         this.jdbc = jdbc; this.json = json; this.validator = validator;
         this.catalog = catalog; this.audit = audit;
+        this.endpoints = endpoints; this.metaBridgeToken = metaBridgeToken;
     }
 
     @Transactional
@@ -51,7 +56,28 @@ public class CodeCandidateService {
         try { prior = json.readTree((String) rows.getFirst().get("manifest")); }
         catch (Exception error) { throw invalid("当前智能体清单无效"); }
         var candidate = body.path("manifest");
-        requireCompatible(prior, candidate);
+        var comparison = prior;
+        if (body.path("reconcileRuntime").asBoolean(false)) {
+            requireReconciliationAdmin(ConsolePrincipal.current());
+            var endpoint = prior.path("spec").path("runtime").path("endpoint").asText();
+            var actual = endpoints.manifest(endpoint, "meta-agent".equals(name) ? metaBridgeToken : null);
+            var unavailable = new HashSet<>(jdbc.queryForList(
+                    "SELECT name FROM tool WHERE scope<>'PRIVATE' OR owner_agent IS DISTINCT FROM ?", String.class, name));
+            comparison = CodeRuntimeReconciliation.align(prior, candidate, actual, unavailable);
+            var baselines = jdbc.queryForList("""
+                    SELECT e.result::text FROM release_record r JOIN eval_run e ON e.run_id=r.ci_run_url
+                    WHERE r.agent_name=? AND r.env='prod' ORDER BY r.created_at DESC,r.id DESC LIMIT 1
+                    """, String.class, name);
+            if (!baselines.isEmpty()) {
+                try {
+                    var gate = (ObjectNode) json.readTree(baselines.getFirst()).path("gate").deepCopy();
+                    gate.put("maxRegression", gate.path("maxRegression").asDouble() / 100);
+                    CodeRuntimeReconciliation.requireGate(gate, candidate.path("spec").path("eval").path("gate"));
+                } catch (KeelException error) { throw error; }
+                catch (Exception error) { throw invalid("生产门禁证据无效"); }
+            }
+        }
+        requireCompatible(comparison, candidate);
         if (candidate.equals(prior)) return Map.of("env", env, "manifestHash", body.path("expectedHash").asText());
         var declaredTools = new HashSet<String>();
         prior.path("spec").path("tools").forEach(tool -> declaredTools.add(tool.path("name").asText()));
@@ -63,7 +89,7 @@ public class CodeCandidateService {
         }
         var text = candidate.toString();
         String hash;
-        try { hash = "sha256:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8))); }
+        try { hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8))); }
         catch (Exception error) { throw new IllegalStateException(error); }
         jdbc.update("""
                 INSERT INTO agent_version(agent_name,version,env,manifest_json,manifest_hash,released_by)
@@ -74,6 +100,12 @@ public class CodeCandidateService {
         audit.append(name, env, "config.change", "mid", "allowed", "agent:" + name, null, actor,
                 Map.of("version", "v0"));
         return Map.of("env", env, "manifestHash", hash);
+    }
+
+    static void requireReconciliationAdmin(ConsolePrincipal principal) {
+        if (principal == null || principal.readOnly() || !"USER".equals(principal.mode())
+                || !"ADMIN".equals(principal.platformRole()))
+            throw new KeelException(ErrorCode.AUTH_CONSOLE_FORBIDDEN, "运行清单对齐须由管理员明确发起");
     }
 
     static void requireCompatible(JsonNode prior, JsonNode candidate) {

@@ -241,7 +241,7 @@ export interface paths {
         get?: never;
         /**
          * 更新代码智能体的未发布候选配置
-         * @description 仅更新候选v0，不修改已发布快照。权限、身份、运行地址、预算和护栏保持原样；技能须已授权。评测进行中拒绝更新，发布仍走完整评测门禁。
+         * @description 仅更新候选v0，不修改已发布快照。身份、运行地址、预算和护栏保持原样；技能须已授权。reconcileRuntime仅供管理员核对已登记运行端的历史清单漂移，允许对齐已有本地工具、审计字段及不降低的门禁，不授予共享工具权限。评测进行中拒绝更新，发布仍走完整评测门禁。
          */
         put: {
             parameters: {
@@ -258,6 +258,8 @@ export interface paths {
                         /** @enum {string} */
                         env: "dev" | "test" | "staging";
                         expectedHash: string;
+                        /** @default false */
+                        reconcileRuntime?: boolean;
                         manifest: {
                             [key: string]: unknown;
                         };

@@ -244,6 +244,19 @@ public class AgentEndpointClient {
         }
     }
 
+    public com.fasterxml.jackson.databind.JsonNode manifest(String endpoint, String bridgeToken) {
+        try {
+            var request = HttpRequest.newBuilder(URI.create(trim(endpoint) + "/v1/manifest"))
+                    .timeout(Duration.ofSeconds(5));
+            if (bridgeToken != null && !bridgeToken.isBlank()) request.header("X-Keel-Bridge", bridgeToken);
+            var response = http.send(request.GET().build(), HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) throw new IllegalStateException("运行清单读取失败");
+            return json.readTree(response.body()).path("manifest");
+        } catch (Exception error) {
+            throw new IllegalStateException("运行清单读取失败");
+        }
+    }
+
     private static String trim(String endpoint) {
         return endpoint.endsWith("/") ? endpoint.substring(0, endpoint.length() - 1) : endpoint;
     }

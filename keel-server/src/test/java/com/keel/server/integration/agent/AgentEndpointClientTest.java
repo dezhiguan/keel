@@ -11,6 +11,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AgentEndpointClientTest {
+    @Test void readsRuntimeManifestOnlyWithTheBridgeIdentity() throws Exception {
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/v1/manifest", exchange -> {
+            if (!"test-bridge".equals(exchange.getRequestHeaders().getFirst("X-Keel-Bridge"))) {
+                exchange.sendResponseHeaders(401, -1);
+            } else {
+                var body = "{\"manifest\":{\"metadata\":{\"name\":\"meta-agent\"}}}".getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            }
+            exchange.close();
+        });
+        server.start();
+        try {
+            var endpoint = "http://127.0.0.1:" + server.getAddress().getPort();
+            assertThat(new AgentEndpointClient().manifest(endpoint, "test-bridge").path("metadata").path("name").asText()).isEqualTo("meta-agent");
+            assertThatThrownBy(() -> new AgentEndpointClient().manifest(endpoint, null)).isInstanceOf(IllegalStateException.class);
+        } finally { server.stop(0); }
+    }
     @Test void readsTheFinalAnswerAndTraceId() {
         var answer = AgentEndpointClient.parseFinal("""
                 event: step

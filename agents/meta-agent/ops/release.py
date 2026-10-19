@@ -19,6 +19,7 @@ def main():
     parser.add_argument('--run-id')
     parser.add_argument('--git-sha')
     parser.add_argument('--manifest',default=str(ROOT/'agent.yaml'))
+    parser.add_argument('--reconcile-runtime',action='store_true',help='管理员核实历史运行清单漂移后显式对齐')
     args=parser.parse_args()
     api=Platform(args.server_url,args.cookie_file)
     manifest=yaml.safe_load(Path(args.manifest).read_text())
@@ -39,7 +40,8 @@ def main():
     elif args.action=='candidate':
         detail=api.request('GET',prefix+'?includeRuntimeEvidence=false')
         save_evidence(args.evidence+'.previous.json',detail)
-        outcome=api.request('PUT',prefix+'/candidate',{'env':'dev','expectedHash':detail['manifestHash'],'manifest':manifest})
+        outcome=api.request('PUT',prefix+'/candidate',{'env':'dev','expectedHash':detail['manifestHash'],'manifest':manifest,
+                                                     'reconcileRuntime':args.reconcile_runtime})
     elif args.action=='prompts':
         if not args.git_sha or len(args.git_sha)!=40: parser.error('需要完整 --git-sha')
         files=[]
