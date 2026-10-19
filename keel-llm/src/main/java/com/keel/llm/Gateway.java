@@ -320,9 +320,10 @@ public final class Gateway {
                 Upstream.Stream opened;
                 try {
                     opened = upstream.open(model.upstream(), model.upstreamKey(), path, forwarded, timeout);
-                    if (streamRejected(opened) && forwarding.has("stream_options")) {
+                    if (streamRejected(opened) && (forwarding.has("stream_options") || forwarding.has("metadata"))) {
                         opened.close();
                         forwarding.remove("stream_options");
+                        forwarding.remove("metadata");
                         forwarded = requestDefaults.apply(forwarding, key.alias(), used, path);
                         opened = upstream.open(model.upstream(), model.upstreamKey(), path, forwarded, timeout);
                     }

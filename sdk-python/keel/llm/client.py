@@ -124,7 +124,11 @@ class LlmClient:
             except openai.APIStatusError as exc:
                 span.set_attribute(attrs.STATUS, "failed")
                 target = "模型服务" if self.standalone else "薄网关"
-                raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, f"{target} HTTP {exc.status_code}") from exc
+                detail = _error_detail(exc)
+                message = f"{target} HTTP {exc.status_code}"
+                if detail:
+                    message = f"{message}：{detail}"
+                raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, message) from exc
             except (openai.APIConnectionError, openai.APITimeoutError) as exc:
                 span.set_attribute(attrs.STATUS, "failed")
                 raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR) from exc
@@ -211,3 +215,21 @@ class LlmClient:
 
     async def aclose(self):
         await self.client.close()
+
+
+def _error_detail(exc: openai.APIStatusError) -> str:
+    body = getattr(exc, "body", None)
+    message = ""
+    if isinstance(body, dict):
+        raw = body.get("message")
+        if not isinstance(raw, str) or not raw.strip():
+            error = body.get("error")
+            if isinstance(error, dict):
+                raw = error.get("message")
+            elif isinstance(error, str):
+                raw = error
+        message = raw if isinstance(raw, str) else ""
+    elif isinstance(body, str):
+        message = body
+    message = " ".join(message.split())
+    return message[:180]
