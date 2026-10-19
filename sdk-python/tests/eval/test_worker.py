@@ -41,3 +41,21 @@ def test_empty_missing_or_invalid_scores_are_execution_errors(rows):
 def test_missing_project_scorer_is_not_replaced_by_an_automatic_perfect_score(tmp_path):
     with pytest.raises(FileNotFoundError):
         load_scorers(tmp_path / "scorers.py")
+
+
+def test_calls_overlap_and_preserve_the_current_trace_context(monkeypatch):
+    import asyncio
+    from contextvars import ContextVar
+    from threading import Barrier
+    from keel.eval import worker
+    current = ContextVar("case_trace")
+    barrier = Barrier(2, timeout=2)
+    def invoke(endpoint, text, **options):
+        barrier.wait()
+        return text, current.get()
+    monkeypatch.setattr(worker, "invoke_text", invoke)
+    async def run():
+        current.set("parent-trace")
+        return await asyncio.gather(worker.invoke_case("http://agent", "a"),
+                                    worker.invoke_case("http://agent", "b"))
+    assert asyncio.run(run()) == [("a", "parent-trace"), ("b", "parent-trace")]

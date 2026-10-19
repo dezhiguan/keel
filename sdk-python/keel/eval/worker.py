@@ -1,4 +1,5 @@
 """A bounded Kubernetes experiment job. Stdout contains aggregates, never case text."""
+import asyncio
 import json
 import math
 import os
@@ -48,6 +49,12 @@ def summarize(items, *, agent, dataset, run_id, env, gate, url=None, baseline=No
             "newFailures": failures, "langfuseUrl": url}
 
 
+async def invoke_case(endpoint, text, **options):
+    # Langfuse invokes sync tasks on its event loop; preserve trace context while
+    # moving the blocking HTTP stream into its bounded concurrency slot.
+    return await asyncio.to_thread(invoke_text, endpoint, text, **options)
+
+
 def run_experiment():
     from langfuse import Langfuse, Evaluation
     from opentelemetry import trace
@@ -69,14 +76,14 @@ def run_experiment():
         raise ValueError("数据集必须包含 1 到 200 条有效用例")
     baseline = json.loads(os.environ.get("KEEL_EVAL_BASELINE", "{}"))
 
-    def task(*, item, **kwargs):
+    async def task(*, item, **kwargs):
         span = trace.get_current_span()
         span.set_attributes({"keel.agent": agent, "keel.env": env, "keel.eval_run": run_id})
         payload = item.input
         text = payload.get("text", "") if isinstance(payload, dict) else str(payload)
         expected = item.expected_output
         options = {"expected_error": expected["errorCode"]} if isinstance(expected, dict) and expected.get("errorCode") else {}
-        return invoke_text(endpoint, text, eval_run_id=run_id, env=env, **options)
+        return await invoke_case(endpoint, text, eval_run_id=run_id, env=env, **options)
 
     def evaluate(*, output, expected_output=None, metadata=None, **kwargs):
         tags = (metadata or {}).get("tags") or ["untagged"]

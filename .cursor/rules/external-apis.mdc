@@ -62,3 +62,5 @@ alwaysApply: true
 - 委托 token（2026-10-08 读 `OAuthConsentController`）：`POST /oauth/delegation-token`，表单字段 `consent_id`、`requested_audience`、`requested_scopes`、`client_id`、`client_assertion_type`、`client_assertion`。签发的 token 仍是 600 秒、`principal_type=agent`。consent 由用户 access token 调 `POST /oauth/consents` 创建，默认 30 天，粒度是用户 + 客户端 + scopes + 知识库，没有单次流程号。
 - JWKS：`GET /.well-known/jwks.json`，响应缓存 1 小时。
 - 换票要求「被换 token 的 aud」和「目标 aud」都在客户端的 `allowed_audiences` 里，这张表由 keel-server 根据 manifest 自动生成。
+
+- 2026-10-19 核对已安装 Langfuse SDK experiment._run_task：同步 task 直接在事件循环执行，只有返回 coroutine 才 await。阻塞 HTTP 任务必须 async + asyncio.to_thread，否则 max_concurrency 无法并发；to_thread 保留 contextvars 中的 OTel 上下文。
