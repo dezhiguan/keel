@@ -64,4 +64,58 @@ class EvalPersistenceTest {
             VALUES ('ev_duplicate','qa-unique','dev','agents','pod','image','http://agent','qa/smoke','operator')
             """)).isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
     }
+
+    @Test @Transactional void baselineFollowsPublishedEvidenceIncludingDevAndIgnoresUnpublishedRuns() throws Exception {
+        seedBaselineAgent();
+        var jobs = new EvalJobs(jdbc,json,null,null,null);
+        assertThat(json.readTree(jobs.baseline("qa-baseline"))).isEmpty();
+        baselineRun("ev_base_dev", "dev", 1.0);
+        baselineRelease("ev_base_dev", "image", 1);
+        baselineRun("ev_base_unpublished", "prod", 0.2);
+        jdbc.update("UPDATE eval_run SET result=jsonb_set(result,'{passed}','false') WHERE run_id='ev_base_unpublished'");
+        assertThat(json.readTree(jobs.baseline("qa-baseline")).path("tool").asDouble()).isEqualTo(1.0);
+        jdbc.update("UPDATE eval_run SET result=jsonb_set(jsonb_set(result,'{passed}','true'),'{dimensions,0,candidateScore}','0.98') WHERE run_id='ev_base_unpublished'");
+        baselineRelease("ev_base_unpublished", "image", 2);
+        assertThat(json.readTree(jobs.baseline("qa-baseline")).path("tool").asDouble()).isEqualTo(0.98);
+        baselineRelease("legacy-ci-url", "image", 3);
+        assertThat(json.readTree(jobs.baseline("qa-baseline"))).isEmpty();
+        baselineRelease("ev_base_missing", "image", 4);
+        assertThatThrownBy(() -> jobs.baseline("qa-baseline")).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test @Transactional void invalidPublishedEvidenceRefusesAReplacementBaseline() {
+        seedBaselineAgent();
+        var jobs = new EvalJobs(jdbc,json,null,null,null);
+        baselineRun("ev_base_invalid", "dev", 1.0);
+        baselineRelease("ev_base_invalid", "wrong-image", 1);
+        assertThatThrownBy(() -> jobs.baseline("qa-baseline")).isInstanceOf(IllegalStateException.class);
+        jdbc.update("UPDATE release_record SET image='image' WHERE agent_name='qa-baseline'");
+        jdbc.update("UPDATE eval_run SET result=jsonb_set(result,'{passed}','false') WHERE run_id='ev_base_invalid'");
+        assertThatThrownBy(() -> jobs.baseline("qa-baseline")).isInstanceOf(IllegalStateException.class);
+        jdbc.update("UPDATE eval_run SET result=jsonb_set(jsonb_set(result,'{passed}','true'),'{complete}','false') WHERE run_id='ev_base_invalid'");
+        assertThatThrownBy(() -> jobs.baseline("qa-baseline")).isInstanceOf(IllegalStateException.class);
+        jdbc.update("UPDATE eval_run SET agent_name='another-agent' WHERE run_id='ev_base_invalid'");
+        assertThatThrownBy(() -> jobs.baseline("qa-baseline")).isInstanceOf(IllegalStateException.class);
+    }
+
+    private void seedBaselineAgent() {
+        jdbc.update("""
+            INSERT INTO agent(name,display_name,kind,runtime,language,owner_org,owner_user,status,liveness)
+            VALUES ('qa-baseline','baseline','AGENT','code','python','平台','dev','ONLINE','k8s')
+            """);
+    }
+
+    private void baselineRun(String id, String env, double score) {
+        jdbc.update("""
+            INSERT INTO eval_run(run_id,agent_name,env,namespace,source_pod,image,endpoint,dataset,requested_by,state,result)
+            VALUES (?,'qa-baseline',?,'agents','pod','image','http://agent','qa/smoke','operator','DONE',?::jsonb)
+            """, id, env, "{\"complete\":true,\"passed\":true,\"dimensions\":[{\"tag\":\"tool\",\"candidateScore\":" + score + "}]}");
+    }
+
+    private void baselineRelease(String runId, String image, int order) {
+        jdbc.update("""
+            INSERT INTO release_record(agent_name,version,env,gate_passed,ci_run_url,image,kind,created_at)
+            VALUES ('qa-baseline','v1','prod',true,?,?,'release',now()+(? * interval '1 second'))
+            """, runId, image, order);
+    }
 }

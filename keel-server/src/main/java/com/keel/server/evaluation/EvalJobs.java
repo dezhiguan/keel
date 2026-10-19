@@ -203,10 +203,36 @@ public class EvalJobs {
                 line.substring("KEEL_EVAL_RESULT ".length()),row.id);
     }
 
-    private String baseline(String agent) {
-        var rows=jdbc.query("SELECT result::text FROM eval_run WHERE agent_name=? AND env='prod' AND state='DONE' ORDER BY created_at DESC LIMIT 1",(rs,n)->rs.getString(1),agent);
-        var values=json.createObjectNode();
-        if(!rows.isEmpty())for(var d:parse(rows.getFirst()).path("dimensions"))values.put(d.path("tag").asText(),d.path("candidateScore").asDouble());
+    String baseline(String agent) {
+        var rows = jdbc.query("""
+                WITH current_release AS (
+                    SELECT * FROM release_record WHERE agent_name=? AND env='prod'
+                    ORDER BY created_at DESC,id DESC LIMIT 1
+                )
+                SELECT r.kind,r.ci_run_url,r.image,e.run_id,e.agent_name,e.image,e.state,e.result::text
+                FROM current_release r LEFT JOIN eval_run e ON e.run_id=r.ci_run_url
+                """, (rs, n) -> {
+            if (!"release".equals(rs.getString(1))) return null;
+            if (rs.getString(4) == null && (rs.getString(2) == null || !rs.getString(2).startsWith("ev_")))
+                return null; // Legacy releases have no platform evaluation to compare against.
+            var result = rs.getString(8) == null ? null : parse(rs.getString(8));
+            if (!agent.equals(rs.getString(5)) || rs.getString(3) == null
+                    || !rs.getString(3).equals(rs.getString(6)) || !"DONE".equals(rs.getString(7))
+                    || result == null || !result.path("complete").asBoolean() || !result.path("passed").asBoolean()
+                    || !result.path("dimensions").isArray() || result.path("dimensions").isEmpty())
+                throw new IllegalStateException("当前生产发布的评测基线证据无效");
+            return result;
+        }, agent);
+        var values = json.createObjectNode();
+        if (!rows.isEmpty() && rows.getFirst() != null)
+            for (var d : rows.getFirst().path("dimensions")) {
+                var tag = d.path("tag").asText("");
+                var score = d.path("candidateScore");
+                if (tag.isBlank() || values.has(tag) || !score.isNumber()
+                        || !Double.isFinite(score.asDouble()) || score.asDouble() < 0 || score.asDouble() > 1)
+                    throw new IllegalStateException("当前生产发布的评测维度无效");
+                values.put(tag,score.asDouble());
+            }
         return values.toString();
     }
     private void fail(String id,String error) {jdbc.update("UPDATE eval_run SET state='FAILED',error=?,updated_at=now() WHERE run_id=? AND state IN ('QUEUED','RUNNING')",error,id);}

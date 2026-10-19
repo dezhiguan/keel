@@ -121,3 +121,16 @@ qa-tools 首轮52条中有5条超时/断流被SDK丢弃，页面47条仍通过�
 - routing正式完整51条ev_be42954c9e2649db9271c71ac0e39a04，1.00、complete/passed=true、env=prod、d136镜像；页面staging/prod发布均200。页面路由试算三种模型顺序正常，发布策略v2；真实最近43次自身routing-prod已结算账单Qwen12/DeepSeek31，费用合计¥0.120654，近似30/70样本而非长期统计证明。
 - tools正式52条运行ev_1f96660302ce4eaf9c134153d5069307因1次最终阶段模型继续工具调用被完整性拒绝。链路c495dd5e784bdb15baba19036dc7970c表明先DeepSeek补查、再Qwen返回工具调用，范围校验拒绝且未继续执行。见final-tool-phase-and-eval-error.md；不发布该失败结果。
 - 同时记录失败后页面历史“门禁通过”误导展示截图prod-eval-failed-old-pass.png，补持续错误及刷新恢复。SDK相关54项测试通过；最终正式全量需等待下一镜像稳定后重跑四个，现有d136记录保留。
+
+## ec8a5fe 部署期间补充验证
+
+- 正式记忆智能体SSE385条后停止，刷新PG会话0条、未保留不完整问答。通过链路列表找到实际SDK trace53705ec4c50081a5df12a13db90f640d（浏览器traceparent c44c...是另一层，不冒充SDK根链路）；agent.run和llm.chat均failed，输出“调用已取消”。DeepSeek该次usage未回传，PENDING/费用null符合预留计费规则，非免费调用。证据prod-cancel*.json/png。
+- 新控制台与服务端部署后，从头刷新tools评测页，恢复最新失败ev_1f96660302ce4eaf9c134153d5069307，持续错误说明存在，旧“门禁通过”与发布按钮均不再出现。证据prod-eval-failure-refresh-fixed.json/png。最终智能体SDK镜像仍在构建，未提前运行混合版本评测。
+
+## ec8 完整正式结果与回归基线复核
+
+- tools ev_2eb496bc252c4a539c43a96d7408608c：52条、0.96875、完整通过；新链路a33599ecfe1d4400294e93f9dfa30de1复核确实安全拒绝无证据发布，固定整句评分失败保留。guard ev_9731d355dbbd466b830034c9594bf9e5：52条、1.00、完整通过。
+- memory ev_68c3bc108d1e42448e35557df7f48437：51条、0.984375、完整通过；e32bd6b3d2bbfdd8cd5ac412e92d5d8b实际只答“依据已提供的目录查询结果，可直接给出可用工具”，没有给出要求的具体名称。这是真实质量失败，不能写成评分器误报。
+- routing ev_119e296a07534fec9a4eb21249c46ce6：51条、1.00、完整通过，prodVersion=production。四轮共206条均完成，原始分数、失败和发布记录保留。
+- 检查2pt回归来源发现门禁代码读取最近prod/DONE而非实际release绑定证据，遗漏从dev评测后发布prod的基线，且未发布评分可污染下一轮。故不能以四个总分通过冒充门禁逻辑全部正确。补published-eval-baseline.md，修复后仍需部署与记忆完整复验；记忆已存在的质量失败及当时发布保留记录，不抹除。
+- ec8真实最终请求Qwen/DeepSeek均hasTools=false、choice=none、0工具调用且有效正文；正式PII模型输出和SSE均掩码。工具2b655097967317a46c0667666979def4调用树首次临时失败、点击页面重试恢复，generation实测Qwen/answer v2/SETTLED/¥0.001703；guard PII链路e98d298552ca7283c4f4f3e3c254c890的generation输出掩码，DeepSeek/SETTLED/¥0.001847。
