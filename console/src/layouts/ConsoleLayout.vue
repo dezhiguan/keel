@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { isNavActive, NAV } from '@/router/nav'
 import AgentDrawer from '@/views/agents/AgentDetail.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
@@ -81,6 +81,11 @@ const roleLabel = computed(() => {
 watch(() => envStore.env, (env) => {
   approvalsStore.refresh(env).catch(() => undefined)
 }, { immediate: true })
+
+watch(() => route.fullPath, () => {
+  palette.value = false
+  ElMessageBox.close()
+})
 </script>
 
 <template>
@@ -172,6 +177,9 @@ watch(() => envStore.env, (env) => {
 .side {
   width: 208px;
   flex-shrink: 0;
+  position: relative;
+  /* 高于抽屉和 Element Plus 遮罩（从 2000 往上加），菜单不会被盖死。 */
+  z-index: 10000;
   background: var(--panel);
   border-right: 1px solid var(--line);
   padding: 16px 10px;

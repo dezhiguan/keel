@@ -98,7 +98,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <template>
-  <div v-if="open" class="mask" @click="close" />
+  <div v-if="open" class="mask on" @click="close" />
   <div v-if="open" class="pal" role="dialog" aria-label="搜索">
     <input ref="input" v-model="query" placeholder="输入智能体、工具或页面名称…" autocomplete="off" />
     <ul>

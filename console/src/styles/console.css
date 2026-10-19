@@ -157,11 +157,12 @@ select.inp {
 .wfoot { display: flex; gap: 8px; margin-top: 16px; }
 .code { white-space: pre-wrap; background: var(--bg); border-radius: 8px; padding: 12px; font-family: var(--mono); font-size: 12px; color: var(--text); }
 
-.mask { position: fixed; inset: 0; background: rgba(3, 6, 12, 0.6); opacity: 0; pointer-events: none; transition: 0.2s; z-index: 40; }
-.mask.on { opacity: 1; pointer-events: auto; }
+/* 只过渡透明度。写成 transition: .2s 会把 pointer-events 一并动画，关掉后透明遮罩仍接住点击，侧栏只能刷新恢复。 */
+.mask { position: fixed; inset: 0; background: rgba(3, 6, 12, 0.6); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.2s; z-index: 40; }
+.mask.on { opacity: 1; visibility: visible; pointer-events: auto; }
 .mask.lift { z-index: 55; }
-.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(620px, 92vw); background: var(--panel); border-left: 1px solid var(--line2); transform: translateX(100%); transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); z-index: 50; display: flex; flex-direction: column; }
-.drawer.on { transform: none; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(620px, 92vw); background: var(--panel); border-left: 1px solid var(--line2); transform: translateX(100%); transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); z-index: 50; display: flex; flex-direction: column; pointer-events: none; }
+.drawer.on { transform: none; pointer-events: auto; }
 .drawer .dh { padding: 16px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
 .drawer .dh h3 { color: var(--white); font-size: 16px; margin: 0; display: flex; align-items: center; gap: 10px; font-weight: 600; }
 .drawer .db { flex: 1; overflow: auto; padding: 16px 20px; }
@@ -202,8 +203,12 @@ select.inp {
 .checks small { margin-left: auto; color: var(--mute); font-family: var(--mono); font-size: 11px; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip b { color: var(--acc); font-weight: 500; }
-.modal { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -46%) scale(0.97); width: min(520px, 92vw); background: var(--panel); border: 1px solid var(--line2); border-radius: 14px; z-index: 60; opacity: 0; pointer-events: none; transition: 0.2s; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5); }
-.modal.on { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%); }
+.modal { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -46%) scale(0.97); width: min(520px, 92vw); background: var(--panel); border: 1px solid var(--line2); border-radius: 14px; z-index: 60; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.2s, transform 0.2s; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5); }
+.modal.on { opacity: 1; visibility: visible; pointer-events: auto; transform: translate(-50%, -50%); }
+.el-overlay.dialog-fade-leave-active,
+.el-overlay.dialog-fade-leave-to,
+.el-overlay.fade-in-linear-leave-active,
+.el-overlay.fade-in-linear-leave-to { pointer-events: none; }
 .modal .mh { padding: 16px 20px 6px; color: var(--white); font-size: 15.5px; font-weight: 600; }
 .modal .mb { padding: 8px 20px 14px; font-size: 13px; }
 .modal .mf { padding: 12px 20px; border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: flex-end; }

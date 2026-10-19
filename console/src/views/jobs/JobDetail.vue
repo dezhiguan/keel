@@ -564,7 +564,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="mask" :class="{ on: manifestOpen }" @click="manifestOpen = false" />
+    <div v-if="manifestOpen" class="mask on" @click="manifestOpen = false" />
     <aside class="drawer" :class="{ on: manifestOpen }">
       <div class="dh">
         <h3>agent.yaml · {{ job?.targetAgent }}</h3>
