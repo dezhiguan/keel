@@ -120,6 +120,64 @@ public class CostService {
         gateway.probe(model);
     }
 
+    public List<LiteLlmClient.Channel> channels() {
+        try {
+            return gateway.channels();
+        } catch (RuntimeException error) {
+            return List.of();
+        }
+    }
+
+    public LiteLlmClient.Channel addChannel(String name, String model, String env, int rpm) {
+        try {
+            var created = gateway.addChannel(name, model, env, rpm);
+            audit.record("keel-llm", env == null || env.isBlank() ? "prod" : env);
+            return created;
+        } catch (IllegalStateException error) {
+            throw channelFailure(error);
+        }
+    }
+
+    public LiteLlmClient.SwitchResult switchChannel(String id) {
+        try {
+            var moved = gateway.switchChannel(id);
+            audit.record("keel-llm", "prod");
+            return moved;
+        } catch (IllegalStateException error) {
+            throw channelFailure(error);
+        }
+    }
+
+    public LiteLlmClient.BreakerResult simulateChannel(String id) {
+        try {
+            return gateway.simulateChannel(id);
+        } catch (IllegalStateException error) {
+            throw channelFailure(error);
+        }
+    }
+
+    public LiteLlmClient.BreakerResult probeChannel(String id) {
+        try {
+            var result = gateway.probeChannel(id);
+            audit.record("keel-llm", "prod");
+            return result;
+        } catch (IllegalStateException error) {
+            throw channelFailure(error);
+        }
+    }
+
+    private static RuntimeException channelFailure(IllegalStateException error) {
+        var message = error.getMessage() == null ? "" : error.getMessage();
+        if (message.contains(" 404")) {
+            throw new KeelException(ErrorCode.SERVER_NOT_FOUND, "渠道不存在");
+        }
+        if (message.contains(" 400")) {
+            var detail = message.substring(message.indexOf(" 400") + 4).trim();
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, detail.isBlank() ? "渠道操作没有被薄网关接受" : detail);
+        }
+        throw error;
+    }
+
     public void updateBudget(String alias, BigDecimal dailyBudgetCny) {
         if (alias == null || alias.isBlank()) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "别名不能为空");

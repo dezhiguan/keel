@@ -2295,6 +2295,133 @@ paths:
                             type: array
                             items: { type: string }
 
+  /insight/channels:
+    post:
+      tags: [models]
+      operationId: addModelChannel
+      summary: 新增模型渠道
+      description: 渠道复用该模型已配置的厂商密钥，接口不接收密钥。熔断按渠道单独计算。只允许平台管理员。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, model, env, rpm]
+              properties:
+                name: { type: string }
+                model: { type: string }
+                env: { type: string, enum: [dev, test, staging, prod] }
+                rpm: { type: integer, minimum: 1, description: 厂商每分钟请求上限 }
+      responses:
+        "200":
+          description: 已新增
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/GatewayChannel"
+
+  /insight/channels/switch:
+    post:
+      tags: [models]
+      operationId: switchProdChannel
+      summary: 切换 prod 千问渠道
+      description: 把允许该模型的 prod Key 改绑到目标渠道。只有一个 prod 千问渠道时没有可切换的 Key。只允许平台管理员。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string }
+      responses:
+        "200":
+          description: 已切换
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          moved: { type: integer }
+                          name: { type: string }
+                          id: { type: string }
+
+  /insight/channels/simulate:
+    post:
+      tags: [models]
+      operationId: simulateChannelFailures
+      summary: 模拟渠道连续两次 5xx
+      description: 不请求厂商。该渠道熔断 60 秒，同地址的其他渠道不受影响。只允许平台管理员。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string }
+      responses:
+        "200":
+          description: 已熔断
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          breaker: { type: string, enum: [closed, open, half_open] }
+                          openUntil: { type: integer, format: int64 }
+
+  /insight/channels/probe:
+    post:
+      tags: [models]
+      operationId: probeModelChannel
+      summary: 半开后放行一次探测
+      description: 探测成功则关闭该渠道熔断。只允许平台管理员。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string }
+      responses:
+        "200":
+          description: 探测结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          breaker: { type: string, enum: [closed, open, half_open] }
+                          openUntil: { type: integer, format: int64 }
+
   /keys/{alias}/rotate:
     post:
       tags: [models]
@@ -4312,6 +4439,20 @@ components:
         prevHash: { type: string, nullable: true, description: 同智能体链上一条的 hash，链头为空 }
 
     # ------------------------------------------------------------ 模型网关
+    GatewayChannel:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        model: { type: string }
+        env: { type: string, description: 内置渠道是使用它的环境，用顿号连接；新增渠道是绑定时选的环境 }
+        host: { type: string }
+        rpm: { type: integer, nullable: true, description: 厂商每分钟请求上限。内置渠道为空，页面用 Key 上的限制 }
+        builtin: { type: boolean }
+        prod: { type: boolean, description: 能否作为 prod 千问切换的目标 }
+        breaker: { type: string, enum: [closed, open, half_open] }
+        openUntil: { type: integer, format: int64, description: 熔断结束的毫秒时间戳。未熔断为 0 }
+        bound: { type: integer, description: 当前绑到这个渠道的虚拟 Key 数 }
     ModelGateway:
       type: object
       properties:
@@ -4363,6 +4504,11 @@ components:
               embedding: { type: boolean, description: 向量模型，不参与降级 }
               health: { type: string, enum: [CONFIGURED, PROBED, LIVE], description: 已配置、已探测、有真实调用 }
               drift: { type: boolean, description: 最近一条已结算账单的价格版本与当前版本不同 }
+        channels:
+          type: array
+          description: 内置渠道和后来新增的渠道。熔断按渠道计。
+          items:
+            $ref: "#/components/schemas/GatewayChannel"
         keys:
           type: array
           items:

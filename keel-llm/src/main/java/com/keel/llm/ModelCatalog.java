@@ -71,7 +71,7 @@ public final class ModelCatalog {
         return "";
     }
 
-    private static String host(String upstream) {
+    public static String host(String upstream) {
         if (upstream == null || upstream.isBlank()) {
             return "";
         }

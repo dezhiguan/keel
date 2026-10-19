@@ -282,6 +282,53 @@ public class LiteLlmClient {
         send("/admin/v1/models/" + name + "/probe", Map.of());
     }
 
+    public List<Channel> channels() {
+        var rows = new ArrayList<Channel>();
+        get("/admin/v1/channels").path("data").forEach(row -> rows.add(channel(row)));
+        return rows;
+    }
+
+    public Channel addChannel(String name, String model, String env, int rpm) {
+        var body = new java.util.LinkedHashMap<String, Object>();
+        body.put("name", name);
+        body.put("model", model);
+        body.put("env", env);
+        body.put("rpm", rpm);
+        return channel(send("/admin/v1/channels", body));
+    }
+
+    public SwitchResult switchChannel(String id) {
+        var body = send("/admin/v1/channels/switch", Map.of("id", id == null ? "" : id));
+        return new SwitchResult(body.path("moved").asInt(0), body.path("name").asText(""), body.path("id").asText(""));
+    }
+
+    public BreakerResult simulateChannel(String id) {
+        return breaker(send("/admin/v1/channels/simulate", Map.of("id", id == null ? "" : id)));
+    }
+
+    public BreakerResult probeChannel(String id) {
+        return breaker(send("/admin/v1/channels/probe", Map.of("id", id == null ? "" : id)));
+    }
+
+    private static Channel channel(JsonNode row) {
+        return new Channel(
+                row.path("id").asText(""),
+                row.path("name").asText(""),
+                row.path("model").asText(""),
+                row.path("env").asText(""),
+                row.path("host").asText(""),
+                row.path("rpm").isNumber() ? row.path("rpm").asInt() : null,
+                row.path("builtin").asBoolean(false),
+                row.path("prod").asBoolean(false),
+                row.path("breaker").asText("closed"),
+                row.path("openUntil").asLong(0),
+                row.path("bound").asInt(0));
+    }
+
+    private static BreakerResult breaker(JsonNode row) {
+        return new BreakerResult(row.path("id").asText(""), row.path("breaker").asText("closed"), row.path("openUntil").asLong(0));
+    }
+
     public void updateBudget(String alias, BigDecimal dailyBudgetCny) {
         send("/admin/v1/keys/" + alias + "/budget", Map.of("dailyBudgetCny", dailyBudgetCny));
     }
@@ -311,6 +358,13 @@ public class LiteLlmClient {
                         String requestId, Integer inputTokens, Integer outputTokens, double reservedCny,
                         String status, String attemptId, String traceId, String priceVersion, String routeVersion,
                         Integer cacheTokens) {}
+
+    public record Channel(String id, String name, String model, String env, String host, Integer rpm,
+                          boolean builtin, boolean prod, String breaker, long openUntil, int bound) {}
+
+    public record SwitchResult(int moved, String name, String id) {}
+
+    public record BreakerResult(String id, String breaker, long openUntil) {}
 
     public record Model(String name, boolean priceConfigured, String provider,
                         double inputCnyPerToken, double outputCnyPerToken, String priceVersion,
@@ -352,7 +406,7 @@ public class LiteLlmClient {
                     .build();
             var response = http.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 300) {
-                throw new IllegalStateException("薄网关 " + path + " " + response.statusCode());
+                throw new IllegalStateException("薄网关 " + path + " " + response.statusCode() + detail(response.body()));
             }
             if (response.body() == null || response.body().isBlank()) {
                 return json.createObjectNode();
@@ -362,6 +416,18 @@ public class LiteLlmClient {
             throw e;
         } catch (Exception e) {
             throw new IllegalStateException(e);
+        }
+    }
+
+    private static String detail(String body) {
+        if (body == null || body.isBlank()) {
+            return "";
+        }
+        try {
+            var message = new ObjectMapper().readTree(body).path("message").asText("");
+            return message.isBlank() ? "" : " " + message;
+        } catch (Exception error) {
+            return "";
         }
     }
 
@@ -384,7 +450,7 @@ public class LiteLlmClient {
                     .build();
             var response = http.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 300) {
-                throw new IllegalStateException("薄网关 " + path + " " + response.statusCode());
+                throw new IllegalStateException("薄网关 " + path + " " + response.statusCode() + detail(response.body()));
             }
             if (response.body() == null || response.body().isBlank()) {
                 return json.createObjectNode();

@@ -182,6 +182,45 @@ public class LlmController {
         return Map.of("name", name, "health", "PROBED");
     }
 
+    @GetMapping("/admin/v1/channels")
+    Map<String, Object> channels(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        admin(authorization);
+        return Map.of("data", gateway.channelRows().stream().map(LlmController::channelView).toList());
+    }
+
+    @PostMapping("/admin/v1/channels")
+    Map<String, Object> addChannel(@RequestHeader(value = "Authorization", required = false) String authorization,
+                                   @RequestBody Map<String, Object> body) {
+        admin(authorization);
+        if (body.containsKey("upstreamKey") || body.containsKey("apiKey") || body.containsKey("secret")) {
+            throw new Gateway.GatewayException(ErrorCode.SERVER_INVALID_PARAM, "厂商密钥只放在 Secret keel-llm-vendors，接口不接收");
+        }
+        var rpm = integer(body.get("rpm"));
+        return channelView(gateway.addChannel(text(body.get("name")), text(body.get("model")), text(body.get("env")), rpm == null ? 0 : rpm));
+    }
+
+    @PostMapping("/admin/v1/channels/switch")
+    Map<String, Object> switchChannel(@RequestHeader(value = "Authorization", required = false) String authorization,
+                                      @RequestBody Map<String, Object> body) {
+        admin(authorization);
+        var moved = gateway.switchProd(text(body.get("id")));
+        return Map.of("moved", moved.moved(), "name", moved.name(), "id", moved.id());
+    }
+
+    @PostMapping("/admin/v1/channels/simulate")
+    Map<String, Object> simulateChannel(@RequestHeader(value = "Authorization", required = false) String authorization,
+                                        @RequestBody Map<String, Object> body) {
+        admin(authorization);
+        return breakerView(gateway.simulateChannel(text(body.get("id"))));
+    }
+
+    @PostMapping("/admin/v1/channels/probe")
+    Map<String, Object> probeChannel(@RequestHeader(value = "Authorization", required = false) String authorization,
+                                     @RequestBody Map<String, Object> body) {
+        admin(authorization);
+        return breakerView(gateway.probeChannel(text(body.get("id"))));
+    }
+
     @GetMapping("/admin/v1/models")
     Map<String, Object> models(@RequestHeader(value = "Authorization", required = false) String authorization) {
         admin(authorization);
@@ -257,6 +296,26 @@ public class LlmController {
     private static String trace(HttpServletRequest request) {
         var header = request.getHeader("X-Trace-Id");
         return header == null || header.isBlank() ? "" : header;
+    }
+
+    private static Map<String, Object> channelView(Gateway.ChannelRow row) {
+        var view = new LinkedHashMap<String, Object>();
+        view.put("id", row.id());
+        view.put("name", row.name());
+        view.put("model", row.model());
+        view.put("env", row.env());
+        view.put("host", row.host());
+        view.put("rpm", row.rpm());
+        view.put("builtin", row.builtin());
+        view.put("prod", row.prod());
+        view.put("breaker", row.breaker());
+        view.put("openUntil", row.openUntil());
+        view.put("bound", row.bound());
+        return view;
+    }
+
+    private static Map<String, Object> breakerView(Gateway.BreakerResult result) {
+        return Map.of("id", result.id(), "breaker", result.breaker(), "openUntil", result.openUntil());
     }
 
     private static Map<String, Object> spendView(Gateway.Spend row) {

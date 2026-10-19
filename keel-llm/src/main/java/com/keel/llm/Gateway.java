@@ -31,6 +31,7 @@ public final class Gateway {
     private final AlertRules alertRules;
     private final ProbeMarks probed;
     private final RequestDefaults requestDefaults;
+    private final ChannelBoard channels;
 
     public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream) {
         this(catalog, budget, upstream, new KeyDirectory());
@@ -67,6 +68,13 @@ public final class Gateway {
     Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream, KeyDirectory keys, SpendLog spendLog,
             SpendLedger history, Admission admission, ProbeMarks probed, RoutePolicy routes, AlertRules alertRules,
             RequestDefaults requestDefaults) {
+        this(catalog, budget, upstream, keys, spendLog, history, admission, probed, routes, alertRules,
+                requestDefaults, new ChannelBoard(null));
+    }
+
+    Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream, KeyDirectory keys, SpendLog spendLog,
+            SpendLedger history, Admission admission, ProbeMarks probed, RoutePolicy routes, AlertRules alertRules,
+            RequestDefaults requestDefaults, ChannelBoard channels) {
         this.catalog = catalog;
         this.budget = budget;
         this.upstream = upstream;
@@ -78,6 +86,7 @@ public final class Gateway {
         this.routes = routes;
         this.alertRules = alertRules;
         this.requestDefaults = requestDefaults;
+        this.channels = channels == null ? new ChannelBoard(null) : channels;
     }
 
     public synchronized Created create(String alias, List<String> models, List<String> fallback, BigDecimal dailyBudgetCny, boolean allowFallback) {
@@ -216,7 +225,7 @@ public final class Gateway {
             for (int i = 0; i < attempts.size(); i++) {
                 used = attempts.get(i);
                 var model = catalog.require(used);
-                if (!routes.allowAttempt(model.upstream())) {
+                if (!routes.allowAttempt(breakerKey(key, used))) {
                     if (i < attempts.size() - 1) continue;
                     throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "可用模型渠道已熔断");
                 }
@@ -225,7 +234,7 @@ public final class Gateway {
                 try {
                     result = upstream.post(model.upstream(), model.upstreamKey(), path, forwarded, timeout);
                 } catch (RuntimeException error) {
-                    observe(used, true, 0);
+                    observe(key, used, true, 0);
                     line(key.alias(), used, 0, 0, BigDecimal.ZERO, requestId, 0, true,
                             "FAILED", BigDecimal.ZERO, traceId, route(i), -1);
                     if (i < attempts.size() - 1) continue;
@@ -233,7 +242,7 @@ public final class Gateway {
                 }
                 latencyMs = Math.max(0L, (System.nanoTime() - started) / 1_000_000L);
                 if (result.retryable()) {
-                    observe(used, true, latencyMs);
+                    observe(key, used, true, latencyMs);
                     line(key.alias(), used, 0, 0, BigDecimal.ZERO, requestId, latencyMs, result.status() == 504,
                             "FAILED", BigDecimal.ZERO, traceId, route(i), -1);
                     if (i < attempts.size() - 1) {
@@ -248,7 +257,7 @@ public final class Gateway {
             }
             var route = route(attempts.indexOf(used));
             if (result.status() >= 400) {
-                observe(used, false, latencyMs);
+                observe(key, used, false, latencyMs);
                 line(key.alias(), used, 0, 0, BigDecimal.ZERO, requestId, latencyMs, false,
                         "FAILED", BigDecimal.ZERO, traceId, route, -1);
                 return new Completion(result.status(), result.body(), null);
@@ -262,7 +271,7 @@ public final class Gateway {
             var node = read(result.body());
             var cost = costOf(used, node);
             budget.settle(key.alias, requestId, cost);
-            observe(used, false, latencyMs);
+            observe(key, used, false, latencyMs);
             int input = tokens(node, "prompt_tokens");
             int output = tokens(node, "completion_tokens");
             tokensUsed = input + output;
@@ -300,7 +309,7 @@ public final class Gateway {
             for (int i = 0; i < attempts.size(); i++) {
                 var used = attempts.get(i);
                 var model = catalog.require(used);
-                if (!routes.allowAttempt(model.upstream())) {
+                if (!routes.allowAttempt(breakerKey(key, used))) {
                     if (i < attempts.size() - 1) continue;
                     throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "可用模型渠道已熔断");
                 }
@@ -310,7 +319,7 @@ public final class Gateway {
                 try {
                     opened = upstream.open(model.upstream(), model.upstreamKey(), path, forwarded, timeout);
                 } catch (RuntimeException error) {
-                    observe(used, true, 0);
+                    observe(key, used, true, 0);
                     line(key.alias(), used, 0, 0, BigDecimal.ZERO, requestId, 0, true, "FAILED", BigDecimal.ZERO, traceId, route(i), -1);
                     if (i < attempts.size() - 1) continue;
                     throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "上游失败");
@@ -318,7 +327,7 @@ public final class Gateway {
                 long latencyMs = Math.max(0L, (System.nanoTime() - started) / 1_000_000L);
                 if (opened.retryable()) {
                     opened.close();
-                    observe(used, true, latencyMs);
+                    observe(key, used, true, latencyMs);
                     line(key.alias(), used, 0, 0, BigDecimal.ZERO, requestId, latencyMs, opened.status() == 504,
                             "FAILED", BigDecimal.ZERO, traceId, route(i), -1);
                     if (i < attempts.size() - 1) continue;
@@ -326,7 +335,7 @@ public final class Gateway {
                 }
                 if (opened.status() >= 400) {
                     opened.close();
-                    observe(used, false, latencyMs);
+                    observe(key, used, false, latencyMs);
                     line(key.alias(), used, 0, 0, BigDecimal.ZERO, requestId, latencyMs, false, "FAILED", BigDecimal.ZERO, traceId, route(i), -1);
                     return null;
                 }
@@ -353,7 +362,7 @@ public final class Gateway {
                 latencyMs = Math.max(0L, (System.nanoTime() - started) / 1_000_000L);
                 var usage = usageText(captured.toString());
                 billableResponse = true;
-                observe(used, false, latencyMs);
+                observe(key, used, false, latencyMs);
                 if (!validUsage(usage)) {
                     budget.markPending(key.alias, requestId);
                     return line(key.alias(), used, -1, -1, null, requestId, latencyMs, false, "PENDING", maxCost, traceId, route(i), -1);
@@ -443,7 +452,7 @@ public final class Gateway {
             throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "模型不在该 Key 的允许列表里");
         }
         var version = routes.current();
-        return new Preview(version.version(), version.objective(), routes.plan(key, model, false, catalog));
+        return new Preview(version.version(), version.objective(), routes.plan(key, model, false, catalog, breakerKey(key, model)));
     }
 
     public AlertRule addAlert(String name, String metric, double threshold, String window, String groupBy) {
@@ -460,14 +469,183 @@ public final class Gateway {
         return alertRules.list();
     }
 
+    public List<ChannelRow> channelRows() {
+        var listed = keys.list();
+        var rows = new ArrayList<ChannelRow>();
+        for (var model : catalog.models().values()) {
+            var id = "m-" + model.name();
+            var view = routes.view(model.upstream());
+            rows.add(new ChannelRow(id, channelName(model), model.name(), envs(listed, model.name()),
+                    ModelCatalog.host(model.upstream()), null, true, prodCapable(listed, model.name()),
+                    view.state(), view.openUntil(), boundBuiltin(listed, model.name())));
+        }
+        for (var added : channels.added()) {
+            var model = catalog.models().get(added.model());
+            if (model == null) {
+                continue;
+            }
+            var view = routes.view("ch:" + added.id());
+            rows.add(new ChannelRow(added.id(), added.name(), added.model(), added.env(),
+                    ModelCatalog.host(model.upstream()), added.rpm(), false, "prod".equals(added.env()),
+                    view.state(), view.openUntil(), boundAdded(listed, added)));
+        }
+        return rows;
+    }
+
+    public ChannelRow addChannel(String name, String model, String env, int rpm) {
+        var trimmed = name == null ? "" : name.trim();
+        if (trimmed.isEmpty() || trimmed.length() > 40) {
+            throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "渠道名称需要 1 到 40 个字");
+        }
+        if (catalog.models().get(model) == null) {
+            throw new GatewayException(ErrorCode.SERVER_NOT_FOUND, "模型不存在");
+        }
+        if (!"prod".equals(env) && !"dev".equals(env) && !"test".equals(env) && !"staging".equals(env)) {
+            throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "环境只能是 dev、test、staging 或 prod");
+        }
+        if (rpm < 1) {
+            throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "厂商上限 RPM 必须大于 0");
+        }
+        var added = channels.add(trimmed, model, env, rpm);
+        return channelRows().stream().filter(row -> row.id().equals(added.id())).findFirst().orElseThrow();
+    }
+
+    public SwitchResult switchProd(String id) {
+        var target = resolve(id);
+        if (!target.model().toLowerCase(java.util.Locale.ROOT).contains("qwen")) {
+            throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "只能切换 prod 千问渠道");
+        }
+        if (!target.builtin() && !"prod".equals(target.env())) {
+            throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "只能切换到 prod 渠道");
+        }
+        int moved = 0;
+        for (var key : keys.list()) {
+            if (!key.alias().endsWith("-prod") || key.blocked() || !key.models().contains(target.model())) {
+                continue;
+            }
+            var current = channels.binding(key.alias(), target.model());
+            var currentId = current == null ? "m-" + target.model() : current;
+            if (currentId.equals(target.id())) {
+                continue;
+            }
+            channels.bind(key.alias(), target.model(), target.builtin() ? null : target.id());
+            moved++;
+        }
+        return new SwitchResult(moved, target.name(), target.id());
+    }
+
+    public BreakerResult simulateChannel(String id) {
+        var target = resolve(id);
+        var view = routes.trip(breakerKey(target));
+        return new BreakerResult(target.id(), view.state(), view.openUntil());
+    }
+
+    public BreakerResult probeChannel(String id) {
+        var target = resolve(id);
+        var key = breakerKey(target);
+        try {
+            probe(target.model());
+        } catch (GatewayException error) {
+            routes.observe(key, true);
+            throw error;
+        }
+        routes.close(key);
+        var view = routes.view(key);
+        return new BreakerResult(target.id(), view.state(), view.openUntil());
+    }
+
+    private ChannelTarget resolve(String id) {
+        if (id != null && id.startsWith("m-")) {
+            var modelName = id.substring(2);
+            var model = catalog.models().get(modelName);
+            if (model == null) {
+                throw new GatewayException(ErrorCode.SERVER_NOT_FOUND, "渠道不存在");
+            }
+            return new ChannelTarget(id, channelName(model), modelName, true, "", model.upstream());
+        }
+        var added = channels.find(id);
+        if (added == null || catalog.models().get(added.model()) == null) {
+            throw new GatewayException(ErrorCode.SERVER_NOT_FOUND, "渠道不存在");
+        }
+        return new ChannelTarget(added.id(), added.name(), added.model(), false, added.env(), "ch:" + added.id());
+    }
+
+    private String breakerKey(ChannelTarget target) {
+        return target.breakerKey();
+    }
+
+    private static String channelName(ModelCatalog.Model model) {
+        var provider = ModelCatalog.provider(model.upstream());
+        return provider.isBlank() ? model.name() : provider;
+    }
+
+    private static String envs(List<VirtualKey> listed, String model) {
+        var envs = new ArrayList<String>();
+        for (var key : listed) {
+            if (!key.models().contains(model)) {
+                continue;
+            }
+            var env = envOf(key.alias());
+            if (!env.isEmpty() && !envs.contains(env)) {
+                envs.add(env);
+            }
+        }
+        return String.join("、", envs);
+    }
+
+    private static boolean prodCapable(List<VirtualKey> listed, String model) {
+        for (var key : listed) {
+            if (key.alias().endsWith("-prod") && key.models().contains(model)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int boundBuiltin(List<VirtualKey> listed, String model) {
+        int bound = 0;
+        for (var key : listed) {
+            if (key.models().contains(model) && channels.binding(key.alias(), model) == null) {
+                bound++;
+            }
+        }
+        return bound;
+    }
+
+    private int boundAdded(List<VirtualKey> listed, ChannelBoard.Added added) {
+        int bound = 0;
+        for (var key : listed) {
+            if (added.id().equals(channels.binding(key.alias(), added.model()))) {
+                bound++;
+            }
+        }
+        return bound;
+    }
+
+    private static String envOf(String alias) {
+        var dash = alias.lastIndexOf('-');
+        if (dash < 0 || !ALIAS.matcher(alias).matches()) {
+            return "";
+        }
+        return alias.substring(dash + 1);
+    }
+
     private List<String> attempts(VirtualKey key, String requested, boolean embedding) {
-        var planned = routes.plan(key, requested, embedding, catalog);
+        var planned = routes.plan(key, requested, embedding, catalog, breakerKey(key, requested));
         if (planned.isEmpty()) throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "可用模型渠道已熔断");
         return planned;
     }
 
-    private void observe(String model, boolean failed, long latencyMs) {
-        routes.observe(catalog.require(model).upstream(), failed, latencyMs);
+    private void observe(VirtualKey key, String model, boolean failed, long latencyMs) {
+        routes.observe(breakerKey(key, model), failed, latencyMs);
+    }
+
+    private String breakerKey(VirtualKey key, String model) {
+        var bound = channels.binding(key.alias(), model);
+        if (bound == null || bound.isBlank()) {
+            return catalog.require(model).upstream();
+        }
+        return "ch:" + bound;
     }
 
     private VirtualKey virtualKey(String bearer) {
@@ -541,6 +719,15 @@ public final class Gateway {
     public record Preview(int version, String objective, List<String> models) {}
 
     public record AlertRule(String id, String name, String metric, double threshold, String window, String groupBy) {}
+
+    public record ChannelRow(String id, String name, String model, String env, String host, Integer rpm,
+                             boolean builtin, boolean prod, String breaker, long openUntil, int bound) {}
+
+    public record SwitchResult(int moved, String name, String id) {}
+
+    public record BreakerResult(String id, String breaker, long openUntil) {}
+
+    private record ChannelTarget(String id, String name, String model, boolean builtin, String env, String breakerKey) {}
 
     public record Created(String alias, String key, int version) {}
 

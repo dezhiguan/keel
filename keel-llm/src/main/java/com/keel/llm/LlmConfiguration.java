@@ -48,7 +48,7 @@ public class LlmConfiguration {
         }
         return new Gateway(catalog, budget, new Upstream(), new KeyDirectory(redis), new SpendLog(redis), history,
                 new Admission(redis), new ProbeMarks(redis), new RoutePolicy(redis), new AlertRules(redis),
-                new RequestDefaults(properties.getRequestDefaults()));
+                new RequestDefaults(properties.getRequestDefaults()), new ChannelBoard(redis));
     }
 
     @Bean

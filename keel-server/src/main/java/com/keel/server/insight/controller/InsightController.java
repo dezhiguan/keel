@@ -7,6 +7,7 @@ import com.keel.server.common.KeelException;
 import com.keel.server.common.R;
 import com.keel.server.devflow.DevflowService;
 import com.keel.server.insight.AgentUsageService;
+import com.keel.server.integration.litellm.LiteLlmClient;
 import com.keel.server.insight.CostService;
 import com.keel.server.insight.OverviewService;
 import com.keel.server.insight.SharedServiceMonitor;
@@ -154,6 +155,21 @@ public class InsightController {
         if (policy != null) {
             body.put("routePolicy", java.util.Map.of("version", policy.version(), "objective", policy.objective()));
         }
+        body.put("channels", costs.channels().stream().map(channel -> {
+            var row = new LinkedHashMap<String, Object>();
+            row.put("id", channel.id());
+            row.put("name", channel.name());
+            row.put("model", channel.model());
+            row.put("env", channel.env());
+            row.put("host", channel.host());
+            row.put("rpm", channel.rpm());
+            row.put("builtin", channel.builtin());
+            row.put("prod", channel.prod());
+            row.put("breaker", channel.breaker());
+            row.put("openUntil", channel.openUntil());
+            row.put("bound", channel.bound());
+            return row;
+        }).toList());
         body.put("alertRules", costs.alertRules().stream().map(rule -> {
             var row = new LinkedHashMap<String, Object>();
             row.put("id", rule.id());
@@ -238,12 +254,70 @@ public class InsightController {
         return R.ok(Map.of("version", policy.version(), "objective", policy.objective()));
     }
 
+    @PostMapping("/channels")
+    @Audited
+    public R<Map<String, Object>> addChannel(@RequestBody Map<String, Object> body) {
+        requireAdmin();
+        int rpm;
+        try {
+            rpm = body.get("rpm") == null ? 0 : Integer.parseInt(body.get("rpm").toString());
+        } catch (NumberFormatException error) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "厂商上限 RPM 必须大于 0");
+        }
+        var created = costs.addChannel(text(body.get("name")), text(body.get("model")), text(body.get("env")), rpm);
+        return R.ok(channelBody(created));
+    }
+
+    @PostMapping("/channels/switch")
+    @Audited
+    public R<Map<String, Object>> switchChannel(@RequestBody Map<String, Object> body) {
+        requireAdmin();
+        var moved = costs.switchChannel(text(body.get("id")));
+        return R.ok(Map.of("moved", moved.moved(), "name", moved.name(), "id", moved.id()));
+    }
+
+    @PostMapping("/channels/simulate")
+    @Audited
+    public R<Map<String, Object>> simulateChannel(@RequestBody Map<String, Object> body) {
+        requireAdmin();
+        var result = costs.simulateChannel(text(body.get("id")));
+        return R.ok(Map.of("id", result.id(), "breaker", result.breaker(), "openUntil", result.openUntil()));
+    }
+
+    @PostMapping("/channels/probe")
+    @Audited
+    public R<Map<String, Object>> probeChannel(@RequestBody Map<String, Object> body) {
+        requireAdmin();
+        var result = costs.probeChannel(text(body.get("id")));
+        return R.ok(Map.of("id", result.id(), "breaker", result.breaker(), "openUntil", result.openUntil()));
+    }
+
     @PostMapping("/route/preview")
     public R<Map<String, Object>> previewRoute(@RequestBody Map<String, Object> body) {
         var preview = costs.previewRoute(
                 body.get("alias") == null ? "" : body.get("alias").toString(),
                 body.get("model") == null ? "" : body.get("model").toString());
         return R.ok(Map.of("version", preview.version(), "objective", preview.objective(), "models", preview.models()));
+    }
+
+    private static Map<String, Object> channelBody(LiteLlmClient.Channel channel) {
+        var row = new LinkedHashMap<String, Object>();
+        row.put("id", channel.id());
+        row.put("name", channel.name());
+        row.put("model", channel.model());
+        row.put("env", channel.env());
+        row.put("host", channel.host());
+        row.put("rpm", channel.rpm());
+        row.put("builtin", channel.builtin());
+        row.put("prod", channel.prod());
+        row.put("breaker", channel.breaker());
+        row.put("openUntil", channel.openUntil());
+        row.put("bound", channel.bound());
+        return row;
+    }
+
+    private static String text(Object value) {
+        return value == null ? "" : value.toString();
     }
 
     private static void requireAdmin() {

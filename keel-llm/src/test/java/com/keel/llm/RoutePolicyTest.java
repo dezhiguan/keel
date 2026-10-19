@@ -22,6 +22,20 @@ class RoutePolicyTest {
         assertThat(policy.plan(key, "qwen-plus", false, catalog)).containsExactly("deepseek-v3");
     }
 
+    @Test void tripOpensForSixtySecondsThenWaitsForAProbe() {
+        long[] now = {1_000_000L};
+        var policy = new RoutePolicy(null, () -> now[0]);
+        var tripped = policy.trip("http://qwen");
+        assertThat(tripped.state()).isEqualTo("open");
+        assertThat(policy.open("http://qwen")).isTrue();
+        assertThat(policy.view("http://other").state()).isEqualTo("closed");
+        now[0] += 60_001;
+        assertThat(policy.view("http://qwen").state()).isEqualTo("half_open");
+        assertThat(policy.open("http://qwen")).isFalse();
+        policy.close("http://qwen");
+        assertThat(policy.view("http://qwen").state()).isEqualTo("closed");
+    }
+
     @Test void latencyObjectiveUsesMeasuredChannelLatency() {
         var policy = new RoutePolicy();
         var catalog = new ModelCatalog(Map.of(

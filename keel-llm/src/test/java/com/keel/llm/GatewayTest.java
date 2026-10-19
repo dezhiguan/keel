@@ -655,6 +655,30 @@ class GatewayTest {
         }
     }
 
+    @Test void trippedAddedChannelIsSkippedWhileTheBuiltinChannelStillServes() throws Exception {
+        var seen = new ArrayList<String>();
+        var server = server((model, exchange) -> {
+            seen.add(model);
+            write(exchange, 200, usage(model, 1, 1));
+        });
+        try {
+            var gateway = new Gateway(catalog(server), new BudgetCounter(), new Upstream(), new KeyDirectory(),
+                    new SpendLog(null), null, new Admission(null), new ProbeMarks(null), new RoutePolicy(),
+                    new AlertRules(null), new RequestDefaults(""), new ChannelBoard(null));
+            var prod = gateway.create("careermate-prod", List.of("qwen-plus", "deepseek-v3"), List.of("deepseek-v3"),
+                    new BigDecimal("30"), true);
+            var dev = gateway.create("careermate-dev", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false);
+            var added = gateway.addChannel("百炼B", "qwen-plus", "prod", 1200);
+            assertThat(gateway.switchProd(added.id()).moved()).isEqualTo(1);
+            assertThat(gateway.simulateChannel(added.id()).breaker()).isEqualTo("open");
+            gateway.complete("Bearer " + prod.key(), "/v1/chat/completions", "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2));
+            gateway.complete("Bearer " + dev.key(), "/v1/chat/completions", "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2));
+            assertThat(seen).containsExactly("deepseek-v3", "qwen-plus");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static HttpServer echoServer() {
         return server((model, exchange) -> write(exchange, 200, usage(model, 1, 1)));
     }

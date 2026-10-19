@@ -1,18 +1,23 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import Pager from '@/components/Pager.vue'
 import {
+  addModelChannel,
   exportModelBills,
   getModelGateway,
   previewRoute,
   probeModel,
+  probeModelChannel,
   publishRoutePolicy,
   rollbackRoutePolicy,
   rotateModelKey,
+  simulateChannelFailures,
+  switchProdChannel,
   updateModelBudget,
   type ModelGateway,
 } from '@/api/models'
+import { breakerLabel } from './channelBreaker'
 import { billClock, billStatusLabel, limitLabel, objectiveLabel } from './modelBill'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
@@ -23,6 +28,19 @@ type PageSize = 10 | 20 | 50 | 100
 type GatewayKey = NonNullable<ModelGateway['keys']>[number]
 type GatewayModel = NonNullable<ModelGateway['models']>[number]
 type Objective = 'balanced' | 'cost' | 'latency'
+type LiveChannel = {
+  id: string
+  name?: string
+  model?: string
+  env?: string
+  host?: string
+  rpm?: number | null
+  builtin?: boolean
+  prod?: boolean
+  breaker?: string
+  openUntil?: number
+  bound?: number
+}
 
 const OBJECTIVES: { id: Objective; label: string }[] = [
   { id: 'balanced', label: '均衡' },
@@ -51,6 +69,16 @@ const previewAlias = ref('')
 const previewModel = ref('')
 const previewText = ref('选择 Key 和模型后试算，结果来自薄网关。')
 const previewTone = ref<'info' | 'warn'>('info')
+const nowMs = ref(Date.now())
+const channelBusy = ref(false)
+const addOpen = ref(false)
+const switchOpen = ref(false)
+const addName = ref('百炼·主账号B·生产空间')
+const addModel = ref('')
+const addEnv = ref<'prod' | 'dev' | 'test' | 'staging'>('prod')
+const addRpm = ref(1200)
+const switchTo = ref('')
+let clock = 0
 
 const models = computed(() => data.value?.models ?? [])
 const keys = computed(() => data.value?.keys ?? [])
@@ -59,6 +87,7 @@ const failedBills = computed(() => bills.value.filter((bill) => bill.status === 
 const admin = computed(() => userStore.user?.platformRole === 'ADMIN')
 const objective = computed(() => data.value?.routePolicy?.objective)
 const policyVersion = computed(() => data.value?.routePolicy?.version)
+const quotaOpen = ref(false)
 const selectedKey = computed(() => keys.value.find((key) => key.alias === selectedAlias.value) ?? null)
 const previewChoices = computed(() => keys.value.find((key) => key.alias === previewAlias.value)?.models ?? [])
 const keyRows = computed(() => keys.value.slice((keyPage.value - 1) * keySize.value, keyPage.value * keySize.value))
@@ -104,6 +133,19 @@ const channels = computed(() => models.value.map((model) => {
   }
 }))
 const channelRows = computed(() => channels.value.slice((modelPage.value - 1) * modelSize.value, modelPage.value * modelSize.value))
+const liveChannels = computed(() => ((data.value as { channels?: LiveChannel[] } | null)?.channels ?? []))
+const usingLive = computed(() => liveChannels.value.length > 0)
+const visibleLive = computed(() => {
+  const env = envStore.env
+  if (!env || env === 'all') return liveChannels.value
+  return liveChannels.value.filter((channel) => (channel.env || '').split('、').includes(env))
+})
+const livePage = computed(() => visibleLive.value.slice((modelPage.value - 1) * modelSize.value, modelPage.value * modelSize.value))
+const prodQwen = computed(() => liveChannels.value.filter((channel) => channel.prod && (channel.model || '').toLowerCase().includes('qwen')))
+const switchHint = computed(() => (prodQwen.value.length < 2
+  ? '只有一个 prod 千问渠道。先「新增渠道」加一个。密钥沿用该模型在 Secret keel-llm-vendors 里的厂商密钥，页面不提交密钥。'
+  : '把允许该千问模型的 prod Key 改走目标渠道。网关热生效，不重新部署。'))
+const modelChoices = computed(() => models.value.map((model) => model.model).filter((name): name is string => !!name))
 
 const sameEnvModels = computed(() => {
   const env = selectedKey.value?.env
@@ -120,13 +162,14 @@ function channelHost(provider?: string | null) {
   return '—'
 }
 
-function usageText(model: GatewayModel) {
-  if (model.errorRate == null || Number.isNaN(model.errorRate)) return model.calls == null ? '—' : `${fmtN(model.calls)} 次`
+function usageText(model?: GatewayModel) {
+  if (!model || model.errorRate == null || Number.isNaN(model.errorRate)) return !model || model.calls == null ? '—' : `${fmtN(model.calls)} 次`
   const pct = model.errorRate * 100
   return pct === 0 ? '0%' : `${pct.toFixed(1)}%`
 }
 
-function healthView(model: GatewayModel) {
+function healthView(model?: GatewayModel) {
+  if (!model) return { tone: 'p-mute', label: '—' }
   if (model.priceConfigured === false) return { tone: 'p-bad', label: '未配单价' }
   if (model.drift) return { tone: 'p-bad', label: '配置漂移' }
   if (model.status === 'bad') return { tone: 'p-bad', label: '异常' }
@@ -149,14 +192,25 @@ function selectKey(key: GatewayKey) {
   nextBudget.value = Math.min(200, Math.max(10, stepped || 10))
 }
 
+function openQuota(key: GatewayKey) {
+  selectKey(key)
+  quotaOpen.value = true
+}
+
+function closeQuota() {
+  if (saving.value) return
+  quotaOpen.value = false
+}
+
 async function load() {
   loading.value = true
   try {
     data.value = await getModelGateway({ env: envStore.env, range: '24h' })
-    clamp(modelPage, modelSize.value, channels.value.length)
+    clamp(modelPage, modelSize.value, usingLive.value ? visibleLive.value.length : channels.value.length)
     clamp(keyPage, keySize.value, keys.value.length)
-    const current = keys.value.find((key) => key.alias === selectedAlias.value) ?? keys.value[0]
+    const current = keys.value.find((key) => key.alias === selectedAlias.value)
     if (current) selectKey(current)
+    else quotaOpen.value = false
     if (!previewAlias.value && keys.value[0]?.alias) {
       previewAlias.value = keys.value[0].alias
       previewModel.value = keys.value[0].models?.[0] ?? ''
@@ -304,6 +358,114 @@ watch(previewAlias, (alias) => {
   if (!modelsForKey.includes(previewModel.value)) previewModel.value = modelsForKey[0] ?? ''
 })
 
+
+function modelOf(name?: string) {
+  return models.value.find((model) => model.model === name)
+}
+
+function liveRpm(channel: LiveChannel) {
+  if (channel.rpm != null) return String(channel.rpm)
+  const caps = keys.value.filter((key) => key.models?.includes(channel.model || '')).map((key) => key.rpm).filter((rpm): rpm is number => rpm != null)
+  return caps.length ? String(Math.max(...caps)) : '不限制'
+}
+
+function liveAlloc(channel: LiveChannel) {
+  const peers = keys.value.filter((key) => key.models?.includes(channel.model || '')).length
+  const used = channel.bound ?? 0
+  const total = channel.rpm ?? Math.max(peers, used, 1)
+  const percent = Math.min(100, Math.round((used / total) * 100))
+  return {
+    percent,
+    color: percent > 85 ? 'var(--warn)' : 'var(--soft)',
+    text: channel.rpm != null ? `${used} / ${channel.rpm} · ${percent}%` : `${used} 把 Key`,
+  }
+}
+
+function openAdd() {
+  addName.value = '百炼·主账号B·生产空间'
+  addModel.value = modelChoices.value.find((name) => name.includes('qwen')) || modelChoices.value[0] || ''
+  addEnv.value = 'prod'
+  addRpm.value = 1200
+  addOpen.value = true
+}
+
+function openSwitch() {
+  switchTo.value = prodQwen.value[0]?.id || ''
+  switchOpen.value = true
+}
+
+function closeChannelDialogs() {
+  if (channelBusy.value) return
+  addOpen.value = false
+  switchOpen.value = false
+}
+
+async function trip(channel: LiveChannel) {
+  if (!channel.id || channelBusy.value) return
+  channelBusy.value = true
+  try {
+    await simulateChannelFailures(channel.id)
+    ElMessage.warning(`「${channel.name}」连续 2 次 5xx，熔断 60 秒。同地址的其他渠道不受影响`)
+    await load()
+  } catch (error) {
+    ElMessage.error(toKeelError(error).message)
+  } finally {
+    channelBusy.value = false
+  }
+}
+
+async function releaseProbe(channel: LiveChannel) {
+  if (!channel.id || channelBusy.value) return
+  channelBusy.value = true
+  try {
+    await probeModelChannel(channel.id)
+    ElMessage.success(`「${channel.name}」探测成功，恢复正常`)
+    await load()
+  } catch (error) {
+    ElMessage.error(toKeelError(error).message)
+  } finally {
+    channelBusy.value = false
+  }
+}
+
+async function confirmAdd() {
+  if (!addName.value.trim() || !addModel.value || addRpm.value < 1) {
+    ElMessage.warning('填写渠道名称、模型和大于 0 的 RPM')
+    return
+  }
+  channelBusy.value = true
+  try {
+    await addModelChannel({ name: addName.value.trim(), model: addModel.value, env: addEnv.value, rpm: addRpm.value })
+    addOpen.value = false
+    ElMessage.success('渠道已新增。prod Key 要切换过来才会用到')
+    await load()
+  } catch (error) {
+    ElMessage.error(toKeelError(error).message)
+  } finally {
+    channelBusy.value = false
+  }
+}
+
+async function confirmSwitch() {
+  if (prodQwen.value.length < 2 || !switchTo.value) return
+  channelBusy.value = true
+  try {
+    const moved = await switchProdChannel(switchTo.value)
+    switchOpen.value = false
+    ElMessage.success(moved.moved ? `已把 ${moved.moved} 把 prod Key 切到「${moved.name}」` : '没有需要切换的 Key')
+    await load()
+  } catch (error) {
+    ElMessage.error(toKeelError(error).message)
+  } finally {
+    channelBusy.value = false
+  }
+}
+
+onMounted(() => {
+  clock = window.setInterval(() => { nowMs.value = Date.now() }, 1000)
+})
+onUnmounted(() => window.clearInterval(clock))
+
 watch(() => envStore.env, load, { immediate: true })
 </script>
 
@@ -323,6 +485,8 @@ watch(() => envStore.env, load, { immediate: true })
         <h3>
           渠道
           <span class="sp" />
+          <button v-if="admin" v-write class="btn sm" type="button" @click="openSwitch">切换 prod 渠道</button>
+          <button v-if="admin" v-write class="btn pri sm" type="button" @click="openAdd">+ 新增渠道</button>
           <button class="btn sm" type="button" @click="exportBills">导出账单</button>
         </h3>
         <table class="t">
@@ -340,33 +504,58 @@ watch(() => envStore.env, load, { immediate: true })
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in channelRows" :key="row.model.model">
-              <td class="nm"><b>{{ row.model.provider || '—' }}</b><small>{{ row.host }}</small></td>
-              <td>{{ row.model.model }}</td>
-              <td>{{ row.envs }}</td>
-              <td class="mono">{{ row.rpmLabel }}</td>
-              <td>
-                <div class="bar"><i :style="{ width: `${row.percent}%`, background: row.color }" /></div>
-                <span class="mono alloc">{{ row.used }} / {{ row.total }} · {{ row.percent }}%</span>
-              </td>
-              <td class="mono">{{ row.usage }}</td>
-              <td><span class="pill" :class="row.health.tone">{{ row.health.label }}</span></td>
-              <td><span class="pill p-mute">未接入</span></td>
-              <td>
-                <button v-if="row.model.health !== 'LIVE'" v-write class="btn sm" type="button" @click="probe(row.model.model)">探测</button>
-              </td>
-            </tr>
-            <tr v-if="!channelRows.length"><td colspan="9" class="empty">这个环境还没有模型</td></tr>
+            <template v-if="usingLive">
+              <tr v-for="row in livePage" :key="row.id">
+                <td class="nm"><b>{{ row.name || '—' }}</b><small>{{ row.host || '—' }}</small></td>
+                <td>{{ row.model }}</td>
+                <td>{{ row.env || '—' }}</td>
+                <td class="mono">{{ liveRpm(row) }}</td>
+                <td>
+                  <div class="bar"><i :style="{ width: `${liveAlloc(row).percent}%`, background: liveAlloc(row).color }" /></div>
+                  <span class="mono alloc">{{ liveAlloc(row).text }}</span>
+                </td>
+                <td class="mono">{{ usageText(modelOf(row.model)) }}</td>
+                <td><span class="pill" :class="healthView(modelOf(row.model)).tone">{{ healthView(modelOf(row.model)).label }}</span></td>
+                <td>
+                  <span class="pill" :class="breakerLabel(row.breaker, row.openUntil, nowMs).tone">{{ breakerLabel(row.breaker, row.openUntil, nowMs).label }}</span>
+                  <span v-if="breakerLabel(row.breaker, row.openUntil, nowMs).remain" class="mono mut">{{ breakerLabel(row.breaker, row.openUntil, nowMs).remain }}s</span>
+                </td>
+                <td>
+                  <button v-if="admin && breakerLabel(row.breaker, row.openUntil, nowMs).action === 'trip'" v-write class="btn sm" type="button" :disabled="channelBusy" @click="trip(row)">模拟 2 次 5xx</button>
+                  <button v-else-if="admin && breakerLabel(row.breaker, row.openUntil, nowMs).action === 'probe'" v-write class="btn sm" type="button" :disabled="channelBusy" @click="releaseProbe(row)">放行探测</button>
+                </td>
+              </tr>
+              <tr v-if="!livePage.length"><td colspan="9" class="empty">这个环境还没有渠道</td></tr>
+            </template>
+            <template v-else>
+              <tr v-for="row in channelRows" :key="row.model.model">
+                <td class="nm"><b>{{ row.model.provider || '—' }}</b><small>{{ row.host }}</small></td>
+                <td>{{ row.model.model }}</td>
+                <td>{{ row.envs }}</td>
+                <td class="mono">{{ row.rpmLabel }}</td>
+                <td>
+                  <div class="bar"><i :style="{ width: `${row.percent}%`, background: row.color }" /></div>
+                  <span class="mono alloc">{{ row.used }} / {{ row.total }} · {{ row.percent }}%</span>
+                </td>
+                <td class="mono">{{ row.usage }}</td>
+                <td><span class="pill" :class="row.health.tone">{{ row.health.label }}</span></td>
+                <td><span class="pill p-mute">未接入</span></td>
+                <td>
+                  <button v-if="row.model.health !== 'LIVE'" v-write class="btn sm" type="button" @click="probe(row.model.model)">探测</button>
+                </td>
+              </tr>
+              <tr v-if="!channelRows.length"><td colspan="9" class="empty">这个环境还没有模型</td></tr>
+            </template>
           </tbody>
         </table>
-        <Pager v-model:page="modelPage" v-model:size="modelSize" :total="channels.length" />
+        <div class="mut note">点「模拟 2 次 5xx」只熔断该渠道 60 秒，之后半开放行一次探测。同地址的其他渠道不受影响。</div>
+        <Pager v-model:page="modelPage" v-model:size="modelSize" :total="usingLive ? visibleLive.length : channels.length" />
       </div>
     </div>
 
     <div v-show="tab === 'key'">
-      <div class="row2">
-        <div class="card">
-          <h3>Key 份额 <small>点一行查看这把 Key 在网关上的配额</small></h3>
+      <div class="card">
+        <h3>Key 份额 <small>点「配额」查看这把 Key 在网关上的配额</small></h3>
           <div class="mut legend">RPM = 每分钟请求数 · TPM = 每分钟 Token 数（输入 + 输出）· 并发 = 同时进行中的请求数</div>
           <table class="t">
             <thead>
@@ -376,16 +565,11 @@ watch(() => envStore.env, load, { immediate: true })
                 <th>路由覆盖</th>
                 <th title="TPM：每分钟 Token 数">TPM（每分钟 Token 数）</th>
                 <th title="同时进行中的请求数">并发</th>
+                <th />
               </tr>
             </thead>
             <tbody>
-              <tr
-                v-for="key in keyRows"
-                :key="key.alias"
-                class="click"
-                :class="{ sel: key.alias === selectedAlias }"
-                @click="selectKey(key)"
-              >
+              <tr v-for="key in keyRows" :key="key.alias">
                 <td class="mono">{{ key.alias }}</td>
                 <td>
                   <span v-for="name in key.models ?? []" :key="name" class="pill nd p-mute share">{{ name }} · {{ limitLabel(key.rpm) }}</span>
@@ -397,52 +581,14 @@ watch(() => envStore.env, load, { immediate: true })
                 </td>
                 <td class="mono">{{ key.tpm == null ? '不限制' : key.tpm.toLocaleString('zh-CN') }}</td>
                 <td class="mono">{{ limitLabel(key.concurrency) }}</td>
+                <td>
+                  <button class="btn sm" type="button" @click="openQuota(key)">配额</button>
+                </td>
               </tr>
-              <tr v-if="!keyRows.length"><td colspan="5" class="empty">这个环境还没有虚拟 Key</td></tr>
+              <tr v-if="!keyRows.length"><td colspan="6" class="empty">这个环境还没有虚拟 Key</td></tr>
             </tbody>
           </table>
           <Pager v-model:page="keyPage" v-model:size="keySize" :total="keys.length" />
-        </div>
-        <div class="card">
-          <h3>分配份额 · <span class="mono">{{ selectedKey?.alias || '—' }}</span></h3>
-          <template v-if="selectedKey">
-            <div class="field">
-              <label>允许的渠道（只列同环境）</label>
-              <div v-for="model in sameEnvModels" :key="model.model" class="ch-row">
-                <label>
-                  <input type="checkbox" disabled :checked="selectedKey.models?.includes(model.model || '')">
-                  {{ model.provider || '渠道' }}
-                  <span class="mut">{{ model.model }}</span>
-                </label>
-                <input class="inp rpm" type="text" disabled :value="limitLabel(selectedKey.rpm)" title="RPM：每分钟请求数">
-              </div>
-            </div>
-            <div class="share-grid">
-              <div class="field">
-                <label>TPM（每分钟 Token 数，输入 + 输出）</label>
-                <input class="inp" type="text" disabled :value="selectedKey.tpm == null ? '不限制' : selectedKey.tpm.toLocaleString('zh-CN')">
-              </div>
-              <div class="field">
-                <label>并发</label>
-                <input class="inp" type="text" disabled :value="limitLabel(selectedKey.concurrency)">
-              </div>
-            </div>
-            <div class="field">
-              <label>日预算：<b class="budget-now">¥{{ nextBudget }}</b> <span class="mut">当前 ¥{{ selectedKey.dailyBudgetCny }}</span></label>
-              <input v-model.number="nextBudget" class="budget-range" type="range" min="10" max="200" step="5" :disabled="selectedKey.status === 'BLOCKED'">
-            </div>
-            <div v-if="selectedKey.models?.length" class="pbanner ok">
-              已允许的模型：{{ selectedKey.models.join('、') }}。
-              <div class="mut">今日 {{ yuan(selectedKey.spentCny) }} + {{ yuan(selectedKey.reservedCny) }} / ¥{{ selectedKey.dailyBudgetCny }}</div>
-            </div>
-            <div v-else class="pbanner bad">这把 Key 没有允许的模型，请求发不出去。</div>
-            <div class="ops">
-              <button v-if="selectedKey.status !== 'BLOCKED'" v-write class="btn pri" type="button" :disabled="saving" @click="saveBudget">保存</button>
-              <button v-if="admin && selectedKey.status !== 'BLOCKED'" v-write class="btn" type="button" @click="openRotation(selectedKey)">轮换</button>
-            </div>
-          </template>
-          <p v-else class="empty">还没有可选的 Key</p>
-        </div>
       </div>
       <div class="card">
         <h3>
@@ -513,7 +659,7 @@ watch(() => envStore.env, load, { immediate: true })
             @click="askObjective(item.id)"
           >{{ item.label }}</button>
         </div>
-        <div class="pbanner ok">请求里写了模型就先用它。超时或 5xx 只切换一次；401、403 和预算不足不降级。熔断状态没有列表，渠道页显示未接入。</div>
+        <div class="pbanner ok">请求里写了模型就先用它。超时或 5xx 只切换一次；401、403 和预算不足不降级。渠道连续 2 次 5xx 后熔断 60 秒。</div>
       </div>
       <div class="card">
         <h3>
@@ -541,8 +687,49 @@ watch(() => envStore.env, load, { immediate: true })
     </div>
 
     <Teleport to="body">
-      <div v-if="rotating" class="mask on" @click="closeRotation" />
-      <div v-if="rotating" class="modal on" role="dialog" aria-label="轮换虚拟 Key">
+      <div v-if="quotaOpen && selectedKey" class="mask on" @click="closeQuota" />
+      <div v-if="quotaOpen && selectedKey" class="modal quota on" role="dialog" aria-label="分配份额">
+        <div class="mh">分配份额 · <span class="mono">{{ selectedKey.alias }}</span></div>
+        <div class="mb">
+          <div class="field">
+            <label>允许的渠道（只列同环境）</label>
+            <div v-for="model in sameEnvModels" :key="model.model" class="ch-row">
+              <label>
+                <input type="checkbox" disabled :checked="selectedKey.models?.includes(model.model || '')">
+                {{ model.provider || '渠道' }}
+                <span class="mut">{{ model.model }}</span>
+              </label>
+              <input class="inp rpm" type="text" disabled :value="limitLabel(selectedKey.rpm)" title="RPM：每分钟请求数">
+            </div>
+          </div>
+          <div class="share-grid">
+            <div class="field">
+              <label>TPM（每分钟 Token 数，输入 + 输出）</label>
+              <input class="inp" type="text" disabled :value="selectedKey.tpm == null ? '不限制' : selectedKey.tpm.toLocaleString('zh-CN')">
+            </div>
+            <div class="field">
+              <label>并发</label>
+              <input class="inp" type="text" disabled :value="limitLabel(selectedKey.concurrency)">
+            </div>
+          </div>
+          <div class="field">
+            <label>日预算：<b class="budget-now">¥{{ nextBudget }}</b> <span class="mut">当前 ¥{{ selectedKey.dailyBudgetCny }}</span></label>
+            <input v-model.number="nextBudget" class="budget-range" type="range" min="10" max="200" step="5" :disabled="selectedKey.status === 'BLOCKED'">
+          </div>
+          <div v-if="selectedKey.models?.length" class="pbanner ok">
+            已允许的模型：{{ selectedKey.models.join('、') }}。
+            <div class="mut">今日 {{ yuan(selectedKey.spentCny) }} + {{ yuan(selectedKey.reservedCny) }} / ¥{{ selectedKey.dailyBudgetCny }}</div>
+          </div>
+          <div v-else class="pbanner bad">这把 Key 没有允许的模型，请求发不出去。</div>
+        </div>
+        <div class="mf">
+          <button class="btn" type="button" :disabled="saving" @click="closeQuota">关闭</button>
+          <button v-if="admin && selectedKey.status !== 'BLOCKED'" v-write class="btn" type="button" @click="openRotation(selectedKey)">轮换</button>
+          <button v-if="selectedKey.status !== 'BLOCKED'" v-write class="btn pri" type="button" :disabled="saving" @click="saveBudget">保存</button>
+        </div>
+      </div>
+      <div v-if="rotating" class="mask on over" @click="closeRotation" />
+      <div v-if="rotating" class="modal on over" role="dialog" aria-label="轮换虚拟 Key">
         <div class="mh">轮换 Key · {{ rotating.alias }}</div>
         <div class="mb">
           <template v-if="rotated">
@@ -559,14 +746,69 @@ watch(() => envStore.env, load, { immediate: true })
           <button v-if="!rotated" v-write class="btn pri" type="button" :disabled="rotationBusy" @click="confirmRotation">确认轮换</button>
         </div>
       </div>
+
+      <div v-if="addOpen" class="mask on" @click="closeChannelDialogs" />
+      <div v-if="addOpen" class="modal on" role="dialog" aria-label="新增渠道">
+        <div class="mh">新增渠道</div>
+        <div class="mb">
+          <div class="field">
+            <label>名称</label>
+            <input v-model="addName" class="inp" maxlength="40">
+          </div>
+          <div class="share-grid">
+            <div class="field">
+              <label>模型</label>
+              <select v-model="addModel" class="inp">
+                <option v-for="name in modelChoices" :key="name" :value="name">{{ name }}</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>绑定环境</label>
+              <select v-model="addEnv" class="inp">
+                <option value="prod">prod</option>
+                <option value="staging">staging</option>
+                <option value="test">test</option>
+                <option value="dev">dev</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label>厂商上限 RPM（每分钟请求数）</label>
+            <input v-model.number="addRpm" class="inp" type="number" min="1">
+          </div>
+          <div class="mut">密钥沿用该模型在 Secret keel-llm-vendors 里的厂商密钥，页面不提交密钥。新渠道单独熔断。</div>
+        </div>
+        <div class="mf">
+          <button class="btn" type="button" :disabled="channelBusy" @click="closeChannelDialogs">取消</button>
+          <button v-write class="btn pri" type="button" :disabled="channelBusy" @click="confirmAdd">新增</button>
+        </div>
+      </div>
+      <div v-if="switchOpen" class="mask on" @click="closeChannelDialogs" />
+      <div v-if="switchOpen" class="modal on" role="dialog" aria-label="切换 prod 渠道">
+        <div class="mh">切换 prod 渠道</div>
+        <div class="mb">
+          <div class="field">
+            <label>prod Key 改走</label>
+            <select v-model="switchTo" class="inp" :disabled="prodQwen.length < 2">
+              <option v-for="channel in prodQwen" :key="channel.id" :value="channel.id">{{ channel.name }}（{{ channel.model }}，已绑定 {{ channel.bound ?? 0 }}）</option>
+            </select>
+          </div>
+          <div class="mut">{{ switchHint }}</div>
+        </div>
+        <div class="mf">
+          <button class="btn" type="button" :disabled="channelBusy" @click="closeChannelDialogs">取消</button>
+          <button v-write class="btn pri" type="button" :disabled="channelBusy || prodQwen.length < 2" @click="confirmSwitch">切换</button>
+        </div>
+      </div>
     </Teleport>
   </div>
 </template>
 
 <style scoped>
-.row2 { grid-template-columns: 1.25fr 1fr; }
 .pbanner { display: block; margin: 10px 0; }
-.t tr.sel { background: #131d2e; }
+.modal.quota { width: min(480px, 94vw); }
+.mask.over { z-index: 70; }
+.modal.over { z-index: 80; }
 .bar { min-width: 90px; }
 th small { font-weight: 400; }
 .legend { font-size: 11.5px; margin: -6px 0 8px; }
@@ -577,6 +819,8 @@ th small { font-weight: 400; }
 .ch-row .mut { font-size: 11.5px; }
 .ch-row .rpm { width: 90px; flex: none; }
 .share-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.note { font-size: 11.5px; margin-top: 8px; }
+h3 .btn { margin-left: 8px; }
 .budget-range { accent-color: var(--acc); width: 100%; }
 .budget-now { color: var(--white); }
 .ops { display: flex; gap: 8px; margin-top: 8px; }

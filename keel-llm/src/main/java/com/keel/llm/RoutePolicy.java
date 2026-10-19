@@ -19,6 +19,7 @@ public final class RoutePolicy {
     private final Map<String, Breaker> channels = new HashMap<>();
     private final Map<String, Long> latency = new HashMap<>();
     private final RedisCommands<String, String> redis;
+    private final java.util.function.LongSupplier clock;
     private static final String POLICY = "keel-llm:route-policy:v1";
 
     public RoutePolicy() {
@@ -26,8 +27,13 @@ public final class RoutePolicy {
     }
 
     public RoutePolicy(String redisUri) {
+        this(redisUri, System::currentTimeMillis);
+    }
+
+    RoutePolicy(String redisUri, java.util.function.LongSupplier clock) {
         redis = redisUri == null || redisUri.isBlank() ? null : RedisClient.create(redisUri).connect().sync();
         versions.add(new Version(1, "balanced"));
+        this.clock = clock == null ? System::currentTimeMillis : clock;
     }
 
     public Version current() {
@@ -68,8 +74,11 @@ public final class RoutePolicy {
     }
 
     public List<String> plan(Gateway.VirtualKey key, String requested, boolean embedding, ModelCatalog catalog) {
-        String upstream = catalog.require(requested).upstream();
-        boolean unavailable = open(upstream);
+        return plan(key, requested, embedding, catalog, catalog.require(requested).upstream());
+    }
+
+    public List<String> plan(Gateway.VirtualKey key, String requested, boolean embedding, ModelCatalog catalog, String requestedBreaker) {
+        boolean unavailable = open(requestedBreaker);
         if (embedding || !key.allowFallback() || key.fallback().isEmpty()) {
             return unavailable ? List.of() : List.of(requested);
         }
@@ -103,11 +112,11 @@ public final class RoutePolicy {
         if (redis != null) {
             redis.eval("local untilAt=tonumber(redis.call('HGET',KEYS[1],'openUntil') or '0') if ARGV[2]=='0' then redis.call('DEL',KEYS[1]) redis.call('DEL',KEYS[2]) return 0 end local failures=tonumber(redis.call('HGET',KEYS[1],'failures') or '0')+1 if failures>=2 or (untilAt>0 and untilAt<=tonumber(ARGV[1])) then redis.call('HSET',KEYS[1],'failures',0,'openUntil',tonumber(ARGV[1])+60000) else redis.call('HSET',KEYS[1],'failures',failures) end redis.call('EXPIRE',KEYS[1],86400) redis.call('DEL',KEYS[2]) return 1",
                     ScriptOutputType.INTEGER, new String[]{breakerKey(upstream), probeKey(upstream)},
-                    Long.toString(System.currentTimeMillis()), failed ? "1" : "0");
+                    Long.toString(now()), failed ? "1" : "0");
             return;
         }
         var breaker = channels.computeIfAbsent(upstream, ignored -> new Breaker());
-        long now = System.currentTimeMillis();
+        long now = now();
         if (breaker.openUntil > now) {
             return;
         }
@@ -124,18 +133,50 @@ public final class RoutePolicy {
     }
 
     public boolean open(String upstream) {
+        long until = openUntil(upstream);
         if (redis != null) {
-            long until = number(redis.hget(breakerKey(upstream), "openUntil"));
-            return until > System.currentTimeMillis() || (until > 0 && redis.exists(probeKey(upstream)) > 0);
+            return until > now() || (until > 0 && redis.exists(probeKey(upstream)) > 0);
+        }
+        return until > now();
+    }
+
+    public BreakerView view(String upstream) {
+        long until = openUntil(upstream);
+        if (until > now()) {
+            return new BreakerView("open", until);
+        }
+        if (until > 0) {
+            return new BreakerView("half_open", until);
+        }
+        return new BreakerView("closed", 0);
+    }
+
+    public BreakerView trip(String upstream) {
+        observe(upstream, true);
+        observe(upstream, true);
+        return view(upstream);
+    }
+
+    public void close(String upstream) {
+        observe(upstream, false);
+    }
+
+    private long openUntil(String upstream) {
+        if (redis != null) {
+            return number(redis.hget(breakerKey(upstream), "openUntil"));
         }
         var breaker = channels.get(upstream);
-        return breaker != null && breaker.openUntil > System.currentTimeMillis();
+        return breaker == null ? 0 : breaker.openUntil;
+    }
+
+    private long now() {
+        return clock.getAsLong();
     }
 
     private boolean claimProbe(String upstream) {
         if (redis == null) return true;
-        long until = number(redis.hget(breakerKey(upstream), "openUntil"));
-        if (until == 0 || until > System.currentTimeMillis()) return true;
+        long until = openUntil(upstream);
+        if (until == 0 || until > now()) return true;
         return "OK".equals(redis.set(probeKey(upstream), "1", SetArgs.Builder.nx().px(300_000)));
     }
 
@@ -181,6 +222,8 @@ public final class RoutePolicy {
     }
 
     public record Version(int version, String objective) {}
+
+    public record BreakerView(String state, long openUntil) {}
 
     private static final class Breaker {
         private int failures;

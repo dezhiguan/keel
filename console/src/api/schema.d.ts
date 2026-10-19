@@ -269,6 +269,135 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agents/{name}/guardrails": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        /**
+         * 智能体护栏页
+         * @description 模式读最近一次登记的 agent.yaml spec.guardrails。命中数和链路来自近 7 天 Langfuse 的 GUARDRAIL 观测，只取一页。
+         *     网关基线层还没有配置接口，gatewayAvailable 为 false。
+         */
+        get: operations["getAgentGuardrails"];
+        /**
+         * 把护栏模式写进已登记的 manifest
+         * @description 只改注册中心里的 spec.guardrails。正在跑的实例要等下次部署才读到。
+         */
+        put: operations["saveAgentGuardrails"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{name}/guard/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        /**
+         * 按已登记的模式做一次规则检测
+         * @description 不转发到智能体，不进 agent loop，不调工具，不写记忆和审计。预览身份可以调用。
+         *     用户输入看 inputInjection，工具返回和知识库片段看 indirectInjection。
+         */
+        get: operations["checkAgentGuard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{name}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        /** 当前登录人在该智能体下的调试会话 */
+        get: operations["listDebugSessions"];
+        put?: never;
+        /** 新建一条空的调试会话 */
+        post: operations["createDebugSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{name}/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 删除自己的调试会话 */
+        delete: operations["deleteDebugSession"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{name}/sessions/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** 调试会话里的消息，每页 10 条 */
+        get: operations["listDebugMessages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{name}/chat/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 把智能体 SSE 转到调试页，结束后写入会话 */
+        post: operations["streamAgentChat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agents/{name}/releases": {
         parameters: {
             query?: never;
@@ -1344,6 +1473,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/insight/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 新增模型渠道
+         * @description 渠道复用该模型已配置的厂商密钥，接口不接收密钥。熔断按渠道单独计算。只允许平台管理员。
+         */
+        post: operations["addModelChannel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insight/channels/switch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 切换 prod 千问渠道
+         * @description 把允许该模型的 prod Key 改绑到目标渠道。只有一个 prod 千问渠道时没有可切换的 Key。只允许平台管理员。
+         */
+        post: operations["switchProdChannel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insight/channels/simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 模拟渠道连续两次 5xx
+         * @description 不请求厂商。该渠道熔断 60 秒，同地址的其他渠道不受影响。只允许平台管理员。
+         */
+        post: operations["simulateChannelFailures"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insight/channels/probe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 半开后放行一次探测
+         * @description 探测成功则关闭该渠道熔断。只允许平台管理员。
+         */
+        post: operations["probeModelChannel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/keys/{alias}/rotate": {
         parameters: {
             query?: never;
@@ -1957,6 +2166,21 @@ export interface components {
             traceId: string;
             data?: unknown;
         };
+        DebugSession: {
+            id?: string;
+            title?: string;
+            messageCount?: number;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        DebugMessage: {
+            /** Format: int64 */
+            id?: number;
+            /** @enum {string} */
+            role?: "user" | "agent";
+            text?: string;
+            traceId?: string | null;
+        };
         ApiError: {
             /** @example TOOL_NOT_GRANTED */
             code: string;
@@ -2192,6 +2416,60 @@ export interface components {
             multiAgent?: boolean;
             /** @description spec.delegates 的个数，列表卡片用来显示「编排 N 个」 */
             delegateCount?: number;
+        };
+        AgentGuardrailModes: {
+            /** @enum {string} */
+            input?: "off" | "shadow" | "enforce";
+            /** @enum {string} */
+            indirect?: "off" | "shadow" | "enforce";
+            /** @enum {string} */
+            tainted?: "审批" | "拦截";
+            /** @enum {string} */
+            canary?: "off" | "enforce";
+            /** @enum {string} */
+            pii?: "off" | "mask";
+        };
+        AgentGuardrails: {
+            agent: string;
+            version?: string | null;
+            env?: string | null;
+            instanceId?: string | null;
+            checks: components["schemas"]["AgentGuardrailCheck"][];
+            gatewayAvailable: boolean;
+            callers: {
+                name?: string;
+                key?: string;
+                /** @enum {string} */
+                layer?: "sdk" | "unknown";
+            }[];
+            traceId?: string | null;
+            trace: {
+                text?: string;
+                /** @enum {string} */
+                tone?: "" | "warn" | "soft" | "ok";
+            }[];
+        };
+        AgentGuardrailCheck: {
+            id?: string;
+            name?: string;
+            detail?: string;
+            mode?: string;
+            options?: string[];
+            /** @description Langfuse 读失败时为空 */
+            hits?: number | null;
+        };
+        AgentGuardCheck: {
+            /** @enum {string} */
+            source?: "user" | "tool" | "kb";
+            mode?: string;
+            /** @enum {string} */
+            kind?: "clear" | "blocked" | "stripped" | "shadow" | "off";
+            /** @enum {string} */
+            tone?: "ok" | "warn" | "bad";
+            hit?: boolean;
+            instanceId?: string | null;
+            version?: string | null;
+            latencyMs?: number;
         };
         AgentDetail: components["schemas"]["AgentSummary"] & {
             manifestYaml?: string;
@@ -2902,6 +3180,28 @@ export interface components {
             /** @description 同智能体链上一条的 hash，链头为空 */
             prevHash?: string | null;
         };
+        GatewayChannel: {
+            id?: string;
+            name?: string;
+            model?: string;
+            /** @description 内置渠道是使用它的环境，用顿号连接；新增渠道是绑定时选的环境 */
+            env?: string;
+            host?: string;
+            /** @description 厂商每分钟请求上限。内置渠道为空，页面用 Key 上的限制 */
+            rpm?: number | null;
+            builtin?: boolean;
+            /** @description 能否作为 prod 千问切换的目标 */
+            prod?: boolean;
+            /** @enum {string} */
+            breaker?: "closed" | "open" | "half_open";
+            /**
+             * Format: int64
+             * @description 熔断结束的毫秒时间戳。未熔断为 0
+             */
+            openUntil?: number;
+            /** @description 当前绑到这个渠道的虚拟 Key 数 */
+            bound?: number;
+        };
         ModelGateway: {
             /** @description 当前窗口待计费调用数 */
             pendingCount?: number;
@@ -2979,6 +3279,8 @@ export interface components {
                 /** @description 最近一条已结算账单的价格版本与当前版本不同 */
                 drift?: boolean;
             }[];
+            /** @description 内置渠道和后来新增的渠道。熔断按渠道计。 */
+            channels?: components["schemas"]["GatewayChannel"][];
             keys?: {
                 /** @example offshore-wind-prod */
                 alias?: string;
@@ -3980,6 +4282,231 @@ export interface operations {
                 };
             };
             404: components["responses"]["Error"];
+        };
+    };
+    getAgentGuardrails: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["AgentGuardrails"];
+                    };
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    saveAgentGuardrails: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentGuardrailModes"];
+            };
+        };
+        responses: {
+            /** @description 保存后的护栏页 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["AgentGuardrails"];
+                    };
+                };
+            };
+            400: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    checkAgentGuard: {
+        parameters: {
+            query: {
+                source: "user" | "tool" | "kb";
+                text?: string;
+            };
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 检测结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["AgentGuardCheck"];
+                    };
+                };
+            };
+            400: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    listDebugSessions: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 按更新时间倒序，每页 10 个 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            items?: components["schemas"]["DebugSession"][];
+                            total?: number;
+                            nextCursor?: string | null;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    createDebugSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 新建的会话 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["DebugSession"];
+                    };
+                };
+            };
+        };
+    };
+    deleteDebugSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            id?: string;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    listDebugMessages: {
+        parameters: {
+            query?: {
+                before?: number;
+            };
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description before 为空时返回最新一页 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            items?: components["schemas"]["DebugMessage"][];
+                            /** Format: int64 */
+                            nextCursor?: number | null;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    streamAgentChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text: string;
+                    sessionId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 智能体的 SSE。final 之后才写入 session_message */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
         };
     };
     releaseAgent: {
@@ -5812,6 +6339,139 @@ export interface operations {
                             /** @enum {string} */
                             objective?: "balanced" | "cost" | "latency";
                             models?: string[];
+                        };
+                    };
+                };
+            };
+        };
+    };
+    addModelChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    model: string;
+                    /** @enum {string} */
+                    env: "dev" | "test" | "staging" | "prod";
+                    /** @description 厂商每分钟请求上限 */
+                    rpm: number;
+                };
+            };
+        };
+        responses: {
+            /** @description 已新增 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["GatewayChannel"];
+                    };
+                };
+            };
+        };
+    };
+    switchProdChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    id: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 已切换 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            moved?: number;
+                            name?: string;
+                            id?: string;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    simulateChannelFailures: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    id: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 已熔断 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            id?: string;
+                            /** @enum {string} */
+                            breaker?: "closed" | "open" | "half_open";
+                            /** Format: int64 */
+                            openUntil?: number;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    probeModelChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    id: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 探测结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            id?: string;
+                            /** @enum {string} */
+                            breaker?: "closed" | "open" | "half_open";
+                            /** Format: int64 */
+                            openUntil?: number;
                         };
                     };
                 };

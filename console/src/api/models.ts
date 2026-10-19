@@ -41,3 +41,19 @@ export function rollbackRoutePolicy() {
 export function previewRoute(alias: string, model: string) {
   return post<{ version: number; objective: string; models: string[] }>('/insight/route/preview', { alias, model })
 }
+
+export function addModelChannel(body: { name: string; model: string; env: string; rpm: number }) {
+  return post<{ id: string; name: string }>('/insight/channels', body)
+}
+
+export function switchProdChannel(id: string) {
+  return post<{ moved: number; name: string; id: string }>('/insight/channels/switch', { id })
+}
+
+export function simulateChannelFailures(id: string) {
+  return post<{ id: string; breaker: string; openUntil: number }>('/insight/channels/simulate', { id })
+}
+
+export function probeModelChannel(id: string) {
+  return post<{ id: string; breaker: string; openUntil: number }>('/insight/channels/probe', { id })
+}
