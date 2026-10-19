@@ -48,6 +48,7 @@ const filter = reactive<{
 })
 
 const failed = ref(false)
+let loadSeq = 0
 const rows = computed(() => {
   const items = result.value?.items ?? []
   if (!filter.jobId) return items
@@ -83,11 +84,12 @@ async function loadJobs() {
 }
 
 async function load() {
+  const seq = ++loadSeq
   loading.value = true
   failed.value = false
   try {
     const window = traceWindow(filter.range)
-    result.value = await listTraces({
+    const next = await listTraces({
       env: envStore.env,
       agent: filter.agent || undefined,
       jobId: filter.jobId || undefined,
@@ -98,11 +100,14 @@ async function load() {
       page: filter.page,
       size: filter.size,
     })
+    if (seq !== loadSeq) return
+    result.value = next
   } catch (error) {
+    if (seq !== loadSeq) return
     failed.value = true
     ElMessage.error(toKeelError(error).message || '链路暂时拉不到，请稍后再试')
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 

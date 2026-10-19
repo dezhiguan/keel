@@ -75,7 +75,7 @@ class LlmClient:
                                          http_client=http_client, default_headers=headers)
 
     async def chat(self, messages: list[dict], model: str | None = None, prompt=None,
-                   tools: list[dict] | None = None) -> str | ChatResult:
+                   tools: list[dict] | None = None, tool_choice: str | dict | None = None) -> str | ChatResult:
         chosen = model or self.default_model
         if not chosen:
             raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "No LiteLLM model alias configured")
@@ -103,6 +103,8 @@ class LlmClient:
                     options["top_p"] = config["top_p"]
                 if tools is not None:
                     options["tools"] = tools
+                if tool_choice is not None:
+                    options["tool_choice"] = tool_choice
                 if not self.standalone:
                     options["extra_body"] = {"metadata": {"caller_agent": self.agent}}
                 if self.on_token is not None:
@@ -121,6 +123,10 @@ class LlmClient:
                     await asyncio.sleep(0.2)
                     response = await self.client.chat.completions.create(
                         model=chosen, messages=messages, **options)
+            except asyncio.CancelledError:
+                span.set_attribute(attrs.STATUS, "failed")
+                span.set_attribute(attrs.OBSERVATION_OUTPUT, "调用已取消")
+                raise
             except KeelError:
                 span.set_attribute(attrs.STATUS, "failed")
                 raise

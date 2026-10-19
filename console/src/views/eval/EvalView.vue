@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AgentName from '@/components/AgentName.vue'
@@ -35,6 +35,7 @@ const gates = ref<EvalGateRow[]>([])
 const pending = ref<{ jobId: string; agent: string }[]>([])
 const gap = computed(() => holdoutGap(result.value?.scoreTotal, result.value?.holdout?.score))
 const loading = ref(false)
+const initialized = ref(false)
 const progress = ref<number | null>(null)
 const publishing = ref(false)
 const published = ref('')
@@ -108,7 +109,7 @@ async function recoverRun(seq: number, name: string) {
 }
 
 async function run() {
-  if (!agent.value || progress.value !== null) return
+  if (!initialized.value || !agent.value || progress.value !== null) return
   const seq = loadSeq
   const name = agent.value
   progress.value = 0
@@ -190,7 +191,9 @@ async function submitExpected() {
 
 onMounted(async () => {
   await loadAgents()
+  await nextTick()
   if (agent.value && loadSeq === 0) void load()
+  initialized.value = true
   await loadPending()
   await loadGates()
 })
@@ -254,7 +257,7 @@ watch(agent, () => {
       <select v-model="agent" class="inp">
         <option v-for="a in agentOptions" :key="a.name" :value="a.name">{{ a.displayName }} · {{ a.name }}</option>
       </select>
-      <button v-write class="btn pri" :disabled="!agent || progress !== null" @click="run">▶ 运行回归</button>
+      <button v-write class="btn pri" :disabled="!initialized || !agent || progress !== null" @click="run">▶ 运行回归</button>
     </div>
 
     <p v-if="progress !== null" role="status">回归正在排队或执行中，刷新页面可恢复进度。</p>

@@ -436,3 +436,42 @@ def test_gateway_429_preserves_registered_quota_reason(monkeypatch, stream, upst
     run(scenario())
     assert len(calls) == 1
     assert exported.get_finished_spans()[0].attributes["keel.llm.request_id"] == "gateway-denial-request"
+
+
+def test_cancelled_stream_marks_generation_failed_and_propagates_cancel(monkeypatch):
+    monkeypatch.setenv('KEEL_LLM_BASE_URL', 'https://gateway.test/v1')
+    monkeypatch.setenv('KEEL_LLM_KEY', 'test-virtual-key')
+    provider = TracerProvider()
+    exported = InMemorySpanExporter()
+    provider.add_span_processor(SimpleSpanProcessor(exported))
+
+    async def scenario():
+        started = asyncio.Event()
+
+        class IncompleteStream(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                yield b'data: {"id":"1","object":"chat.completion.chunk","created":1,"model":"test","choices":[{"index":0,"delta":{"content":"partial"},"finish_reason":null}]}\n\n'
+                await asyncio.Event().wait()
+
+        def handle(request):
+            return httpx.Response(200, headers={'content-type': 'text/event-stream',
+                                               'x-request-id': 'cancelled-request'}, stream=IncompleteStream())
+
+        client = LlmClient('echo', 'test', 'trace-1', provider.get_tracer('test'),
+                           on_token=lambda _: started.set(),
+                           http_client=httpx.AsyncClient(transport=httpx.MockTransport(handle)))
+        task = asyncio.create_task(client.chat([{'role': 'user', 'content': 'hello'}]))
+        try:
+            await asyncio.wait_for(started.wait(), 1)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        finally:
+            await client.aclose()
+
+    run(scenario())
+    span = exported.get_finished_spans()[0]
+    assert span.attributes['keel.status'] == 'failed'
+    assert span.attributes['langfuse.observation.output'] == '调用已取消'
+    assert span.attributes['keel.llm.request_id'] == 'cancelled-request'
+    provider.shutdown()
