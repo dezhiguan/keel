@@ -63,9 +63,16 @@ public class EvalJobs {
     }
 
     public Map<String, String> active(String agent) {
-        var rows = jdbc.query("SELECT run_id FROM eval_run WHERE agent_name=? AND state IN ('QUEUED','RUNNING') ORDER BY created_at DESC LIMIT 1",
-                (rs, n) -> Map.of("runId", rs.getString(1)), agent);
-        return rows.isEmpty() ? null : rows.getFirst();
+        return active(agent, false);
+    }
+
+    public Map<String, String> active(String agent, boolean includeFailed) {
+        var rows = jdbc.query("SELECT run_id,state FROM eval_run WHERE agent_name=?"
+                        + (includeFailed ? "" : " AND state IN ('QUEUED','RUNNING')")
+                        + " ORDER BY created_at DESC,run_id DESC LIMIT 1",
+                (rs, n) -> Map.of("runId", rs.getString(1), "state", rs.getString(2)), agent);
+        if (rows.isEmpty() || "DONE".equals(rows.getFirst().get("state"))) return null;
+        return Map.of("runId", rows.getFirst().get("runId"));
     }
 
     public Map<String,Object> run(String id) {

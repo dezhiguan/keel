@@ -98,6 +98,10 @@ public class EvalQueryService {
         return jobs.active(agent);
     }
 
+    public Map<String, String> active(String agent, boolean includeFailed) {
+        return jobs.active(agent, includeFailed);
+    }
+
     public Map<String, Object> latest(String agent) {
         var executed = jobs == null ? null : jobs.latest(agent);
         if (executed != null) return executed;

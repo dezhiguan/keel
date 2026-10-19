@@ -4830,7 +4830,10 @@ export interface operations {
     };
     getActiveEvalRun: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 同时恢复最新失败任务；最新任务已成功时不返回更早失败任务 */
+                includeFailed?: boolean;
+            };
             header?: never;
             path: {
                 agent: string;

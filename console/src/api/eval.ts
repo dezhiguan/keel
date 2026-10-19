@@ -23,7 +23,7 @@ export function getEvalRun(runId: string) {
 }
 
 export function getActiveEvalRun(agent: string) {
-  return get<{ runId?: string } | null>(`/eval/${encodeURIComponent(agent)}/runs/active`)
+  return get<{ runId?: string } | null>(`/eval/${encodeURIComponent(agent)}/runs/active`, { params: { includeFailed: true } })
 }
 
 export function publishEvaluatedAgent(agent: string, runId: string, env: 'staging' | 'prod') {

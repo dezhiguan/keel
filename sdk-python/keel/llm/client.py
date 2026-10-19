@@ -103,7 +103,7 @@ class LlmClient:
                     options["max_tokens"] = config["max_tokens"]
                 if "top_p" in config:
                     options["top_p"] = config["top_p"]
-                if tools is not None:
+                if tools:
                     options["tools"] = wire_definitions
                 if tool_choice is not None:
                     options["tool_choice"] = tool_choice

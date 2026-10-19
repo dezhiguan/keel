@@ -328,6 +328,7 @@ def test_tool_refinement_rounds_stop_with_actual_evidence(monkeypatch, tmp_path)
     assert seen == ['上海']
     assert requests[0]['tools'] == TOOLS
     assert requests[1]['tool_choice'] == 'none'
+    assert 'tools' not in requests[1]
     assert json.loads(requests[1]['messages'][-1]['content']) == {'found': '上海'}
 
 
@@ -367,7 +368,7 @@ def test_no_tool_phase_rejects_provider_hallucinated_call(monkeypatch, tmp_path)
             await ctx.aclose()
 
     assert asyncio.run(scenario()) is ErrorCode.TOOL_NOT_GRANTED
-    assert requests[0]['tools'] == TOOLS
+    assert 'tools' not in requests[0]
     assert requests[0]['tool_choice'] == 'none'
     assert seen == []
 
@@ -397,6 +398,6 @@ def test_bounded_refinement_keeps_approval_round_spent_after_resume(monkeypatch,
     resumed.resuming = True
     assert asyncio.run(invoke(resumed)).answer == '已核查授权工具结果'
     assert seen == [1]
-    assert requests[0]['tools'] == TOOLS
+    assert 'tools' not in requests[0]
     assert requests[0]['tool_choice'] == 'none'
     assert json.loads(requests[0]['messages'][-1]['content']) == {'value': 1}

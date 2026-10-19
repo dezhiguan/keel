@@ -321,7 +321,7 @@ class Context:
                     active_tools = tools if max_tool_rounds is None or step <= max_tool_rounds else []
                     allowed_names = {tool.get("function", {}).get("name") for tool in active_tools}
                     if tools and not active_tools:
-                        result = await self.llm.chat(history, tools=tools, tool_choice="none", prompt=prompt)
+                        result = await self.llm.chat(history, tools=[], tool_choice="none", prompt=prompt)
                     else:
                         result = await self.llm.chat(history, tools=active_tools, prompt=prompt)
                     if not isinstance(result, ChatResult):

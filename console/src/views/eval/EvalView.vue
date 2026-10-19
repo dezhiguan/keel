@@ -37,6 +37,8 @@ const gap = computed(() => holdoutGap(result.value?.scoreTotal, result.value?.ho
 const loading = ref(false)
 const initialized = ref(false)
 const progress = ref<number | null>(null)
+const runError = ref('')
+const recovering = ref(false)
 const publishing = ref(false)
 const published = ref('')
 const expecting = ref(false)
@@ -51,13 +53,14 @@ async function load() {
   const revision = ++resultRevision
   const name = agent.value
   published.value = ''
+  runError.value = ''
   clearInterval(timer)
   progress.value = null
   void recoverRun(seq, name)
   loading.value = true
   try {
     const next = await getLatestEval(name)
-    if (seq !== loadSeq || revision !== resultRevision) return
+    if (seq !== loadSeq || revision !== resultRevision || runError.value) return
     result.value = next
   } catch (error) {
     if (seq !== loadSeq || revision !== resultRevision) return
@@ -84,12 +87,18 @@ function pollRun(runId: string, seq: number) {
       clearInterval(timer)
       progress.value = null
       if (r.result) { ++resultRevision; result.value = r.result }
-      if (r.state === 'FAILED') ElMessage.error(`评测执行失败：${r.error || '请检查运行服务和评分器'}`)
+      if (r.state === 'FAILED') {
+        ++resultRevision
+        result.value = null
+        runError.value = `评测 ${runId} 执行失败：${r.error || '请检查运行服务和评分器'}。本次未形成有效门禁，请修复后重跑。`
+        ElMessage.error(runError.value)
+      }
       else ElMessage[r.result?.passed ? 'success' : 'warning'](`回归完成：总分 ${r.result?.scoreTotal ?? '—'}`)
     } catch (error) {
       if (seq !== loadSeq) return
       clearInterval(timer)
       progress.value = null
+      runError.value = `读取评测任务失败：${toKeelError(error).message}，请刷新恢复任务。`
       ElMessage.error(`读取评测任务失败：${toKeelError(error).message}`)
     } finally {
       busy = false
@@ -100,19 +109,26 @@ function pollRun(runId: string, seq: number) {
 }
 
 async function recoverRun(seq: number, name: string) {
+  recovering.value = true
   try {
     const active = await getActiveEvalRun(name)
     if (seq === loadSeq && active?.runId) pollRun(active.runId, seq)
   } catch (error) {
-    if (seq === loadSeq) ElMessage.error(`恢复评测进度失败：${toKeelError(error).message}`)
+    if (seq === loadSeq) {
+      runError.value = `恢复评测进度失败：${toKeelError(error).message}，请刷新重试。`
+      ElMessage.error(runError.value)
+    }
+  } finally {
+    if (seq === loadSeq) recovering.value = false
   }
 }
 
 async function run() {
-  if (!initialized.value || !agent.value || progress.value !== null) return
+  if (!initialized.value || recovering.value || !agent.value || progress.value !== null) return
   const seq = loadSeq
   const name = agent.value
   progress.value = 0
+  runError.value = ''
   try {
     const { runId } = await runEval(name)
     if (seq !== loadSeq) return
@@ -121,7 +137,8 @@ async function run() {
   } catch (error) {
     if (seq !== loadSeq) return
     progress.value = null
-    ElMessage.error(`运行回归失败：${toKeelError(error).message}`)
+    runError.value = `运行回归失败：${toKeelError(error).message}`
+    ElMessage.error(runError.value)
     await recoverRun(seq, name)
   }
 }
@@ -129,7 +146,8 @@ async function run() {
 async function publish(env: 'staging' | 'prod') {
   const measured = result.value
   const name = agent.value
-  if (!measured?.passed || !measured.complete || !measured.candidateVersion || publishing.value) return
+  if (!measured?.passed || !measured.complete || !measured.candidateVersion || publishing.value
+      || recovering.value || runError.value || progress.value !== null) return
   publishing.value = true
   try {
     const run = await getEvalRun(measured.candidateVersion)
@@ -257,10 +275,11 @@ watch(agent, () => {
       <select v-model="agent" class="inp">
         <option v-for="a in agentOptions" :key="a.name" :value="a.name">{{ a.displayName }} · {{ a.name }}</option>
       </select>
-      <button v-write class="btn pri" :disabled="!initialized || !agent || progress !== null" @click="run">▶ 运行回归</button>
+      <button v-write class="btn pri" :disabled="!initialized || recovering || !agent || progress !== null" @click="run">▶ 运行回归</button>
     </div>
 
     <p v-if="progress !== null" role="status">回归正在排队或执行中，刷新页面可恢复进度。</p>
+    <p v-if="runError" role="alert">{{ runError }}</p>
 
     <div class="chipsel" style="margin-bottom: 14px">
       <button :class="{ on: evalTab === 'cmp' }" @click="evalTab = 'cmp'">分维度对比</button>
@@ -301,7 +320,7 @@ watch(agent, () => {
       <p class="mut">分差超过 0.10 标红告警，疑似针对可见用例特判。人工编写的智能体没有隐藏考题，列显示「—」。隐藏考题内容只对审核人开放。</p>
     </div>
 
-    <template v-if="evalTab === 'cmp' && result">
+    <template v-if="evalTab === 'cmp' && result && !runError">
       <p v-if="!result.complete" role="alert">这份历史结果未包含全部有效用例的完整性证据，不能用于页面发布，请重新运行。</p>
       <div class="gate" :class="{ pass: result.passed }">
         <div class="big">{{ formatScore(result.scoreTotal) }}</div>
@@ -318,8 +337,8 @@ watch(agent, () => {
         </div>
         <span class="sp" />
         <template v-if="result.passed && result.complete && !result.devflowJobId">
-          <button v-write class="btn" :disabled="publishing || progress !== null" @click="publish('staging')">发布版本到 staging</button>
-          <button v-write class="btn pri" :disabled="publishing || progress !== null" @click="publish('prod')">发布版本到 prod</button>
+          <button v-write class="btn" :disabled="publishing || recovering || !!runError || progress !== null" @click="publish('staging')">发布版本到 staging</button>
+          <button v-write class="btn pri" :disabled="publishing || recovering || !!runError || progress !== null" @click="publish('prod')">发布版本到 prod</button>
         </template>
         <button v-if="!result.passed" class="btn" type="button" @click="markExpected">标记为预期变化</button>
       </div>

@@ -966,6 +966,11 @@ paths:
       tags: [eval]
       operationId: getActiveEvalRun
       summary: 当前执行中的回归任务，供刷新后恢复进度
+      parameters:
+        - name: includeFailed
+          in: query
+          description: 同时恢复最新失败任务；最新任务已成功时不返回更早失败任务
+          schema: { type: boolean, default: false }
       responses:
         "200":
           description: 无活跃任务时 data 为 null

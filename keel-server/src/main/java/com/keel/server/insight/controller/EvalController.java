@@ -39,8 +39,9 @@ public class EvalController {
     }
 
     @GetMapping("/{agent}/runs/active")
-    public R<Map<String, String>> active(@PathVariable String agent) {
-        return R.ok(eval.active(agent));
+    public R<Map<String, String>> active(@PathVariable String agent,
+            @RequestParam(defaultValue = "false") boolean includeFailed) {
+        return R.ok(eval.active(agent, includeFailed));
     }
 
     @PostMapping("/{agent}/runs/{runId}/publish")

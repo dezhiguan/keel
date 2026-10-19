@@ -43,6 +43,15 @@ class EvalPersistenceTest {
         assertThat(restarted.active("qa-recover")).containsEntry("runId", "ev_recover");
         jdbc.update("UPDATE eval_run SET state='DONE' WHERE run_id='ev_recover'");
         assertThat(restarted.active("qa-recover")).isNull();
+        assertThat(restarted.active("qa-recover", true)).isNull();
+        jdbc.update("UPDATE eval_run SET state='FAILED',error='incomplete' WHERE run_id='ev_recover'");
+        assertThat(restarted.active("qa-recover")).isNull();
+        assertThat(restarted.active("qa-recover", true)).containsEntry("runId", "ev_recover");
+        jdbc.update("""
+            INSERT INTO eval_run(run_id,agent_name,env,namespace,source_pod,image,endpoint,dataset,requested_by,state,created_at)
+            VALUES ('ev_recover_new','qa-recover','dev','agents','pod','image','http://agent','qa/smoke','operator','DONE',now()+interval '1 second')
+            """);
+        assertThat(restarted.active("qa-recover", true)).isNull();
     }
 
     @Test @Transactional void duplicateConcurrentRunIsRejectedByDatabase() {
