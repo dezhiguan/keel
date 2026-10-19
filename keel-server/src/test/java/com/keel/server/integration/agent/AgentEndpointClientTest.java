@@ -76,6 +76,16 @@ class AgentEndpointClientTest {
             assertThat(headers.get().getFirst("X-Keel-Agent")).isEqualTo("prompt-lab");
             assertThat(headers.get().getFirst("X-Keel-Env")).isEqualTo("dev");
             assertThat(seen.get()).contains("\"user_id\":\"官德志\"");
+            try (var stream = new AgentEndpointClient().openStream(
+                    "http://127.0.0.1:" + server.getAddress().getPort(), "咨询口径", null,
+                    "prompt-lab", "dev", "官德志", null, null, "scoped-session",
+                    java.util.List.of(java.util.Map.of("role", "user", "content", "故障口径")))) {
+                stream.readAllBytes();
+            }
+            var payload = new com.fasterxml.jackson.databind.ObjectMapper().readTree(seen.get());
+            assertThat(payload.path("input").path("text").asText()).isEqualTo("咨询口径");
+            assertThat(payload.path("context").path("session_messages").get(0).path("content").asText()).isEqualTo("故障口径");
+            assertThat(payload.path("session_id").asText()).isEqualTo("scoped-session");
             new AgentEndpointClient().probe("http://127.0.0.1:" + server.getAddress().getPort(), "prompt-lab", "test");
             assertThat(headers.get().getFirst("X-Keel-Eval-Run")).isEqualTo("self-check");
             assertThat(headers.get().getFirst("X-Keel-Env")).isEqualTo("test");

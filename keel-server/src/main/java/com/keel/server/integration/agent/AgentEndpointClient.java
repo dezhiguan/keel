@@ -55,11 +55,19 @@ public class AgentEndpointClient {
     /** Open the agent invoke stream. The caller closes it. */
     public InputStream openStream(String endpoint, String text, String bridgeToken, String agent, String env,
                                   String userId, String ragToken, String ragKbIds, String sessionId) {
+        return openStream(endpoint, text, bridgeToken, agent, env, userId, ragToken, ragKbIds, sessionId, null);
+    }
+
+    public InputStream openStream(String endpoint, String text, String bridgeToken, String agent, String env,
+                                  String userId, String ragToken, String ragKbIds, String sessionId,
+                                  java.util.List<java.util.Map<String, String>> history) {
         try {
             var payload = json.createObjectNode();
             payload.putObject("input").put("text", text);
             if (sessionId != null && !sessionId.isBlank()) payload.put("session_id", sessionId);
-            if (userId != null && !userId.isBlank()) payload.putObject("context").put("user_id", userId);
+            var context = payload.putObject("context");
+            if (userId != null && !userId.isBlank()) context.put("user_id", userId);
+            if (history != null) context.set("session_messages", json.valueToTree(history));
             var builder = HttpRequest.newBuilder(URI.create(trim(endpoint) + "/v1/invoke"))
                     .timeout(Duration.ofMinutes(3)).header("Content-Type", "application/json")
                     .header("Accept", "text/event-stream").header("X-Keel-Agent", agent).header("X-Keel-Env", env);

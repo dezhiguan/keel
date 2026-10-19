@@ -113,22 +113,20 @@ public class DebugSessionService {
     }
 
     /** Recent turns already stored for this session, oldest first. The agent process does not share them across replicas. */
-    public String transcript(String agent, String owner, String id) {
+    public List<Map<String, String>> history(String agent, String owner, String id) {
         var rows = jdbc.query("""
                 SELECT role, content FROM session_message
                 WHERE session_id = ? AND owner_user = ? AND agent_name = ? AND expires_at > now()
                 ORDER BY id DESC LIMIT 6
-                """, (rs, n) -> rs.getString("role") + "\n" + rs.getString("content"), id, owner, agent);
-        if (rows.isEmpty()) return "";
-        var text = new StringBuilder();
+                """, (rs, n) -> Map.of("role", rs.getString("role"), "content", rs.getString("content")), id, owner, agent);
+        var ordered = new ArrayList<Map<String, String>>();
         for (var i = rows.size() - 1; i >= 0; i--) {
-            var split = rows.get(i).indexOf('\n');
-            var role = rows.get(i).substring(0, split);
-            var content = rows.get(i).substring(split + 1).trim();
+            var row = rows.get(i);
+            var content = row.get("content").trim();
             if (content.length() > 400) content = content.substring(0, 400);
-            text.append("assistant".equals(role) ? "助手：" : "用户：").append(content).append('\n');
+            ordered.add(Map.of("role", row.get("role"), "content", content));
         }
-        return text.toString();
+        return ordered;
     }
 
     public void require(String agent, String env, String owner, String id) {

@@ -15,6 +15,7 @@ import com.keel.server.insight.SavedTraces;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.List;
 import java.io.OutputStream;
 
 /** Forwards one user turn to the registered agent process and records the invoke. */
@@ -126,12 +127,11 @@ public class AgentChatService {
         var userId = callerLabel();
         var rag = secrets == null ? null : secrets.knowledgeCredential(name);
         var bridge = "careermate".equals(name) ? careerMateToken : null;
-        var prior = remember ? sessions.transcript(name, owner, sessionId) : "";
-        var prompt = prior.isBlank() ? text : "以下是本会话最近的对话，请接着回答本轮问题，不要复述这段提示。\n" + prior + "本轮：" + text;
+        var history = remember ? sessions.history(name, owner, sessionId) : List.<Map<String, String>>of();
         long started = System.nanoTime();
-        try (var input = endpoints.openStream(endpoint, prompt, bridge, name, env, userId,
+        try (var input = endpoints.openStream(endpoint, text, bridge, name, env, userId,
                 rag == null ? null : rag.token(), rag == null ? null : rag.kbIds(),
-                scopedSessionId(owner, sessionId))) {
+                scopedSessionId(owner, sessionId), history)) {
             var fin = DebugSseRelay.copy(input, output);
             var traceId = fin == null ? null : fin.traceId();
             audits.append(name, env, "invoke", "low", fin == null ? "error" : "allowed", name, traceId);

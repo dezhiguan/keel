@@ -255,6 +255,17 @@ components:
             user_id: { type: string }
             org_id: { type: string }
             channel: { type: string }
+            session_messages:
+              type: array
+              maxItems: 6
+              description: 服务端提供的已授权会话历史，按时间升序；显式空数组覆盖本地历史。input.text 只包含本轮请求。
+              items:
+                type: object
+                required: [role, content]
+                properties:
+                  role: { type: string, enum: [user, assistant] }
+                  content: { type: string, maxLength: 400 }
+
         options:
           type: object
           properties:

@@ -99,13 +99,21 @@ class Context:
                  *, manifest=None, tool_functions=None, children=None, budget=None,
                  env: str | None = None, llm_client=None, knowledge_client=None,
                  audit_reporter=None, session_id: str | None = None,
-                 eval_run_id: str | None = None):
+                 eval_run_id: str | None = None, session_messages: list[dict] | None = None):
         self.agent = agent
         self.env = env
         self.run_id = run_id
         self.trace_id = trace_id
         self.session_id = session_id
         self.eval_run_id = eval_run_id
+        if session_messages is not None and (not isinstance(session_messages, list)
+                or len(session_messages) > 6 or any(not isinstance(row, dict)
+                or row.get("role") not in ("user", "assistant")
+                or not isinstance(row.get("content"), str) or len(row["content"]) > 400
+                for row in session_messages)):
+            raise KeelError(ErrorCode.SERVER_INVALID_PARAM)
+        self._session_messages = ([{"role": row["role"], "content": row["content"]}
+                                   for row in session_messages] if session_messages is not None else None)
         self._events = events
         self.manifest = manifest
         self.resuming = False
@@ -241,7 +249,8 @@ class Context:
         else:
             system = [message for message in turn_messages if message.get("role") == "system"]
             turns = [message for message in turn_messages if message.get("role") != "system"]
-            history = system + self.memory.history() + turns
+            prior = self.memory.history() if self._session_messages is None else self._session_messages
+            history = system + prior + turns
         step = 0
         last_call = None
         if self.resuming:
