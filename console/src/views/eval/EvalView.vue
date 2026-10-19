@@ -74,6 +74,7 @@ async function load() {
 
 function pollRun(runId: string, seq: number) {
   clearInterval(timer)
+  runError.value = ''
   progress.value = 0
   let busy = false
   const poll = async () => {
