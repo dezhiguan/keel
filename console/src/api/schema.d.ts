@@ -2917,6 +2917,8 @@ export interface components {
             }[];
             newFailures?: {
                 caseId?: string;
+                /** @description 关联的实际调用链路 ID */
+                traceId?: string;
                 input?: string;
                 tags?: string[];
                 reason?: string;

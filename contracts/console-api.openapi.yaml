@@ -4159,6 +4159,7 @@ components:
             type: object
             properties:
               caseId: { type: string }
+              traceId: { type: string, description: 关联的实际调用链路 ID }
               input: { type: string }
               tags:
                 type: array

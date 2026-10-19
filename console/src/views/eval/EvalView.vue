@@ -324,6 +324,7 @@ watch(agent, () => {
         <button v-if="!result.passed" class="btn" type="button" @click="markExpected">标记为预期变化</button>
       </div>
       <p v-if="published" role="status">已发布 {{ published }} · <RouterLink :to="{ path: '/agents', query: { drawer: agent } }">查看智能体版本</RouterLink></p>
+      <p v-if="result.caseCount != null" class="mut">已执行 {{ result.caseCount }} 条用例<span v-if="result.complete"> · 全部有效用例已完成</span></p>
       <div v-if="progress !== null" class="prog"><i :style="{ width: `${progress * 100}%` }" /></div>
 
       <div v-if="evalTab === 'cmp'" class="card">
@@ -338,6 +339,18 @@ watch(agent, () => {
               <td class="mono">{{ formatScore(d.candidateScore) }}</td>
               <td class="mono" :class="(d.deltaPt ?? 0) < 0 ? 'down' : 'up'">{{ deltaText(d.deltaPt) }}</td>
               <td><StatusPill v-bind="VERDICT[d.verdict ?? 'TOLERATED']" /></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-if="evalTab === 'cmp' && result.newFailures?.length" class="card">
+        <h3>未通过评分的用例<small>总分通过门禁仍可能有个别评分未通过，请复核实际答复和预期。</small></h3>
+        <table class="t">
+          <thead><tr><th>用例 ID</th><th>调用链路</th></tr></thead>
+          <tbody>
+            <tr v-for="failure in result.newFailures" :key="`${failure.caseId}-${failure.traceId}`">
+              <td class="mono">{{ failure.caseId || '—' }}</td>
+              <td><RouterLink v-if="failure.traceId" :to="`/traces/${failure.traceId}`">查看调用链路</RouterLink><span v-else class="mut">没有链路 ID</span></td>
             </tr>
           </tbody>
         </table>

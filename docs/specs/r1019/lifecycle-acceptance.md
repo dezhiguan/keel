@@ -87,3 +87,12 @@ qa-tools 首轮52条中有5条超时/断流被SDK丢弃，页面47条仍通过�
 
 - 提示词v2均经页面在dev/test/staging生效。工具完整回归ev_5636f1f3e8684e419ccc0d370213a5ec仍因1条无效shift.policy类别失败；SDK仅广告目录工具却执行其他manifest工具，见bounded-tool-refinement.md。继续修复实际调用范围和补查次数，不能标成门禁通过。
 - 记忆重启与双副本：先记住普通测试代号「白鹭重启1019」，trace aa77fec8689711eba6e858c417e2b4f0；滚动重启并确认2个新副本就绪后刷新，准确回忆，trace 516a7e0bececc7adafda189a4a036d61，再次回忆7159ae76c2b96dab98500f6217dc8e53。新会话明确不知道另一会话代号，trace73922989762fb3eec2f9b87de5cb867e。已恢复1副本。此证据说明重启后PG历史可恢复、2副本运行时使用正常；尚未凭instance_id证明两次回忆分别命中不同副本。证据memory-restart-replicas.json、memory-restart-isolation.png。
+
+## 0e691f1 完整部署与首个完整发布
+
+- CD39252812770成功。评测初始化真实列表请求延迟4秒：修复前按钮仍可用，修复后禁用，数据返回后恢复。证据eval-init-before/after.json/png。
+- 工具完整运行ev_69f9cf29d13a4e23b3d8fcc20d77cdfb：52条全部完成、complete=true、promptVersions.answer=2、scoreTotal=0.96875、门禁0.95且passed=true。页面分别发布staging/prod成功，版本v1、镜像qa-mainflow:0e691f1f0af8、门禁运行号一致。注意此时运行环境仍dev，正式环境登记部署与最终复验未完成。
+- 该轮仅1条评分失败，trace dd390ddace20e756e1f878380c505696。页面真实答复明确「不能」在无证据时声称已发布，并说明工具目录并非发布记录；失败是技能用例固定整句expected字面不匹配，未删除用例或改成满分。证据tools-single-score-failure.txt/png。评测页面缺少此用例链路入口，另补可查看的未通过评分表。
+- 旧部分通过运行ev_5e8b2ea395ae4a18a224e55ffccc656e的发布请求实际返回400，提示只允许完整通过且带提示词/镜像证据。证据old-partial-publish-rejected.json。
+- SDK必要参数实测：同一QA Key经真实网关以tool_choice=none请求，200、0工具调用、正常文本、实际qwen3.8-flash、64tokens。证据tool-choice-none-wire.json，不代替页面完整评测。
+- 新发现pii:mask实际无运行逻辑，页面仍原样输出虚构手机号，证据pii-before.json/png。先记录再补全SDK，详见pii-output-mask.md。输出范围明确为大陆手机号/身份证，不宣称清理用户输入。
