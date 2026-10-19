@@ -361,6 +361,7 @@ watch(selectedSkill, (name) => {
   if (tab.value === 'skill' && name && !registryOnly.value) loadDetail()
 })
 if (tab.value === 'skill') openSkillTab()
+else loadSkills()
 watch(() => [filter.page, filter.size], load)
 watch(() => envStore.env, () => {
   if (filter.page === 1) load()
