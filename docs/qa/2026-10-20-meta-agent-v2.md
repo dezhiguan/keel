@@ -48,3 +48,10 @@
 - 运行 `ev_1666a94a9e924a49ac485474b6c2a13c`仍被IncompleteExperiment阻断，失败为生成预览的tests/test_role.py语法错误，扩充步骤未再报异常。失败trace `76a1fbb1c1233b6bae8fe747a814301c` 保存在应用节点证据目录。
 - 语法反馈原先缺少行列/原因；首次生成重试却承诺不被首次生成解析器支持的edits。修复反馈与实际格式对齐，并提供Python AST行列及原因，不回显源码，保持原静态规则与三次重试上限。包含授权规范化、逻辑Key及语法修复的远端完整回归124项通过。
 - 技能正文版本比较按平台去首尾空白规则处理Markdown末尾换行，真实内容变化仍拒绝。最终Key授权补入最新网关支持的chat-default逻辑名，保留当前预算、fallback和限额，避免长期只授权物理模型；该操作在无评测执行的下一次CD rollout前应用。
+
+## 网关门禁通过及技能阶段
+
+- `1ea493f`的CI `39313076135`、CD `39313076207`全部通过，两个Ready实例运行 `meta-agent:1ea493f4065c`。逻辑Key授权迁移后复核keyUpdateNeeded=false，真实日预算仍为10元。
+- 网关完整运行 `ev_dba52c3e03094b28b8df223fc40d648f`：DONE、complete=true、54条、总分1.00、18维度全部1.00，无新增失败；原16维度相对正式v1均deltaPt=0。实际提示词draft3、revise1、generate2、review1、expand2。
+- 已先切换到development数据集，再授权keel-project-development v1；平台返回toolsGranted=[]、casesMerged=1，未向冻结gateway题集写入技能题。
+- 最终清单仅增加固定技能v1及切换development题集，工具、预算、护栏和门禁不变。启用技能清单的完整124项回归通过，完整候选已登记（hash 09d52e5c0cbdd31752cae91e5661f10f81ba9a82a30eda659b34b940d380a38b）。待最终部署和55条完整真实门禁后再正式发布v2。

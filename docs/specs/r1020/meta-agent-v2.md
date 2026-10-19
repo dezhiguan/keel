@@ -31,7 +31,7 @@ AGENTS.md；agents/meta-agent 的代码、prompts、skills、evals、tests、Doc
 
 ## 当前验收状态
 
-正式v1基线已封存；网关候选CI/CD通过，两个实例Ready；真实跨Pod恢复通过。候选登记和恢复追踪验收发现的问题已修复并补回归，待下一轮CI/CD；完整v2门禁及发布尚未完成。详见 docs/qa/2026-10-20-meta-agent-v2.md。
+正式v1基线已封存；网关完整54条门禁通过，全部1.00且原16维度无回归。技能v1已授权，独立development题集合入1条技能题；最终启用技能清单的124项回归通过，待最终CI/CD、55条真实门禁及v2发布。详见 docs/qa/2026-10-20-meta-agent-v2.md。
 
 ## 双实例核实后的共享 SDK 范围
 
