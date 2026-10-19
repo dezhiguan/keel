@@ -45,3 +45,13 @@
 ## 第二轮修复验证（待部署页面复测）
 
 配额编辑、requestId 精确账单关联、实时工具事件与会话切换锁已完成。本地 SDK 相关测试 101 项、Java 定向测试 67 项、前端 21 项通过，前端类型检查与后端清单门禁通过。此结果不代替线上完整生命周期验收。
+
+## 67418a8 部署后页面复测
+
+- CD 39225258641 全部通过。
+- 将真实会话创建请求延迟 2.5 秒，输入和发送均禁用；完成后可以调用，护栏错误及实时事件保留。trace 5dd8bf6dc1e70a494a4154358c0bc007。证据 session-race-retest.json/png。
+- qa-memory 刷新后准确回忆「海鸥1019」，trace 55c50856e6f498f6e4b2c6d82d5bca6b；新会话明确不知道另一会话代号，trace d3238d0f7dcf48cb5e547b9c0dedcdbd。证据 memory-retest.json。
+- qa-tools 新会话含 tool=3、step=3、token=45、final=1，回答使用 shift.policy 咨询结果和技能三段结构。trace 16db5fa2474cf4d0eb5313a4f4414caa，整条成本 ¥0.0049；generation 请求模型 chat-default、实际 qwen3.8-flash，节点成本 ¥0.0025、路由版本和 SETTLED 账单可见。证据 tools-after-cost-events.json/png、trace-cost-after.png。
+- 四个智能体提示词 v1 经页面在 test 和 staging 生效，均 HTTP 200；staging 门禁为 pending，未冒充已通过。证据 prompt-promotions-test-staging.json。
+- 各50条用例导入完成，qa-routing 部分成功后的重试新增7条，qa-tools成功新增50条。
+- 新发现评测刷新丢失进度、阻塞式评测实际串行、历史问题混入当前输入三项，见对应 spec。后续部署 206b6dd 包含修复，复测未完成。
