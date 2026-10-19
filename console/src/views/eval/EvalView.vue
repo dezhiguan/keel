@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import AgentName from '@/components/AgentName.vue'
 import StatusPill from '@/components/StatusPill.vue'
@@ -26,7 +26,9 @@ const envStore = useEnvStore()
 const approvalsStore = useApprovalsStore()
 
 const evalTab = ref<'cmp' | 'holdout' | 'confirm'>('cmp')
-const agent = ref('')
+const route = useRoute()
+const router = useRouter()
+const agent = ref(typeof route.query.agent === 'string' ? route.query.agent : '')
 const agentOptions = ref<{ name: string; displayName: string }[]>([])
 const result = ref<EvalResult | null>(null)
 const gates = ref<EvalGateRow[]>([])
@@ -39,9 +41,11 @@ const expectReason = ref('')
 const expectInvalid = ref(false)
 let timer: ReturnType<typeof setInterval> | undefined
 let loadSeq = 0
+let resultRevision = 0
 
 async function load() {
   const seq = ++loadSeq
+  const revision = ++resultRevision
   const name = agent.value
   clearInterval(timer)
   progress.value = null
@@ -49,10 +53,10 @@ async function load() {
   loading.value = true
   try {
     const next = await getLatestEval(name)
-    if (seq !== loadSeq) return
+    if (seq !== loadSeq || revision !== resultRevision) return
     result.value = next
   } catch (error) {
-    if (seq !== loadSeq) return
+    if (seq !== loadSeq || revision !== resultRevision) return
     result.value = null
     const keel = toKeelError(error)
     if (keel.code !== 'SERVER_NOT_FOUND') ElMessage.error(`加载评测结果失败：${keel.message}`)
@@ -75,7 +79,7 @@ function pollRun(runId: string, seq: number) {
       if (r.state === 'RUNNING' || r.state === 'QUEUED') return
       clearInterval(timer)
       progress.value = null
-      if (r.result) result.value = r.result
+      if (r.result) { ++resultRevision; result.value = r.result }
       if (r.state === 'FAILED') ElMessage.error(`评测执行失败：${r.error || '请检查运行服务和评分器'}`)
       else ElMessage[r.result?.passed ? 'success' : 'warning'](`回归完成：总分 ${r.result?.scoreTotal ?? '—'}`)
     } catch (error) {
@@ -164,6 +168,7 @@ async function submitExpected() {
 
 onMounted(async () => {
   await loadAgents()
+  if (agent.value && loadSeq === 0) void load()
   await loadPending()
   await loadGates()
 })
@@ -210,7 +215,10 @@ async function loadAgents() {
 }
 onBeforeUnmount(() => { ++loadSeq; clearInterval(timer) })
 watch(agent, () => {
-  if (agent.value) load()
+  if (agent.value) {
+    void router.replace({ query: { ...route.query, agent: agent.value } })
+    void load()
+  }
 })
 </script>
 
