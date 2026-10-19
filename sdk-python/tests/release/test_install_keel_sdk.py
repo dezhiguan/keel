@@ -110,6 +110,7 @@ def test_meta_agent_image_does_not_copy_platform_source():
     assert "COPY sdk-python" not in dockerfile
     assert "COPY contracts" not in dockerfile
     assert "COPY templates" not in dockerfile
+    assert "langfuse==4.17.0" in dockerfile
     example = (root / "examples/meta-agent/agent.yaml").read_text(encoding="utf-8")
     deploy = (root / "deploy/k3s/services/meta-agent.yaml").read_text(encoding="utf-8")
     assert "example-meta" in example

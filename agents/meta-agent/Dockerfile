@@ -3,8 +3,9 @@
 FROM python:3.11-slim
 WORKDIR /app
 COPY vendor/keel_sdk-*.whl /tmp/keel-sdk/
-RUN pip install --no-cache-dir /tmp/keel-sdk/keel_sdk-*.whl \
- && python -c "from pathlib import Path; import keel.cli.new as new; path = Path(new.__file__).resolve().parents[1] / '_templates' / 'loop-agent' / 'agent.yaml'; assert path.is_file(), path" \
+RUN wheel="$(find /tmp/keel-sdk -name 'keel_sdk-*.whl' -print -quit)" \
+ && pip install --no-cache-dir "${wheel}" 'langfuse==4.17.0' \
+ && python -c "import langfuse; from pathlib import Path; import keel.cli.new as new; path = Path(new.__file__).resolve().parents[1] / '_templates' / 'loop-agent' / 'agent.yaml'; assert path.is_file(), path" \
  && rm -rf /tmp/keel-sdk
 COPY app.py workflow.py candidate.py evalset.py roles.py agent.yaml /app/
 COPY pre-review-workflow.yml /app/

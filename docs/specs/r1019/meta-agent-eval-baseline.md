@@ -6,7 +6,7 @@
 
 线上评测任务克隆元智能体容器，但调用 `/v1/invoke` 时必须带上该容器里的 `KEEL_META_AGENT_TOKEN`，请求头 `X-Keel-Bridge`。否则服务身份校验会把整次门禁打成 401。没配置该变量的其他智能体不发送这个头。
 
-旧的两条占位例会和新基线一起留在数据集里，导入时按内容去重，不删除历史条目。平台评测只跑 Langfuse 中仍为 ACTIVE 的条目；部署后若发现占位例仍是 ACTIVE，要先停用再发起评测，避免挂起路径把整次实验判成不完整。
+页面重跑使用镜像里的 `python -m keel.eval.worker`，因此镜像安装与验收智能体相同的 `langfuse==4.17.0`。平台评测只跑 Langfuse 中 `ACTIVE` 的条目。两条旧占位例按 Langfuse SDK 4.17.0 的已有写入接口停用：`POST /api/public/dataset-items`，同一 `id` 覆盖，`status` 为 `ARCHIVED`。新基线仍写入同一数据集，不删除历史条目。停用后数据集里应只剩这 52 条有效用例。
 
 验收：
 
