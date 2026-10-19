@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AgentName from '@/components/AgentName.vue'
+import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import { getActiveEvalRun, getEvalGates, getEvalRun, getLatestEval, publishEvaluatedAgent, runEval, type EvalGateRow, type EvalResult } from '@/api/eval'
 import { listSuspendedRuns, openApproval } from '@/api/approvals'
@@ -31,6 +32,10 @@ const router = useRouter()
 const agent = ref(typeof route.query.agent === 'string' ? route.query.agent : '')
 const agentOptions = ref<{ name: string; displayName: string }[]>([])
 const result = ref<EvalResult | null>(null)
+const dimensionPage = ref(1)
+const dimensionSize = ref<10 | 20 | 50 | 100>(10)
+const dimensions = computed(() => result.value?.dimensions ?? [])
+const dimensionRows = computed(() => dimensions.value.slice((dimensionPage.value - 1) * dimensionSize.value, dimensionPage.value * dimensionSize.value))
 const gates = ref<EvalGateRow[]>([])
 const pending = ref<{ jobId: string; agent: string }[]>([])
 const gap = computed(() => holdoutGap(result.value?.scoreTotal, result.value?.holdout?.score))
@@ -52,6 +57,7 @@ async function load() {
   const seq = ++loadSeq
   const revision = ++resultRevision
   const name = agent.value
+  dimensionPage.value = 1
   published.value = ''
   runError.value = ''
   clearInterval(timer)
@@ -87,7 +93,7 @@ function pollRun(runId: string, seq: number) {
       if (r.state === 'RUNNING' || r.state === 'QUEUED') return
       clearInterval(timer)
       progress.value = null
-      if (r.result) { ++resultRevision; result.value = r.result }
+      if (r.result) { ++resultRevision; dimensionPage.value = 1; result.value = r.result }
       if (r.state === 'FAILED') {
         ++resultRevision
         result.value = null
@@ -352,7 +358,7 @@ watch(agent, () => {
         <table class="t">
           <thead><tr><th>维度（用例标签）</th><th>用例数</th><th>prod</th><th>候选</th><th>变化</th><th>判定</th></tr></thead>
           <tbody>
-            <tr v-for="d in result.dimensions ?? []" :key="d.tag">
+            <tr v-for="d in dimensionRows" :key="d.tag">
               <td>{{ d.tag }}</td>
               <td class="mono">{{ d.cases ?? '—' }}</td>
               <td class="mono">{{ formatScore(d.prodScore) }}</td>
@@ -360,8 +366,10 @@ watch(agent, () => {
               <td class="mono" :class="(d.deltaPt ?? 0) < 0 ? 'down' : 'up'">{{ deltaText(d.deltaPt) }}</td>
               <td><StatusPill v-bind="VERDICT[d.verdict ?? 'TOLERATED']" /></td>
             </tr>
+            <tr v-if="!dimensionRows.length"><td colspan="6" class="empty">没有维度</td></tr>
           </tbody>
         </table>
+        <Pager v-model:page="dimensionPage" v-model:size="dimensionSize" :total="dimensions.length" />
       </div>
       <div v-if="evalTab === 'cmp' && result.newFailures?.length" class="card">
         <h3>未通过评分的用例<small>总分通过门禁仍可能有个别评分未通过，请复核实际答复和预期。</small></h3>

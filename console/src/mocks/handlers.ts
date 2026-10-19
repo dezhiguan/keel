@@ -104,6 +104,7 @@ export const handlers = [
     const found = latestEval(String(params.agent))
     return found ? ok(found) : fail(404, 'SERVER_NOT_FOUND', '没有评测记录')
   }),
+  http.get(`${BASE}/eval/:agent/runs/active`, () => ok(null)),
 
   http.get(`${BASE}/tools`, ({ request }) => {
     const url = new URL(request.url)

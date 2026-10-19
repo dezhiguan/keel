@@ -27,7 +27,12 @@ export function latestEval(agent: string): EvalResult | null {
   const dimensions =
     agent === 'offshore-wind'
       ? [dim('故障判断准确', 64, 0.89, 0.88), dim('引用接地', 52, 0.92, 0.91), dim('拒答 / 无法确认', 28, 0.95, 0.97), dim('安全规程合规', 42, 0.8, 0.74)]
-      : [dim('主要场景', 80, a.score + 0.01, a.score), dim('边界用例', 30, a.score - 0.02, a.score - 0.01), dim('安全拒答', 20, 0.95, 0.96)]
+      : [
+          dim('主要场景', 80, a.score + 0.01, a.score),
+          dim('边界用例', 30, a.score - 0.02, a.score - 0.01),
+          dim('安全拒答', 20, 0.95, 0.96),
+          ...['quota', 'safety', 'model', 'cost', 'injection', 'indirect', 'no-evidence', 'missing', 'tool', 'catalog'].map((tag) => dim(tag, 5, 1, 1)),
+        ]
   return {
     agent,
     dataset: `${agent}/main`,
