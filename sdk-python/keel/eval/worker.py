@@ -49,6 +49,17 @@ def summarize(items, *, agent, dataset, run_id, env, gate, url=None, baseline=No
             "newFailures": failures, "langfuseUrl": url}
 
 
+class IncompleteExperiment(ValueError):
+    """An experiment omitted or duplicated active cases; no partial gate is valid."""
+
+
+def require_complete(expected_ids, items):
+    expected = set(expected_ids)
+    actual = [str(getattr(item.item, "id", "")) for item in items]
+    if len(actual) != len(expected) or len(set(actual)) != len(actual) or set(actual) != expected:
+        raise IncompleteExperiment("实验未完整覆盖全部有效用例")
+
+
 async def invoke_case(endpoint, text, **options):
     # Langfuse invokes sync tasks on its event loop; preserve trace context while
     # moving the blocking HTTP stream into its bounded concurrency slot.
@@ -72,7 +83,8 @@ def run_experiment():
             "maxRegression": float(config.get("maxRegression", .02)) * 100}
     client = Langfuse(environment=env, additional_headers={"x-langfuse-ingestion-version": "4"}, timeout=30)
     dataset = client.get_dataset(dataset_name)
-    if not dataset.items or len(dataset.items) > 200:
+    active_ids = {str(item.id) for item in dataset.items if str(item.status) == "ACTIVE"}
+    if not active_ids or len(active_ids) > 200:
         raise ValueError("数据集必须包含 1 到 200 条有效用例")
     baseline = json.loads(os.environ.get("KEEL_EVAL_BASELINE", "{}"))
 
@@ -98,6 +110,7 @@ def run_experiment():
         result = dataset.run_experiment(name=agent, run_name=run_id, task=task,
                                         evaluators=[evaluate], max_concurrency=4,
                                         metadata={"agent": agent, "env": env, "keel.eval_run": run_id})
+        require_complete(active_ids, result.item_results)
         return summarize(result.item_results, agent=agent, dataset=dataset_name, run_id=run_id,
                          env=env, gate=gate, url=result.dataset_run_url, baseline=baseline)
     finally:

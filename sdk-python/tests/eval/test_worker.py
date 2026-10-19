@@ -59,3 +59,17 @@ def test_calls_overlap_and_preserve_the_current_trace_context(monkeypatch):
         return await asyncio.gather(worker.invoke_case("http://agent", "a"),
                                     worker.invoke_case("http://agent", "b"))
     assert asyncio.run(run()) == [("a", "parent-trace"), ("b", "parent-trace")]
+
+
+@pytest.mark.parametrize("actual", [["a"], ["a", "a"], ["a", "b", "c"], ["a", "x"]])
+def test_missing_duplicate_or_unexpected_cases_cannot_produce_a_passing_gate(actual):
+    from keel.eval.worker import require_complete, IncompleteExperiment
+    rows = [SimpleNamespace(item=SimpleNamespace(id=id)) for id in actual]
+    with pytest.raises(IncompleteExperiment):
+        require_complete({"a", "b"}, rows)
+
+
+def test_complete_case_identity_set_accepts_any_execution_order():
+    from keel.eval.worker import require_complete
+    rows = [SimpleNamespace(item=SimpleNamespace(id=id)) for id in ["b", "a"]]
+    require_complete({"a", "b"}, rows)

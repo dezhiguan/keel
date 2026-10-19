@@ -64,3 +64,7 @@ alwaysApply: true
 - 换票要求「被换 token 的 aud」和「目标 aud」都在客户端的 `allowed_audiences` 里，这张表由 keel-server 根据 manifest 自动生成。
 
 - 2026-10-19 核对已安装 Langfuse SDK experiment._run_task：同步 task 直接在事件循环执行，只有返回 coroutine 才 await。阻塞 HTTP 任务必须 async + asyncio.to_thread，否则 max_concurrency 无法并发；to_thread 保留 contextvars 中的 OTel 上下文。
+
+- 2026-10-19 实测并核对 Langfuse SDK _client/client.py：run_experiment 的 item_results 排除任务异常项，只含成功处理项。平台门禁必须比对全部 ACTIVE dataset item IDs；不能拿这个子集的高分当全部通过。
+
+- 2026-10-19 实测 /v2/observations 的 metadata 可使用扁平键 attributes.keel.agent / attributes.keel.status，而非仅嵌套 attributes 对象。护栏归属、命中、类型读取必须兼容此形态（trace详情已有兼容）。

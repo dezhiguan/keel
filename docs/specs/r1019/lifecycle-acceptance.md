@@ -55,3 +55,7 @@
 - 四个智能体提示词 v1 经页面在 test 和 staging 生效，均 HTTP 200；staging 门禁为 pending，未冒充已通过。证据 prompt-promotions-test-staging.json。
 - 各50条用例导入完成，qa-routing 部分成功后的重试新增7条，qa-tools成功新增50条。
 - 新发现评测刷新丢失进度、阻塞式评测实际串行、历史问题混入当前输入三项，见对应 spec。后续部署 206b6dd 包含修复，复测未完成。
+
+## 评测结果证据作废
+
+qa-tools 首轮52条中有5条超时/断流被SDK丢弃，页面47条仍通过；qa-guard51条中1条超时，页面50条1.00仍通过。上述旧结果不能用作完整门禁通过证据，后续必须逐个完整重跑。见 eval-completeness.md。
