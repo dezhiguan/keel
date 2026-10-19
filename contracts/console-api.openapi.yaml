@@ -982,6 +982,41 @@ paths:
                         properties:
                           runId: { type: string }
 
+  /eval/{agent}/runs/{runId}/publish:
+    parameters:
+      - name: agent
+        in: path
+        required: true
+        schema: { type: string }
+      - name: runId
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [eval]
+      operationId: publishEvaluatedAgent
+      summary: 从完整通过的服务端评测发布人工编写智能体
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [env]
+              properties:
+                env: { type: string, enum: [staging, prod] }
+      responses:
+        "200":
+          description: 已发布
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/ReleaseRecord" }
+
   /eval/runs/{runId}:
     parameters:
       - name: runId
@@ -1007,6 +1042,8 @@ paths:
                         properties:
                           runId: { type: string }
                           state: { type: string, enum: [QUEUED, RUNNING, DONE, FAILED] }
+                          agent: { type: string }
+                          image: { type: string }
                           error: { type: string, nullable: true }
                           progress: { type: number, format: float, description: 0~1 }
                           result:
@@ -4161,6 +4198,12 @@ components:
     EvalResult:
       type: object
       properties:
+        complete: { type: boolean, description: 全部有效用例均有且只有一个执行结果；旧结果缺省不作为完整发布证据 }
+        promptVersions:
+          type: object
+          additionalProperties: { type: integer }
+          description: 实际调用所用提示词版本，同名版本冲突或fallback时评测失败
+
         agent: { type: string }
         dataset: { type: string, example: offshore-wind/inspection }
         caseCount: { type: integer }

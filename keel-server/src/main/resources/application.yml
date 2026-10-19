@@ -12,6 +12,9 @@ spring:
     virtual:
       # Blocking IO inside synchronized can pin virtual threads; assess JDBC/MyBatis under P1 load tests.
       enabled: true
+  mvc:
+    async:
+      request-timeout: 210s
   datasource:
     url: ${KEEL_DB_URL}
     username: ${KEEL_DB_USERNAME}

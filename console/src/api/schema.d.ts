@@ -629,6 +629,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/eval/{agent}/runs/{runId}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent: string;
+                runId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 从完整通过的服务端评测发布人工编写智能体 */
+        post: operations["publishEvaluatedAgent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/eval/runs/{runId}": {
         parameters: {
             query?: never;
@@ -2911,6 +2931,12 @@ export interface components {
             promptFallback?: boolean;
         };
         EvalResult: {
+            /** @description 全部有效用例均有且只有一个执行结果；旧结果缺省不作为完整发布证据 */
+            complete?: boolean;
+            /** @description 实际调用所用提示词版本，同名版本冲突或fallback时评测失败 */
+            promptVersions?: {
+                [key: string]: number;
+            };
             agent?: string;
             /** @example offshore-wind/inspection */
             dataset?: string;
@@ -4880,6 +4906,38 @@ export interface operations {
             };
         };
     };
+    publishEvaluatedAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent: string;
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    env: "staging" | "prod";
+                };
+            };
+        };
+        responses: {
+            /** @description 已发布 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["ReleaseRecord"];
+                    };
+                };
+            };
+        };
+    };
     getEvalRun: {
         parameters: {
             query?: never;
@@ -4902,6 +4960,8 @@ export interface operations {
                             runId?: string;
                             /** @enum {string} */
                             state?: "QUEUED" | "RUNNING" | "DONE" | "FAILED";
+                            agent?: string;
+                            image?: string;
                             error?: string | null;
                             /**
                              * Format: float

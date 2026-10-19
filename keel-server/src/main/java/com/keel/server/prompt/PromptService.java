@@ -333,7 +333,7 @@ public class PromptService {
                 FROM prompt_promotion WHERE agent_name = ?
                 ORDER BY prompt_name, promoted_at DESC, id DESC
                 """, (rs, n) -> new Object[] {rs.getLong("id"), rs.getString("prompt_name"), rs.getInt("version"), rs.getString("gate_status")}, agent);
-        var open = pending.stream().filter(row -> "PENDING".equals(row[3])).toList();
+        var open = pending;
         if (open.isEmpty()) {
             return Map.of("updated", 0);
         }

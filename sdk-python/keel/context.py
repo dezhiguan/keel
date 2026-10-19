@@ -149,6 +149,8 @@ class Context:
         from keel.skills import SkillClient
         self.skills = SkillClient(manifest, agent, env) if manifest else _UnimplementedClient("skills")
         self._prompts = PromptClient(manifest, env) if manifest else None
+        self._prompt_versions: dict[str, int] = {}
+        self._prompt_fallback = False
         self.memory = LiteMemory(LiteStore(".") if session_id else None, agent, session_id, eval_run_id, guard=self.guard)
         from keel.memory_remote import UserMemory
         self.memory.bind_user(UserMemory(agent, env, eval_run_id))
@@ -156,7 +158,15 @@ class Context:
     async def prompt(self, name: str):
         if self._prompts is None:
             raise KeelError(ErrorCode.PROMPT_NOT_DECLARED)
-        return await self._prompts.get(self.agent, name, self.trace_id)
+        prompt = await self._prompts.get(self.agent, name, self.trace_id)
+        if getattr(prompt, "fallback", False):
+            self._prompt_fallback = True
+        elif getattr(prompt, "version", None) is not None:
+            previous = self._prompt_versions.get(name)
+            if previous is not None and previous != int(prompt.version):
+                self._prompt_fallback = True
+            self._prompt_versions[name] = int(prompt.version)
+        return prompt
 
     def step(self, name: str, status: str = "ok") -> None:
         self._span(name, "agent", status)
@@ -197,7 +207,9 @@ class Context:
         tail = self.guard.final(answer)
         if tail:
             self._events.put_nowait(TokenEvent(text=tail))
-        return FinalEvent(answer=answer, citations=citations or [], meta=meta or {},
+        evidence = {**(meta or {}), "prompt_versions": dict(self._prompt_versions),
+                    "prompt_fallback": self._prompt_fallback}
+        return FinalEvent(answer=answer, citations=citations or [], meta=evidence,
                           trace_id=self.trace_id, run_id=self.run_id)
 
     def suspend(self, reason: str, ref: str | None = None, prompt: str | None = None,

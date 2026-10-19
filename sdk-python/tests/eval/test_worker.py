@@ -73,3 +73,22 @@ def test_complete_case_identity_set_accepts_any_execution_order():
     from keel.eval.worker import require_complete
     rows = [SimpleNamespace(item=SimpleNamespace(id=id)) for id in ["b", "a"]]
     require_complete({"a", "b"}, rows)
+
+
+@pytest.mark.parametrize("metadata", [
+    [{"prompt_versions": {"answer": 1}}, {"prompt_versions": {"answer": 2}}],
+    [{"prompt_versions": {"answer": 1}, "prompt_fallback": True}],
+    [{"prompt_versions": {"answer": True}}],
+])
+def test_prompt_version_conflicts_or_fallback_cannot_be_release_evidence(metadata):
+    from keel.eval.worker import prompt_evidence
+    rows = [SimpleNamespace(output={"answer": "actual answer", "meta": meta}) for meta in metadata]
+    with pytest.raises(ValueError):
+        prompt_evidence(rows)
+
+
+def test_actual_prompt_versions_are_collected_without_requiring_a_model_for_blocked_cases():
+    from keel.eval.worker import prompt_evidence
+    rows = [SimpleNamespace(output={"answer": "actual", "meta": {"prompt_versions": {"answer": 2}}}),
+            SimpleNamespace(output={"answer": "GUARD_INJECTION_BLOCKED", "meta": {}})]
+    assert prompt_evidence(rows) == {"answer": 2}

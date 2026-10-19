@@ -14,7 +14,6 @@ import { agentStatus, orDash, fmtCny, RISK } from '@/utils/format'
 import {
   avatarColor,
   avatarLetter,
-  canRelease,
   channelIdentity as identityLabel,
   channelMethod,
   elementCell,
@@ -117,7 +116,6 @@ const sourceText = computed(() => {
 
 const rows = computed(() => (detail.value ? versionRows(detail.value) : []))
 const elementCells = computed(() => (detail.value?.elements?.items ?? []).map((item, index) => elementCell(item, index)))
-const releaseOk = computed(() => (detail.value ? canRelease(detail.value) : false))
 const yaml = computed(() => (detail.value?.manifestYaml ? highlightYaml(detail.value.manifestYaml) : ''))
 
 const owner = computed(() => {
@@ -672,15 +670,7 @@ onUnmounted(() => {
             <RouterLink v-if="detail && detail.status !== 'DRAFT'" class="btn" :to="`/agents/${encodeURIComponent(name)}/debug`">调试</RouterLink>
             <button class="btn ghost" type="button" @click="viewTraces">查看链路</button>
             <button v-if="detail" v-write class="btn danger" type="button" @click="retiring = true">下线</button>
-            <button
-              v-if="detail?.env === 'staging'"
-              v-write
-              class="btn pri"
-              type="button"
-              :disabled="!releaseOk"
-              :title="releaseOk ? undefined : '门禁未通过或未就绪'"
-              @click="ElMessage.info('发布到 prod 尚未接入')"
-            >发布到 prod</button>
+            <RouterLink v-if="detail && detail.status !== 'DRAFT'" class="btn pri" :to="{ path: '/eval', query: { agent: name } }">评测与发布</RouterLink>
           </template>
         </div>
       </aside>

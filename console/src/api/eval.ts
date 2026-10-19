@@ -25,3 +25,7 @@ export function getEvalRun(runId: string) {
 export function getActiveEvalRun(agent: string) {
   return get<{ runId?: string } | null>(`/eval/${encodeURIComponent(agent)}/runs/active`)
 }
+
+export function publishEvaluatedAgent(agent: string, runId: string, env: 'staging' | 'prod') {
+  return post<components['schemas']['ReleaseRecord']>(`/eval/${encodeURIComponent(agent)}/runs/${encodeURIComponent(runId)}/publish`, { env })
+}

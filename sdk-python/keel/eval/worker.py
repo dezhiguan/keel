@@ -60,6 +60,27 @@ def require_complete(expected_ids, items):
         raise IncompleteExperiment("实验未完整覆盖全部有效用例")
 
 
+def prompt_evidence(items):
+    versions = {}
+    for item in items:
+        output = item.output
+        if not isinstance(output, dict) or not isinstance(output.get("meta"), dict):
+            raise ValueError("缺少运行提示词证据")
+        meta = output["meta"]
+        if meta.get("prompt_fallback"):
+            raise ValueError("提示词兜底或单次调用版本冲突")
+        reported = meta.get("prompt_versions", {})
+        if not isinstance(reported, dict):
+            raise ValueError("提示词版本证据无效")
+        for name, version in reported.items():
+            if not isinstance(name, str) or type(version) is not int or version < 1:
+                raise ValueError("提示词版本证据无效")
+            if name in versions and versions[name] != version:
+                raise ValueError("同一评测使用了多个提示词版本")
+            versions[name] = version
+    return versions
+
+
 async def invoke_case(endpoint, text, **options):
     # Langfuse invokes sync tasks on its event loop; preserve trace context while
     # moving the blocking HTTP stream into its bounded concurrency slot.
@@ -95,13 +116,13 @@ def run_experiment():
         text = payload.get("text", "") if isinstance(payload, dict) else str(payload)
         expected = item.expected_output
         options = {"expected_error": expected["errorCode"]} if isinstance(expected, dict) and expected.get("errorCode") else {}
-        return await invoke_case(endpoint, text, eval_run_id=run_id, env=env, **options)
+        return await invoke_case(endpoint, text, eval_run_id=run_id, env=env, with_meta=True, **options)
 
     def evaluate(*, output, expected_output=None, metadata=None, **kwargs):
         tags = (metadata or {}).get("tags") or ["untagged"]
         if not isinstance(tags, list) or not all(isinstance(tag, str) for tag in tags):
             raise ValueError("用例 tags 必须是字符串列表")
-        values = [float(scorer(expected_output, output, tags)) for scorer in scorers]
+        values = [float(scorer(expected_output, output["answer"], tags)) for scorer in scorers]
         if not all(math.isfinite(v) and 0 <= v <= 1 for v in values):
             raise ValueError("评分器结果无效")
         return [Evaluation(name=tag, value=sum(values) / len(values)) for tag in tags]
@@ -111,8 +132,10 @@ def run_experiment():
                                         evaluators=[evaluate], max_concurrency=4,
                                         metadata={"agent": agent, "env": env, "keel.eval_run": run_id})
         require_complete(active_ids, result.item_results)
-        return summarize(result.item_results, agent=agent, dataset=dataset_name, run_id=run_id,
-                         env=env, gate=gate, url=result.dataset_run_url, baseline=baseline)
+        versions = prompt_evidence(result.item_results)
+        measured = summarize(result.item_results, agent=agent, dataset=dataset_name, run_id=run_id,
+                             env=env, gate=gate, url=result.dataset_run_url, baseline=baseline)
+        return {**measured, "complete": True, "promptVersions": versions}
     finally:
         client.flush()
         client.shutdown()

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import AgentName from '@/components/AgentName.vue'
 import StatusPill from '@/components/StatusPill.vue'
-import { getActiveEvalRun, getEvalGates, getEvalRun, getLatestEval, runEval, type EvalGateRow, type EvalResult } from '@/api/eval'
+import { getActiveEvalRun, getEvalGates, getEvalRun, getLatestEval, publishEvaluatedAgent, runEval, type EvalGateRow, type EvalResult } from '@/api/eval'
 import { listSuspendedRuns, openApproval } from '@/api/approvals'
 import { listAgents } from '@/api/agents'
 import { toKeelError } from '@/api/http'
@@ -36,6 +36,8 @@ const pending = ref<{ jobId: string; agent: string }[]>([])
 const gap = computed(() => holdoutGap(result.value?.scoreTotal, result.value?.holdout?.score))
 const loading = ref(false)
 const progress = ref<number | null>(null)
+const publishing = ref(false)
+const published = ref('')
 const expecting = ref(false)
 const expectReason = ref('')
 const expectInvalid = ref(false)
@@ -47,6 +49,7 @@ async function load() {
   const seq = ++loadSeq
   const revision = ++resultRevision
   const name = agent.value
+  published.value = ''
   clearInterval(timer)
   progress.value = null
   void recoverRun(seq, name)
@@ -119,6 +122,25 @@ async function run() {
     progress.value = null
     ElMessage.error(`运行回归失败：${toKeelError(error).message}`)
     await recoverRun(seq, name)
+  }
+}
+
+async function publish(env: 'staging' | 'prod') {
+  const measured = result.value
+  const name = agent.value
+  if (!measured?.passed || !measured.complete || !measured.candidateVersion || publishing.value) return
+  publishing.value = true
+  try {
+    const run = await getEvalRun(measured.candidateVersion)
+    await ElMessageBox.confirm(`智能体：${name}\n评测：${measured.candidateVersion}\n镜像：${run.image || '—'}\n将发布已评测版本${env === 'prod' ? '并使 production 提示词生效' : ''}。代码运行服务由部署流程维护。`,
+      `发布版本到 ${env}`, { confirmButtonText: '确认发布', cancelButtonText: '取消' })
+    const record = await publishEvaluatedAgent(name, measured.candidateVersion, env)
+    if (name === agent.value) published.value = `${record.version || '—'} · ${record.env || env}`
+    ElMessage.success(`已发布 ${name} ${record.version || ''} 到 ${env}`)
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(`发布失败：${toKeelError(error).message}`)
+  } finally {
+    publishing.value = false
   }
 }
 
@@ -291,8 +313,13 @@ watch(agent, () => {
           </span>
         </div>
         <span class="sp" />
+        <template v-if="result.passed && result.complete && !result.devflowJobId">
+          <button v-write class="btn" :disabled="publishing || progress !== null" @click="publish('staging')">发布版本到 staging</button>
+          <button v-write class="btn pri" :disabled="publishing || progress !== null" @click="publish('prod')">发布版本到 prod</button>
+        </template>
         <button v-if="!result.passed" class="btn" type="button" @click="markExpected">标记为预期变化</button>
       </div>
+      <p v-if="published" role="status">已发布 {{ published }} · <RouterLink :to="{ path: '/agents', query: { drawer: agent } }">查看智能体版本</RouterLink></p>
       <div v-if="progress !== null" class="prog"><i :style="{ width: `${progress * 100}%` }" /></div>
 
       <div v-if="evalTab === 'cmp'" class="card">

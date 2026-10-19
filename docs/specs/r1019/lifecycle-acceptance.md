@@ -59,3 +59,11 @@
 ## 评测结果证据作废
 
 qa-tools 首轮52条中有5条超时/断流被SDK丢弃，页面47条仍通过；qa-guard51条中1条超时，页面50条1.00仍通过。上述旧结果不能用作完整门禁通过证据，后续必须逐个完整重跑。见 eval-completeness.md。
+
+## 1dd3ca2 部署后专项复测
+
+- CD 39239761584 成功；4把QA Key的qwen3.8-flash专属非思考配置已合并至既有网关配置，其他模型/智能体参数保留，网关已随CD滚动。
+- RPM=1首请求成功，后续真实请求返回LLM_RATE_LIMITED，trace 7e056ad6e09f12429466b30b0202cc73；TPM=1按真实结算用量拦截下一请求，trace 91162a4c9a114415ad2941a09667aa9b。TPM不承诺首请求严格token硬上限。证据 quota-retest.json。
+- 并发=1，两个独立调试页面同时调用，第二页被LLM_RATE_LIMITED拒绝，trace 02784d20101ce31306d75c8ebc1f8f24；第一页收到287条事件后点停止，显示已取消。证据 quota-concurrency-stop.json、sse-stop.png。配额均恢复不限制，日预算仍30。
+- 结构化历史：先查询故障，再查询咨询，第二轮正确调用shift.policy(category=咨询)，trace 74c1ca9075e112902234e1e3a4aaece9，6.16秒完成。证据 structured-history-consultation.json/png。
+- JDBC连接错误再次出现且同一时间日志有MVC异步30秒超时/错误体转换失败；见debug-stream-timeout.md，数据库自身关闭原因未确认，不能标为已修复。

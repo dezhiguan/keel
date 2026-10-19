@@ -55,7 +55,7 @@
       "properties": {
         "answer": { "type": "string" },
         "citations": { "type": "array", "items": { "type": "object" }, "default": [] },
-        "meta": { "type": "object", "default": {} },
+        "meta": { "type": "object", "default": {}, "description": "可选 prompt_versions={提示词名:实际版本} 与 prompt_fallback 布尔值，用于评测发布证据；不包含原文。" },
         "trace_id": { "$ref": "#/$defs/traceId" },
         "run_id": { "$ref": "#/$defs/runId" }
       }

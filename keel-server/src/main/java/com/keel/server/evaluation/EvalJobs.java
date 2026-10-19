@@ -69,9 +69,10 @@ public class EvalJobs {
     }
 
     public Map<String,Object> run(String id) {
-        var rows=jdbc.query("SELECT state,result::text,error FROM eval_run WHERE run_id=?",(rs,n)-> {
+        var rows=jdbc.query("SELECT state,result::text,error,agent_name,image FROM eval_run WHERE run_id=?",(rs,n)-> {
             var body=new LinkedHashMap<String,Object>();
             body.put("runId",id); body.put("state",rs.getString(1));
+            body.put("agent",rs.getString(4)); body.put("image",rs.getString(5));
             body.put("progress",Set.of("DONE","FAILED").contains(rs.getString(1))?1:0);
             body.put("result",decode(rs.getString(2))); body.put("error",rs.getString(3));
             return body;

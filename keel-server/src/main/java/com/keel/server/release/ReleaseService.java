@@ -40,6 +40,53 @@ public class ReleaseService {
         this.ciClient = ciClient == null ? "" : ciClient;
     }
 
+    public Map<String, Object> publishEvaluation(String agent, String runId, String env) {
+        catalog.authorize(agent);
+        if (!List.of("staging", "prod").contains(env)) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "env 只能是 staging 或 prod");
+        }
+        if (devflowJobId(agent) != null) {
+            throw new KeelException(ErrorCode.AUTH_CONSOLE_FORBIDDEN, "研发员工请从生产任务的可信 CI 发布");
+        }
+        var rows = jdbc.query("SELECT image,state,result::text FROM eval_run WHERE run_id=? AND agent_name=?",
+                (rs, n) -> Map.of("image", rs.getString(1), "state", rs.getString(2),
+                        "result", rs.getString(3) == null ? "{}" : rs.getString(3)), runId, agent);
+        if (rows.isEmpty()) throw new KeelException(ErrorCode.SERVER_NOT_FOUND, "没有这个智能体的评测运行");
+        var row = rows.getFirst();
+        JsonNode result;
+        try { result = json.readTree(row.get("result")); }
+        catch (Exception error) { throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "评测结果无效"); }
+        requirePublishable(row.get("state"), result, row.get("image"));
+        var versions = result.path("promptVersions");
+        for (var item : catalog.declared(agent)) {
+            var measured = versions.path(item.name());
+            var staging = labelVersion(item.fullName(), "staging");
+            if (!measured.canConvertToInt() || staging == null || measured.asInt() != staging) {
+                throw new KeelException(ErrorCode.PROMPT_NOT_GATED, "当前 staging 提示词与完整评测实际版本不一致，请重新评测");
+            }
+        }
+        var gate = json.createObjectNode().put("agent", agent).put("gateRunId", runId).put("passed", true);
+        gate.set("promptVersions", versions);
+        prompts.recordGate(gate);
+        // Snapshot the exact tested image before any production label is moved.
+        var version = snapshotEvaluatedVersion(agent, runId, row.get("image"));
+        var body = json.createObjectNode().put("env", env).put("gateRunId", runId)
+                .put("evalRunId", runId).put("image", row.get("image"));
+        var published = release(agent, body);
+        published.put("version", version);
+        audit.append(agent, env, "config.change", "mid", "allowed", "agent:" + agent, null,
+                PromptCatalog.Actor.current().userId(), Map.of("version", version, "gateRunId", runId));
+        return published;
+    }
+
+    static void requirePublishable(String state, JsonNode result, String image) {
+        if (!"DONE".equals(state) || !result.path("passed").asBoolean() || !result.path("complete").asBoolean()
+                || !result.path("promptVersions").isObject() || result.path("caseCount").asInt() < 1
+                || image == null || image.isBlank()) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "只能发布完整通过且包含实际提示词证据和镜像的评测");
+        }
+    }
+
     public Map<String, Object> release(String agent, JsonNode body) {
         var env = body.path("env").asText("");
         var gateRunId = body.path("gateRunId").asText("");
@@ -68,17 +115,19 @@ public class ReleaseService {
         if (rejection != null) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, rejection);
         }
+        var evalRunId = body.path("evalRunId").asText("");
+        if (!evalRunId.isBlank() && !evalRunId.equals(gateRunId)) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "评测运行号必须与门禁运行号一致");
+        }
+        if (jobId == null && evalRunId.isBlank()) requireLegacyGate(agent, gateRunId);
+        // Validate the bound evaluation before changing any production labels.
+        var version = !evalRunId.isBlank()
+                ? snapshotEvaluatedVersion(agent, evalRunId, image) : agentVersion(agent);
         ObjectNode promptVersions = json.createObjectNode();
         if ("prod".equals(env)) {
             prompts.invalidateListCache();
             promptVersions = moveProduction(agent, gateRunId, jobId != null);
         }
-        var evalRunId = body.path("evalRunId").asText("");
-        if (!evalRunId.isBlank() && !evalRunId.equals(gateRunId)) {
-            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "评测运行号必须与门禁运行号一致");
-        }
-        var version = "staging".equals(env) && !evalRunId.isBlank()
-                ? snapshotEvaluatedVersion(agent, evalRunId, image) : agentVersion(agent);
         jdbc.update("""
                 INSERT INTO release_record (agent_name, version, env, gate_passed, prompt_versions_json, ci_run_url, image, kind)
                 VALUES (?, ?, ?, true, ?::jsonb, ?, ?, 'release')
@@ -93,10 +142,24 @@ public class ReleaseService {
         return result;
     }
 
+    private void requireLegacyGate(String agent, String runId) {
+        var declared = catalog.declared(agent);
+        if (declared.isEmpty()) {
+            throw new KeelException(ErrorCode.PROMPT_NOT_GATED, "没有可核对的提示词门禁，请使用完整的平台评测发布");
+        }
+        for (var item : declared) {
+            var staging = labelVersion(item.fullName(), "staging");
+            var passed = latestPassed(agent, item.name(), runId);
+            if (staging == null || passed == null || staging != passed.version()) {
+                throw new KeelException(ErrorCode.PROMPT_NOT_GATED, ErrorCode.PROMPT_NOT_GATED.message());
+            }
+        }
+    }
+
     /** Preserve the tested dev manifest as the next immutable agent version. */
     private String snapshotEvaluatedVersion(String agent, String evalRunId, String image) {
         var evaluated = jdbc.query("""
-                SELECT image, state, COALESCE((result->>'passed')::boolean, false)
+                SELECT image, state, COALESCE((result->>'passed')::boolean, false) AND COALESCE((result->>'complete')::boolean, false)
                 FROM eval_run WHERE run_id=? AND agent_name=?
                 """, (rs, row) -> new Evaluated(rs.getString(1), rs.getString(2), rs.getBoolean(3)),
                 evalRunId, agent);
@@ -207,7 +270,7 @@ public class ReleaseService {
                 .filter(item -> agent.equals(item.agent())).toList() : catalog.declared(agent);
         for (var item : declared) {
             var staging = labelVersion(item.fullName(), "staging");
-            var passed = latestPassed(agent, item.name());
+            var passed = latestPassed(agent, item.name(), gateRunId);
             if (staging == null || passed == null || staging != passed.version()) {
                 throw new KeelException(ErrorCode.PROMPT_NOT_GATED, ErrorCode.PROMPT_NOT_GATED.message());
             }
@@ -283,12 +346,12 @@ public class ReleaseService {
         }
     }
 
-    private Passed latestPassed(String agent, String prompt) {
+    private Passed latestPassed(String agent, String prompt, String runId) {
         var rows = jdbc.query("""
                 SELECT version, sha256 FROM prompt_promotion
-                WHERE agent_name = ? AND prompt_name = ? AND gate_status = 'PASSED'
+                WHERE agent_name = ? AND prompt_name = ? AND gate_status = 'PASSED' AND gate_run_id = ?
                 ORDER BY promoted_at DESC, id DESC LIMIT 1
-                """, (rs, n) -> new Passed(rs.getInt(1), rs.getString(2)), agent, prompt);
+                """, (rs, n) -> new Passed(rs.getInt(1), rs.getString(2)), agent, prompt, runId);
         return rows.isEmpty() ? null : rows.getFirst();
     }
 

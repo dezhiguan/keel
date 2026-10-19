@@ -16,9 +16,11 @@ import java.util.Map;
 @RequestMapping("/api/v1/eval")
 public class EvalController {
     private final EvalQueryService eval;
+    private final com.keel.server.release.ReleaseService releases;
 
-    public EvalController(EvalQueryService eval) {
+    public EvalController(EvalQueryService eval, com.keel.server.release.ReleaseService releases) {
         this.eval = eval;
+        this.releases = releases;
     }
 
     @GetMapping("/gates")
@@ -39,6 +41,12 @@ public class EvalController {
     @GetMapping("/{agent}/runs/active")
     public R<Map<String, String>> active(@PathVariable String agent) {
         return R.ok(eval.active(agent));
+    }
+
+    @PostMapping("/{agent}/runs/{runId}/publish")
+    public R<Map<String, Object>> publish(@PathVariable String agent, @PathVariable String runId,
+            @org.springframework.web.bind.annotation.RequestBody com.fasterxml.jackson.databind.JsonNode body) {
+        return R.ok(releases.publishEvaluation(agent, runId, body.path("env").asText("")));
     }
 
     @GetMapping("/runs/{runId}")
