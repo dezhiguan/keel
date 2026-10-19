@@ -309,3 +309,92 @@ def test_external_history_rejects_invalid_roles_and_size(monkeypatch, tmp_path, 
     monkeypatch.chdir(tmp_path)
     with pytest.raises(KeelError):
         Context("agent", "run", "trace", asyncio.Queue(), session_messages=prior)
+
+
+def test_tool_refinement_rounds_stop_with_actual_evidence(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    seen = []
+    ctx, requests = context(monkeypatch, [completion(calls=[('lookup', {'city': '上海'})]),
+                                        completion('依据已查询结果回答')],
+                            {'lookup': lambda city: seen.append(city) or {'found': city}})
+
+    async def scenario():
+        try:
+            return await ctx.loop([{'role': 'user', 'content': '查询'}], TOOLS, max_tool_rounds=1)
+        finally:
+            await ctx.aclose()
+
+    assert asyncio.run(scenario()).answer == '依据已查询结果回答'
+    assert seen == ['上海']
+    assert requests[0]['tools'] == TOOLS
+    assert requests[1]['tools'] == []
+    assert json.loads(requests[1]['messages'][-1]['content']) == {'found': '上海'}
+
+
+def test_model_cannot_execute_manifest_tool_not_offered_in_this_round(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    seen = []
+    ctx, requests = context(monkeypatch, [completion(calls=[('lookup', {'city': '上海'})]),
+                                        completion('该工具本轮不可用')],
+                            {'lookup': lambda city: seen.append(city)})
+    other_tools = [{'type': 'function', 'function': {'name': 'other', 'parameters': {'type': 'object'}}}]
+
+    async def scenario():
+        try:
+            return await ctx.loop([{'role': 'user', 'content': '查询'}], other_tools, max_tool_rounds=1)
+        finally:
+            await ctx.aclose()
+
+    assert asyncio.run(scenario()).answer == '该工具本轮不可用'
+    assert seen == []
+    assert requests[1]['tools'] == []
+    assert json.loads(requests[1]['messages'][-1]['content'])['error']['code'] == 'TOOL_NOT_GRANTED'
+    assert ctx.audit.rows == []
+
+
+def test_no_tool_phase_rejects_provider_hallucinated_call(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    seen = []
+    ctx, requests = context(monkeypatch, [completion(calls=[('lookup', {'city': '上海'})])],
+                            {'lookup': lambda city: seen.append(city)})
+
+    async def scenario():
+        try:
+            with pytest.raises(KeelError) as error:
+                await ctx.loop([{'role': 'user', 'content': '查询'}], TOOLS, max_tool_rounds=0)
+            return error.value.code
+        finally:
+            await ctx.aclose()
+
+    assert asyncio.run(scenario()) is ErrorCode.TOOL_NOT_GRANTED
+    assert requests[0]['tools'] == []
+    assert seen == []
+
+
+def test_bounded_refinement_keeps_approval_round_spent_after_resume(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    seen = []
+    first, _ = context(monkeypatch, [completion(calls=[('lookup', {'n': 1})])],
+                       {'lookup': lambda n: seen.append(n) or {'value': n}}, high=True)
+
+    async def suspend(tool, kwargs):
+        first.pending = {'tool': tool, 'kwargs': kwargs, 'checkpoint_ref': 'ckpt_run-1'}
+        return first.suspend('approval', ref='approval-1')
+
+    first.suspend_for_approval = suspend
+
+    async def invoke(ctx):
+        try:
+            return await ctx.loop([{'role': 'user', 'content': 'go'}], TOOLS, max_tool_rounds=1)
+        finally:
+            await ctx.aclose()
+
+    assert asyncio.run(invoke(first)).reason.value == 'approval'
+    assert seen == []
+    resumed, requests = context(monkeypatch, [completion('已核查授权工具结果')],
+                                {'lookup': lambda n: seen.append(n) or {'value': n}}, high=True)
+    resumed.resuming = True
+    assert asyncio.run(invoke(resumed)).answer == '已核查授权工具结果'
+    assert seen == [1]
+    assert requests[0]['tools'] == []
+    assert json.loads(requests[0]['messages'][-1]['content']) == {'value': 1}

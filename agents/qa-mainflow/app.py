@@ -140,7 +140,7 @@ async def run(request, ctx):
     model_tools = [tool for tool in tools_for_model()
                    if tool["function"]["name"] == "devflow.catalog.search"]
     result = await ctx.loop(messages, model_tools,
-                            max_steps=6, prompt=prompt)
+                            max_steps=6, max_tool_rounds=PROFILE.get("maxToolRounds"), prompt=prompt)
     if isinstance(result, SuspendEvent):
         return result
     return ctx.final(result.answer, citations=citations)

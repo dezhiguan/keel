@@ -247,7 +247,10 @@ class Context:
         return event
 
     async def loop(self, messages: list[dict], tools: list[dict], *,
-                   max_steps: int | None = None, prompt=None) -> FinalEvent | SuspendEvent:
+                   max_steps: int | None = None, max_tool_rounds: int | None = None,
+                   prompt=None) -> FinalEvent | SuspendEvent:
+        if max_tool_rounds is not None and (type(max_tool_rounds) is not int or max_tool_rounds < 0):
+            raise ValueError("max_tool_rounds 必须为非负整数")
         configured = getattr(getattr(getattr(self.manifest.spec, "models", None), "budget", None),
                              "maxSteps", None) if self.manifest else None
         limit = min(max_steps if max_steps is not None else configured or 6,
@@ -282,7 +285,10 @@ class Context:
                     raise ValueError("checkpoint does not match run")
             except (OSError, ValueError, KeyError, TypeError) as exc:
                 raise KeelError(ErrorCode.RUN_NOT_RESUMABLE) from exc
+            offered_names = {tool.get("function", {}).get("name") for tool in tools}
             for index, call in enumerate(pending):
+                if call["name"] not in offered_names or (max_tool_rounds is not None and step > max_tool_rounds):
+                    raise KeelError(ErrorCode.TOOL_NOT_GRANTED, "恢复的工具未在本轮提供")
                 if index > 0 and call["signature"] == last_call:
                     raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型连续重复调用同一工具")
                 if index > 0 and self._requires_approval(call["name"]):
@@ -310,7 +316,9 @@ class Context:
                 attrs.RUN_ID: self.run_id, attrs.LOOP_STEP: step, attrs.STATUS: "ok",
             }) as span:
                 try:
-                    result = await self.llm.chat(history, tools=tools, prompt=prompt)
+                    active_tools = tools if max_tool_rounds is None or step <= max_tool_rounds else []
+                    allowed_names = {tool.get("function", {}).get("name") for tool in active_tools}
+                    result = await self.llm.chat(history, tools=active_tools, prompt=prompt)
                     if not isinstance(result, ChatResult):
                         raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型没有返回结构化工具结果")
                     if not result.tool_calls:
@@ -322,6 +330,8 @@ class Context:
                             self.memory.append("assistant", result.content)
                         checkpoint.unlink(missing_ok=True)
                         return terminal
+                    if not active_tools:
+                        raise KeelError(ErrorCode.TOOL_NOT_GRANTED, "当前阶段未提供工具，不能执行模型返回的工具调用")
                     calls = [{"id": call.id, "name": call.name, "arguments": call.arguments,
                               "signature": json.dumps([call.name, call.arguments], ensure_ascii=False, sort_keys=True)}
                              for call in result.tool_calls]
@@ -331,6 +341,12 @@ class Context:
                                                                  "arguments": json.dumps(call["arguments"], ensure_ascii=False)}}
                                                    for call in calls]})
                     for index, call in enumerate(calls):
+                        if call["name"] not in allowed_names:
+                            history.append({"role": "tool", "tool_call_id": call["id"],
+                                            "content": json.dumps({"error": {"code": "TOOL_NOT_GRANTED",
+                                                "message": "本轮没有提供此工具，请依据已有证据回答"}}, ensure_ascii=False)})
+                            span.set_attribute("keel.tool.selection_rejected", True)
+                            continue
                         if call["signature"] == last_call:
                             raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型连续重复调用同一工具")
                         if self._requires_approval(call["name"]):
