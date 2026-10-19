@@ -13,7 +13,7 @@ import AgentLineage from './AgentLineage.vue'
 import { mergeEmployees, type EmployeeCard, type Layer } from './employees'
 
 const STATUSES: AgentStatus[] = ['DRAFT', 'REGISTERED', 'ONLINE', 'DEGRADED', 'OFFLINE', 'RETIRED']
-const CATEGORIES: [Layer | 'all', string][] = [['all', '全部'], ['biz', '业务'], ['dev', '研发'], ['meta', '元智能体（新）']]
+const CATEGORIES: [Layer | 'all', string][] = [['all', '全部'], ['biz', '业务'], ['dev', '研发'], ['meta', '元智能体']]
 const LAYER_LABEL: Record<Layer, string> = { meta: '元', dev: '研发', biz: '业务' }
 
 const route = useRoute()
