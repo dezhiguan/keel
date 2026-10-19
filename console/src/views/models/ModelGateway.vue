@@ -47,6 +47,9 @@ const loading = ref(false)
 const saving = ref(false)
 const selectedAlias = ref('')
 const nextBudget = ref(30)
+const nextRpm = ref<number | ''>('')
+const nextTpm = ref<number | ''>('')
+const nextConcurrency = ref<number | ''>('')
 const rotating = ref<GatewayKey | null>(null)
 const rotated = ref<{ key: string; version: number } | null>(null)
 const rotationBusy = ref(false)
@@ -183,6 +186,9 @@ function selectKey(key: GatewayKey) {
   const current = key.dailyBudgetCny ?? 30
   const stepped = Math.round(current / 5) * 5
   nextBudget.value = Math.min(200, Math.max(10, stepped || 10))
+  nextRpm.value = key.rpm ?? ''
+  nextTpm.value = key.tpm ?? ''
+  nextConcurrency.value = key.concurrency ?? ''
 }
 
 function openQuota(key: GatewayKey) {
@@ -236,8 +242,14 @@ async function saveBudget() {
   if (!key?.alias || key.status === 'BLOCKED') return
   saving.value = true
   try {
-    await updateModelBudget(key.alias, nextBudget.value)
-    ElMessage.success(`已更新 ${key.alias} 日预算为 ¥${nextBudget.value}`)
+    const limit = (value: number | '', label: string) => {
+      if (value === '') return null
+      if (!Number.isInteger(value) || value <= 0 || value > 2147483647) throw new Error(`${label} 须为正整数，留空表示不限制`)
+      return value
+    }
+    const limits = admin.value ? { rpm: limit(nextRpm.value, 'RPM'), tpm: limit(nextTpm.value, 'TPM'), concurrency: limit(nextConcurrency.value, '并发') } : undefined
+    await updateModelBudget(key.alias, nextBudget.value, limits)
+    ElMessage.success(`已更新 ${key.alias} 的预算和配额`)
     await load()
   } catch (error) {
     ElMessage.error(`调整配额失败：${toKeelError(error).message}`)
@@ -695,24 +707,27 @@ watch(() => envStore.env, load, { immediate: true })
         <div class="mh">分配份额 · <span class="mono">{{ selectedKey.alias }}</span></div>
         <div class="mb">
           <div class="field">
-            <label>允许的渠道（只列同环境）</label>
+            <label>允许的模型（同环境，授权只读）</label>
             <div v-for="model in sameEnvModels" :key="model.model" class="ch-row">
               <label>
                 <input type="checkbox" disabled :checked="selectedKey.models?.includes(model.model || '')">
                 {{ model.provider || '渠道' }}
                 <span class="mut">{{ model.model }}</span>
               </label>
-              <input class="inp rpm" type="text" disabled :value="limitLabel(selectedKey.rpm)" title="RPM：每分钟请求数">
             </div>
+          </div>
+          <div class="field">
+            <label for="key-quota-rpm">Key RPM（每分钟请求数，所有渠道共用）</label>
+            <input id="key-quota-rpm" v-model.number="nextRpm" class="inp" type="number" min="1" step="1" placeholder="留空表示不限制" :disabled="!admin || selectedKey.status === 'BLOCKED'">
           </div>
           <div class="share-grid">
             <div class="field">
-              <label>TPM（每分钟 Token 数，输入 + 输出）</label>
-              <input class="inp" type="text" disabled :value="selectedKey.tpm == null ? '不限制' : selectedKey.tpm.toLocaleString('zh-CN')">
+              <label for="key-quota-tpm">TPM（每分钟 Token 数，输入 + 输出）</label>
+              <input id="key-quota-tpm" v-model.number="nextTpm" class="inp" type="number" min="1" step="1" placeholder="留空表示不限制" :disabled="!admin || selectedKey.status === 'BLOCKED'">
             </div>
             <div class="field">
-              <label>并发</label>
-              <input class="inp" type="text" disabled :value="limitLabel(selectedKey.concurrency)">
+              <label for="key-quota-concurrency">并发</label>
+              <input id="key-quota-concurrency" v-model.number="nextConcurrency" class="inp" type="number" min="1" step="1" placeholder="留空表示不限制" :disabled="!admin || selectedKey.status === 'BLOCKED'">
             </div>
           </div>
           <div class="field">

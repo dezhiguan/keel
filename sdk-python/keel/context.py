@@ -43,10 +43,27 @@ class _ToolClient:
         self.owner = owner
 
     async def call(self, name: str, **kwargs):
-        callback = self.functions.get(name)
         declared = next((tool for tool in (self.manifest.spec.tools or []) if tool.name == name), None)
         if declared is None:
             raise KeelError(ErrorCode.TOOL_NOT_GRANTED)
+        attributes = {attrs.OBSERVATION_TYPE: "tool", attrs.AGENT: self.owner.agent,
+                      attrs.RUN_ID: self.owner.run_id, attrs.STATUS: "ok"}
+        if self.owner.env:
+            attributes[attrs.ENV] = self.owner.env
+        with self.owner._tracer.start_as_current_span(name, attributes=attributes) as span:
+            try:
+                outcome = await self._execute(name, declared, kwargs)
+            except Exception:
+                span.set_attribute(attrs.STATUS, "failed")
+                self.owner._events.put_nowait(ToolEvent(name=name, status="failed"))
+                raise
+            status = "fallback" if isinstance(outcome, SuspendEvent) else "ok"
+            span.set_attribute(attrs.STATUS, status)
+            self.owner._events.put_nowait(ToolEvent(name=name, status=status))
+            return outcome
+
+    async def _execute(self, name, declared, kwargs):
+        callback = self.functions.get(name)
         if not self.owner.resuming and self.owner.guard.before_tool(declared):
             if self.owner.audit is None:
                 raise KeelError(ErrorCode.AUDIT_WRITE_FAILED)
@@ -55,16 +72,8 @@ class _ToolClient:
             return await self.owner.suspend_for_approval(name, kwargs)
         if callback is None:
             from keel.tools.remote import invoke
-            with self.owner._tracer.start_as_current_span(name, attributes={
-                attrs.OBSERVATION_TYPE: "tool", attrs.AGENT: self.owner.agent, attrs.ENV: self.owner.env,
-                attrs.RUN_ID: self.owner.run_id, attrs.STATUS: "ok",
-            }) as span:
-                try:
-                    outcome = await invoke(self.owner, name, kwargs)
-                    return outcome if isinstance(outcome, SuspendEvent) else self.owner.guard.filter_tool(outcome)
-                except Exception:
-                    span.set_attribute(attrs.STATUS, "failed")
-                    raise
+            outcome = await invoke(self.owner, name, kwargs)
+            return outcome if isinstance(outcome, SuspendEvent) else self.owner.guard.filter_tool(outcome)
         if self.owner.audit is None:
             raise KeelError(ErrorCode.AUDIT_WRITE_FAILED)
         risk = declared.risk.value if declared.risk else "low"
@@ -274,6 +283,7 @@ class Context:
             if step >= limit:
                 raise KeelError(ErrorCode.AGENT_MAX_STEPS_EXCEEDED)
             step += 1
+            self._events.put_nowait(StepEvent(name=f"agent.loop.step.{step}", status="ok"))
             with self._tracer.start_as_current_span("agent.loop.step", attributes={
                 attrs.OBSERVATION_TYPE: "agent", attrs.AGENT: self.agent,
                 attrs.RUN_ID: self.run_id, attrs.LOOP_STEP: step, attrs.STATUS: "ok",

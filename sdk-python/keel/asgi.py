@@ -157,6 +157,8 @@ def create_app(agent) -> Starlette:
                 raise
             except KeelError as exc:
                 root.set_attribute(attrs.STATUS, "failed")
+                if exc.code in (ErrorCode.GUARD_INJECTION_BLOCKED, ErrorCode.GUARD_OUTPUT_BLOCKED):
+                    root.set_attribute(attrs.BLOCKED, True)
                 logger.error("agent invocation rejected trace_id=%s agent=%s code=%s",
                              trace_id, agent.name, exc.code.value)
                 events.put_nowait(ErrorEvent(**_error(exc.code, trace_id, run_id, str(exc))))
@@ -316,6 +318,9 @@ def create_app(agent) -> Starlette:
                     else:
                         raise ValueError("entry returned no final or suspend event")
             except KeelError as exc:
+                root.set_attribute(attrs.STATUS, "failed")
+                if exc.code in (ErrorCode.GUARD_INJECTION_BLOCKED, ErrorCode.GUARD_OUTPUT_BLOCKED):
+                    root.set_attribute(attrs.BLOCKED, True)
                 events.put_nowait(ErrorEvent(**_error(exc.code, trace_id, run_id, str(exc))))
             except Exception:
                 events.put_nowait(ErrorEvent(**_error(ErrorCode.SERVER_INTERNAL_ERROR, trace_id, run_id)))

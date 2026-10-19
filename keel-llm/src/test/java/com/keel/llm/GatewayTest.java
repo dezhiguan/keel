@@ -21,6 +21,66 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class GatewayTest {
+    @Test void responseRequestIdIsGeneratedByTheGatewayAndMatchesItsBill() throws Exception {
+        var server = echoServer();
+        try {
+            var gateway = gateway(server);
+            var created = gateway.create("echo-dev", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false);
+            var controller = new LlmController(gateway, catalog(server), new LlmConfiguration.LlmProperties());
+            var request = new org.springframework.mock.web.MockHttpServletRequest("POST", "/v1/chat/completions");
+            request.addHeader("X-Request-Id", "caller-cannot-choose-this");
+            var response = new org.springframework.mock.web.MockHttpServletResponse();
+            controller.complete(request, response, "Bearer " + created.key(), "{\"model\":\"qwen-plus\"}");
+            assertThat(response.getHeader("X-Request-Id")).isNotBlank().isNotEqualTo("caller-cannot-choose-this");
+            assertThat(gateway.spend("echo-dev", 1, 10).getFirst().requestId()).isEqualTo(response.getHeader("X-Request-Id"));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test void quotaChangesReachOtherReplicasWithoutRotatingTheKeyAndCanBeCleared() throws Exception {
+        var server = echoServer();
+        try {
+            var keys = new KeyDirectory();
+            var first = new Gateway(catalog(server), new BudgetCounter(), new Upstream(), keys);
+            var second = new Gateway(catalog(server), new BudgetCounter(), new Upstream(), keys);
+            var created = first.create("echo-dev", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false);
+            first.updateBudget("echo-dev", new BigDecimal("30"), Map.of("rpm", 1, "tpm", 6000, "concurrency", 2));
+            var shared = second.requireAlias("echo-dev");
+            assertThat(shared.token()).isEqualTo(created.key());
+            assertThat(shared.version()).isEqualTo(created.version());
+            assertThat(shared.models()).containsExactly("qwen-plus");
+            assertThat(shared.rpm()).isEqualTo(1);
+            second.complete("Bearer " + created.key(), "/v1/chat/completions", "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2));
+            assertThatThrownBy(() -> second.complete("Bearer " + created.key(), "/v1/chat/completions", "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2)))
+                    .isInstanceOf(Gateway.GatewayException.class)
+                    .extracting(error -> ((Gateway.GatewayException) error).code()).isEqualTo(ErrorCode.LLM_RATE_LIMITED);
+            first.updateBudget("echo-dev", new BigDecimal("45"));
+            assertThat(second.requireAlias("echo-dev").rpm()).isEqualTo(1);
+            var clear = new java.util.LinkedHashMap<String, Integer>();
+            clear.put("rpm", null);
+            first.updateBudget("echo-dev", new BigDecimal("45"), clear);
+            assertThat(second.requireAlias("echo-dev").rpm()).isNull();
+            assertThat(second.requireAlias("echo-dev").tpm()).isEqualTo(6000);
+            second.complete("Bearer " + created.key(), "/v1/chat/completions", "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test void invalidQuotaDoesNotPartiallyChangeTheBudget() {
+        var server = echoServer();
+        try {
+            var gateway = gateway(server);
+            gateway.create("echo-dev", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false);
+            assertThatThrownBy(() -> gateway.updateBudget("echo-dev", new BigDecimal("45"), Map.of("rpm", 0)))
+                    .isInstanceOf(Gateway.GatewayException.class);
+            assertThat(gateway.requireAlias("echo-dev").dailyBudgetCny()).isEqualByComparingTo("30");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     @Test void missingPriceRefusesCatalog() {
         assertThatThrownBy(() -> new ModelCatalog(Map.of(
                 "qwen-plus", new ModelCatalog.Model("qwen-plus", BigDecimal.ZERO, new BigDecimal("0.000002"), "http://127.0.0.1:9", ""))))

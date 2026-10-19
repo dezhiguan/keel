@@ -24,6 +24,10 @@ def build(name: str) -> dict:
         "audit": {"captureFields": []},
     }
     spec["guardrails"].update(profile.get("guardrails", {}))
+    if profile.get("fallback"):
+        spec["models"]["fallback"] = profile["fallback"]
+    if profile.get("gate"):
+        spec["eval"]["gate"] = profile["gate"]
     if profile["knowledge"]:
         spec["knowledge"] = [{"kb": kb} for kb in profile["knowledge"]]
     if profile["delegates"]:
@@ -32,7 +36,7 @@ def build(name: str) -> dict:
         spec["skills"] = profile["skills"]
     return {"apiVersion": "keel/v1", "kind": "Agent",
             "metadata": {"name": name, "displayName": profile["title"],
-                         "owner": "平台组 / qa", "category": "dev"}, "spec": spec}
+                         "owner": profile.get("owner", "平台组 / qa"), "category": "dev"}, "spec": spec}
 
 
 if __name__ == "__main__":

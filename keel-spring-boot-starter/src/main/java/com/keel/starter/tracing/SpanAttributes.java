@@ -17,6 +17,7 @@ public final class SpanAttributes {
     public static final String AGENT_VERSION = "keel.agent.version";
     public static final String PARENT_AGENT = "keel.parent_agent";
     public static final String STATUS = "keel.status";
+    public static final String BLOCKED = "keel.blocked";
     public static final String AUDIT_IDS = "keel.audit_ids";
     public static final String FALLBACK_FROM = "keel.fallback_from";
     public static final String LLM_KEY_ALIAS = "keel.llm.key_alias";

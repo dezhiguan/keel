@@ -344,7 +344,14 @@ public class LiteLlmClient {
     }
 
     public void updateBudget(String alias, BigDecimal dailyBudgetCny) {
-        send("/admin/v1/keys/" + alias + "/budget", Map.of("dailyBudgetCny", dailyBudgetCny));
+        updateBudget(alias, dailyBudgetCny, Map.of());
+    }
+
+    public void updateBudget(String alias, BigDecimal dailyBudgetCny, Map<String, Integer> limits) {
+        var body = new java.util.LinkedHashMap<String, Object>();
+        body.put("dailyBudgetCny", dailyBudgetCny);
+        body.putAll(limits);
+        send("/admin/v1/keys/" + alias + "/budget", body);
     }
 
     public record VirtualKey(String alias, List<String> models, double dailyBudgetCny, double spentCny,

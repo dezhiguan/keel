@@ -86,6 +86,7 @@ watch(() => route.params.id, load, { immediate: true })
           <span v-if="summary.humanWaitMs">人工等待 <b>{{ humanWait(summary.humanWaitMs) }}</b></span>
           <span>tokens <b>{{ showTokens(summary.tokens) }}</b></span>
           <span>成本 <b>{{ fmtCny(summary.costCny) }}</b></span>
+          <span v-if="summary.pendingBillCount">待计费 <b>{{ summary.pendingBillCount }} 条</b></span>
           <span v-if="summary.pendingReason">状态 <b class="pend">挂起中 · {{ summary.pendingReason }}</b></span>
         </div>
         <div class="contrib" :class="{ single: !multi || !detail.costBreakdown?.length }">
@@ -137,7 +138,7 @@ watch(() => route.params.id, load, { immediate: true })
           <div><span>状态</span><b><StatusPill v-bind="nodeStatus(node.status)" /></b></div>
           <div><span>开始</span><b>{{ fmtMs(node.startMs) }}</b></div>
           <div><span>耗时</span><b>{{ node.humanWaitLabel ? `人工 ${node.humanWaitLabel}` : fmtMs(node.durationMs) }}</b></div>
-          <div><span>模型</span><b>{{ node.model ?? '—' }}{{ node.fallbackFrom ? `（从 ${node.fallbackFrom} 降级）` : '' }}</b></div>
+          <div><span>请求模型</span><b>{{ node.model ?? '—' }}{{ node.fallbackFrom ? `（从 ${node.fallbackFrom} 降级）` : '' }}</b></div>
           <div><span>tokens{{ node.aggregated ? '（含子节点）' : '' }}</span><b>{{ showTokens(tokensOf) }}</b></div>
           <div><span>成本{{ node.aggregated ? '（含子节点）' : '' }}</span><b>{{ fmtCny(node.costCny) }}</b></div>
           <div v-if="node.model" class="full"><span>模型网关</span><b>经薄网关<template v-if="node.llmKeyAlias"> · 虚拟 Key {{ node.llmKeyAlias }}</template> · 花费计入该智能体的日预算</b></div>

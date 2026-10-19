@@ -2175,8 +2175,8 @@ paths:
     post:
       tags: [models]
       operationId: updateModelBudget
-      summary: 调整虚拟 Key 的人民币日预算
-      description: 保存后写到薄网关这把虚拟 Key，并记一条 config.change 审计。日预算与控制台滑杆一致，¥10 到 ¥200，步长 ¥5。
+      summary: 调整虚拟 Key 的人民币日预算和 Key 级配额
+      description: 保存后写到薄网关并记 config.change 审计。日预算为 ¥10 到 ¥200，步长 ¥5。RPM、TPM、并发仅管理员可改，缺省保持原值，null 取消限制，正整数设置上限。RPM 为所有渠道共用，不轮换令牌。
       parameters:
         - name: alias
           in: path
@@ -2191,6 +2191,9 @@ paths:
               required: [dailyBudgetCny]
               properties:
                 dailyBudgetCny: { type: number, format: float, minimum: 10, maximum: 200 }
+                rpm: { type: [integer, "null"], minimum: 1 }
+                tpm: { type: [integer, "null"], minimum: 1 }
+                concurrency: { type: [integer, "null"], minimum: 1 }
       responses:
         "200":
           description: 已写到薄网关
@@ -4023,6 +4026,7 @@ components:
         tokens: { type: integer }
         costCny: { type: number, format: float }
         status: { $ref: "#/components/schemas/NodeStatus" }
+        pendingBillCount: { type: integer, minimum: 0, description: 这条 trace 的网关待计费尝试数；costCny 仅含已知费用 }
         blocked: { type: boolean, description: 被护栏或准入拦截 }
         cached: { type: boolean }
         pendingReason: { type: string, nullable: true, description: 仍在挂起时的原因。空表示当前没有等人 }
@@ -4097,6 +4101,7 @@ components:
         model: { type: string, nullable: true }
         fallbackFrom: { type: string, nullable: true }
         llmKeyAlias: { type: string, nullable: true }
+        llmRequestId: { type: string, nullable: true, description: 网关响应头 X-Request-Id，对应这次 generation 的网关账单请求号 }
         tokensIn: { type: integer, nullable: true }
         tokensOut: { type: integer, nullable: true }
         tokens: { type: integer, nullable: true }

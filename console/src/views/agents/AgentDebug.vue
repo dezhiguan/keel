@@ -40,6 +40,7 @@ const detail = ref<AgentDetail | null>(null)
 const loading = ref(false)
 const calls = ref<Call[]>([])
 const busy = ref(false)
+const sessionBusy = ref(false)
 
 const sessions = ref<DebugSession[]>([])
 const currentId = ref<string | null>(null)
@@ -108,6 +109,7 @@ async function loadMessages(session: DebugSession) {
 }
 
 async function loadSessions() {
+  sessionBusy.value = true
   shown.sessions = DEBUG_PAGE.sessions
   shown.messages = DEBUG_PAGE.messages
   shown.events = DEBUG_PAGE.events
@@ -135,6 +137,8 @@ async function loadSessions() {
     sessions.value = []
     currentId.value = null
     if (!userStore.readOnly) ElMessage.error(`加载会话失败：${toKeelError(error).message}`)
+  } finally {
+    sessionBusy.value = false
   }
   scrollEnd(threadEl.value)
   scrollEnd(eventEl.value)
@@ -228,7 +232,7 @@ async function invoke(input: string): Promise<Call> {
 async function sendChat() {
   const text = draft.value.trim()
   const session = current.value
-  if (!text || canStop.value || busy.value || !session) return
+  if (!text || canStop.value || busy.value || sessionBusy.value || !session) return
   draft.value = ''
   session.messages.push({ role: 'user', text })
   session.title = sessionTitle(session.title, text)
@@ -313,17 +317,20 @@ function stop() {
 }
 
 async function pick(id: string) {
-  if (canStop.value || id === currentId.value) return
+  if (canStop.value || sessionBusy.value || id === currentId.value) return
   currentId.value = id
   shown.events = DEBUG_PAGE.events
   sse.value = 'idle'
   pendingEvents.value = []
   const session = current.value
   if (session && !session.messages.length && session.messageCount) {
+    sessionBusy.value = true
     try {
       await loadMessages(session)
     } catch (error) {
       ElMessage.error(`加载消息失败：${toKeelError(error).message}`)
+    } finally {
+      sessionBusy.value = false
     }
   }
   scrollEnd(threadEl.value)
@@ -331,9 +338,11 @@ async function pick(id: string) {
 }
 
 async function newSession() {
-  if (canStop.value) return
+  if (canStop.value || sessionBusy.value) return
+  sessionBusy.value = true
   try {
     const created = asSession(await createDebugSession(name.value))
+    if (!alive) return
     sessions.value = [created, ...sessions.value]
     sessionTotal.value += 1
     currentId.value = created.id
@@ -345,32 +354,32 @@ async function newSession() {
     })
   } catch (error) {
     ElMessage.error(`新建会话失败：${toKeelError(error).message}`)
+  } finally {
+    sessionBusy.value = false
   }
 }
 
 async function delSession() {
-  if (canStop.value || !currentId.value) return
+  if (canStop.value || sessionBusy.value || !currentId.value) return
+  sessionBusy.value = true
   const id = currentId.value
   try {
     await deleteDebugSession(name.value, id)
+    sessions.value = sessions.value.filter((item) => item.id !== id)
+    sessionTotal.value = Math.max(0, sessionTotal.value - 1)
+    currentId.value = sessions.value[0]?.id ?? null
+    if (current.value && !current.value.messages.length) {
+      await loadMessages(current.value).catch((error) => ElMessage.error(`加载消息失败：${toKeelError(error).message}`))
+    }
+    shown.events = DEBUG_PAGE.events
+    sse.value = 'idle'
+    pendingEvents.value = []
+    ElMessage.warning('会话已删除')
   } catch (error) {
     ElMessage.error(`删除会话失败：${toKeelError(error).message}`)
-    return
+  } finally {
+    sessionBusy.value = false
   }
-  sessions.value = sessions.value.filter((item) => item.id !== id)
-  sessionTotal.value = Math.max(0, sessionTotal.value - 1)
-  if (!sessions.value.length) {
-    currentId.value = null
-  } else {
-    currentId.value = sessions.value[0].id
-    if (current.value && !current.value.messages.length) {
-      loadMessages(current.value).catch(() => undefined)
-    }
-  }
-  shown.events = DEBUG_PAGE.events
-  sse.value = 'idle'
-  pendingEvents.value = []
-  ElMessage.warning('会话已删除')
 }
 
 async function run() {
@@ -476,14 +485,15 @@ watch(name, async (agent) => {
 
       <div class="dbg">
         <div class="card">
-          <h3>会话 <small>{{ sessions.length }} 个 · 仅自己可见</small></h3>
-          <button v-write class="btn pri new-session" type="button" :disabled="canStop" @click="newSession">+ 新会话</button>
+          <h3>会话 <small>{{ sessionBusy ? '正在切换…' : `${sessions.length} 个 · 仅自己可见` }}</small></h3>
+          <button v-write class="btn pri new-session" type="button" :disabled="canStop || sessionBusy" @click="newSession">+ 新会话</button>
           <div ref="sessionEl" class="slist vlist" @scroll="onSessionScroll">
             <div
               v-for="item in sessions"
               :key="item.id"
               class="vi"
-              :class="{ on: item.id === currentId }"
+              :class="{ on: item.id === currentId, locked: canStop || sessionBusy }"
+              :aria-disabled="canStop || sessionBusy"
               @click="pick(item.id)"
             >
               <b>{{ item.title || '新会话' }}</b>
@@ -491,7 +501,7 @@ watch(name, async (agent) => {
             </div>
             <div class="pg" :class="{ loading: paging.sessions }">{{ pageStatus(sessions.length, sessionTotal, '个', 'down', paging.sessions) }}</div>
           </div>
-          <button v-write class="btn sm danger drop" type="button" :disabled="canStop || !current" @click="delSession">删除当前会话</button>
+          <button v-write class="btn sm danger drop" type="button" :disabled="canStop || sessionBusy || !current" @click="delSession">删除当前会话</button>
         </div>
 
         <div class="card">
@@ -520,8 +530,8 @@ watch(name, async (agent) => {
             </template>
           </div>
           <div class="compose">
-            <input v-model="draft" class="inp" placeholder="输入消息，回车发送" @keydown.enter.prevent="sendChat">
-            <button v-write class="btn pri" type="button" :disabled="canStop || !draft.trim()" @click="sendChat">发送</button>
+            <input v-model="draft" class="inp" placeholder="输入消息，回车发送" :disabled="sessionBusy" @keydown.enter.prevent="sendChat">
+            <button v-write class="btn pri" type="button" :disabled="canStop || sessionBusy || !draft.trim()" @click="sendChat">发送</button>
             <button class="btn" type="button" :disabled="!canStop" @click="stop">停止</button>
           </div>
           <div class="hint">三栏都是滚动分页：会话列表滚到底加载下一页，对话和事件滚到顶加载更早的（接口按游标分页，每页会话 10 个、消息 10 条、事件 20 条）。调试是真实调用，消耗日预算，并写入链路和审计。</div>
@@ -678,6 +688,7 @@ watch(name, async (agent) => {
 .drop { margin-top: 8px; align-self: flex-start; }
 .slist { overflow: auto; flex: 1; min-height: 0; }
 .slist .vi .m { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slist .vi.locked { pointer-events: none; opacity: 0.65; }
 .thread, .events { flex: 1; overflow: auto; min-height: 0; }
 .thread { padding: 4px 2px; }
 .pg { font-size: 11.5px; color: var(--mute); text-align: center; padding: 6px 0; }

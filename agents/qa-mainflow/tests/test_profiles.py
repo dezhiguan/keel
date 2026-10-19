@@ -27,4 +27,6 @@ def test_lifecycle_profiles_use_the_registered_logical_models_and_scoped_knowled
         spec = build(name)["spec"]
         assert spec["models"]["default"] == ("chat-cheap" if name == "qa-routing-1019" else "chat-default")
         assert spec["knowledge"] == [{"kb": "平台基准库·v1"}]
+        assert spec["eval"]["gate"] == {"minScore": 0.95, "maxRegression": 0.02}
+        assert spec["models"]["fallback"] == ["qwen3.8-flash", "deepseek-flash"]
         assert {tool["name"] for tool in spec["tools"]} == {"shift.policy", "devflow.catalog.search"}

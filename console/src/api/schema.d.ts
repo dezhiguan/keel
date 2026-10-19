@@ -306,9 +306,9 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 按已登记的模式做一次规则检测
-         * @description 不转发到智能体，不进 agent loop，不调工具，不写记忆和审计。预览身份可以调用。
-         *     用户输入看 inputInjection，工具返回和知识库片段看 indirectInjection。
+         * 在实际运行实例做一次规则检测
+         * @description 转发到智能体 POST /v1/guard/check，不进 agent loop，不调模型、工具，不写记忆和审计。
+         *     返回实际运行配置和实例标识；未部署或旧 SDK 不支持该接口时明确失败，不能回退为控制台规则模拟。
          */
         get: operations["checkAgentGuard"];
         put?: never;
@@ -1403,8 +1403,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 调整虚拟 Key 的人民币日预算
-         * @description 保存后写到薄网关这把虚拟 Key，并记一条 config.change 审计。日预算与控制台滑杆一致，¥10 到 ¥200，步长 ¥5。
+         * 调整虚拟 Key 的人民币日预算和 Key 级配额
+         * @description 保存后写到薄网关并记 config.change 审计。日预算为 ¥10 到 ¥200，步长 ¥5。RPM、TPM、并发仅管理员可改，缺省保持原值，null 取消限制，正整数设置上限。RPM 为所有渠道共用，不轮换令牌。
          */
         post: operations["updateModelBudget"];
         delete?: never;
@@ -2772,6 +2772,8 @@ export interface components {
             /** Format: float */
             costCny?: number;
             status?: components["schemas"]["NodeStatus"];
+            /** @description 这条 trace 的网关待计费尝试数；costCny 仅含已知费用 */
+            pendingBillCount?: number;
             /** @description 被护栏或准入拦截 */
             blocked?: boolean;
             cached?: boolean;
@@ -2855,6 +2857,8 @@ export interface components {
             model?: string | null;
             fallbackFrom?: string | null;
             llmKeyAlias?: string | null;
+            /** @description 网关响应头 X-Request-Id，对应这次 generation 的网关账单请求号 */
+            llmRequestId?: string | null;
             tokensIn?: number | null;
             tokensOut?: number | null;
             tokens?: number | null;
@@ -3314,6 +3318,7 @@ export interface components {
             } | null;
             /** @description 已发布的逻辑模型。请求写逻辑模型名时，薄网关按环境和权重换成具体模型。 */
             logicalRoutes?: {
+                /** @example chat-default */
                 logical?: string;
                 condition?: string;
                 env?: string;
@@ -6243,6 +6248,9 @@ export interface operations {
                 "application/json": {
                     /** Format: float */
                     dailyBudgetCny: number;
+                    rpm?: number | null;
+                    tpm?: number | null;
+                    concurrency?: number | null;
                 };
             };
         };

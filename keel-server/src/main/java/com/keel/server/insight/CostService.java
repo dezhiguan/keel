@@ -187,14 +187,21 @@ public class CostService {
     }
 
     public void updateBudget(String alias, BigDecimal dailyBudgetCny) {
+        updateBudget(alias, dailyBudgetCny, Map.of());
+    }
+
+    public void updateBudget(String alias, BigDecimal dailyBudgetCny, Map<String, Integer> limits) {
         if (alias == null || alias.isBlank()) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "别名不能为空");
         }
         if (!budgetOnSlider(dailyBudgetCny)) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "日预算须在 ¥10 到 ¥200 之间，且为 5 的倍数");
         }
+        if (limits.values().stream().anyMatch(value -> value != null && value <= 0)) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "RPM、TPM、并发须为正整数，空白表示不限制");
+        }
         try {
-            gateway.updateBudget(alias, dailyBudgetCny);
+            gateway.updateBudget(alias, dailyBudgetCny, limits);
         } catch (IllegalStateException e) {
             var message = e.getMessage() == null ? "" : e.getMessage();
             if (message.endsWith(" 404")) {

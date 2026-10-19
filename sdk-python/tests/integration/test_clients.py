@@ -32,7 +32,7 @@ def test_litellm_request_generation_span_and_zero_cost_warning(monkeypatch, capl
 
     def handle(request):
         requests.append(request)
-        return httpx.Response(200, json={
+        return httpx.Response(200, headers={"x-request-id": "gateway-request-1"}, json={
             "id": "chatcmpl-test", "object": "chat.completion", "created": 1,
             "model": "qwen-plus", "choices": [{"index": 0,
             "message": {"role": "assistant", "content": "hello"}, "finish_reason": "stop"}],
@@ -62,6 +62,7 @@ def test_litellm_request_generation_span_and_zero_cost_warning(monkeypatch, capl
     assert json.loads(span.attributes["langfuse.observation.input"]) == [{"role": "user", "content": "hello"}]
     assert span.attributes["langfuse.observation.output"] == "hello"
     assert span.attributes["gen_ai.usage.input_tokens"] == 3
+    assert span.attributes["keel.llm.request_id"] == "gateway-request-1"
     assert "zero cost" in caplog.text
     provider.shutdown()
 
@@ -377,9 +378,12 @@ def test_stream_emits_each_content_delta_before_the_full_reply(monkeypatch):
         payload = json.loads(request.content)
         assert payload["stream"] is True
         raw = chunk("你") + chunk("好") + chunk("", "stop") + "data: [DONE]\n\n"
-        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=raw.encode())
+        return httpx.Response(200, headers={"content-type": "text/event-stream", "x-request-id": "gateway-stream-1"}, content=raw.encode())
 
-    client = LlmClient("echo", "qwen-plus", "trace-1", on_token=seen.append,
+    provider = TracerProvider()
+    memory = InMemorySpanExporter()
+    provider.add_span_processor(SimpleSpanProcessor(memory))
+    client = LlmClient("echo", "qwen-plus", "trace-1", provider.get_tracer("test"), on_token=seen.append,
                        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handle)))
 
     async def scenario():
@@ -390,6 +394,8 @@ def test_stream_emits_each_content_delta_before_the_full_reply(monkeypatch):
 
     assert run(scenario()) == "你好"
     assert seen == ["你", "好"]
+    assert memory.get_finished_spans()[0].attributes["keel.llm.request_id"] == "gateway-stream-1"
+    provider.shutdown()
 
 
 def test_no_vendor_sdk_direct_imports():

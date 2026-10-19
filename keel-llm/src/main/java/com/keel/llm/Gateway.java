@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -133,6 +134,10 @@ public final class Gateway {
     }
 
     public synchronized void updateBudget(String alias, BigDecimal dailyBudgetCny) {
+        updateBudget(alias, dailyBudgetCny, Map.of());
+    }
+
+    public synchronized void updateBudget(String alias, BigDecimal dailyBudgetCny, Map<String, Integer> limits) {
         if (dailyBudgetCny == null || dailyBudgetCny.signum() <= 0) {
             throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "dailyBudgetCny 必须大于 0");
         }
@@ -140,7 +145,12 @@ public final class Gateway {
         if (key == null) {
             throw new GatewayException(ErrorCode.SERVER_NOT_FOUND, "虚拟 Key 不存在");
         }
-        keys.save(key.withBudget(dailyBudgetCny));
+        limits.values().forEach(Gateway::limit);
+        keys.save(new VirtualKey(key.alias(), key.token(), key.models(), key.fallback(), dailyBudgetCny,
+                key.allowFallback(), key.blocked(), key.version(),
+                limits.containsKey("rpm") ? limits.get("rpm") : key.rpm(),
+                limits.containsKey("tpm") ? limits.get("tpm") : key.tpm(),
+                limits.containsKey("concurrency") ? limits.get("concurrency") : key.concurrency()));
     }
 
     public List<ListedKey> listed() {
@@ -213,6 +223,14 @@ public final class Gateway {
     }
 
     public Completion complete(String bearer, String path, String body, Duration timeout, String traceId) {
+        return complete(bearer, path, body, timeout, traceId, newRequestId());
+    }
+
+    public static String newRequestId() {
+        return LocalDate.now(BudgetCounter.SHANGHAI) + "@" + UUID.randomUUID();
+    }
+
+    public Completion complete(String bearer, String path, String body, Duration timeout, String traceId, String requestId) {
         var key = virtualKey(bearer);
         var request = read(body);
         var named = request.path("model").asText("");
@@ -223,7 +241,6 @@ public final class Gateway {
         var attempts = attempts(key, requested, "/v1/embeddings".equals(path));
         var forwarding = (ObjectNode) request.deepCopy();
         var maxCost = reservationCost(attempts, path);
-        var requestId = LocalDate.now(BudgetCounter.SHANGHAI) + "@" + UUID.randomUUID();
         admission.enter(key);
         if (!budget.reserve(key.alias, requestId, maxCost, key.dailyBudgetCny)) {
             admission.leave(key, 0);
@@ -297,6 +314,10 @@ public final class Gateway {
     }
 
     public Spend stream(String bearer, String path, String body, Duration timeout, java.io.OutputStream client, String traceId) {
+        return stream(bearer, path, body, timeout, client, traceId, newRequestId());
+    }
+
+    public Spend stream(String bearer, String path, String body, Duration timeout, java.io.OutputStream client, String traceId, String requestId) {
         var key = virtualKey(bearer);
         var request = read(body);
         var named = request.path("model").asText("");
@@ -311,7 +332,6 @@ public final class Gateway {
                 : forwarding.putObject("stream_options");
         options.put("include_usage", true);
         var maxCost = reservationCost(attempts, path);
-        var requestId = LocalDate.now(BudgetCounter.SHANGHAI) + "@" + UUID.randomUUID();
         admission.enter(key);
         if (!budget.reserve(key.alias, requestId, maxCost, key.dailyBudgetCny)) {
             admission.leave(key, 0);

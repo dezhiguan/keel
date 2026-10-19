@@ -426,19 +426,23 @@ public class TraceQueryService {
         } catch (RuntimeException error) {
             return;
         }
-        if (matched.isEmpty() || !(detail.get("nodes") instanceof List<?> nodes)) {
-            return;
-        }
-        for (var node : nodes) {
-            if (!(node instanceof Map<?, ?> raw) || raw.get("model") == null) {
-                continue;
-            }
-            var model = String.valueOf(raw.get("model"));
+        attachBills(detail, matched);
+    }
+
+    static void attachBills(Map<String, Object> detail, List<LiteLlmClient.Spend> matched) {
+        if (matched.isEmpty() || !(detail.get("nodes") instanceof List<?> nodes)) return;
+        var generations = nodes.stream().filter(node -> node instanceof Map<?, ?> map
+                && "generation".equals(map.get("type")) && map.get("model") != null).toList();
+        for (var node : generations) {
+            var raw = (Map<?, ?>) node;
+            var requestId = raw.get("llmRequestId") instanceof String id ? id : "";
+            var candidates = requestId.isBlank()
+                    ? (generations.size() == 1 && matched.stream().map(LiteLlmClient.Spend::requestId).distinct().count() == 1
+                        ? matched : List.<LiteLlmClient.Spend>of())
+                    : matched.stream().filter(row -> requestId.equals(row.requestId())).toList();
+            if (candidates.isEmpty()) continue;
             var attempts = new ArrayList<Map<String, Object>>();
-            for (var row : matched) {
-                if (!model.equals(row.model())) {
-                    continue;
-                }
+            for (var row : candidates) {
                 var attempt = new LinkedHashMap<String, Object>();
                 attempt.put("attemptId", row.attemptId());
                 attempt.put("requestId", row.requestId());
@@ -449,11 +453,26 @@ public class TraceQueryService {
                 attempt.put("routeVersion", row.routeVersion());
                 attempts.add(attempt);
             }
-            if (!attempts.isEmpty()) {
-                @SuppressWarnings("unchecked")
-                var writable = (Map<String, Object>) raw;
-                writable.put("attempts", attempts);
-            }
+            @SuppressWarnings("unchecked")
+            var writable = (Map<String, Object>) raw;
+            writable.put("attempts", attempts);
+            var known = candidates.stream().filter(row -> row.costCny() != null).toList();
+            writable.put("costCny", known.isEmpty() ? null : known.stream().mapToDouble(LiteLlmClient.Spend::costCny).sum());
         }
+        if (detail.get("summary") instanceof Map<?, ?> rawSummary) {
+            var summary = new LinkedHashMap<String, Object>();
+            rawSummary.forEach((key, value) -> summary.put(String.valueOf(key), value));
+            var known = matched.stream().filter(row -> row.costCny() != null).toList();
+            if (known.isEmpty()) summary.remove("costCny");
+            else summary.put("costCny", known.stream().mapToDouble(LiteLlmClient.Spend::costCny).sum());
+            summary.put("pendingBillCount", matched.stream().filter(row -> "PENDING".equals(row.status())).count());
+            detail.put("summary", summary);
+        }
+        var costs = new LinkedHashMap<String, Double>();
+        for (var row : matched) {
+            if (row.costCny() != null) costs.merge(row.alias().replaceFirst("-(dev|test|staging|prod)$", ""), row.costCny(), Double::sum);
+        }
+        detail.put("costBreakdown", costs.entrySet().stream()
+                .map(entry -> Map.<String, Object>of("agentKey", entry.getKey(), "costCny", entry.getValue())).toList());
     }
 }

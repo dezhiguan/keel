@@ -88,6 +88,11 @@ def test_loop_executes_tool_and_returns_model_completion(monkeypatch, tmp_path):
     result = asyncio.run(scenario())
     assert result.answer == "晴天"
     assert seen == ["上海"]
+    events = []
+    while not ctx._events.empty():
+        events.append(ctx._events.get_nowait())
+    assert [(type(event).__name__, event.name) for event in events] == [
+        ("StepEvent", "agent.loop.step.1"), ("ToolEvent", "lookup"), ("StepEvent", "agent.loop.step.2")]
     assert requests[0]["tools"] == TOOLS
     assert requests[1]["messages"][-1] == {"role": "tool", "tool_call_id": "call-0",
                                            "content": '{"weather": "sunny"}'}

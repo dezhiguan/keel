@@ -65,7 +65,15 @@ public class LlmController {
                                 @RequestBody Map<String, Object> body) {
         admin(authorization);
         var raw = body.get("dailyBudgetCny");
-        gateway.updateBudget(alias, raw == null ? null : new BigDecimal(raw.toString()));
+        var limits = new LinkedHashMap<String, Integer>();
+        try {
+            for (var field : List.of("rpm", "tpm", "concurrency")) {
+                if (body.containsKey(field)) limits.put(field, body.get(field) == null ? null : new BigDecimal(body.get(field).toString()).intValueExact());
+            }
+            gateway.updateBudget(alias, raw == null ? null : new BigDecimal(raw.toString()), limits);
+        } catch (NumberFormatException | ArithmeticException error) {
+            throw new Gateway.GatewayException(ErrorCode.SERVER_INVALID_PARAM, "预算须为数值，RPM、TPM、并发须为正整数或 null");
+        }
         return ResponseEntity.noContent().build();
     }
 
@@ -260,18 +268,20 @@ public class LlmController {
     void complete(HttpServletRequest request, jakarta.servlet.http.HttpServletResponse response,
                   @RequestHeader(value = "Authorization", required = false) String authorization,
                   @RequestBody String body) throws java.io.IOException {
+        var requestId = Gateway.newRequestId();
+        response.setHeader("X-Request-Id", requestId);
         if (streamRequested(body)) {
             response.setStatus(200);
             response.setContentType("text/event-stream");
             response.setCharacterEncoding("UTF-8");
             response.setHeader("Cache-Control", "no-cache");
             response.setHeader("X-Accel-Buffering", "no");
-            gateway.stream(authorization, request.getRequestURI(), body, Duration.ofMinutes(5), response.getOutputStream(), trace(request));
+            gateway.stream(authorization, request.getRequestURI(), body, Duration.ofMinutes(5), response.getOutputStream(), trace(request), requestId);
             return;
         }
         var chat = request.getRequestURI() != null && request.getRequestURI().endsWith("/chat/completions");
         var completion = gateway.complete(authorization, request.getRequestURI(), body,
-                chat ? Duration.ofMinutes(3) : Duration.ofSeconds(45), trace(request));
+                chat ? Duration.ofMinutes(3) : Duration.ofSeconds(45), trace(request), requestId);
         response.setStatus(completion.status());
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");

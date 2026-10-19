@@ -106,7 +106,7 @@ class LlmClient:
                 if not self.standalone:
                     options["extra_body"] = {"metadata": {"caller_agent": self.agent}}
                 if self.on_token is not None:
-                    reply, calls, usage = await self._stream(chosen, messages, options)
+                    reply, calls, usage = await self._stream(chosen, messages, options, span)
                     self._record_usage(span, usage)
                     span.set_attribute(attrs.OBSERVATION_OUTPUT, reply)
                     if tools is None:
@@ -138,6 +138,9 @@ class LlmClient:
             except (openai.APIConnectionError, openai.APITimeoutError) as exc:
                 span.set_attribute(attrs.STATUS, "failed")
                 raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR) from exc
+            request_id = getattr(response, "_request_id", None)
+            if request_id:
+                span.set_attribute(attrs.LLM_REQUEST_ID, request_id)
             usage = response.usage
             token_count = 0
             if usage:
@@ -166,7 +169,7 @@ class LlmClient:
                 calls.append(ToolCall(call.id, call.function.name, arguments))
             return ChatResult(reply, tuple(calls))
 
-    async def _stream(self, model: str, messages: list[dict], options: dict):
+    async def _stream(self, model: str, messages: list[dict], options: dict, span):
         """Read the gateway SSE and emit each content delta before the call returns. """
         stream_options = {**options, "stream": True, "stream_options": {"include_usage": True}}
         try:
@@ -178,6 +181,9 @@ class LlmClient:
             await asyncio.sleep(0.2)
             stream = await self.client.chat.completions.create(
                 model=model, messages=messages, **stream_options)
+        request_id = stream.response.headers.get("x-request-id")
+        if request_id:
+            span.set_attribute(attrs.LLM_REQUEST_ID, request_id)
         parts: list[str] = []
         tools: dict[int, dict[str, str]] = {}
         usage = None

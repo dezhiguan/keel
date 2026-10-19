@@ -35,6 +35,7 @@ Python SDK 和 Java starter 产生的属性键集合必须完全一致。这份�
 | `keel.agent.version` | 字符串 | |
 | `keel.parent_agent` | 字符串 | 被委派时填上游智能体名 |
 | `keel.status` | `ok` \| `fallback` \| `failed` | **只有三档**，和 SSE 事件同一套口径 |
+| `keel.blocked` | 布尔 | 根调用被护栏或准入拒绝。入口 guard.input 拦截且没有 generation 时可确认模型成本为零 |
 | `keel.audit_ids` | 字符串数组 | 本节点写出的审计事件 id，控制台据此在追踪和审计之间互跳 |
 | `keel.fallback_from` | 字符串 | 降级前的模型别名 |
 | `keel.llm.key_alias` | 字符串 | 薄网关虚拟 Key 别名 `{agent}-{env}`，成本按它归集 |

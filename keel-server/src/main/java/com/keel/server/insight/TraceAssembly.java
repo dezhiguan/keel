@@ -74,6 +74,9 @@ public final class TraceAssembly {
                 .mapToDouble(value -> ((Number) value).doubleValue()).sum();
         if (nodes.stream().anyMatch(node -> node.get("costCny") instanceof Number)) {
             summary.put("costCny", spent);
+        } else if (spans.stream().anyMatch(span -> "guard.input".equals(span.name) && "failed".equals(span.status))
+                && spans.stream().noneMatch(span -> "generation".equals(span.type))) {
+            summary.put("costCny", 0d);
         }
         var detail = new LinkedHashMap<String, Object>();
         detail.put("summary", summary);
@@ -624,6 +627,8 @@ public final class TraceAssembly {
             if (!keyAlias.isBlank()) {
                 node.put("llmKeyAlias", keyAlias);
             }
+            var requestId = meta.getOrDefault("keel.llm.request_id", "");
+            if (!requestId.isBlank()) node.put("llmRequestId", requestId);
             if (tokens > 0) {
                 node.put("tokensIn", tokensIn);
                 node.put("tokensOut", tokensOut);

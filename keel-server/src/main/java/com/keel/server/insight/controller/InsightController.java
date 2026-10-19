@@ -246,7 +246,18 @@ public class InsightController {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "dailyBudgetCny 缺失");
         }
         var budget = new BigDecimal(raw.toString());
-        costs.updateBudget(alias, budget);
+        var limits = new LinkedHashMap<String, Integer>();
+        for (var field : java.util.List.of("rpm", "tpm", "concurrency")) {
+            if (body.containsKey(field)) {
+                requireAdmin();
+                try {
+                    limits.put(field, body.get(field) == null ? null : new BigDecimal(body.get(field).toString()).intValueExact());
+                } catch (NumberFormatException | ArithmeticException error) {
+                    throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "RPM、TPM、并发须为正整数");
+                }
+            }
+        }
+        costs.updateBudget(alias, budget, limits);
         return R.ok(Map.of("alias", alias, "dailyBudgetCny", budget));
     }
 
