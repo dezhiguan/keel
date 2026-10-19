@@ -45,6 +45,10 @@ public class EvalJobs {
         var manifest=registry.manifestOrEmpty(agent);
         var dataset=manifest.path("spec").path("eval").path("dataset").asText("");
         if (dataset.isBlank()) throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "未声明评测数据集");
+        try { baseline(agent); }
+        catch (IllegalStateException error) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "当前生产发布的评测基线证据无效，请先核对发布记录");
+        }
         var pods=cluster.pods().inAnyNamespace().withLabel("keel.io/agent",agent).list().getItems();
         var pod=pods.stream().filter(p -> detail.summary().env().equals(p.getMetadata().getLabels().get("keel.io/env")))
                 .filter(EvalJobs::ready).findFirst().orElseThrow(() -> new KeelException(ErrorCode.GW_AGENT_OFFLINE,"没有带智能体和环境标签的就绪实例"));
@@ -164,6 +168,11 @@ public class EvalJobs {
             if(pod==null || !row.image.equals(pod.getSpec().getContainers().getFirst().getImage())) {
                 fail(row.id,"候选实例已变更，请重新发起评测");return;
             }
+            String comparison;
+            try { comparison = baseline(row.agent); }
+            catch (IllegalStateException error) {
+                fail(row.id,"当前生产发布的评测基线证据无效，请先核对发布记录");return;
+            }
             var container=new ContainerBuilder(pod.getSpec().getContainers().getFirst()).withName("eval")
                     .withCommand("python","-m","keel.eval.worker").withArgs(List.of()).withPorts(List.of())
                     .withReadinessProbe(null).withLivenessProbe(null).withStartupProbe(null)
@@ -171,7 +180,7 @@ public class EvalJobs {
                     .addNewEnv().withName("KEEL_EVAL_ENV").withValue(row.env).endEnv()
                     .addNewEnv().withName("KEEL_EVAL_ENDPOINT").withValue(row.endpoint).endEnv()
                     .addNewEnv().withName("KEEL_EVAL_DATASET").withValue(row.dataset).endEnv()
-                    .addNewEnv().withName("KEEL_EVAL_BASELINE").withValue(baseline(row.agent)).endEnv().build();
+                    .addNewEnv().withName("KEEL_EVAL_BASELINE").withValue(comparison).endEnv().build();
             var spec=new PodSpecBuilder().withRestartPolicy("Never").withAutomountServiceAccountToken(false)
                     .withEnableServiceLinks(false).withContainers(container).withVolumes(pod.getSpec().getVolumes())
                     .withHostAliases(pod.getSpec().getHostAliases()).withImagePullSecrets(pod.getSpec().getImagePullSecrets()).build();
