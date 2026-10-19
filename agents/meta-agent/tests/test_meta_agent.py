@@ -93,8 +93,8 @@ def test_draft_then_confirm_writes_a_loadable_manifest(gateway):
     assert (folder / "spec-agent" / "prompts/role.md").is_file()
     assert 'ctx.prompt("role")' in (folder / "spec-agent" / "app.py").read_text(encoding="utf-8")
     assert "骨架" in final["answer"]
-    assert "仓库未建" in final["answer"]
-    assert "任务账本未写" in final["answer"]
+    assert "尚未创建研发任务或远程仓库" in final["answer"]
+    assert "请在控制台创建研发任务" in final["answer"]
     assert len(gateway.requests) == 1
 
 
@@ -200,3 +200,20 @@ def test_no_vendor_sdk_direct_imports():
         if ".keel" in path.parts:
             continue
         assert not pattern.search(path.read_text(encoding="utf-8")), path
+
+
+def test_confirmation_with_platform_services_hands_over_without_legacy_remote_writes(gateway, monkeypatch):
+    monkeypatch.setenv('KEEL_SERVER_URL', 'http://127.0.0.1:9')
+    monkeypatch.setenv('KEEL_GIT_CI_URL', 'http://127.0.0.1:9')
+    def forbidden(*args, **kwargs):
+        raise AssertionError('chat confirmation must hand over to the authorized development workflow')
+    monkeypatch.setattr('keel.cli.ledger.open_job', forbidden)
+    monkeypatch.setattr('keel.cli.repo.open_draft', forbidden)
+    gateway.replies.append(reply())
+    kind, suspended=terminal(invoke(json.dumps(REQUIREMENT, ensure_ascii=False)))
+    assert kind=='suspend'
+    kind, final=terminal(resume(suspended,'确认'))
+    assert kind=='final', final
+    assert '请在控制台创建研发任务' in final['answer']
+    assert 'H1 人工确认' in final['answer']
+    assert (ROOT/'.keel/meta-agent'/suspended['run_id']/'agent.yaml').is_file()
