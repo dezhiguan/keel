@@ -42,16 +42,22 @@ def parse(reply: str | None, human: list[dict]) -> tuple[dict, list[str]]:
     seen = {item.get("caseId") for item in human if isinstance(item, dict)}
     inputs = {json.dumps(item.get("input"), sort_keys=True, ensure_ascii=False) for item in human if isinstance(item, dict)}
     clean = []
-    for item in cases:
+    for index, item in enumerate(cases, 1):
         if not isinstance(item, dict):
             return {}, ["用例必须为对象"]
         case_id, data, expected = item.get("caseId"), item.get("input"), item.get("expected")
         tags, reason = item.get("tags"), item.get("reason")
-        if (not isinstance(case_id, str) or not re.fullmatch(r"a-[A-Za-z0-9_-]{1,45}", case_id)
-                or case_id in seen or not isinstance(data, dict) or not isinstance(expected, dict)
-                or not isinstance(tags, list) or not tags or any(not isinstance(tag, str) or not tag for tag in tags)
-                or not isinstance(reason, str) or not reason.strip()):
-            return {}, ["扩充用例编号、输入、期望、标签或理由无效"]
+        prefix = f"第{index}条扩充用例"
+        if not isinstance(case_id, str) or not re.fullmatch(r"a-[A-Za-z0-9_-]{1,45}", case_id):
+            return {}, [prefix + "caseId必须以a-开头并匹配a-[A-Za-z0-9_-]{1,45}，不能包含中文或空格"]
+        if case_id in seen:
+            return {}, [prefix + "caseId重复人工原例或本批其他用例编号"]
+        if not isinstance(data, dict) or not isinstance(expected, dict):
+            return {}, [prefix + "input和expected都必须是JSON对象，不能是字符串、数组或null"]
+        if not isinstance(tags, list) or not tags or any(not isinstance(tag, str) or not tag for tag in tags):
+            return {}, [prefix + "tags必须是非空字符串数组"]
+        if not isinstance(reason, str) or not reason.strip():
+            return {}, [prefix + "reason必须是对应已确认H1的非空字符串"]
         encoded = json.dumps(data, sort_keys=True, ensure_ascii=False)
         if len(json.dumps(item, ensure_ascii=False).encode("utf-8")) > 8_000:
             return {}, ["单条扩充用例超过 8KB"]

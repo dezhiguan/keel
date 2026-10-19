@@ -1,6 +1,7 @@
 from model_context import model_context
 import asyncio
 import json
+import pytest
 
 from evalset import expand, parse
 
@@ -44,3 +45,24 @@ def test_expansion_uses_confirmed_spec_and_reports_invalid_json_position():
     assert asyncio.run(expand(work, model_context(Llm()))) == AGENT
     assert "中文紧邻编号合法" in prompts[0]
     assert "Invalid" in prompts[1] and "行第" in prompts[1]
+
+
+@pytest.mark.parametrize('field,invalid', [
+    ('caseId', 'b-1'), ('caseId', 'f-1'), ('caseId', 'a-中文编号'),
+    ('input', None), ('input', 'plain input'),
+    ('expected', ['PASS']), ('tags', []), ('reason', '   '),
+])
+def test_expansion_repairs_invalid_field_without_relaxing_schema(field, invalid):
+    broken = {**AGENT['cases'][0], field: invalid}
+    replies = [json.dumps({'cases': [broken]}, ensure_ascii=False), json.dumps(AGENT)]
+    prompts = []
+
+    class Llm:
+        async def chat(self, messages, **kwargs):
+            prompts.append(messages[0]['content'])
+            return replies.pop(0)
+
+    assert asyncio.run(expand({'requirement': {'target_agent': 'spec-agent'}, 'humanSeeds': HUMAN},
+                              model_context(Llm()))) == AGENT
+    assert len(prompts) == 2
+    assert field in prompts[1].removeprefix(prompts[0])

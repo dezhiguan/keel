@@ -52,3 +52,6 @@ SDK 的 runs.json 原先只用临时文件替换，多个进程读改写会丢�
 双Pod实测发现SDK恢复流程在创建真实agent.resume span之前用随机ID初始化Context，响应和模型账单因此不能对应Langfuse实际链路。恢复流程须先创建span并使用其真实trace_id初始化Context/LLM客户端，保持事件和重新暂停检查点一致；增加final/suspend/error三条路径回归，纳入元智能体CI。此修复不改变协议字段或恢复授权。
 
 候选写入须遵循现有数据库manifest_hash VARCHAR(64)，保存无前缀SHA-256十六进制值。真实PostgreSQL回归覆盖候选更新、已发布快照不变和相同清单重试；候选时间使用写入时clock_timestamp()，避免长事务中now()早于已发布快照而读回旧版本。
+
+
+真实网关评测发现扩充模型输出不符合已有编号及对象包装契约。只增强expand版本化提示词对原约束的说明及字段级修复反馈，保持parse接受条件、三次重试、原52题和门禁阈值不变；加入实际b-/f-编号和null/字符串input等修复回归，再经CI/CD和54条完整真实评测。
