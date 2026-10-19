@@ -113,7 +113,7 @@ def test_chat_forwards_tools_and_returns_structured_calls(monkeypatch, arguments
             "model": "qwen-plus", "choices": [{"index": 0,
                 "message": {"role": "assistant", "content": None, "tool_calls": [{
                     "id": "call-1", "type": "function", "function": {
-                        "name": "weather.lookup", "arguments": arguments}}]},
+                        "name": requests[-1]["tools"][0]["function"]["name"], "arguments": arguments}}]},
                 "finish_reason": "tool_calls"}],
             "usage": {"prompt_tokens": 4, "completion_tokens": 3, "total_tokens": 7},
         })
@@ -136,7 +136,8 @@ def test_chat_forwards_tools_and_returns_structured_calls(monkeypatch, arguments
             await client.aclose()
 
     run(scenario())
-    assert requests[0]["tools"] == tools
+    assert requests[0]["tools"][0]["function"]["parameters"] == tools[0]["function"]["parameters"]
+    assert "." not in requests[0]["tools"][0]["function"]["name"]
     assert requests[0]["metadata"]["caller_agent"] == "agent"
 
 

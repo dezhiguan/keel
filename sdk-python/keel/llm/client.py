@@ -16,6 +16,7 @@ from opentelemetry import trace
 
 from keel.protocol.errors import ErrorCode, KeelError
 from keel.tracing import attrs
+from keel.llm.tool_names import wire_tools
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,7 @@ class LlmClient:
         elif prompt is not None and getattr(prompt, "version", None) is not None:
             attributes[attrs.PROMPT_NAME] = prompt.name
             attributes[attrs.PROMPT_VERSION] = int(prompt.version)
+        wire_messages, wire_definitions, original_names = wire_tools(messages, tools)
         with self.tracer.start_as_current_span("llm.chat", attributes=attributes) as span:
             try:
                 options = {}
@@ -102,13 +104,13 @@ class LlmClient:
                 if "top_p" in config:
                     options["top_p"] = config["top_p"]
                 if tools is not None:
-                    options["tools"] = tools
+                    options["tools"] = wire_definitions
                 if tool_choice is not None:
                     options["tool_choice"] = tool_choice
                 if not self.standalone:
                     options["extra_body"] = {"metadata": {"caller_agent": self.agent}}
                 if self.on_token is not None:
-                    reply, calls, usage = await self._stream(chosen, messages, options, span)
+                    reply, calls, usage = await self._stream(chosen, wire_messages, options, span, original_names)
                     self._record_usage(span, usage)
                     if self.guard is not None:
                         reply = self.guard.redact(reply)
@@ -118,13 +120,13 @@ class LlmClient:
                     return ChatResult(reply, tuple(calls))
                 try:
                     response = await self.client.chat.completions.create(
-                        model=chosen, messages=messages, **options)
+                        model=chosen, messages=wire_messages, **options)
                 except openai.APIStatusError as first:
                     if first.status_code not in (500, 502, 503, 504):
                         raise
                     await asyncio.sleep(0.2)
                     response = await self.client.chat.completions.create(
-                        model=chosen, messages=messages, **options)
+                        model=chosen, messages=wire_messages, **options)
             except asyncio.CancelledError:
                 span.set_attribute(attrs.STATUS, "failed")
                 span.set_attribute(attrs.OBSERVATION_OUTPUT, "调用已取消")
@@ -183,10 +185,10 @@ class LlmClient:
                 if not isinstance(arguments, dict):
                     span.set_attribute(attrs.STATUS, "failed")
                     raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型工具参数必须是 JSON 对象")
-                calls.append(ToolCall(call.id, call.function.name, arguments))
+                calls.append(ToolCall(call.id, original_names.get(call.function.name, call.function.name), arguments))
             return ChatResult(reply, tuple(calls))
 
-    async def _stream(self, model: str, messages: list[dict], options: dict, span):
+    async def _stream(self, model: str, messages: list[dict], options: dict, span, original_names=None):
         """Read the gateway SSE and emit each content delta before the call returns. """
         stream_options = {**options, "stream": True, "stream_options": {"include_usage": True}}
         try:
@@ -233,7 +235,7 @@ class LlmClient:
                 raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型工具参数不是有效 JSON") from exc
             if not isinstance(arguments, dict):
                 raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型工具参数必须是 JSON 对象")
-            parsed.append(ToolCall(slot["id"], slot["name"], arguments))
+            parsed.append(ToolCall(slot["id"], (original_names or {}).get(slot["name"], slot["name"]), arguments))
         return "".join(parts), parsed, usage
 
     def _record_usage(self, span, usage) -> None:
