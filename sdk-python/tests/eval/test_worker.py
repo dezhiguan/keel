@@ -4,6 +4,20 @@ from keel.eval.worker import summarize
 from keel.eval.run import load_scorers
 
 
+def test_structured_skill_input_survives_langfuse_json_decoding():
+    import json
+    from keel.eval.worker import case_text
+    raw = '{"workflow":true,"action":"GENERATE","requirement":"生成项目"}'
+    assert case_text(raw) == raw
+    assert json.loads(case_text(json.loads(raw))) == json.loads(raw)
+
+
+@pytest.mark.parametrize("text", ["普通需求", "", '{"workflow":true}'])
+def test_explicit_text_envelopes_preserve_input_including_empty_cases(text):
+    from keel.eval.worker import case_text
+    assert case_text({"text": text}) == text
+
+
 def item(value, tag="accuracy"):
     return SimpleNamespace(item=SimpleNamespace(id="case-1"), trace_id="trace-1",
                            evaluations=[SimpleNamespace(name=tag, value=value)])

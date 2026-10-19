@@ -31,6 +31,8 @@ AGENTS.md；agents/meta-agent 的代码、prompts、skills、evals、tests、Doc
 
 ## 当前验收状态
 
+最终技能评测核实到 Langfuse 将技能用例的 JSON 字符串还原成对象，SDK worker 只读取对象的 text 字段，误把结构化 workflow 输入变为空。修复评测输入边界：保留显式 text（包括空字符串），其余对象以 JSON 传入；不改已发布技能 v1、冻结用例、评分器或门槛。增加两种表示等价及空输入保真回归，并纳入部署前测试。
+
 正式v1基线已封存；网关完整54条门禁通过，全部1.00且原16维度无回归。技能v1已授权，独立development题集合入1条技能题；最终启用技能清单及确认入口兼容修复的125项回归通过，待最终CI/CD、55条真实门禁及v2发布。详见 docs/qa/2026-10-20-meta-agent-v2.md。
 
 ## 双实例核实后的共享 SDK 范围

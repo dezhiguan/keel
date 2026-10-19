@@ -87,6 +87,15 @@ async def invoke_case(endpoint, text, **options):
     return await asyncio.to_thread(invoke_text, endpoint, text, **options)
 
 
+def case_text(payload):
+    """Preserve text envelopes and Langfuse-decoded structured case inputs."""
+    if isinstance(payload, dict):
+        if "text" in payload:
+            return payload["text"]
+        return json.dumps(payload, ensure_ascii=False)
+    return str(payload)
+
+
 def run_experiment():
     from langfuse import Langfuse, Evaluation
     from opentelemetry import trace
@@ -113,7 +122,7 @@ def run_experiment():
         span = trace.get_current_span()
         span.set_attributes({"keel.agent": agent, "keel.env": env, "keel.eval_run": run_id})
         payload = item.input
-        text = payload.get("text", "") if isinstance(payload, dict) else str(payload)
+        text = case_text(payload)
         expected = item.expected_output
         options = {"expected_error": expected["errorCode"]} if isinstance(expected, dict) and expected.get("errorCode") else {}
         return await invoke_case(endpoint, text, eval_run_id=run_id, env=env, with_meta=True, **options)
