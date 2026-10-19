@@ -1,0 +1,677 @@
+{
+  "agent": "meta-agent",
+  "sourceCommit": "b7d072817000b404859711e4bac4502f141c494e",
+  "ci": "https://github.com/dezhiguan/keel/actions/runs/39319227420",
+  "cd": "https://github.com/dezhiguan/keel/actions/runs/39319227747",
+  "scopedPythonTestsPassed": 150,
+  "baseline": {
+    "runId": "ev_c3d82f4aaa344010bc5933ea82a17af0",
+    "state": "DONE",
+    "agent": "meta-agent",
+    "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/meta-agent:44b8bf07ff73",
+    "progress": 1,
+    "result": {
+      "env": "dev",
+      "gate": {
+        "byTag": true,
+        "minScore": 0.99,
+        "maxRegression": 2.0
+      },
+      "agent": "meta-agent",
+      "ranAt": "2026-10-19T18:41:13.906137+00:00",
+      "passed": true,
+      "reason": null,
+      "dataset": "meta-agent/dev-employee-specs",
+      "complete": true,
+      "caseCount": 52,
+      "dimensions": [
+        {
+          "tag": "expand",
+          "cases": 4,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "draft-revise",
+          "cases": 2,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "draft-delegate",
+          "cases": 2,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "draft-risk",
+          "cases": 3,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "draft-contract",
+          "cases": 4,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "guard",
+          "cases": 4,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "deliver-reject",
+          "cases": 3,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "review-reject",
+          "cases": 3,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "expand-reject",
+          "cases": 3,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "tools",
+          "cases": 4,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "action",
+          "cases": 3,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "template",
+          "cases": 4,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "kind",
+          "cases": 3,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "name",
+          "cases": 4,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "lineage",
+          "cases": 4,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "input",
+          "cases": 2,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        }
+      ],
+      "scoreTotal": 1.0,
+      "langfuseUrl": "https://jp.cloud.langfuse.com/project/cmutztp4u0113ad0dmcu73du3/datasets/cmv0rapjz003xad0jgxjga9ad/runs/0d62de89-0b59-4637-b860-5f90a80cabb1",
+      "newFailures": [],
+      "prodVersion": "",
+      "promptVersions": {
+        "draft": 2,
+        "revise": 1
+      },
+      "candidateVersion": "ev_c3d82f4aaa344010bc5933ea82a17af0"
+    },
+    "error": null
+  },
+  "gateway": {
+    "runId": "ev_dba52c3e03094b28b8df223fc40d648f",
+    "state": "DONE",
+    "agent": "meta-agent",
+    "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/meta-agent:1ea493f4065c",
+    "progress": 1,
+    "result": {
+      "env": "dev",
+      "gate": {
+        "byTag": true,
+        "minScore": 0.99,
+        "maxRegression": 2.0
+      },
+      "agent": "meta-agent",
+      "ranAt": "2026-10-19T19:49:19.860809+00:00",
+      "passed": true,
+      "reason": null,
+      "dataset": "meta-agent/v2-gateway",
+      "complete": true,
+      "caseCount": 54,
+      "dimensions": [
+        {
+          "tag": "review-contract",
+          "cases": 1,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "generation-contract",
+          "cases": 1,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "expand",
+          "cases": 4,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "draft-revise",
+          "cases": 2,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "draft-delegate",
+          "cases": 2,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "draft-risk",
+          "cases": 3,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "draft-contract",
+          "cases": 4,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "guard",
+          "cases": 4,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "deliver-reject",
+          "cases": 3,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "review-reject",
+          "cases": 3,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "expand-reject",
+          "cases": 3,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "tools",
+          "cases": 4,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "action",
+          "cases": 3,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "template",
+          "cases": 4,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "kind",
+          "cases": 3,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "name",
+          "cases": 4,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "lineage",
+          "cases": 4,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "input",
+          "cases": 2,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        }
+      ],
+      "scoreTotal": 1.0,
+      "langfuseUrl": "https://jp.cloud.langfuse.com/project/cmutztp4u0113ad0dmcu73du3/datasets/cmvflqg400007ad0e2vsrbjfh/runs/c03923fd-bccc-40b1-87ad-5b5f4dccd7cb",
+      "newFailures": [],
+      "prodVersion": "production",
+      "promptVersions": {
+        "draft": 3,
+        "expand": 2,
+        "review": 1,
+        "revise": 1,
+        "generate": 2
+      },
+      "candidateVersion": "ev_dba52c3e03094b28b8df223fc40d648f"
+    },
+    "error": null
+  },
+  "development": {
+    "runId": "ev_6bc82b941cb44bf98b63775ea56d5736",
+    "state": "DONE",
+    "agent": "meta-agent",
+    "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/meta-agent:b7d072817000",
+    "progress": 1,
+    "result": {
+      "env": "dev",
+      "gate": {
+        "byTag": true,
+        "minScore": 0.99,
+        "maxRegression": 2.0
+      },
+      "agent": "meta-agent",
+      "ranAt": "2026-10-19T20:36:17.677389+00:00",
+      "passed": true,
+      "reason": null,
+      "dataset": "meta-agent/v2-development",
+      "complete": true,
+      "caseCount": 55,
+      "dimensions": [
+        {
+          "tag": "untagged",
+          "cases": 1,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "review-contract",
+          "cases": 1,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "generation-contract",
+          "cases": 1,
+          "deltaPt": null,
+          "verdict": "TOLERATED",
+          "prodScore": null,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "expand",
+          "cases": 4,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "draft-revise",
+          "cases": 2,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "draft-delegate",
+          "cases": 2,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "draft-risk",
+          "cases": 3,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "draft-contract",
+          "cases": 4,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "guard",
+          "cases": 4,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "deliver-reject",
+          "cases": 3,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "review-reject",
+          "cases": 3,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "expand-reject",
+          "cases": 3,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "tools",
+          "cases": 4,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "action",
+          "cases": 3,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "template",
+          "cases": 4,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "kind",
+          "cases": 3,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "name",
+          "cases": 4,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "lineage",
+          "cases": 4,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        },
+        {
+          "tag": "input",
+          "cases": 2,
+          "deltaPt": 0.0,
+          "verdict": "IMPROVED",
+          "prodScore": 1.0,
+          "candidateScore": 1.0
+        }
+      ],
+      "scoreTotal": 1.0,
+      "langfuseUrl": "https://jp.cloud.langfuse.com/project/cmutztp4u0113ad0dmcu73du3/datasets/cmvflr6f10010ad0embfj3fav/runs/e77b3b52-0bde-4e8e-bb98-51a86b36f269",
+      "newFailures": [],
+      "prodVersion": "production",
+      "promptVersions": {
+        "draft": 3,
+        "expand": 2,
+        "review": 1,
+        "revise": 1,
+        "generate": 2
+      },
+      "candidateVersion": "ev_6bc82b941cb44bf98b63775ea56d5736"
+    },
+    "error": null
+  },
+  "release": {
+    "version": "v2",
+    "env": "prod",
+    "gatePassed": true,
+    "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/meta-agent:b7d072817000",
+    "ciRunUrl": "ev_6bc82b941cb44bf98b63775ea56d5736",
+    "releasedBy": "guandezhi"
+  },
+  "coreDimensionsCompared": 16,
+  "coreRegressionPt": 0,
+  "pods": [
+    {
+      "pod": "meta-agent-74585d6dbc-bcldf",
+      "node": "iz7xvj0bz5i6jpinys4duwz",
+      "images": [
+        "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/meta-agent:b7d072817000"
+      ],
+      "ready": true,
+      "imageIds": [
+        "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/meta-agent@sha256:bf1cf6e547c504b1f48cf8fac52d91fe3f9861a16461ab8b014214e435d85198"
+      ]
+    },
+    {
+      "pod": "meta-agent-74585d6dbc-rjkbd",
+      "node": "iz7xvj0bz5i6jpinys4duwz",
+      "images": [
+        "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/meta-agent:b7d072817000"
+      ],
+      "ready": true,
+      "imageIds": [
+        "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/meta-agent@sha256:bf1cf6e547c504b1f48cf8fac52d91fe3f9861a16461ab8b014214e435d85198"
+      ]
+    }
+  ],
+  "replicas": {
+    "pods": [
+      "meta-agent-74585d6dbc-bcldf",
+      "meta-agent-74585d6dbc-rjkbd"
+    ],
+    "images": [
+      "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/meta-agent:b7d072817000"
+    ],
+    "runId": "9b59aecbf7fc41ca8262bcbcb51b379a",
+    "traceId": "2b703e337f42a398d1a649061efc9306",
+    "confirmationTraceId": "fb15c53bc29159cf09d34e5a80a48400",
+    "crossPodConfirmation": true,
+    "phase": "development",
+    "crossPodRead": true,
+    "competingResumeHttp": [
+      200,
+      409
+    ],
+    "handover": "final",
+    "finalRunStatus": "DONE",
+    "repositoryCreated": false
+  },
+  "skill": {
+    "name": "keel-project-development",
+    "version": 1,
+    "serviceIdentityVerified": true,
+    "tools": [],
+    "instructionsSha256": "ee0ef8a2324d9e7843a30be279e52632441323f1ea3738f08c1eab214dd8242a"
+  },
+  "skillTrace": {
+    "evalRunId": "ev_6bc82b941cb44bf98b63775ea56d5736",
+    "caseSource": "skill",
+    "traceId": "68387d7105e6fbae30bbc609e5d6c3d5",
+    "skillLoads": [
+      {
+        "observationId": "24c6c3d8fdbd6a31",
+        "name": "keel-project-development",
+        "version": 1
+      }
+    ],
+    "requestedModels": [
+      "chat-default"
+    ],
+    "resolvedModels": [
+      "qwen3.8-flash"
+    ],
+    "requestIds": [
+      "2026-10-20@a6299ffe-e775-4076-a33b-2d1904030810"
+    ],
+    "routeVersions": [
+      "primary"
+    ],
+    "priceVersions": [
+      "2026-10-18"
+    ]
+  },
+  "resumeTrace": {
+    "traceId": "2b703e337f42a398d1a649061efc9306",
+    "generations": [
+      {
+        "model": "chat-default",
+        "llmRequestId": "2026-10-20@195744b4-ab80-4111-a1c1-40446b67f366",
+        "promptName": "meta-agent/revise",
+        "promptVersion": 1,
+        "attempts": [
+          {
+            "attemptId": "c4d8a699-5115-4951-bc40-a810d78d62c8",
+            "requestId": "2026-10-20@195744b4-ab80-4111-a1c1-40446b67f366",
+            "model": "qwen3.8-flash",
+            "status": "SETTLED",
+            "costCny": 0.003533,
+            "priceVersion": "2026-10-18",
+            "routeVersion": "primary"
+          }
+        ]
+      }
+    ]
+  },
+  "deliveryReplay": {
+    "pods": [
+      "meta-agent-74585d6dbc-bcldf",
+      "meta-agent-74585d6dbc-rjkbd"
+    ],
+    "probeJobId": "DF-1792442292261258953",
+    "identicalResults": true,
+    "gitBoundary": "stubbed in isolated test processes",
+    "operationCounts": {
+      "git.repo.create": 1,
+      "git.branch.push": 1,
+      "git.pr.open": 1
+    },
+    "externalRepositoryCreated": false
+  },
+  "storageLimitation": "Two process replicas share the original single-node local RWO volume; no node disaster recovery.",
+  "failedRunsPreserved": [
+    "ev_55b021847a354c4bb21a47595e989eb2",
+    "ev_1666a94a9e924a49ac485474b6c2a13c",
+    "ev_94b20ddb5e20499e9f2efd438c82b24e"
+  ],
+  "registration": {
+    "version": "v2",
+    "env": "dev",
+    "manifestHash": "09d52e5c0cbdd31752cae91e5661f10f81ba9a82a30eda659b34b940d380a38b"
+  }
+}
