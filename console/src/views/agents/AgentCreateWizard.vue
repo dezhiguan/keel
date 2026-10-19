@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { checkAgentName, getCatalog, previewManifest, registerAgent, type CatalogKnowledgeBase, type CatalogPolicy, type CatalogTool, type SelfCheckReport } from '@/api/agents'
+import { getModelGateway } from '@/api/models'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { useUserStore } from '@/stores/user'
@@ -47,8 +48,11 @@ const catalogTools = ref<CatalogTool[]>([])
 const catalogKnowledge = ref<CatalogKnowledgeBase[]>([])
 const policies = ref<CatalogPolicy[]>([])
 const catalogError = ref('')
+const gatewayModels = ref<{ name: string; provider: string }[]>([])
+const modelError = ref('')
 
 const idError = computed(() => (form.name ? nameError(form.name, taken.value) : ''))
+const modelChoices = computed(() => gatewayModels.value)
 const visibleTemplates = computed(() => templatesFor(form.language))
 const selectedHigh = computed(() => form.tools.some((name) => catalogTools.value.find((tool) => tool.name === name)?.risk === 'HIGH'))
 const canNext = computed(() => {
@@ -57,7 +61,23 @@ const canNext = computed(() => {
   return true
 })
 
+async function loadGatewayModels() {
+  try {
+    const gateway = await getModelGateway({ env: form.env, range: '24h' })
+    gatewayModels.value = (gateway.models ?? [])
+      .filter((item) => item.model && !item.embedding)
+      .map((item) => ({ name: item.model!, provider: item.provider || '' }))
+    if (!gatewayModels.value.some((item) => item.name === form.model)) {
+      form.model = gatewayModels.value[0]?.name ?? form.model
+    }
+    modelError.value = gatewayModels.value.length ? '' : '模型网关还没有可选用的对话模型'
+  } catch (error) {
+    modelError.value = toKeelError(error).message
+  }
+}
+
 onMounted(async () => {
+  void loadGatewayModels()
   try {
     const catalog = await getCatalog()
     catalogTools.value = (catalog.tools ?? []).filter((tool) => tool.name)
@@ -67,6 +87,8 @@ onMounted(async () => {
     catalogError.value = toKeelError(error).message
   }
 })
+
+watch(() => form.env, () => { void loadGatewayModels() })
 
 function setLanguage(language: 'python' | 'java') {
   form.language = language
@@ -212,9 +234,11 @@ async function submit() {
             <div class="field">
               <label>默认模型</label>
               <select v-model="form.model" class="inp">
-                <option>qwen-plus</option>
-                <option>deepseek-v3</option>
+                <option v-for="item in modelChoices" :key="item.name" :value="item.name">{{ item.provider ? `${item.name} · ${item.provider}` : item.name }}</option>
+                <option v-if="!modelChoices.length && form.model" :value="form.model">{{ form.model }}</option>
               </select>
+              <div v-if="modelError" class="hint err">{{ modelError }}</div>
+              <div v-else class="hint">选项来自模型网关当前目录，向量模型不在这里选。</div>
             </div>
             <div class="field">
               <label>日预算（人民币）</label>
