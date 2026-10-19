@@ -155,6 +155,8 @@ def create_app(agent) -> Starlette:
                     else:
                         raise ValueError("entry returned no final or suspend event")
             except asyncio.CancelledError:
+                root.set_attribute(attrs.STATUS, "failed")
+                root.set_attribute(attrs.OBSERVATION_OUTPUT, "调用已取消")
                 raise
             except KeelError as exc:
                 root.set_attribute(attrs.STATUS, "failed")
@@ -319,12 +321,17 @@ def create_app(agent) -> Starlette:
                         events.put_nowait(context.final(str(result)))
                     else:
                         raise ValueError("entry returned no final or suspend event")
+            except asyncio.CancelledError:
+                root.set_attribute(attrs.STATUS, "failed")
+                root.set_attribute(attrs.OBSERVATION_OUTPUT, "调用已取消")
+                raise
             except KeelError as exc:
                 root.set_attribute(attrs.STATUS, "failed")
                 if exc.code in (ErrorCode.GUARD_INJECTION_BLOCKED, ErrorCode.GUARD_OUTPUT_BLOCKED):
                     root.set_attribute(attrs.BLOCKED, True)
                 events.put_nowait(ErrorEvent(**_error(exc.code, trace_id, run_id, str(exc))))
             except Exception:
+                root.set_attribute(attrs.STATUS, "failed")
                 events.put_nowait(ErrorEvent(**_error(ErrorCode.SERVER_INTERNAL_ERROR, trace_id, run_id)))
             finally:
                 await context.aclose()

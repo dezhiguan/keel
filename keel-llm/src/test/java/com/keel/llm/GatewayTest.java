@@ -542,6 +542,13 @@ class GatewayTest {
                     .extracting(error -> ((Gateway.GatewayException) error).code())
                     .isEqualTo(ErrorCode.LLM_RATE_LIMITED);
             assertThat(budget.snapshot("echo-dev").reservedCny()).isEqualByComparingTo(reserved);
+            var denied = gateway.spend("echo-dev", 1, 10).stream()
+                    .filter(row -> row.routeVersion().equals("rejected:LLM_RATE_LIMITED")).findFirst().orElseThrow();
+            assertThat(denied.status()).isEqualTo("FAILED");
+            assertThat(denied.costCny()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(denied.reservedCny()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(denied.inputTokens() + denied.outputTokens()).isZero();
+            assertThat(denied.timedOut()).isFalse();
         } finally {
             server.stop(0);
         }

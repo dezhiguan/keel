@@ -23,6 +23,8 @@ describe('model bill labels', () => {
     expect(healthPill({ drift: true, health: 'LIVE', status: 'ok' })).toEqual({ tone: 'failed', label: '配置漂移' })
     expect(billStatusLabel('PENDING')).toBe('待计费')
     expect(billStatusLabel('FAILED')).toBe('失败')
+    expect(routeReason('rejected:LLM_RATE_LIMITED')).toContain('模型未调用')
+    expect(routeReason('rejected:LLM_BUDGET_EXCEEDED')).toContain('日预算不足')
     expect(billStatusLabel('SETTLED')).toBe('已结算')
     expect(limitLabel(null)).toBe('不限制')
     expect(limitLabel(60)).toBe('60')

@@ -241,9 +241,17 @@ public final class Gateway {
         var attempts = attempts(key, requested, "/v1/embeddings".equals(path));
         var forwarding = (ObjectNode) request.deepCopy();
         var maxCost = reservationCost(attempts, path);
-        admission.enter(key);
+        try {
+            admission.enter(key);
+        } catch (GatewayException denied) {
+            line(key.alias(), requested, 0, 0, BigDecimal.ZERO, requestId, 0, false,
+                    "FAILED", BigDecimal.ZERO, traceId, "rejected:" + denied.code().name(), 0);
+            throw denied;
+        }
         if (!budget.reserve(key.alias, requestId, maxCost, key.dailyBudgetCny)) {
             admission.leave(key, 0);
+            line(key.alias(), requested, 0, 0, BigDecimal.ZERO, requestId, 0, false,
+                    "FAILED", BigDecimal.ZERO, traceId, "rejected:" + ErrorCode.LLM_BUDGET_EXCEEDED.name(), 0);
             throw new GatewayException(ErrorCode.LLM_BUDGET_EXCEEDED, ErrorCode.LLM_BUDGET_EXCEEDED.message());
         }
         Upstream.Result result = null;
@@ -332,9 +340,17 @@ public final class Gateway {
                 : forwarding.putObject("stream_options");
         options.put("include_usage", true);
         var maxCost = reservationCost(attempts, path);
-        admission.enter(key);
+        try {
+            admission.enter(key);
+        } catch (GatewayException denied) {
+            line(key.alias(), requested, 0, 0, BigDecimal.ZERO, requestId, 0, false,
+                    "FAILED", BigDecimal.ZERO, traceId, "rejected:" + denied.code().name(), 0);
+            throw denied;
+        }
         if (!budget.reserve(key.alias, requestId, maxCost, key.dailyBudgetCny)) {
             admission.leave(key, 0);
+            line(key.alias(), requested, 0, 0, BigDecimal.ZERO, requestId, 0, false,
+                    "FAILED", BigDecimal.ZERO, traceId, "rejected:" + ErrorCode.LLM_BUDGET_EXCEEDED.name(), 0);
             throw new GatewayException(ErrorCode.LLM_BUDGET_EXCEEDED, ErrorCode.LLM_BUDGET_EXCEEDED.message());
         }
         var billableResponse = false;

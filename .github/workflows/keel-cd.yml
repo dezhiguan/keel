@@ -404,7 +404,7 @@ jobs:
       always() &&
       needs.changes.outputs.qa_agent == 'true' &&
       needs.build-qa-agent.result == 'success' &&
-      (needs.deploy-server.result == 'success' || needs.deploy-server.result == 'skipped') &&
+      (needs.changes.outputs.server != 'true' || needs.deploy-server.result == 'success') &&
       github.event_name != 'pull_request' &&
       github.ref == 'refs/heads/main'
     steps:
@@ -477,7 +477,7 @@ jobs:
       always() &&
       needs.changes.outputs.qa_mainflow == 'true' &&
       needs.build-qa-mainflow.result == 'success' &&
-      (needs.deploy-server.result == 'success' || needs.deploy-server.result == 'skipped') &&
+      (needs.changes.outputs.server != 'true' || needs.deploy-server.result == 'success') &&
       github.event_name != 'pull_request' &&
       github.ref == 'refs/heads/main'
     steps:
@@ -507,7 +507,8 @@ jobs:
             KEEL_AGENT_NAME="${agent}" KEEL_MANIFEST_OUTPUT="/tmp/${agent}-agent.yaml" python3 agents/qa-mainflow/manifest.py
             scp -F ~/.ssh/config "/tmp/${agent}-agent.yaml" "keel-app:/tmp/${agent}-agent.yaml"
             ssh -T -o BatchMode=yes keel-app "kubectl -n agents create configmap qa-mainflow-${agent}-manifest --from-file=agent.yaml=/tmp/${agent}-agent.yaml --dry-run=client -o yaml | kubectl apply -f -"
-            sed "s/PLACEHOLDER_AGENT/${agent}/g" deploy/k3s/services/qa-mainflow.yaml.tpl > "/tmp/${agent}-template.yaml"
+            agent_env=$(python3 -c 'import json,sys; print(json.load(open("agents/qa-mainflow/profiles.json"))[sys.argv[1]].get("env", "dev"))' "${agent}")
+            sed -e "s/PLACEHOLDER_AGENT/${agent}/g" -e "s/PLACEHOLDER_QA_ENV/${agent_env}/g" deploy/k3s/services/qa-mainflow.yaml.tpl > "/tmp/${agent}-template.yaml"
             bash deploy/ci/rollout-service.sh "${agent}" "/tmp/${agent}-template.yaml" PLACEHOLDER_QA_MAINFLOW_IMAGE "keel-${agent}"
           done
 
@@ -520,7 +521,7 @@ jobs:
       always() &&
       needs.changes.outputs.echo == 'true' &&
       needs.build-echo.result == 'success' &&
-      (needs.deploy-server.result == 'success' || needs.deploy-server.result == 'skipped') &&
+      (needs.changes.outputs.server != 'true' || needs.deploy-server.result == 'success') &&
       github.event_name != 'pull_request' &&
       github.ref == 'refs/heads/main'
     steps:
@@ -573,7 +574,7 @@ jobs:
       always() &&
       needs.changes.outputs.echo == 'true' &&
       needs.build-git-ci.result == 'success' &&
-      (needs.deploy-server.result == 'success' || needs.deploy-server.result == 'skipped') &&
+      (needs.changes.outputs.server != 'true' || needs.deploy-server.result == 'success') &&
       github.event_name != 'pull_request' &&
       github.ref == 'refs/heads/main'
     steps:
@@ -740,8 +741,16 @@ jobs:
     name: 部署控制台
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [changes, build-console]
-    if: needs.changes.outputs.console == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [changes, build-console, deploy-server, deploy-llm, deploy-gateway, deploy-audit]
+    if: >-
+      always() &&
+      needs.changes.outputs.console == 'true' &&
+      needs.build-console.result == 'success' &&
+      (needs.changes.outputs.server != 'true' || needs.deploy-server.result == 'success') &&
+      (needs.changes.outputs.llm != 'true' || needs.deploy-llm.result == 'success') &&
+      (needs.changes.outputs.gateway != 'true' || needs.deploy-gateway.result == 'success') &&
+      (needs.changes.outputs.audit != 'true' || needs.deploy-audit.result == 'success') &&
+      github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - name: 配置 SSH
@@ -785,15 +794,15 @@ jobs:
     name: 冒烟
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [deploy-llm, deploy-server, deploy-gateway, deploy-audit, deploy-frontend]
+    needs: [changes, deploy-llm, deploy-server, deploy-gateway, deploy-audit, deploy-frontend]
     if: >-
       !cancelled() &&
       (needs.deploy-llm.result == 'success' || needs.deploy-server.result == 'success' || needs.deploy-gateway.result == 'success' || needs.deploy-audit.result == 'success' || needs.deploy-frontend.result == 'success') &&
-      (needs.deploy-llm.result == 'success' || needs.deploy-llm.result == 'skipped') &&
-      (needs.deploy-server.result == 'success' || needs.deploy-server.result == 'skipped') &&
-      (needs.deploy-gateway.result == 'success' || needs.deploy-gateway.result == 'skipped') &&
-      (needs.deploy-audit.result == 'success' || needs.deploy-audit.result == 'skipped') &&
-      (needs.deploy-frontend.result == 'success' || needs.deploy-frontend.result == 'skipped')
+      (needs.changes.outputs.llm != 'true' || needs.deploy-llm.result == 'success') &&
+      (needs.changes.outputs.server != 'true' || needs.deploy-server.result == 'success') &&
+      (needs.changes.outputs.gateway != 'true' || needs.deploy-gateway.result == 'success') &&
+      (needs.changes.outputs.audit != 'true' || needs.deploy-audit.result == 'success') &&
+      (needs.changes.outputs.console != 'true' || needs.deploy-frontend.result == 'success')
     steps:
       - uses: actions/checkout@v4
       - name: 配置 SSH
@@ -869,7 +878,7 @@ jobs:
       always() &&
       needs.changes.outputs.echo == 'true' &&
       needs.build-meta-agent.result == 'success' &&
-      (needs.deploy-server.result == 'success' || needs.deploy-server.result == 'skipped') &&
+      (needs.changes.outputs.server != 'true' || needs.deploy-server.result == 'success') &&
       github.event_name != 'pull_request' &&
       github.ref == 'refs/heads/main'
     steps:

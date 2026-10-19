@@ -125,6 +125,9 @@ class LlmClient:
                 span.set_attribute(attrs.STATUS, "failed")
                 raise
             except openai.RateLimitError as exc:
+                request_id = exc.response.headers.get("x-request-id")
+                if request_id:
+                    span.set_attribute(attrs.LLM_REQUEST_ID, request_id)
                 span.set_attribute(attrs.STATUS, "failed")
                 payload = exc.body if isinstance(exc.body, dict) else {}
                 code = ErrorCode.__members__.get(str(payload.get("code")), ErrorCode.GW_QUOTA_EXCEEDED)

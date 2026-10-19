@@ -71,6 +71,8 @@ export function objectiveLabel(objective?: string | null) {
 }
 
 export function routeReason(routeVersion?: string | null) {
+  if (routeVersion === 'rejected:LLM_RATE_LIMITED') return '网关配额拒绝 · 模型未调用'
+  if (routeVersion === 'rejected:LLM_BUDGET_EXCEEDED') return '日预算不足 · 模型未调用'
   if (routeVersion === 'fallback') return '降级'
   if (routeVersion === 'primary') return '主路由'
   return routeVersion || '—'

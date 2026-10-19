@@ -3,14 +3,14 @@ kind: Deployment
 metadata:
   name: PLACEHOLDER_AGENT
   namespace: agents
-  labels: {app: PLACEHOLDER_AGENT, keel.io/agent: PLACEHOLDER_AGENT, keel.io/env: dev}
+  labels: {app: PLACEHOLDER_AGENT, keel.io/agent: PLACEHOLDER_AGENT, keel.io/env: PLACEHOLDER_QA_ENV}
 spec:
   replicas: 1
   selector:
     matchLabels: {app: PLACEHOLDER_AGENT}
   template:
     metadata:
-      labels: {app: PLACEHOLDER_AGENT, keel.io/agent: PLACEHOLDER_AGENT, keel.io/env: dev}
+      labels: {app: PLACEHOLDER_AGENT, keel.io/agent: PLACEHOLDER_AGENT, keel.io/env: PLACEHOLDER_QA_ENV}
     spec:
       automountServiceAccountToken: false
       imagePullSecrets: [{name: acr-cred}]

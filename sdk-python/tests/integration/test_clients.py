@@ -418,10 +418,13 @@ def test_gateway_429_preserves_registered_quota_reason(monkeypatch, stream, upst
     monkeypatch.setenv("KEEL_LLM_BASE_URL", "https://gateway.test/v1")
     monkeypatch.setenv("KEEL_LLM_KEY", "virtual-test-key")
     calls = []
+    exported = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exported))
     def handle(request):
         calls.append(request)
-        return httpx.Response(429, json={"code": upstream, "message": "quota reached"})
-    client = LlmClient("agent", "qwen-plus", "trace", http_client=httpx.AsyncClient(
+        return httpx.Response(429, headers={"X-Request-Id": "gateway-denial-request"}, json={"code": upstream, "message": "quota reached"})
+    client = LlmClient("agent", "qwen-plus", "trace", tracer=provider.get_tracer("test"), http_client=httpx.AsyncClient(
         transport=httpx.MockTransport(handle)), on_token=(lambda token: None) if stream else None)
     async def scenario():
         try:
@@ -432,3 +435,4 @@ def test_gateway_429_preserves_registered_quota_reason(monkeypatch, stream, upst
             await client.aclose()
     run(scenario())
     assert len(calls) == 1
+    assert exported.get_finished_spans()[0].attributes["keel.llm.request_id"] == "gateway-denial-request"

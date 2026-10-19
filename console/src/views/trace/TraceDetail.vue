@@ -17,6 +17,8 @@ const route = useRoute()
 const router = useRouter()
 const detail = ref<TraceDetail | null>(null)
 const missing = ref(false)
+const errorText = ref('')
+let loadSeq = 0
 const loading = ref(false)
 const tab = ref<TraceTab>('lanes')
 const selected = ref<string | null>(null)
@@ -33,24 +35,31 @@ const nodeUrl = computed(() => observationUrl(detail.value?.langfuseUrl, node.va
 const bottleneck = computed(() => longestStep(detail.value?.latencyBreakdown, summary.value?.durationMs))
 
 async function load() {
+  const seq = ++loadSeq
+  const id = String(route.params.id)
+  errorText.value = ''
   loading.value = true
   missing.value = false
   detail.value = null
   try {
-    detail.value = await getTrace(String(route.params.id))
+    const next = await getTrace(id)
+    if (seq !== loadSeq) return
+    detail.value = next
     const nodes = detail.value.nodes ?? []
     tab.value = initialTab(!!detail.value.summary?.multiAgent)
     selected.value = pickNode(nodes)
   } catch (error) {
+    if (seq !== loadSeq) return
     detail.value = null
     const keel = toKeelError(error)
     if (keel instanceof KeelApiError && keel.code === 'SERVER_NOT_FOUND') {
       missing.value = true
     } else {
-      ElMessage.error(`加载链路失败：${keel.message}`)
+      errorText.value = `加载链路失败：${keel.message}`
+      ElMessage.error(errorText.value)
     }
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 
@@ -67,8 +76,13 @@ watch(() => route.params.id, load, { immediate: true })
     </div>
 
     <div v-if="missing" class="card empty">
-      没有找到这条链路。可能已超过 Langfuse 30 天保留期，或属于其他环境、评测运行。
-      <div style="margin-top: 12px"><button class="btn" @click="router.push('/traces')">返回链路列表</button></div>
+      没有找到这条链路。可能仍在上报、超过保留期，或不在当前可见范围。
+      <div style="margin-top: 12px"><button class="btn" :disabled="loading" @click="load">重试</button> <button class="btn" @click="router.push('/traces')">返回链路列表</button></div>
+    </div>
+
+    <div v-else-if="errorText" class="card empty" role="alert">
+      <p>{{ errorText }}</p>
+      <button class="btn" :disabled="loading" @click="load">重试</button>
     </div>
 
     <template v-else-if="detail && summary">

@@ -15,3 +15,5 @@ SDK final.meta 可选附带实际加载的提示词版本与fallback状态；评
 重复运行同一staging版本的门禁也更新最新promotion状态和gateRunId，不能保留上次PASSED绕过本次失败；生产发布必须匹配同一个门禁运行号。版本快照同时绑定staging/prod的evalRunId，避免并发版本导致记录错配。
 
 原 /agents/{name}/releases 也必须校验：evalRunId 指向完整通过结果，CLI旧路径的gateRunId必须对应当前staging提示词的PASSED记录；不能通过旧接口绕过新入口。所有校验须在移动production标签之前完成。
+
+生产环境复测与发布的快照必须保留评测源环境，不能硬编码dev，否则会把prod对象切回dev。发布SQL按eval_run.env选取和创建不可变版本。

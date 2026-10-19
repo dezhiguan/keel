@@ -26,6 +26,7 @@ def test_profiles_have_distinct_governed_runtime_and_real_dependencies():
 def test_lifecycle_profiles_use_the_registered_logical_models_and_scoped_knowledge():
     for name in ("qa-tools-1019", "qa-guard-1019", "qa-memory-1019", "qa-routing-1019"):
         spec = build(name)["spec"]
+        assert PROFILES[name].get("env", "dev") in {"dev", "test", "staging", "prod"}
         assert spec["models"]["default"] == ("chat-cheap" if name == "qa-routing-1019" else "chat-default")
         assert spec["knowledge"] == [{"kb": "平台基准库·v1"}]
         assert spec["eval"]["gate"] == {"minScore": 0.95, "maxRegression": 0.02}

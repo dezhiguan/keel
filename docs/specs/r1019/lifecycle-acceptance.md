@@ -67,3 +67,7 @@ qa-tools 首轮52条中有5条超时/断流被SDK丢弃，页面47条仍通过�
 - 并发=1，两个独立调试页面同时调用，第二页被LLM_RATE_LIMITED拒绝，trace 02784d20101ce31306d75c8ebc1f8f24；第一页收到287条事件后点停止，显示已取消。证据 quota-concurrency-stop.json、sse-stop.png。配额均恢复不限制，日预算仍30。
 - 结构化历史：先查询故障，再查询咨询，第二轮正确调用shift.policy(category=咨询)，trace 74c1ca9075e112902234e1e3a4aaece9，6.16秒完成。证据 structured-history-consultation.json/png。
 - JDBC连接错误再次出现且同一时间日志有MVC异步30秒超时/错误体转换失败；见debug-stream-timeout.md，数据库自身关闭原因未确认，不能标为已修复。
+
+## 最终环境切换计划
+
+完成dev完整门禁与页面发布后，分别通过页面下线dev，按代码智能体必要的登记/部署阶段以正式清单重新登记prod，保留数据集与审计，重新自检、完整评测及调试。部署模板按每个profile.env标注环境，其他5个1017智能体保持dev。QA模型参数仅为自己4个dev/prod别名设置，不调整其他生产Key或全局路由权重。

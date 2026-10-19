@@ -2913,6 +2913,7 @@ export interface components {
                 /** Format: float */
                 costCny?: number | null;
                 priceVersion?: string;
+                /** @description primary/fallback 或 rejected:已登记错误码；rejected 表示模型未调用的零费用拒绝 */
                 routeVersion?: string;
             }[];
             /** @description Langfuse observation 的 input，没有时用节点名 */
@@ -3274,6 +3275,7 @@ export interface components {
                 attemptId?: string;
                 traceId?: string | null;
                 priceVersion?: string;
+                /** @description primary/fallback 或 rejected:已登记错误码；rejected 表示模型未调用的零费用拒绝 */
                 routeVersion?: string;
                 cacheTokens?: number | null;
             }[];

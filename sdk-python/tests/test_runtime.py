@@ -245,7 +245,16 @@ def test_manifest_config_and_invalid_input(tmp_path, monkeypatch):
     assert response.json()["code"] == ErrorCode.SERVER_INVALID_PARAM.value
 
 
-def test_disconnect_cancels_invocation(tmp_path):
+def test_disconnect_cancels_invocation(tmp_path, monkeypatch):
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+    import keel.asgi as runtime
+    from keel.tracing import attrs
+    exported = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exported))
+    monkeypatch.setattr(runtime, "configure_from_env", lambda: provider)
     agent = Agent.from_manifest(agent_file(tmp_path))
     cancelled = asyncio.Event()
 
@@ -280,6 +289,9 @@ def test_disconnect_cancels_invocation(tmp_path):
         assert cancelled.is_set()
 
     asyncio.run(scenario())
+    root = next(span for span in exported.get_finished_spans() if span.name == "agent.run")
+    assert root.attributes[attrs.STATUS] == "failed"
+    assert root.attributes[attrs.OBSERVATION_OUTPUT] == "调用已取消"
 
 
 def test_input_required_resume_reads_reply_and_can_suspend_again(tmp_path):

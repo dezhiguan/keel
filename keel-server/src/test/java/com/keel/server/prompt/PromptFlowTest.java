@@ -82,6 +82,7 @@ class PromptFlowTest {
         FAIL_GET.clear();
         PRODUCTION_PATCHES.set(0);
         failSecondProductionPatch = false;
+        jdbc.update("DELETE FROM eval_run WHERE agent_name = 'prompt-agent'");
         jdbc.update("DELETE FROM prompt_code_version WHERE agent_name = 'prompt-agent'");
         jdbc.update("DELETE FROM prompt_label_snapshot");
         prompts.invalidateListCache();
@@ -201,7 +202,7 @@ class PromptFlowTest {
         pass("answer", 1);
         var posts = CALLS.stream().filter(call -> call.startsWith("POST ")).count();
         mvc.perform(post("/api/v1/agents/prompt-agent/releases").contentType("application/json")
-                        .content("{\"env\":\"prod\",\"gateRunId\":\"g1\",\"image\":\"prompt:v1\"}"))
+                        .content("{\"env\":\"prod\",\"gateRunId\":\"ok\",\"image\":\"prompt:v1\"}"))
                 .andExpect(status().isOk());
         assertThat(CALLS.stream().filter(call -> call.startsWith("POST ")).count()).isEqualTo(posts);
         assertThat(label("prompt-agent/answer", "production")).isEqualTo(1);
@@ -210,6 +211,80 @@ class PromptFlowTest {
                         .content("{\"version\":99,\"reason\":\"no\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("PROMPT_ROLLBACK_TARGET"));
+    }
+
+    @Test void anUnrelatedGateCannotReleaseAnOtherwisePassingPrompt() throws Exception {
+        save("answer", "hello");
+        promote("answer", "staging", 1);
+        pass("answer", 1);
+        var before = CALLS.stream().filter(call -> call.startsWith("PATCH ")).count();
+        mvc.perform(post("/api/v1/agents/prompt-agent/releases").contentType("application/json")
+                        .content("{\"env\":\"prod\",\"gateRunId\":\"unrelated\",\"image\":\"prompt:v1\"}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("PROMPT_NOT_GATED"));
+        assertThat(CALLS.stream().filter(call -> call.startsWith("PATCH ")).count()).isEqualTo(before);
+    }
+
+    private void evaluated(String run, String env, boolean complete) {
+        jdbc.update("""
+                INSERT INTO eval_run(run_id,agent_name,env,namespace,source_pod,image,endpoint,dataset,requested_by,state,result)
+                VALUES (?,'prompt-agent',?,'agents','pod','registry/tested:image','http://agent','qa/smoke','operator','DONE',?::jsonb)
+                """, run, env, "{\"agent\":\"prompt-agent\",\"passed\":true,\"complete\":" + complete
+                + ",\"caseCount\":51,\"promptVersions\":{\"answer\":1}}");
+    }
+
+    @Test void evaluatedPublicationUsesTheServerImageAndSamePromptVersion() throws Exception {
+        save("answer", "hello");
+        promote("answer", "staging", 1);
+        evaluated("ev_publish", "dev", true);
+        mvc.perform(post("/api/v1/eval/prompt-agent/runs/ev_publish/publish").contentType("application/json")
+                        .content("{\"env\":\"staging\",\"image\":\"forged:image\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.image").value("registry/tested:image"))
+                .andExpect(jsonPath("$.data.version").value("v2"));
+        mvc.perform(post("/api/v1/eval/prompt-agent/runs/ev_publish/publish").contentType("application/json")
+                        .content("{\"env\":\"prod\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.version").value("v2"));
+        assertThat(label("prompt-agent/answer", "production")).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM release_record WHERE agent_name='prompt-agent' AND image='registry/tested:image' AND version='v2'")).isEqualTo(2);
+    }
+
+    @Test void aPartialPassingScoreCannotPublishThroughEitherEndpoint() throws Exception {
+        save("answer", "hello");
+        promote("answer", "staging", 1);
+        evaluated("ev_partial", "dev", false);
+        mvc.perform(post("/api/v1/eval/prompt-agent/runs/ev_partial/publish").contentType("application/json")
+                        .content("{\"env\":\"prod\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/v1/agents/prompt-agent/releases").contentType("application/json")
+                        .content("{\"env\":\"staging\",\"gateRunId\":\"ev_partial\",\"evalRunId\":\"ev_partial\",\"image\":\"registry/tested:image\"}"))
+                .andExpect(status().isBadRequest());
+        assertThat(count("SELECT count(*) FROM release_record WHERE agent_name='prompt-agent'")).isZero();
+        assertThat(label("prompt-agent/answer", "production")).isNull();
+    }
+
+    @Test void changingStagingAfterEvaluationPreventsPublication() throws Exception {
+        save("answer", "one");
+        save("answer", "two");
+        promote("answer", "staging", 2);
+        evaluated("ev_drift", "dev", true);
+        mvc.perform(post("/api/v1/eval/prompt-agent/runs/ev_drift/publish").contentType("application/json")
+                        .content("{\"env\":\"prod\"}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("PROMPT_NOT_GATED"));
+        assertThat(label("prompt-agent/answer", "production")).isNull();
+    }
+
+    @Test void aProductionEvaluationKeepsTheSnapshotInProduction() throws Exception {
+        save("answer", "hello");
+        promote("answer", "staging", 1);
+        jdbc.update("""
+                INSERT INTO agent_version(agent_name,version,env,manifest_json,manifest_hash,released_by)
+                SELECT agent_name,'v0','prod',manifest_json,manifest_hash,'test' FROM agent_version WHERE agent_name='prompt-agent'
+                """);
+        evaluated("ev_prod", "prod", true);
+        mvc.perform(post("/api/v1/eval/prompt-agent/runs/ev_prod/publish").contentType("application/json")
+                        .content("{\"env\":\"prod\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.version").value("v1"));
+        assertThat(count("SELECT count(*) FROM agent_version WHERE agent_name='prompt-agent' AND env='prod' AND gate_run_id='ev_prod'")).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM agent_version WHERE agent_name='prompt-agent' AND env='dev' AND gate_run_id='ev_prod'")).isZero();
     }
 
     @Test void aFailedSecondProductionMoveIsReverted() throws Exception {
@@ -224,7 +299,7 @@ class PromptFlowTest {
                 .andExpect(status().isOk());
         failSecondProductionPatch = true;
         mvc.perform(post("/api/v1/agents/prompt-agent/releases").contentType("application/json")
-                        .content("{\"env\":\"prod\",\"gateRunId\":\"g2\",\"image\":\"prompt:v1\"}"))
+                        .content("{\"env\":\"prod\",\"gateRunId\":\"ok\",\"image\":\"prompt:v1\"}"))
                 .andExpect(status().isInternalServerError());
         assertThat(label("prompt-agent/answer", "production")).isNull();
         assertThat(label("prompt-agent/route", "production")).isNull();
@@ -325,7 +400,7 @@ class PromptFlowTest {
         promote("answer", "staging", 1);
         pass("answer", 1);
         mvc.perform(post("/api/v1/agents/prompt-agent/releases").contentType("application/json")
-                        .content("{\"env\":\"prod\",\"gateRunId\":\"g3\",\"image\":\"prompt:v1\"}"))
+                        .content("{\"env\":\"prod\",\"gateRunId\":\"ok\",\"image\":\"prompt:v1\"}"))
                 .andExpect(status().isOk());
         relabel("prompt-agent/answer", 2, "test");
         assertThat(drift.scan()).isZero();

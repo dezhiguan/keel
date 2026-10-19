@@ -156,41 +156,42 @@ public class ReleaseService {
         }
     }
 
-    /** Preserve the tested dev manifest as the next immutable agent version. */
+    /** Preserve the tested source environment manifest as the next immutable version. */
     private String snapshotEvaluatedVersion(String agent, String evalRunId, String image) {
         var evaluated = jdbc.query("""
-                SELECT image, state, COALESCE((result->>'passed')::boolean, false) AND COALESCE((result->>'complete')::boolean, false)
+                SELECT image, state, COALESCE((result->>'passed')::boolean, false) AND COALESCE((result->>'complete')::boolean, false), env
                 FROM eval_run WHERE run_id=? AND agent_name=?
-                """, (rs, row) -> new Evaluated(rs.getString(1), rs.getString(2), rs.getBoolean(3)),
+                """, (rs, row) -> new Evaluated(rs.getString(1), rs.getString(2), rs.getBoolean(3), rs.getString(4)),
                 evalRunId, agent);
         if (evaluated.isEmpty() || !"DONE".equals(evaluated.getFirst().state())
                 || !evaluated.getFirst().passed() || !image.equals(evaluated.getFirst().image())) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "评测须通过，且运行镜像必须与发布镜像一致");
         }
+        var sourceEnv = evaluated.getFirst().env();
         var prior = jdbc.query("""
-                SELECT version FROM agent_version WHERE agent_name=? AND env='dev' AND gate_run_id=? LIMIT 1
-                """, (rs, row) -> rs.getString(1), agent, evalRunId);
+                SELECT version FROM agent_version WHERE agent_name=? AND env=? AND gate_run_id=? LIMIT 1
+                """, (rs, row) -> rs.getString(1), agent, sourceEnv, evalRunId);
         if (!prior.isEmpty()) return prior.getFirst();
         var latest = jdbc.query("""
-                SELECT version FROM agent_version WHERE agent_name=? AND env='dev'
+                SELECT version FROM agent_version WHERE agent_name=? AND env=?
                 ORDER BY released_at DESC, id DESC LIMIT 1
-                """, (rs, row) -> rs.getString(1), agent);
+                """, (rs, row) -> rs.getString(1), agent, sourceEnv);
         if (latest.isEmpty() || !latest.getFirst().matches("v[0-9]+")) {
-            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "没有可发布的 dev 智能体版本");
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "没有可发布的 " + sourceEnv + " 智能体版本");
         }
         var version = "v" + (Integer.parseInt(latest.getFirst().substring(1)) + 1);
         var inserted = jdbc.update("""
                 INSERT INTO agent_version (agent_name, version, env, manifest_json, manifest_hash,
                                            image, gate_run_id, released_by)
-                SELECT agent_name, ?, 'dev', manifest_json, manifest_hash, ?, ?, ?
-                FROM agent_version WHERE agent_name=? AND env='dev'
+                SELECT agent_name, ?, env, manifest_json, manifest_hash, ?, ?, ?
+                FROM agent_version WHERE agent_name=? AND env=?
                 ORDER BY released_at DESC, id DESC LIMIT 1
-                """, version, image, evalRunId, PromptCatalog.Actor.current().userId(), agent);
+                """, version, image, evalRunId, PromptCatalog.Actor.current().userId(), agent, sourceEnv);
         if (inserted != 1) throw new KeelException(ErrorCode.SERVER_INTERNAL_ERROR, "智能体版本快照未创建");
         return version;
     }
 
-    private record Evaluated(String image, String state, boolean passed) {}
+    private record Evaluated(String image, String state, boolean passed, String env) {}
 
     private String devflowEvidenceRejection(String jobId, String env, String gateRunId,
                                            String image, boolean mergeApproved) {

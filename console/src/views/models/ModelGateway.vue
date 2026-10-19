@@ -16,7 +16,7 @@ import {
   type ModelGateway,
 } from '@/api/models'
 import { breakerLabel } from './channelBreaker'
-import { billClock, billStatusLabel, limitLabel, objectiveLabel } from './modelBill'
+import { billClock, billStatusLabel, limitLabel, objectiveLabel, routeReason } from './modelBill'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { useUserStore } from '@/stores/user'
@@ -627,9 +627,9 @@ watch(() => envStore.env, load, { immediate: true })
               <td class="mono">{{ billClock(bill.ts) }}</td>
               <td class="mono">{{ bill.alias || '—' }}</td>
               <td><span class="pill p-bad">{{ billStatusLabel(bill.status) }}</span></td>
-              <td class="mut">{{ bill.model || '—' }} · {{ yuan(bill.costCny) }}</td>
+              <td class="mut">{{ routeReason(bill.routeVersion) }} · {{ bill.model || '—' }} · {{ yuan(bill.costCny) }}</td>
             </tr>
-            <tr v-if="!simulated.length && !failedBills.length"><td colspan="4" class="mut">点「模拟一次请求」</td></tr>
+            <tr v-if="!simulated.length && !failedBills.length"><td colspan="4" class="mut">暂无读取到的真实拒绝记录；可用「模拟一次请求」试算</td></tr>
           </tbody>
         </table>
       </div>
@@ -724,6 +724,7 @@ watch(() => envStore.env, load, { immediate: true })
             <div class="field">
               <label for="key-quota-tpm">TPM（每分钟 Token 数，输入 + 输出）</label>
               <input id="key-quota-tpm" v-model.number="nextTpm" class="inp" type="number" min="1" step="1" placeholder="留空表示不限制" :disabled="!admin || selectedKey.status === 'BLOCKED'">
+              <small>按已结算 Token 用量限制后续请求；单次和在途请求可能超过此值。</small>
             </div>
             <div class="field">
               <label for="key-quota-concurrency">并发</label>

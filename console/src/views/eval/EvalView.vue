@@ -299,10 +299,11 @@ watch(agent, () => {
     </div>
 
     <template v-if="evalTab === 'cmp' && result">
+      <p v-if="!result.complete" role="alert">这份历史结果未包含全部有效用例的完整性证据，不能用于页面发布，请重新运行。</p>
       <div class="gate" :class="{ pass: result.passed }">
         <div class="big">{{ formatScore(result.scoreTotal) }}</div>
         <div>
-          <b>{{ result.passed ? '门禁通过，可以发布' : '门禁未通过，发布到 prod 已被阻止' }}</b><br />
+          <b>{{ result.passed ? (result.complete ? '门禁通过，可以发布' : '历史结论未核验完整性，请重新评测') : '门禁未通过，发布到 prod 已被阻止' }}</b><br />
           <span class="mut">{{ gateRule(result) }}</span><br />
           <span class="mut">
             隐藏考题 {{ result.holdout ? formatScore(result.holdout.score) : '—' }}
