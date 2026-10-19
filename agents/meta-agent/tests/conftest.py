@@ -94,3 +94,20 @@ def catalog(tmp_path, monkeypatch):
         path.write_text(json.dumps(rows), encoding="utf-8")
         monkeypatch.setenv("META_TOOL_CATALOG", str(path))
     return write
+
+
+@pytest.fixture(autouse=True)
+def authorized_project_skill(monkeypatch):
+    """The platform boundary is fake; prompt compilation and model HTTP stay real."""
+    from keel.skills import Skill, SkillClient
+    original = SkillClient.load
+
+    async def load(client, name):
+        if name != "keel-project-development":
+            return await original(client, name)
+        declared = [item for item in client.manifest.spec.skills or [] if item.name == name]
+        assert len(declared) == 1 and declared[0].version == 1
+        body = json.loads((ROOT / "skills/keel-project-development.json").read_text())
+        return Skill(name, 1, body["instructions"], body["tools"], body["examples"])
+
+    monkeypatch.setattr(SkillClient, "load", load)

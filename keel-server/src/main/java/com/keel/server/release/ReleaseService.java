@@ -159,9 +159,9 @@ public class ReleaseService {
     /** Preserve the tested source environment manifest as the next immutable version. */
     private String snapshotEvaluatedVersion(String agent, String evalRunId, String image) {
         var evaluated = jdbc.query("""
-                SELECT image, state, COALESCE((result->>'passed')::boolean, false) AND COALESCE((result->>'complete')::boolean, false), env
+                SELECT image, state, COALESCE((result->>'passed')::boolean, false) AND COALESCE((result->>'complete')::boolean, false), env, created_at
                 FROM eval_run WHERE run_id=? AND agent_name=?
-                """, (rs, row) -> new Evaluated(rs.getString(1), rs.getString(2), rs.getBoolean(3), rs.getString(4)),
+                """, (rs, row) -> new Evaluated(rs.getString(1), rs.getString(2), rs.getBoolean(3), rs.getString(4), rs.getTimestamp(5).toInstant()),
                 evalRunId, agent);
         if (evaluated.isEmpty() || !"DONE".equals(evaluated.getFirst().state())
                 || !evaluated.getFirst().passed() || !image.equals(evaluated.getFirst().image())) {
@@ -172,6 +172,12 @@ public class ReleaseService {
                 SELECT version FROM agent_version WHERE agent_name=? AND env=? AND gate_run_id=? LIMIT 1
                 """, (rs, row) -> rs.getString(1), agent, sourceEnv, evalRunId);
         if (!prior.isEmpty()) return prior.getFirst();
+        var candidateTimes = jdbc.query("""
+                SELECT released_at FROM agent_version WHERE agent_name=? AND env=?
+                ORDER BY released_at DESC,id DESC LIMIT 1
+                """, (rs, row) -> rs.getTimestamp(1).toInstant(), agent, sourceEnv);
+        if (candidateTimes.isEmpty()) throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "没有可发布的候选配置");
+        requireCurrentCandidate(evaluated.getFirst().createdAt(), candidateTimes.getFirst());
         var latest = jdbc.query("""
                 SELECT version FROM agent_version WHERE agent_name=? AND env=? AND version ~ '^v[0-9]+$'
                 ORDER BY CAST(substring(version FROM 2) AS integer) DESC LIMIT 1
@@ -191,7 +197,13 @@ public class ReleaseService {
         return version;
     }
 
-    private record Evaluated(String image, String state, boolean passed, String env) {}
+    static void requireCurrentCandidate(java.time.Instant evaluatedAt, java.time.Instant candidateAt) {
+        if (evaluatedAt == null || candidateAt == null || evaluatedAt.isBefore(candidateAt)) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "候选配置在评测后已更新，请重新评测再发布");
+        }
+    }
+
+    private record Evaluated(String image, String state, boolean passed, String env, java.time.Instant createdAt) {}
 
     private String devflowEvidenceRejection(String jobId, String env, String gateRunId,
                                            String image, boolean mergeApproved) {

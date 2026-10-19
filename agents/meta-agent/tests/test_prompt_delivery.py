@@ -90,6 +90,8 @@ def test_draft_declares_prompt_knowledge_and_guardrails(monkeypatch):
             from pathlib import Path
             from keel.manifest import load_manifest
             self.manifest = load_manifest(Path(__file__).resolve().parents[1] / "agent.yaml")
+            from keel.skills import SkillClient
+            self.skills = SkillClient(self.manifest, "meta-agent", "dev")
 
         async def prompt(self, name):
             assert name == "draft"

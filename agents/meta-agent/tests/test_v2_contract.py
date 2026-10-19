@@ -36,3 +36,34 @@ def test_skill_artifact_and_string_scoring_contract():
     expected=json.dumps({'errorCode':'SERVER_INVALID_PARAM'})
     assert baseline(expected,'SERVER_INVALID_PARAM',[])==1
     assert baseline(expected,'PASS',[])==0
+
+
+def test_evaluation_preview_uses_skill_and_logical_gateway_without_delivery(gateway, monkeypatch):
+    import httpx
+    from app import app
+    from test_candidate import ROLE_CODE, TEST_CODE
+    from test_meta_agent import terminal
+    from test_workflow import work
+
+    request = work()
+    request['action'] = 'GENERATE'
+    request['requirement'].update(target_agent='qa-meta-preview', template='graph-agent',tools=[])
+    request['draft'] = {'spec':{'goal':'把需求变成结构化结论'},'manifest':{'spec':{'tools':[]}}}
+    candidate = {'files':[{'path':'role.py','content':ROLE_CODE},
+                          {'path':'prompts/role.md','content':'岗位任务：{{input}}'},
+                          {'path':'tests/test_role.py','content':TEST_CODE}]}
+    gateway.replies.append(json.dumps(candidate))
+    def no_delivery(*args, **kwargs):
+        raise AssertionError('evaluation preview must never deliver a repository')
+    monkeypatch.setattr('workflow.deliver', no_delivery)
+
+    async def call():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://test') as client:
+            return await client.post('/v1/invoke',json={'input':{'text':json.dumps(request)}},
+                                     headers={'X-Keel-Eval-Run':'test-v2-preview'})
+    kind,event = terminal(asyncio.run(call()))
+    assert kind=='final', event
+    output=json.loads(event['answer'])
+    assert output['candidate']==candidate and output['skillVersion']==1
+    assert gateway.requests[0]['model']=='chat-default'
+    assert any('人工审核的项目开发技能' in message['content'] for message in gateway.requests[0]['messages'])

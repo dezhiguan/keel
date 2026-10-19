@@ -52,6 +52,7 @@ public class CodeCandidateService {
         catch (Exception error) { throw invalid("当前智能体清单无效"); }
         var candidate = body.path("manifest");
         requireCompatible(prior, candidate);
+        if (candidate.equals(prior)) return Map.of("env", env, "manifestHash", body.path("expectedHash").asText());
         var declaredTools = new HashSet<String>();
         prior.path("spec").path("tools").forEach(tool -> declaredTools.add(tool.path("name").asText()));
         validator.validate(candidate, declaredTools);

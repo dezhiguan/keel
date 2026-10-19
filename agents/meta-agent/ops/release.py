@@ -60,14 +60,22 @@ def main():
                 api.request('POST',f'{prefix}/prompts/{item["name"]}/promote',{'env':env,'version':versions[item['name']]})
         outcome={**outcome,'activated':versions}
     elif args.action=='skill':
+        # Granting imports cases into the current dataset. Move only the dataset
+        # pointer first, so the measured gateway dataset remains unchanged.
+        current=api.request('GET',prefix+'?includeRuntimeEvidence=false')
+        staged=yaml.safe_load(current['manifestYaml'])
+        dataset=manifest['spec']['eval']['dataset']
+        if staged['spec']['eval']['dataset']!=dataset:
+            staged['spec']['eval']['dataset']=dataset
+            api.request('PUT',prefix+'/candidate',{'env':'dev','expectedHash':current['manifestHash'],'manifest':staged})
         payload=json.loads((ROOT/'skills/keel-project-development.json').read_text())
         existing=api.request('GET','/api/v1/skills')
         found=next((row for row in existing.get('items',[]) if row['name']==payload['name']),None)
         if found:
             detail=api.request('GET',f'/api/v1/skills/{payload["name"]}')
             version=next((v for v in detail['versions'] if v['version']==payload['version']),None)
-            if not version or version['instructions']!=payload['instructions']:
-                raise RuntimeError('技能版本已存在但正文不同；必须人工发布新版本')
+            if not version or any(version.get(field)!=payload[field] for field in ('instructions','tools','examples','cases')):
+                raise RuntimeError('技能版本已存在但内容不同；必须人工发布新版本')
         else:
             created=api.request('POST','/api/v1/skills',payload)
             if created['version']!=payload['version']: raise RuntimeError('技能版本不一致')
