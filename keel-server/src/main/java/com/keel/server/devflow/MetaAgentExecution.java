@@ -37,8 +37,8 @@ public class MetaAgentExecution {
             "dev-lead", "supervisor", "spec-agent", "graph-agent", "dev-agent", "graph-agent",
             "eval-agent", "tool-agent", "code-review", "tool-agent", "ci-doctor", "tool-agent",
             "release-agent", "tool-agent");
-    static final int SANDBOX_ATTEMPT_CAP = 30;
-    static final int MANUAL_REPAIR_WINDOW_CAP = 5;
+    static final int SANDBOX_ATTEMPT_CAP = 35;
+    static final int MANUAL_REPAIR_WINDOW_CAP = 6;
     private static final Set<String> GENERAL_TEMPLATES = Set.of("tool-agent", "chat-rag", "graph-agent", "supervisor");
     private static final Set<String> GENERAL_RUNTIME_TOOLS = Set.of(
             "devflow.job.read", "devflow.batch.read", "devflow.catalog.search",
@@ -758,7 +758,7 @@ public class MetaAgentExecution {
                 jobs.progress(id, "QUEUED", "BUILD", newWindow ? "开发者补充澄清并主动开启第 "
                         + state.path("manualRepairWindows").asInt() + " 次人工修复窗口，本次最多 "
                         + (repair.path("maxAttempts").asInt() - state.path("sandboxAttempts").size())
-                        + " 轮，累计验证仍不超过三十次" : "开发者已补充修复说明，在原有额度内继续生成并重新验证审批");
+                        + " 轮，累计验证仍不超过三十五次" : "开发者已补充修复说明，在原有额度内继续生成并重新验证审批");
                 return publicState(state);
             }
             if (canRefreshRuntimeAdapter(state)) {
@@ -777,7 +777,7 @@ public class MetaAgentExecution {
                 state.put("sandboxAttemptCeiling", repair.path("maxAttempts").asInt()).put("phase", "QUEUED");
                 state.remove(List.of("humanReview", "modelReview", "modelReviewTraceId", "sandboxStatus", "sandboxRunId"));
                 save(id, state, "DELIVER");
-                jobs.progress(id, "QUEUED", "BUILD", "刷新独立项目适配层，可信测试改由沙箱注入；最多五轮且累计不超过三十轮，新提交须重验与审批");
+                jobs.progress(id, "QUEUED", "BUILD", "刷新独立项目适配层，可信测试改由沙箱注入；最多五轮且累计不超过三十五轮，新提交须重验与审批");
                 return publicState(state);
             }
             if (canRepairStagingGate(state)) {

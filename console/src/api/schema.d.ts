@@ -3302,9 +3302,9 @@ export interface components {
             runtimeAdapterUpdateAvailable?: boolean;
             /** @description 当前任务可接受开发者补充澄清后继续修复 */
             repairFeedbackAvailable?: boolean;
-            /** @description 原自动窗口已耗尽，本次明确澄清将主动开启一次最多五轮的新窗口，累计上限三十轮 */
+            /** @description 原自动窗口已耗尽，本次明确澄清将主动开启一次最多五轮的新窗口，累计上限三十五轮 */
             repairFeedbackCreatesWindow?: boolean;
-            /** @description 管理员补充澄清后主动开启的新修复窗口次数；每次最多五轮，所有沙箱提交累计不超过三十次 */
+            /** @description 管理员补充澄清后主动开启的新修复窗口次数；每次最多五轮，所有沙箱提交累计不超过三十五次 */
             manualRepairWindows?: number;
             pipeline?: {
                 /** @enum {string} */
@@ -6103,7 +6103,7 @@ export interface operations {
         requestBody?: {
             content: {
                 "application/json": {
-                    /** @description 开发者补充明确澄清；在已有额度内继续，或按任务可用性主动开启一次五轮窗口，累计上限三十 */
+                    /** @description 开发者补充明确澄清；在已有额度内继续，或按任务可用性主动开启一次五轮窗口，累计上限三十五 */
                     feedback?: string;
                 };
             };

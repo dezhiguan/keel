@@ -299,7 +299,7 @@ def _deliver(work):
     attempt = int(repair.get("attempt") or 1)
     ordinary_limit = 5 + min(2, max(0, int(repair.get("templateRefreshes") or 0)))
     configured_limit = repair.get("maxAttempts")
-    if configured_limit is not None and (type(configured_limit) is not int or not 1 <= configured_limit <= 30):
+    if configured_limit is not None and (type(configured_limit) is not int or not 1 <= configured_limit <= 35):
         raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "沙箱修复窗口无效")
     if attempt < 1 or attempt > (configured_limit if configured_limit is not None else
                                  11 if repair.get("sdkRepair") is True else
