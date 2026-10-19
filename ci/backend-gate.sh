@@ -39,3 +39,5 @@ for name in keel-llm keel-server keel-gateway keel-audit; do
   fi
 done
 echo "后端清单门禁通过"
+
+bash ci/test-changed-services.sh

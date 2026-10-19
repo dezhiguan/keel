@@ -24,7 +24,7 @@ sandbox=false
 qa_agent=false
 qa_mainflow=false
 
-if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" || "${DEPLOY_BASE_SHA:-}" == ALL ]]; then
   llm=true
   server=true
   gateway=true
@@ -42,20 +42,22 @@ if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
   git fetch --depth=1 origin "${BASE_REF}"
   files="$(git diff --name-only "origin/${BASE_REF}...HEAD")"
 else
-  if [[ -z "${BEFORE:-}" || "${BEFORE}" == 0000000000000000000000000000000000000000 ]]; then
+  scope_base="${DEPLOY_BASE_SHA:-${BEFORE:-}}"
+  if [[ -z "${scope_base}" || "${scope_base}" == 0000000000000000000000000000000000000000 ]]; then
     llm=true
     server=true
     gateway=true
     audit=true
     console=true
     echo=true
+    sandbox=true
     qa_agent=true
     qa_mainflow=true
     write
     exit 0
   fi
-  git cat-file -e "${BEFORE}^{commit}" 2>/dev/null || git fetch --depth=1 origin "${BEFORE}"
-  files="$(git diff --name-only "${BEFORE}" "${GITHUB_SHA}")"
+  git cat-file -e "${scope_base}^{commit}" 2>/dev/null || git fetch --depth=1 origin "${scope_base}"
+  files="$(git diff --name-only "${scope_base}" "${GITHUB_SHA}")"
 fi
 
 shared=false
@@ -64,7 +66,7 @@ while IFS= read -r file; do
   case "${file}" in
     .github/workflows/keel-cd.yml)
       shared=true; qa_mainflow=true ;;
-    keel-common/*|pom.xml|deploy/docker/service.Dockerfile|.github/actions/*|deploy/ci/*|ci/changed-services.sh|ci/backend-gate.sh|contracts/*)
+    keel-common/*|pom.xml|deploy/docker/service.Dockerfile|.github/actions/*|deploy/ci/*|ci/changed-services.sh|ci/test-changed-services.sh|ci/backend-gate.sh|contracts/*)
       shared=true ;;
     keel-llm/*|deploy/k3s/services/keel-llm.yaml)
       llm=true ;;
