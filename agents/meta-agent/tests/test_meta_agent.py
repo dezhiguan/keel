@@ -185,17 +185,13 @@ def test_plain_text_requirement_is_accepted(gateway):
     assert "把需求表单变成需求单" in gateway.requests[0]["messages"][0]["content"]
 
 
-def test_scorers_read_the_yaml_block_of_the_final_answer():
-    import yaml
-    from evals.scorers import manifest_valid, tool_risk_not_lowered
+def test_gate_loads_only_the_workflow_contract_scorer():
+    from keel.eval.run import load_scorers
 
-    body = manifest(tools=[{"name": "git.pr.merge", "access": "write", "risk": "high", "approval": "required"}])
-    body["spec"]["runtime"]["endpoint"] = "http://spec-agent.agents.svc.cluster.local:8000"
-    output = "## 需求单\n\n```yaml\n" + yaml.safe_dump(body, allow_unicode=True) + "```"
-    assert manifest_valid(output, {"target_agent": "spec-agent"}, []) == 1.0
-    assert manifest_valid("没有 yaml", {"target_agent": "spec-agent"}, []) == 0.0
-    assert tool_risk_not_lowered(output, {"tools": {"git.pr.merge": "high"}}, []) == 1.0
-    assert tool_risk_not_lowered(output, {"tools": {"git.pr.merge": "high", "ci.log.fetch": "low"}}, []) == 0.5
+    loaded = load_scorers(ROOT / "evals/scorers.py")
+    assert [fn.__name__ for fn in loaded] == ["baseline"]
+    assert loaded[0]({"errorCode": "SERVER_INVALID_PARAM"}, "SERVER_INVALID_PARAM", ["input"]) == 1.0
+    assert loaded[0]({"kind": "draft"}, "{\"spec\":{},\"manifest\":{}}", ["draft-contract"]) == 0.0
 
 
 def test_no_vendor_sdk_direct_imports():

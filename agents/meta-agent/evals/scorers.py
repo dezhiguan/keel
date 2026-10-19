@@ -1,37 +1,100 @@
-"""Code scorers for meta-agent drafts. The cases themselves are written by people (see seed.jsonl)."""
+"""Score meta-agent contract answers. Every scorer receives expected, answer, tags."""
 
+import json
 import re
 
-import yaml
-
-from tools.manifest_check import check
-
-RISK_ORDER = {"low": 0, "mid": 1, "high": 2}
+_CASE_ID = re.compile(r"a-[A-Za-z0-9_-]{1,45}")
+_SECRET = re.compile(r"sk-|api[_-]?key|password|BEGIN PRIVATE", re.IGNORECASE)
 
 
-def _manifest(output: str) -> dict | None:
-    match = re.search(r"```yaml\n(.*?)```", output or "", re.S)
-    if not match:
-        return None
-    data = yaml.safe_load(match.group(1))
-    return data if isinstance(data, dict) else None
-
-
-def manifest_valid(output: str, expected: dict, tags: list[str]) -> float:
-    manifest = _manifest(output)
-    if manifest is None:
+def baseline(expected, answer, tags) -> float:
+    if not isinstance(expected, dict):
         return 0.0
-    return 1.0 if not check(manifest, expected.get("target_agent"), None) else 0.0
-
-
-def tool_risk_not_lowered(output: str, expected: dict, tags: list[str]) -> float:
-    manifest = _manifest(output)
-    wanted = expected.get("tools") or {}
-    if manifest is None:
+    code = expected.get("errorCode")
+    if code:
+        return 1.0 if answer == code else 0.0
+    try:
+        body = json.loads(answer)
+    except (json.JSONDecodeError, TypeError):
         return 0.0
-    if not wanted:
-        return 1.0
-    declared = {tool.get("name"): tool.get("risk", "low") for tool in manifest.get("spec", {}).get("tools") or []}
-    hits = sum(1 for name, risk in wanted.items()
-               if name in declared and RISK_ORDER.get(declared[name], 0) >= RISK_ORDER[risk])
-    return hits / len(wanted)
+    kind = expected.get("kind")
+    if kind == "draft":
+        return _draft(body, expected)
+    if kind == "eval":
+        return _expand(body, expected)
+    return 0.0
+
+
+def _draft(body: dict, expected: dict) -> float:
+    if not isinstance(body, dict):
+        return 0.0
+    manifest, spec = body.get("manifest"), body.get("spec")
+    if not isinstance(manifest, dict) or not isinstance(spec, dict):
+        return 0.0
+    meta = manifest.get("metadata") if isinstance(manifest.get("metadata"), dict) else {}
+    agent_spec = manifest.get("spec") if isinstance(manifest.get("spec"), dict) else {}
+    runtime = agent_spec.get("runtime") if isinstance(agent_spec.get("runtime"), dict) else {}
+    models = agent_spec.get("models") if isinstance(agent_spec.get("models"), dict) else {}
+    budget = models.get("budget") if isinstance(models.get("budget"), dict) else {}
+    prompts = agent_spec.get("prompts") if isinstance(agent_spec.get("prompts"), dict) else {}
+    guard = agent_spec.get("guardrails") if isinstance(agent_spec.get("guardrails"), dict) else {}
+    name = expected.get("name")
+    checks = [
+        manifest.get("apiVersion") == "keel/v1",
+        manifest.get("kind") == "Agent",
+        meta.get("name") == name,
+        meta.get("displayName") == expected.get("title"),
+        meta.get("owner") == expected.get("owner"),
+        runtime.get("endpoint") == f"http://{name}.agents.svc.cluster.local:8000",
+        runtime.get("type") == "code",
+        runtime.get("language") == "python",
+        agent_spec.get("kind") == "workflow",
+        (agent_spec.get("auth") or {}).get("audience") == name,
+        models.get("default") == "qwen3.8-flash",
+        budget.get("dailyCny") == expected.get("dailyCny"),
+        agent_spec.get("knowledge") == [],
+        agent_spec.get("delegates") == expected.get("delegates", []),
+        guard.get("inputInjection") == "enforce",
+        guard.get("grounding") == "off",
+        guard.get("pii") == "mask",
+        prompts.get("source") == "langfuse",
+        prompts.get("items") == [{"name": "role", "type": "text"}],
+        (agent_spec.get("audit") or {}).get("captureFields") == ["request_id"],
+        (agent_spec.get("eval") or {}).get("dataset") == f"{name}/seed",
+        agent_spec.get("tools") == expected.get("tools"),
+        all(spec.get(key) == expected.get(key) for key in ("title", "goal", "users", "io", "success")),
+        isinstance(spec.get("risks"), list),
+        isinstance(spec.get("pending"), list),
+        _SECRET.search(json.dumps(body, ensure_ascii=False)) is None,
+    ]
+    return 1.0 if all(checks) else 0.0
+
+
+def _expand(body: dict, expected: dict) -> float:
+    cases = body.get("cases") if isinstance(body, dict) else None
+    if not isinstance(cases, list) or not 1 <= len(cases) <= 20:
+        return 0.0
+    forbidden_ids = set(expected.get("forbiddenIds") or [])
+    forbidden_inputs = {_canon(item) for item in expected.get("forbiddenInputs") or []}
+    seen, inputs = set(), set()
+    for item in cases:
+        if not isinstance(item, dict):
+            return 0.0
+        case_id, data, wanted = item.get("caseId"), item.get("input"), item.get("expected")
+        tags, reason = item.get("tags"), item.get("reason")
+        if (not isinstance(case_id, str) or not _CASE_ID.fullmatch(case_id) or case_id in forbidden_ids
+                or case_id in seen or not isinstance(data, dict) or not isinstance(wanted, dict)):
+            return 0.0
+        encoded = _canon(data)
+        if encoded in forbidden_inputs or encoded in inputs:
+            return 0.0
+        if (not isinstance(tags, list) or not tags or any(not isinstance(tag, str) or not tag for tag in tags)
+                or not isinstance(reason, str) or not reason.strip()):
+            return 0.0
+        seen.add(case_id)
+        inputs.add(encoded)
+    return 1.0
+
+
+def _canon(value) -> str:
+    return json.dumps(value, sort_keys=True, ensure_ascii=False)

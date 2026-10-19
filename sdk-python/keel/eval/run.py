@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -33,6 +34,9 @@ def load_scorers(path: str | Path) -> list[Scorer]:
 def invoke_text(endpoint: str, text: str, *, eval_run_id: str, env: str, expected_error: str | None = None, with_meta: bool = False):
     url = endpoint.rstrip("/") + "/v1/invoke"
     headers = {"X-Keel-Eval-Run": eval_run_id, "X-Keel-Env": env, "Accept": "text/event-stream"}
+    bridge = os.environ.get("KEEL_META_AGENT_TOKEN", "").strip()
+    if bridge:
+        headers["X-Keel-Bridge"] = bridge
     from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
     TraceContextTextMapPropagator().inject(headers)
     with httpx.Client(timeout=60) as client:

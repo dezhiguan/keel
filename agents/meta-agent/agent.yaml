@@ -32,6 +32,9 @@ spec:
     captureFields: [target_agent, version, job_id]
   eval:
     dataset: meta-agent/dev-employee-specs
+    gate:
+      minScore: 0.99
+      maxRegression: 0.02
   prompts:
     source: langfuse
     items:
