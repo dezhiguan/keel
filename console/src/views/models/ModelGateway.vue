@@ -62,6 +62,24 @@ const policyVersion = computed(() => data.value?.routePolicy?.version)
 const selectedKey = computed(() => keys.value.find((key) => key.alias === selectedAlias.value) ?? null)
 const previewChoices = computed(() => keys.value.find((key) => key.alias === previewAlias.value)?.models ?? [])
 const keyRows = computed(() => keys.value.slice((keyPage.value - 1) * keySize.value, keyPage.value * keySize.value))
+const routeHeads = computed(() => {
+  const names = models.value.map((model) => model.model).filter((name): name is string => !!name)
+  const primary = names.find((name) => name.includes('qwen')) ?? names[0] ?? '主模型'
+  const secondary = names.find((name) => name !== primary) ?? '降级模型'
+  return { primary, secondary }
+})
+
+function weightOf(key: GatewayKey, model: string) {
+  const allowed = key.models ?? []
+  if (!allowed.includes(model)) return '—'
+  const known = [routeHeads.value.primary, routeHeads.value.secondary].filter((name) => allowed.includes(name))
+  return known.length === 1 ? '100%' : '—'
+}
+
+function fallbackOf(key: GatewayKey) {
+  const rest = (key.models ?? []).slice(1)
+  return rest.length ? rest.join(' → ') : '无'
+}
 
 const channels = computed(() => models.value.map((model) => {
   const name = model.model || ''
@@ -458,7 +476,35 @@ watch(() => envStore.env, load, { immediate: true })
           <button v-if="admin" v-write class="btn sm" type="button" :disabled="routeBusy" @click="rollback">回滚</button>
           <button v-if="admin" v-write class="btn pri sm" type="button" :disabled="routeBusy || !pendingObjective" @click="confirmObjective">发布</button>
         </h3>
-        <div class="chipsel">
+        <table class="t route-table">
+          <thead>
+            <tr>
+              <th>逻辑模型</th>
+              <th>条件</th>
+              <th>{{ routeHeads.primary }} 权重</th>
+              <th>{{ routeHeads.secondary }}</th>
+              <th>降级</th>
+              <th>灰度</th>
+              <th>Key 覆盖</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="key in keys" :key="key.alias">
+              <td class="mono">{{ key.alias }}</td>
+              <td>{{ key.env || '—' }}</td>
+              <td class="mono">{{ weightOf(key, routeHeads.primary) }}</td>
+              <td class="mono">{{ weightOf(key, routeHeads.secondary) }}</td>
+              <td>{{ fallbackOf(key) }}</td>
+              <td><span class="mut">—</span></td>
+              <td>
+                <span v-if="key.models?.length" class="pill p-ok">已覆盖</span>
+                <span v-else class="pill p-bad">缺模型</span>
+              </td>
+            </tr>
+            <tr v-if="!keys.length"><td colspan="7" class="empty">这个环境还没有降级链</td></tr>
+          </tbody>
+        </table>
+        <div class="chipsel route-obj">
           <button
             v-for="item in OBJECTIVES"
             :key="item.id"
@@ -467,32 +513,6 @@ watch(() => envStore.env, load, { immediate: true })
             @click="askObjective(item.id)"
           >{{ item.label }}</button>
         </div>
-        <table class="t route-table">
-          <thead>
-            <tr>
-              <th>Key</th>
-              <th>条件</th>
-              <th>主模型</th>
-              <th>降级</th>
-              <th>策略</th>
-              <th>Key 覆盖</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="key in keys" :key="key.alias">
-              <td class="mono">{{ key.alias }}</td>
-              <td>{{ key.env || '—' }}</td>
-              <td>{{ key.models?.[0] || '—' }}</td>
-              <td>{{ key.models && key.models.length > 1 ? key.models.slice(1).join(' → ') : '无' }}</td>
-              <td>{{ objectiveLabel(objective) }}</td>
-              <td>
-                <span v-if="key.models?.length" class="pill p-ok">已覆盖</span>
-                <span v-else class="pill p-bad">缺模型</span>
-              </td>
-            </tr>
-            <tr v-if="!keys.length"><td colspan="6" class="empty">这个环境还没有降级链</td></tr>
-          </tbody>
-        </table>
         <div class="pbanner ok">请求里写了模型就先用它。超时或 5xx 只切换一次；401、403 和预算不足不降级。熔断状态没有列表，渠道页显示未接入。</div>
       </div>
       <div class="card">
@@ -560,7 +580,7 @@ th small { font-weight: 400; }
 .budget-range { accent-color: var(--acc); width: 100%; }
 .budget-now { color: var(--white); }
 .ops { display: flex; gap: 8px; margin-top: 8px; }
-.route-table { margin-top: 12px; }
-.chipsel { margin-bottom: 12px; }
+.route-table { margin-top: 0; }
+.route-obj { margin-top: 12px; }
 .banner { margin-top: 12px; }
 </style>
