@@ -139,6 +139,9 @@
           "default": {},
           "properties": {
             "inputInjection": { "enum": ["off", "shadow", "enforce"], "default": "shadow" },
+            "indirectInjection": { "enum": ["off", "shadow", "enforce"], "default": "off" },
+            "taintedTool": { "enum": ["approve", "block"], "default": "approve" },
+            "canary": { "enum": ["off", "enforce"], "default": "off" },
             "grounding": { "enum": ["off", "shadow", "enforce"], "default": "off" },
             "pii": { "enum": ["off", "mask"], "default": "mask" }
           }

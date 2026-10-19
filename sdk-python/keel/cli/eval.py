@@ -29,7 +29,9 @@ def run_eval(*, dataset: str | None, seed_file: str, scorers_file: str, endpoint
         text = row.get("input")
         if isinstance(text, dict):
             text = text.get("text", "")
-        answers.append(invoke_text(target, str(text), eval_run_id=run_id, env=env))
+        expected = row.get("expectedOutput", row.get("expected"))
+        options = {"expected_error": expected["errorCode"]} if isinstance(expected, dict) and expected.get("errorCode") else {}
+        answers.append(invoke_text(target, str(text), eval_run_id=run_id, env=env, **options))
     by_tag = score_by_tag(rows, scorers, answers)
     print(json.dumps({"dataset": run_id, "byTag": by_tag}, ensure_ascii=False))
     return by_tag

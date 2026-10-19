@@ -2,10 +2,13 @@
 
 import asyncio
 import inspect
+import hashlib
 import json
 import logging
 import os
 import re
+import socket
+import time
 import uuid
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
@@ -114,10 +117,14 @@ def create_app(agent) -> Starlette:
         async def execute():
             try:
                 with trace.use_span(root, end_on_exit=False):
+                    context.guard.inspect("user", json.dumps(data["input"], ensure_ascii=False))
                     result = agent._entry(entry_request, context)
                     if inspect.isasyncgen(result):
                         terminal = False
                         async for event in result:
+                            event = context.guard_event(event)
+                            if event is None:
+                                continue
                             events.put_nowait(event)
                             if isinstance(event, (FinalEvent, SuspendEvent, ErrorEvent)):
                                 if isinstance(event, SuspendEvent):
@@ -134,6 +141,7 @@ def create_app(agent) -> Starlette:
                     if inspect.isawaitable(result):
                         result = await result
                     if isinstance(result, (FinalEvent, SuspendEvent, ErrorEvent)):
+                        context.guard_event(result)
                         if isinstance(result, SuspendEvent):
                             root.set_attribute(attrs.RUN_SUSPENDED, True)
                             _remember(agent.name, run_id, trace_id, data.get("input"), result, context.pending,
@@ -292,10 +300,12 @@ def create_app(agent) -> Starlette:
         async def execute():
             try:
                 with trace.use_span(root, end_on_exit=False):
+                    context.guard.inspect("user", json.dumps(data["input"], ensure_ascii=False))
                     result = agent._entry(entry_request, context)
                     if inspect.isawaitable(result):
                         result = await result
                     if isinstance(result, (FinalEvent, SuspendEvent, ErrorEvent)):
+                        context.guard_event(result)
                         if isinstance(result, SuspendEvent):
                             root.set_attribute(attrs.RUN_SUSPENDED, True)
                             _remember(agent.name, run_id, trace_id, original, result, context.pending,
@@ -331,6 +341,22 @@ def create_app(agent) -> Starlette:
 
         return StreamingResponse(stream(), media_type="text/event-stream")
 
+    async def guard_check(request: Request):
+        from keel.guard.injection import check
+        started = time.monotonic()
+        try:
+            body = await request.json()
+            if not isinstance(body, dict) or not isinstance(body.get("text"), str) or len(body["text"]) > 20000:
+                raise ValueError("invalid probe")
+            result = check(agent.manifest.spec.guardrails, body.get("source"), body["text"])
+        except (ValueError, TypeError):
+            code = ErrorCode.SERVER_INVALID_PARAM
+            return JSONResponse(_error(code), status_code=code.http)
+        digest = hashlib.sha256(agent.manifest.model_dump_json().encode()).hexdigest()[:12]
+        return JSONResponse({**result, "instanceId": socket.gethostname(),
+                             "version": "sha256:" + digest,
+                             "latencyMs": max(0, round((time.monotonic() - started) * 1000))})
+
     @asynccontextmanager
     async def lifespan(app):
         try:
@@ -340,6 +366,7 @@ def create_app(agent) -> Starlette:
                 provider.shutdown()
 
     return Starlette(routes=[
+        Route("/v1/guard/check", guard_check, methods=["POST"]),
         Route("/v1/invoke", invoke, methods=["POST"]),
         Route("/v1/health", health, methods=["GET"]),
         Route("/v1/manifest", manifest, methods=["GET"]),

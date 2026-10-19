@@ -17,6 +17,14 @@ _CONFIG_KEYS = ("temperature", "max_tokens", "top_p")
 _TTL_SECONDS = 60
 
 
+class TrustedMessage(dict):
+    """Provenance stays in memory; the wire format remains a regular message object."""
+
+
+class TrustedText(str):
+    """A compiled text prompt may be placed into a system message by application code."""
+
+
 class Prompt:
     def __init__(self, name: str, version: int | None, type: str, fallback: bool, config: dict, body, structure: dict | None = None):
         self.name = name
@@ -31,15 +39,15 @@ class Prompt:
         if self.type == "chat":
             messages = []
             for message in self.body or []:
-                messages.append({
+                messages.append(TrustedMessage({
                     "role": message.get("role") or "user",
                     "content": _fill(message.get("content") or "", variables),
-                })
+                }))
             _require_schema(self.structure, variables)
             return messages
         text = _fill(self.body if isinstance(self.body, str) else "", variables)
         _require_schema(self.structure, variables)
-        return text
+        return TrustedText(text)
 
 
 class PromptClient:

@@ -32,7 +32,7 @@ public class GuardrailController {
         return R.ok(guards.save(name, body));
     }
 
-    /** Read-only rule check. Preview sessions can call it; it does not invoke the agent. */
+    /** Read-only runtime check; the SDK runs its detector without entering the agent loop. */
     @GetMapping("/api/v1/agents/{name}/guard/check")
     public R<Map<String, Object>> check(@PathVariable String name, @RequestParam String source,
                                          @RequestParam(defaultValue = "") String text) {

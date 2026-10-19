@@ -18,12 +18,13 @@ class KnowledgeResult:
 
 
 class KnowledgeClient:
-    def __init__(self, agent: str, tracer=None, http_client: httpx.AsyncClient | None = None):
+    def __init__(self, agent: str, tracer=None, http_client: httpx.AsyncClient | None = None, *, guard=None):
         base_url = os.environ.get("KEEL_RAGFORGE_URL")
         token = os.environ.get("KEEL_RAGFORGE_TOKEN")
         if not base_url or not token:
             raise RuntimeError("KEEL_RAGFORGE_URL and KEEL_RAGFORGE_TOKEN are required")
         self.agent = agent
+        self.guard = guard
         self.tracer = tracer or trace.get_tracer("keel.knowledge")
         self.client = http_client or httpx.AsyncClient(
             base_url=base_url, headers={"X-API-Key": token}, timeout=10)
@@ -66,6 +67,9 @@ class KnowledgeClient:
                 }, headers=headers)
                 self._check(response)
                 results = response.json()["data"]["results"]
+                if self.guard is not None:
+                    import json
+                    results = [hit for hit in results if self.guard.inspect("kb", json.dumps(hit, ensure_ascii=False))]
                 citations = [{"doc_id": hit.get("docId"), "chunk_id": hit.get("chunkId"),
                               "filename": hit.get("filename"), "score": hit.get("finalScore")}
                              for hit in results]

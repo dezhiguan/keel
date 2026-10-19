@@ -492,10 +492,10 @@ paths:
     get:
       tags: [agents]
       operationId: checkAgentGuard
-      summary: 按已登记的模式做一次规则检测
+      summary: 在实际运行实例做一次规则检测
       description: |
-        不转发到智能体，不进 agent loop，不调工具，不写记忆和审计。预览身份可以调用。
-        用户输入看 inputInjection，工具返回和知识库片段看 indirectInjection。
+        转发到智能体 POST /v1/guard/check，不进 agent loop，不调模型、工具，不写记忆和审计。
+        返回实际运行配置和实例标识；未部署或旧 SDK 不支持该接口时明确失败，不能回退为控制台规则模拟。
       parameters:
         - name: source
           in: query

@@ -18,7 +18,7 @@ from keel.llm.client import LlmClient
 from keel.llm.client import ChatResult
 from keel.lite.memory import LiteMemory
 from keel.lite.store import LiteStore
-from keel.prompts import PromptClient
+from keel.prompts import PromptClient, TrustedMessage
 from keel.protocol.errors import ErrorCode, KeelError
 from keel.tracing import attrs
 
@@ -47,6 +47,12 @@ class _ToolClient:
         declared = next((tool for tool in (self.manifest.spec.tools or []) if tool.name == name), None)
         if declared is None:
             raise KeelError(ErrorCode.TOOL_NOT_GRANTED)
+        if not self.owner.resuming and self.owner.guard.before_tool(declared):
+            if self.owner.audit is None:
+                raise KeelError(ErrorCode.AUDIT_WRITE_FAILED)
+            await self.owner.audit.record("tool.call", "high", "pending", payload=kwargs,
+                                          resource=name, trace_id=self.owner.trace_id, run_id=self.owner.run_id)
+            return await self.owner.suspend_for_approval(name, kwargs)
         if callback is None:
             from keel.tools.remote import invoke
             with self.owner._tracer.start_as_current_span(name, attributes={
@@ -54,7 +60,8 @@ class _ToolClient:
                 attrs.RUN_ID: self.owner.run_id, attrs.STATUS: "ok",
             }) as span:
                 try:
-                    return await invoke(self.owner, name, kwargs)
+                    outcome = await invoke(self.owner, name, kwargs)
+                    return outcome if isinstance(outcome, SuspendEvent) else self.owner.guard.filter_tool(outcome)
                 except Exception:
                     span.set_attribute(attrs.STATUS, "failed")
                     raise
@@ -72,8 +79,10 @@ class _ToolClient:
             trace_id=self.owner.trace_id, run_id=self.owner.run_id,
             approver="local" if self.owner.resuming and risk == "high" else None)
         if inspect.iscoroutinefunction(callback):
-            return await callback(**kwargs)
-        return await asyncio.to_thread(callback, **kwargs)
+            outcome = await callback(**kwargs)
+        else:
+            outcome = await asyncio.to_thread(callback, **kwargs)
+        return self.owner.guard.filter_tool(outcome)
 
 
 class Context:
@@ -96,14 +105,17 @@ class Context:
         self.budget = dict(budget or {"cny": 1.0, "steps": 8})
         self._children = children or {}
         self._tracer = tracer or trace.get_tracer("keel.agent")
+        from keel.guard.injection import InvocationGuard
+        self.guard = InvocationGuard(getattr(manifest.spec, "guardrails", None) if manifest else None,
+                                     agent, env, self._tracer, events)
         models = manifest.spec.models if manifest else None
         knowledge = manifest.spec.knowledge if manifest else None
         tool_specs = manifest.spec.tools if manifest else None
         audit_spec = manifest.spec.audit if manifest else None
         self.llm = llm_client or (LlmClient(agent, models.default_ if models else None,
-                                            trace_id, self._tracer, on_token=self.token)
+                                            trace_id, self._tracer, on_token=self.token, guard=self.guard)
                                   if models else _UnimplementedClient("llm"))
-        self.knowledge = knowledge_client or (KnowledgeClient(agent, self._tracer)
+        self.knowledge = knowledge_client or (KnowledgeClient(agent, self._tracer, guard=self.guard)
                                               if knowledge else _UnimplementedClient("knowledge"))
         from keel.audit.lite_reporter import LiteAuditReporter
         from keel.runtime import standalone
@@ -120,7 +132,7 @@ class Context:
         from keel.skills import SkillClient
         self.skills = SkillClient(manifest, agent, env) if manifest else _UnimplementedClient("skills")
         self._prompts = PromptClient(manifest, env) if manifest else None
-        self.memory = LiteMemory(LiteStore(".") if session_id else None, agent, session_id, eval_run_id)
+        self.memory = LiteMemory(LiteStore(".") if session_id else None, agent, session_id, eval_run_id, guard=self.guard)
         from keel.memory_remote import UserMemory
         self.memory.bind_user(UserMemory(agent, env, eval_run_id))
 
@@ -149,10 +161,25 @@ class Context:
             pass
 
     def token(self, text: str) -> None:
-        self._events.put_nowait(TokenEvent(text=text))
+        safe = self.guard.token(text)
+        if safe:
+            self._events.put_nowait(TokenEvent(text=safe))
+
+    def guard_event(self, event):
+        if isinstance(event, TokenEvent):
+            safe = self.guard.token(event.text)
+            return TokenEvent(text=safe) if safe else None
+        if isinstance(event, FinalEvent):
+            tail = self.guard.final(event.answer)
+            if tail:
+                self._events.put_nowait(TokenEvent(text=tail))
+        return event
 
     def final(self, answer: str, citations: list[dict[str, Any]] | None = None,
               meta: dict[str, Any] | None = None) -> FinalEvent:
+        tail = self.guard.final(answer)
+        if tail:
+            self._events.put_nowait(TokenEvent(text=tail))
         return FinalEvent(answer=answer, citations=citations or [], meta=meta or {},
                           trace_id=self.trace_id, run_id=self.run_id)
 
@@ -212,10 +239,14 @@ class Context:
             try:
                 state = json.loads(checkpoint.read_text(encoding="utf-8"))
                 history = state["messages"]
+                for index in state.get("trusted_messages", []):
+                    if isinstance(index, int) and 0 <= index < len(history):
+                        history[index] = TrustedMessage(history[index])
                 turn_messages = state["turn_messages"]
                 step = state["step"]
                 limit = min(limit, state["limit"])
                 last_call = state["last_call"]
+                self.guard.tainted = bool(state.get("tainted"))
                 pending = state["pending_calls"]
                 if state["agent"] != self.agent or not pending:
                     raise ValueError("checkpoint does not match run")
@@ -252,13 +283,14 @@ class Context:
                     if not isinstance(result, ChatResult):
                         raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型没有返回结构化工具结果")
                     if not result.tool_calls:
-                        if self.session_id and not self.eval_run_id:
+                        terminal = self.final(result.content)
+                        if self.session_id and not self.eval_run_id and not self.guard.tainted:
                             for message in turn_messages:
                                 if message.get("role") == "user" and isinstance(message.get("content"), str):
                                     self.memory.append("user", message["content"])
                             self.memory.append("assistant", result.content)
                         checkpoint.unlink(missing_ok=True)
-                        return self.final(result.content)
+                        return terminal
                     calls = [{"id": call.id, "name": call.name, "arguments": call.arguments,
                               "signature": json.dumps([call.name, call.arguments], ensure_ascii=False, sort_keys=True)}
                              for call in result.tool_calls]
@@ -290,13 +322,17 @@ class Context:
         temporary.write_text(json.dumps({"agent": self.agent, "messages": messages,
                                          "turn_messages": turn_messages, "step": step,
                                          "limit": limit, "last_call": last_call,
-                                         "pending_calls": pending_calls}, ensure_ascii=False), encoding="utf-8")
+                                         "pending_calls": pending_calls, "tainted": self.guard.tainted,
+                                         "trusted_messages": [index for index, message in enumerate(messages)
+                                                              if isinstance(message, TrustedMessage)]},
+                                        ensure_ascii=False), encoding="utf-8")
         temporary.replace(path)
 
     def _requires_approval(self, name: str) -> bool:
         declared = next((tool for tool in (self.manifest.spec.tools or []) if tool.name == name), None)
-        return bool(declared and declared.risk and declared.risk.value == "high"
-                    and declared.approval and declared.approval.value == "required" and not self.resuming)
+        return bool(declared and not self.resuming and (self.guard.approval_required(declared)
+                    or (declared.risk and declared.risk.value == "high"
+                        and declared.approval and declared.approval.value == "required")))
 
     async def delegate(self, name: str, text: str):
         declared = list(self.manifest.spec.delegates or []) if self.manifest else []

@@ -33,7 +33,9 @@ def run_gate(*, env: str, seed_file: str, scorers_file: str, endpoint: str | Non
         text = row.get("input")
         if isinstance(text, dict):
             text = text.get("text", "")
-        answers.append(invoke_text(target, str(text), eval_run_id=gate_run_id, env=env))
+        expected = row.get("expectedOutput", row.get("expected"))
+        options = {"expected_error": expected["errorCode"]} if isinstance(expected, dict) and expected.get("errorCode") else {}
+        answers.append(invoke_text(target, str(text), eval_run_id=gate_run_id, env=env, **options))
     by_tag = score_by_tag(rows, scorers, answers)
     baseline = None
     if baseline_file:

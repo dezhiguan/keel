@@ -8,16 +8,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 /**
  * Guard page numbers come from the registered manifest and Langfuse guardrail observations.
- * Modes the SDK does not enforce yet are still stored on spec.guardrails so the page can round-trip them.
+ * Runtime detection is delegated to the deployed SDK; this class only presents configuration and observations.
  */
 public final class GuardrailPage {
-    private static final Pattern INJECTION = Pattern.compile(
-            "忽略.{0,6}(指令|规则)|ignore (all|previous)|系统提示词|system prompt|你现在是|扮演",
-            Pattern.CASE_INSENSITIVE);
     private static final List<Check> CHECKS = List.of(
             new Check("input", "用户输入注入", "用户发来的内容", List.of("off", "shadow", "enforce"), "inputInjection", "shadow"),
             new Check("indirect", "工具 / 知识库内容注入", "间接注入", List.of("off", "shadow", "enforce"), "indirectInjection", "off"),
@@ -55,49 +51,6 @@ public final class GuardrailPage {
         var tree = traceNodes == null || traceNodes.isEmpty() ? observations : traceNodes;
         data.put("traceId", traceId(agent, tree));
         data.put("trace", traceLines(agent, tree));
-        return data;
-    }
-
-    public static Map<String, Object> check(JsonNode manifest, String source, String text, String instanceId, String version, long latencyMs) {
-        if (!"user".equals(source) && !"tool".equals(source) && !"kb".equals(source)) {
-            throw new IllegalArgumentException("来源只能是用户输入、工具返回或知识库片段");
-        }
-        var modes = readModes(manifest);
-        var mode = "user".equals(source) ? modes.get("input") : modes.get("indirect");
-        var injection = text != null && INJECTION.matcher(text).find();
-        boolean hit;
-        String kind;
-        String tone;
-        if (!injection) {
-            kind = "clear";
-            tone = "ok";
-            hit = false;
-        } else if ("off".equals(mode)) {
-            kind = "off";
-            tone = "warn";
-            hit = true;
-        } else if ("enforce".equals(mode)) {
-            kind = "user".equals(source) ? "blocked" : "stripped";
-            tone = "bad";
-            hit = true;
-        } else if ("shadow".equals(mode)) {
-            kind = "shadow";
-            tone = "warn";
-            hit = true;
-        } else {
-            kind = "off";
-            tone = "warn";
-            hit = true;
-        }
-        var data = new LinkedHashMap<String, Object>();
-        data.put("source", source);
-        data.put("mode", mode);
-        data.put("kind", kind);
-        data.put("tone", tone);
-        data.put("hit", hit);
-        data.put("instanceId", instanceId);
-        data.put("version", version);
-        data.put("latencyMs", latencyMs);
         return data;
     }
 

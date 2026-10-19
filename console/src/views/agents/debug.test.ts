@@ -6,6 +6,13 @@ import {
 } from './debug'
 
 describe('agent debug', () => {
+  it('shows structured runtime guard hits even when the payload contains no Chinese hit label', () => {
+    const frame = describeLiveFrame('guardrail', JSON.stringify({ name: 'guard.input', source: 'user', mode: 'enforce', hit: true, action: 'blocked' }))
+    expect(frame).toMatchObject({ kind: 'guardrail', hit: true })
+    expect(frame?.text).toContain('已拦截')
+    expect(describeLiveFrame('guardrail', JSON.stringify({ name: 'guard.input', source: 'user', mode: 'enforce', hit: false, action: 'pass' }))).toMatchObject({ hit: false })
+  })
+
   it('falls back to chat when the manifest does not declare a mode', () => {
     expect(debugMode(null)).toBe('chat')
     expect(debugMode({})).toBe('chat')

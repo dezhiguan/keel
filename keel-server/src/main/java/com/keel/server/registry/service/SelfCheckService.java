@@ -17,7 +17,7 @@ import java.util.Set;
 
 @Service
 public class SelfCheckService {
-    private static final Set<String> EVENTS = Set.of("step", "tool", "token", "final", "error", "suspend");
+    private static final Set<String> EVENTS = Set.of("guardrail", "step", "tool", "token", "final", "error", "suspend");
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private final AgentEndpointClient endpoints;
     private final LangfuseClient langfuse;

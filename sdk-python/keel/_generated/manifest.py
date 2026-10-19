@@ -87,6 +87,22 @@ class AgentManifestSpecGuardrailsInputInjectionValue(str, Enum):
     ENFORCE = 'enforce'
 
 
+class AgentManifestSpecGuardrailsIndirectInjectionValue(str, Enum):
+    OFF = 'off'
+    SHADOW = 'shadow'
+    ENFORCE = 'enforce'
+
+
+class AgentManifestSpecGuardrailsTaintedToolValue(str, Enum):
+    APPROVE = 'approve'
+    BLOCK = 'block'
+
+
+class AgentManifestSpecGuardrailsCanaryValue(str, Enum):
+    OFF = 'off'
+    ENFORCE = 'enforce'
+
+
 class AgentManifestSpecGuardrailsGroundingValue(str, Enum):
     OFF = 'off'
     SHADOW = 'shadow'
@@ -190,6 +206,9 @@ class AgentManifestSpecSkillsItem(KeelModel):
 
 class AgentManifestSpecGuardrails(KeelModel):
     inputInjection: Optional[AgentManifestSpecGuardrailsInputInjectionValue] = None
+    indirectInjection: Optional[AgentManifestSpecGuardrailsIndirectInjectionValue] = None
+    taintedTool: Optional[AgentManifestSpecGuardrailsTaintedToolValue] = None
+    canary: Optional[AgentManifestSpecGuardrailsCanaryValue] = None
     grounding: Optional[AgentManifestSpecGuardrailsGroundingValue] = None
     pii: Optional[AgentManifestSpecGuardrailsPiiValue] = None
 

@@ -25,6 +25,7 @@ class ErrorCode(str, Enum):
     RUN_RESUME_DENIED = 'RUN_RESUME_DENIED'
     AUDIT_WRITE_FAILED = 'AUDIT_WRITE_FAILED'
     GUARD_INJECTION_BLOCKED = 'GUARD_INJECTION_BLOCKED'
+    GUARD_OUTPUT_BLOCKED = 'GUARD_OUTPUT_BLOCKED'
     LLM_BUDGET_EXCEEDED = 'LLM_BUDGET_EXCEEDED'
     LLM_KEY_BLOCKED = 'LLM_KEY_BLOCKED'
     LLM_RATE_LIMITED = 'LLM_RATE_LIMITED'
@@ -93,6 +94,7 @@ _DETAILS = {
     ErrorCode.RUN_RESUME_DENIED: ('无法恢复执行，凭据已失效', False, 401),
     ErrorCode.AUDIT_WRITE_FAILED: ('审计写入失败，操作已拒绝', True, 503),
     ErrorCode.GUARD_INJECTION_BLOCKED: ('输入被提示词注入检测拦截', False, 400),
+    ErrorCode.GUARD_OUTPUT_BLOCKED: ('输出被系统提示词泄露检测拦截', False, 400),
     ErrorCode.LLM_BUDGET_EXCEEDED: ('模型日预算已用完', True, 429),
     ErrorCode.LLM_KEY_BLOCKED: ('虚拟 Key 已停用', False, 401),
     ErrorCode.LLM_RATE_LIMITED: ('虚拟 Key 的请求速率或并发已达上限', True, 429),

@@ -268,7 +268,7 @@ async function sendChat() {
     if (!alive) return
     const ms = Math.round(performance.now() - started)
     if (failed) {
-      session.messages.push({ role: 'agent', text: failed, error: true, meta: blockedCall ? '未调用模型' : undefined })
+      session.messages.push({ role: 'agent', text: failed, error: true, meta: blockedCall ? '护栏已拦截' : undefined })
       sse.value = blockedCall ? 'blocked' : 'failed'
     } else if (answer || traceId) {
       const textAnswer = answer.trim() || liveText.value || '（空回复）'
@@ -292,7 +292,7 @@ async function sendChat() {
     } else {
       const message = toKeelError(error).message
       const blockedError = message.includes('GUARD_')
-      session.messages.push({ role: 'agent', text: message, error: true, meta: blockedError ? '未调用模型' : undefined })
+      session.messages.push({ role: 'agent', text: message, error: true, meta: blockedError ? '护栏已拦截' : undefined })
       session.events = appendEvents(session.events, [...pendingEvents.value, { kind: 'error', text: message }])
       sse.value = blockedError ? 'blocked' : 'failed'
     }

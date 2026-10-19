@@ -24,3 +24,19 @@
 - 登录成功，代码向导能选逻辑模型、同组织知识库和工具。
 - qa-tools-1019、qa-guard-1019、qa-memory-1019 登记后均显示可恢复草稿，资源已开通，独立服务未部署导致健康检查 ConnectException；页面明确允许部署后重新自检。属于代码开发必要步骤。
 - 本机 DNS 不可用，但经 DNS over HTTPS 得到解析地址后，浏览器保持原域名访问成功；此项属于测试环境问题。
+
+## 页面执行记录
+
+- 四个智能体均已登记，代码提交 `d7aa503`，CD 运行 `39217965448`。
+- 四个智能体均经页面「重新自检」通过：健康、协议、追踪、审批绑定全部为通过。
+- 四份 chat 提示词均通过页面保存 v1 并在 dev 生效，变量 question、temperature=0.1、max_tokens=1200。
+- 通过页面发布 qa-cite-1019 v1，再编辑另存 v2，差异和旧版只读展示正常；工具智能体通过页面授权 v2，运行代码锁定 v2。
+- qa-tools-1019 首次普通调试出现 `SERVER_INTERNAL_ERROR / Failed to obtain JDBC Connection`，没有模型 final；重试成功，答复引用 shift.policy、devflow.catalog.search、qa-cite-1019 v2。成功 trace `281a901aaea25947911a75371ec00d2c`。连接错误尚未稳定复现，继续观察，不能标成已修复。
+- qa-memory-1019 首次记住代号「海鸥1019」并返回咨询口径及知识引用，含增量 token 和 final，trace `65c35820591981c0a956071c537c5d6b`。
+- qa-routing-1019 用 chat-cheap 返回咨询口径，含引用、增量 token 和 final，trace `fc6aa07799ee5a577cd9d58023352f92`；仍需从账单核对实际模型与路由版本。
+- 护栏 enforce 未拦截且写入会话的问题已通过页面复现，见 guard-runtime.md；修复、部署和复测进行中。
+- 页面 RPM / TPM / 并发、渠道勾选当前只读，无法完成优化稿要求的页面配额调整；路由和限额专项仍在执行。
+
+## 本地验证边界
+
+护栏修复的 SDK、契约、loop、提示词、评测、门禁、技能及 QA 运行服务相关测试已通过。扩跑整个 Python 目录发现现有 standalone 和过期 FakeLlm 签名测试失败；在未修改的基线 checkout 单独运行同样失败，不能把它们当成本次修复通过的证据。Java 两侧契约与护栏、SSE 存储测试已通过。线上复测完成后再更新最终状态。

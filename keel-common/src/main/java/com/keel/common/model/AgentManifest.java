@@ -104,6 +104,9 @@ public record AgentManifest(
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record AgentManifestSpecGuardrails(
         @JsonProperty("inputInjection") AgentManifestSpecGuardrailsInputInjectionValue inputInjection,
+        @JsonProperty("indirectInjection") AgentManifestSpecGuardrailsIndirectInjectionValue indirectInjection,
+        @JsonProperty("taintedTool") AgentManifestSpecGuardrailsTaintedToolValue taintedTool,
+        @JsonProperty("canary") AgentManifestSpecGuardrailsCanaryValue canary,
         @JsonProperty("grounding") AgentManifestSpecGuardrailsGroundingValue grounding,
         @JsonProperty("pii") AgentManifestSpecGuardrailsPiiValue pii
     ) {}
@@ -344,6 +347,39 @@ public record AgentManifest(
         @JsonValue public String value() { return value; }
         @JsonCreator public static AgentManifestSpecGuardrailsInputInjectionValue fromValue(String value) {
             for (AgentManifestSpecGuardrailsInputInjectionValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum AgentManifestSpecGuardrailsIndirectInjectionValue {
+        OFF("off"), SHADOW("shadow"), ENFORCE("enforce");
+        private final String value;
+        AgentManifestSpecGuardrailsIndirectInjectionValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static AgentManifestSpecGuardrailsIndirectInjectionValue fromValue(String value) {
+            for (AgentManifestSpecGuardrailsIndirectInjectionValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum AgentManifestSpecGuardrailsTaintedToolValue {
+        APPROVE("approve"), BLOCK("block");
+        private final String value;
+        AgentManifestSpecGuardrailsTaintedToolValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static AgentManifestSpecGuardrailsTaintedToolValue fromValue(String value) {
+            for (AgentManifestSpecGuardrailsTaintedToolValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum AgentManifestSpecGuardrailsCanaryValue {
+        OFF("off"), ENFORCE("enforce");
+        private final String value;
+        AgentManifestSpecGuardrailsCanaryValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static AgentManifestSpecGuardrailsCanaryValue fromValue(String value) {
+            for (AgentManifestSpecGuardrailsCanaryValue item : values()) if (item.value.equals(value)) return item;
             throw new IllegalArgumentException("Unknown enum value: " + value);
         }
     }

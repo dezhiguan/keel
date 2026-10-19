@@ -21,6 +21,22 @@ class KeelModel(BaseModel):
         return super().model_dump_json(**kwargs)
 
 
+class GuardrailEventSourceValue(str, Enum):
+    USER = 'user'
+    TOOL = 'tool'
+    KB = 'kb'
+    OUTPUT = 'output'
+
+
+class GuardrailEventActionValue(str, Enum):
+    PASS = 'pass'
+    OFF = 'off'
+    SHADOW = 'shadow'
+    BLOCKED = 'blocked'
+    STRIPPED = 'stripped'
+    APPROVAL = 'approval'
+
+
 class StepEventStatusValue(str, Enum):
     OK = 'ok'
     FALLBACK = 'fallback'
@@ -37,6 +53,14 @@ class SuspendEventReasonValue(str, Enum):
     APPROVAL = 'approval'
     INPUT_REQUIRED = 'input_required'
     HANDOFF = 'handoff'
+
+
+class GuardrailEvent(KeelModel):
+    name: str
+    source: GuardrailEventSourceValue
+    mode: str
+    hit: bool
+    action: GuardrailEventActionValue
 
 
 class StepEvent(KeelModel):
@@ -94,5 +118,5 @@ class SuspendEvent(KeelModel):
         return value.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
 
 
-for _model in (StepEvent, ToolEvent, TokenEvent, FinalEvent, ErrorEvent, SuspendEvent):
+for _model in (GuardrailEvent, StepEvent, ToolEvent, TokenEvent, FinalEvent, ErrorEvent, SuspendEvent):
     _model.model_rebuild()

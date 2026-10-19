@@ -3,7 +3,7 @@ info:
   title: Keel 智能体调用协议
   version: keel/v1
   description: |
-    每个智能体必须实现这六个端点。Python SDK 和 Java starter 自动挂载，
+    每个智能体必须实现六个基础端点；支持运行护栏的 SDK 额外提供 /v1/guard/check。Python SDK 和 Java starter 自动挂载基础端点，
     Dify 应用由 keel-gateway 的协议适配转换成这套协议，对外表现一致。
 
     一个进程里有多个智能体时，路径前缀为 /{agent}/v1/...。
@@ -21,6 +21,39 @@ security:
   - bearerAuth: []
 
 paths:
+  /v1/guard/check:
+    post:
+      summary: 在运行实例只读执行注入检测
+      description: 不进入业务，不调用模型或工具，不写会话、追踪或审计。返回实际运行配置和实例身份。
+      operationId: checkGuard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source, text]
+              properties:
+                source: { type: string, enum: [user, tool, kb] }
+                text: { type: string, maxLength: 20000 }
+      responses:
+        '200':
+          description: 实例检测结果
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [source, mode, kind, tone, hit, instanceId, version, latencyMs]
+                properties:
+                  source: { type: string, enum: [user, tool, kb] }
+                  mode: { type: string, enum: [off, shadow, enforce] }
+                  kind: { type: string, enum: [clear, off, shadow, blocked, stripped] }
+                  tone: { type: string, enum: [ok, warn, bad] }
+                  hit: { type: boolean }
+                  instanceId: { type: string }
+                  version: { type: string }
+                  latencyMs: { type: integer, minimum: 0 }
+        '400': { $ref: '#/components/responses/Error' }
   /v1/invoke:
     post:
       summary: 调用智能体（SSE）
@@ -40,7 +73,7 @@ paths:
         '200':
           description: |
             SSE 事件流，事件体见 sse-events.schema.json：
-            step / tool / token / final / error / suspend。
+            guardrail / step / tool / token / final / error / suspend。
             出错发 event: error，不直接断连。
             发 suspend 后流正常关闭，不是挂着等。
           content:

@@ -165,7 +165,11 @@ export function describeLiveFrame(event: string, data: string): LiveFrame | null
     const blocked = message.includes('GUARD_') || text('code').includes('GUARD_')
     return { kind: 'error', text: message, blocked }
   }
-  if (event === 'guardrail') return { kind: 'guardrail', text: text('message') || text('text') || data, hit: data.includes('命中') }
+  if (event === 'guardrail') {
+    const actions: Record<string, string> = { pass: '通过', off: '未启用', shadow: '命中 · 仅标记', blocked: '命中 · 已拦截', stripped: '命中 · 已剔除', approval: '命中 · 等待审批' }
+    const summary = body.action ? `${text('name')} · ${text('mode')} · ${actions[text('action')] || text('action')}` : ''
+    return { kind: 'guardrail', text: text('message') || text('text') || summary || data, hit: body.hit === true || data.includes('命中') }
+  }
   if (event === 'suspend') return { kind: 'step', text: text('prompt') || '等待继续' }
   return null
 }

@@ -2,9 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://keel.io/contracts/v1/sse-events.schema.json",
   "title": "Keel /v1/invoke SSE 事件",
-  "description": "六种事件。根 schema 校验的是 {event, data} 形式的一帧，便于契约测试逐帧断言；实现侧可直接引用 $defs 下的单个事件体。未列出的字段被接受并忽略，但枚举值必须是已知取值。",
+  "description": "根 schema 校验的是 {event, data} 形式的一帧，便于契约测试逐帧断言；guardrail 是可选的只含检测摘要的增量事件。未列出的字段被接受并忽略，但枚举值必须是已知取值。",
   "oneOf": [
     { "$ref": "#/$defs/frames/step" },
+    { "$ref": "#/$defs/frames/guardrail" },
     { "$ref": "#/$defs/frames/tool" },
     { "$ref": "#/$defs/frames/token" },
     { "$ref": "#/$defs/frames/final" },
@@ -12,6 +13,17 @@
     { "$ref": "#/$defs/frames/suspend" }
   ],
   "$defs": {
+    "guardrail": {
+      "type": "object",
+      "required": ["name", "source", "mode", "hit", "action"],
+      "properties": {
+        "name": { "type": "string" },
+        "source": { "enum": ["user", "tool", "kb", "output"] },
+        "mode": { "type": "string" },
+        "hit": { "type": "boolean" },
+        "action": { "enum": ["pass", "off", "shadow", "blocked", "stripped", "approval"] }
+      }
+    },
     "status": {
       "enum": ["ok", "fallback", "failed"],
       "description": "keel.status 三档，和追踪属性同一套口径"
@@ -90,6 +102,11 @@
     "traceId": { "type": "string", "minLength": 1 },
     "runId": { "type": "string", "minLength": 1 },
     "frames": {
+      "guardrail": {
+        "type": "object",
+        "required": ["event", "data"],
+        "properties": { "event": { "const": "guardrail" }, "data": { "$ref": "#/$defs/guardrail" } }
+      },
       "step": {
         "type": "object",
         "required": ["event", "data"],

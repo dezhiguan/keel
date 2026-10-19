@@ -10,6 +10,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
@@ -20,6 +24,7 @@ import java.util.List;
 /** Reads the registered manifest and recent guardrail observations for the console guard page. */
 @Service
 public class GuardrailService {
+    private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
     private final LangfuseClient langfuse;
@@ -43,16 +48,48 @@ public class GuardrailService {
 
     public java.util.Map<String, Object> checkTimed(String name, String source, String text) {
         var version = latest(name);
-        var started = System.nanoTime();
-        java.util.Map<String, Object> result;
-        try {
-            result = GuardrailPage.check(version.manifest, source, text == null ? "" : text,
-                    instance(name, version.env), version.version, 0);
-        } catch (IllegalArgumentException ex) {
-            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, ex.getMessage());
+        var endpoint = version.manifest == null ? "" : version.manifest.path("spec").path("runtime").path("endpoint").asText("");
+        if (endpoint.isBlank()) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "智能体尚未配置运行服务，无法验证护栏");
         }
-        result.put("latencyMs", Math.max(1, (System.nanoTime() - started) / 1_000_000));
-        return result;
+        return probe(json, endpoint, source, text == null ? "" : text);
+    }
+
+    static java.util.Map<String, Object> probe(ObjectMapper json, String endpoint, String source, String text) {
+        if (!List.of("user", "tool", "kb").contains(source) || text.length() > 20000) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "检测来源无效或内容超过 20000 字符");
+        }
+        try {
+            var body = json.createObjectNode().put("source", source).put("text", text);
+            var response = HTTP.send(HttpRequest.newBuilder(URI.create(endpoint.replaceAll("/+$", "") + "/v1/guard/check"))
+                    .timeout(Duration.ofSeconds(8)).header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(body.toString())).build(), HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                throw new KeelException(ErrorCode.SERVER_INTERNAL_ERROR,
+                        "运行实例护栏检测失败（HTTP " + response.statusCode() + "），请确认 SDK 已支持护栏并重新部署");
+            }
+            var result = json.readTree(response.body());
+            if (!source.equals(result.path("source").asText()) || !result.path("hit").isBoolean()
+                    || !List.of("off", "shadow", "enforce").contains(result.path("mode").asText())
+                    || !List.of("clear", "off", "shadow", "blocked", "stripped").contains(result.path("kind").asText())
+                    || !List.of("ok", "warn", "bad").contains(result.path("tone").asText())
+                    || result.path("instanceId").asText("").isBlank() || result.path("version").asText("").isBlank()
+                    || !result.path("latencyMs").canConvertToLong() || result.path("latencyMs").asLong() < 0) {
+                throw new KeelException(ErrorCode.SERVER_INTERNAL_ERROR, "运行实例返回的护栏结果不完整");
+            }
+            var safe = new java.util.LinkedHashMap<String, Object>();
+            for (var field : List.of("source", "mode", "kind", "tone", "hit", "instanceId", "version", "latencyMs")) {
+                safe.put(field, json.convertValue(result.path(field), Object.class));
+            }
+            return safe;
+        } catch (KeelException ex) {
+            throw ex;
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new KeelException(ErrorCode.SERVER_INTERNAL_ERROR, "运行实例护栏检测已中断");
+        } catch (Exception ex) {
+            throw new KeelException(ErrorCode.SERVER_INTERNAL_ERROR, "无法连接运行实例验证护栏，请检查部署状态");
+        }
     }
 
     public java.util.Map<String, Object> save(String name, JsonNode body) {

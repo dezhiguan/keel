@@ -1,5 +1,7 @@
 - file: manifest/valid/agent.yaml
   expect: accept
+- file: manifest/valid/guardrails-runtime.yaml
+  expect: accept
 - file: manifest/valid/agent-kind.yaml
   expect: accept
 - file: manifest/valid/service.yaml
@@ -32,6 +34,8 @@
   registered_agents: [caller-agent]
 
 - file: sse-events/valid/step.json
+  expect: accept
+- file: sse-events/valid/guardrail.json
   expect: accept
 - file: sse-events/valid/tool.json
   expect: accept

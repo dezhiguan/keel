@@ -11,6 +11,7 @@ import com.keel.common.model.AuditEvent;
 import com.keel.common.model.ErrorEvent;
 import com.keel.common.model.FinalEvent;
 import com.keel.common.model.StepEvent;
+import com.keel.common.model.GuardrailEvent;
 import com.keel.common.model.SuspendEvent;
 import com.keel.common.model.TokenEvent;
 import com.keel.common.model.ToolEvent;
@@ -125,6 +126,7 @@ class ContractConformanceTest {
 
     private void parseEvent(JsonNode frame) throws Exception {
         Class<?> type = switch (frame.path("event").asText()) {
+            case "guardrail" -> GuardrailEvent.class;
             case "step" -> StepEvent.class;
             case "tool" -> ToolEvent.class;
             case "token" -> TokenEvent.class;

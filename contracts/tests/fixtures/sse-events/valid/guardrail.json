@@ -1,0 +1,1 @@
+{"event":"guardrail","data":{"name":"guard.input","source":"user","mode":"enforce","hit":true,"action":"blocked"}}

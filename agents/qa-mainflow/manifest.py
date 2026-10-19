@@ -23,6 +23,7 @@ def build(name: str) -> dict:
         "prompts": {"source": "langfuse", "label": "production", "items": [{"name": "answer", "type": "chat"}]},
         "audit": {"captureFields": []},
     }
+    spec["guardrails"].update(profile.get("guardrails", {}))
     if profile["knowledge"]:
         spec["knowledge"] = [{"kb": kb} for kb in profile["knowledge"]]
     if profile["delegates"]:

@@ -102,6 +102,7 @@ async function save() {
 async function runProbe(text = probe.value) {
   probe.value = text
   checking.value = true
+  result.value = null
   try {
     const answer = await checkAgentGuard(name.value, source.value, text)
     result.value = {
@@ -184,7 +185,7 @@ function layerPill(layer: GuardCaller['layer']) {
       </div>
 
       <div class="card">
-        <h3>试一下 <small>只跑检测：keel-server 按已登记的 spec.guardrails 做规则判断，不进 agent loop、不调工具、不写记忆和审计</small></h3>
+        <h3>试一下 <small>只跑检测：转发到运行实例，使用当前部署的护栏配置，不进业务、不调模型和工具、不写记忆和审计</small></h3>
         <div class="chipsel src">
           <button type="button" :class="{ on: source === 'user' }" @click="source = 'user'">{{ SOURCE_LABEL.user }}</button>
           <button type="button" :class="{ on: source === 'tool' }" @click="source = 'tool'">{{ SOURCE_LABEL.tool }}</button>
@@ -199,11 +200,11 @@ function layerPill(layer: GuardCaller['layer']) {
         <div v-if="result" class="out">
           <div class="banner" :class="result.tone">
             来源 <b>{{ result.sourceLabel }}</b> · 模式 <b>{{ result.mode }}</b><br>
-            <template v-if="result.kind === 'blocked'">命中 · 已拦截，返回 <span class="mono">GUARD_INJECTION_BLOCKED</span>（SSE 发 event: error）</template>
+            <template v-if="result.kind === 'blocked'">命中 · 实例规则要求拦截。真实调用会返回 <span class="mono">GUARD_INJECTION_BLOCKED</span>，可到调试页核验。</template>
             <template v-else>{{ resultText }}</template>
-            <template v-if="result.hit"><br><span class="mut">命中内容不会写入会话记忆</span></template>
+            <template v-if="result.hit && result.mode !== 'off'"><br><span class="mut">命中内容不会写入会话记忆</span></template>
           </div>
-          <div class="mut meta">在 <span class="mono">{{ pod || '未部署' }}</span> 执行 · 规则随已登记版本 {{ version || '—' }} · {{ latency }} ms · 规则检测，未调模型</div>
+          <div class="mut meta">运行实例 <span class="mono">{{ pod }}</span> · 配置 {{ version || '—' }} · {{ latency }} ms · 规则检测，未调模型</div>
         </div>
       </div>
     </div>

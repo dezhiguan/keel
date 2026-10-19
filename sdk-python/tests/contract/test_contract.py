@@ -9,7 +9,7 @@ import pytest
 import yaml
 
 from keel._generated.audit import AuditEvent
-from keel._generated.events import (ErrorEvent, FinalEvent, StepEvent,
+from keel._generated.events import (ErrorEvent, FinalEvent, GuardrailEvent, StepEvent,
                                     SuspendEvent, TokenEvent, ToolEvent)
 from keel._generated.manifest import AgentManifest
 
@@ -21,7 +21,7 @@ SCHEMAS = {
     for name in ("manifest", "sse-events", "audit-event")
 }
 EVENTS = {
-    "step": StepEvent, "tool": ToolEvent, "token": TokenEvent,
+    "guardrail": GuardrailEvent, "step": StepEvent, "tool": ToolEvent, "token": TokenEvent,
     "final": FinalEvent, "error": ErrorEvent, "suspend": SuspendEvent,
 }
 

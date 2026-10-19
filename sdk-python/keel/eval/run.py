@@ -30,7 +30,7 @@ def load_scorers(path: str | Path) -> list[Scorer]:
     return found
 
 
-def invoke_text(endpoint: str, text: str, *, eval_run_id: str, env: str) -> str:
+def invoke_text(endpoint: str, text: str, *, eval_run_id: str, env: str, expected_error: str | None = None) -> str:
     url = endpoint.rstrip("/") + "/v1/invoke"
     headers = {"X-Keel-Eval-Run": eval_run_id, "X-Keel-Env": env, "Accept": "text/event-stream"}
     from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
@@ -39,13 +39,13 @@ def invoke_text(endpoint: str, text: str, *, eval_run_id: str, env: str) -> str:
         with client.stream("POST", url, json={"input": {"text": text}}, headers=headers) as response:
             if response.status_code >= 400:
                 raise ValueError(f"调用失败：{response.status_code} {response.read().decode('utf-8', 'replace')}")
-            return _final_answer(response.iter_lines())
+            return _final_answer(response.iter_lines(), expected_error=expected_error)
 
 
 def score_by_tag(rows: list[dict[str, Any]], scorers: list[Scorer], answers: list[str]) -> dict[str, float]:
     buckets: dict[str, list[float]] = {}
     for row, answer in zip(rows, answers, strict=True):
-        tags = row.get("tags") or ["untagged"]
+        tags = row.get("tags") or (row.get("metadata") or {}).get("tags") or ["untagged"]
         if not isinstance(tags, list) or not tags:
             tags = ["untagged"]
         expected = row.get("expected", row.get("expectedOutput"))
@@ -56,7 +56,7 @@ def score_by_tag(rows: list[dict[str, Any]], scorers: list[Scorer], answers: lis
     return {tag: sum(values) / len(values) for tag, values in buckets.items()}
 
 
-def _final_answer(lines) -> str:
+def _final_answer(lines, *, expected_error: str | None = None) -> str:
     event = ""
     data: list[str] = []
 
@@ -68,6 +68,8 @@ def _final_answer(lines) -> str:
         payload = json.loads("\n".join(data))
         name, data, event = event, [], ""
         if name == "error":
+            if expected_error and payload.get("code") == expected_error:
+                return expected_error
             raise ValueError(payload.get("message") or payload.get("code") or "invoke error")
         if name == "final":
             return str(payload.get("answer", ""))

@@ -1,0 +1,11 @@
+apiVersion: keel/v1
+metadata:
+  name: guard-agent
+spec:
+  runtime:
+    endpoint: http://guard-agent.agents.svc:8000
+  guardrails:
+    inputInjection: enforce
+    indirectInjection: enforce
+    taintedTool: block
+    canary: enforce

@@ -135,7 +135,7 @@ public class AgentChatService {
             var fin = DebugSseRelay.copy(input, output);
             var traceId = fin == null ? null : fin.traceId();
             audits.append(name, env, "invoke", "low", fin == null ? "error" : "allowed", name, traceId);
-            if (fin != null && remember) {
+            if (fin != null && fin.rememberable() && remember) {
                 sessions.appendTurn(name, owner, sessionId, text, fin.answer(), traceId);
             }
             if (traceId != null && !traceId.isBlank()) {

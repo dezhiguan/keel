@@ -54,7 +54,7 @@ def _observation_input(messages: list[dict]) -> str:
 
 class LlmClient:
     def __init__(self, agent: str, default_model: str | None, trace_id: str,
-                 tracer=None, http_client: httpx.AsyncClient | None = None, on_token=None):
+                 tracer=None, http_client: httpx.AsyncClient | None = None, on_token=None, guard=None):
         from keel.runtime import standalone
 
         base_url = _openai_base(os.environ.get("KEEL_LLM_BASE_URL"))
@@ -68,6 +68,7 @@ class LlmClient:
         self.default_model = default_model
         self.trace_id = trace_id
         self.on_token = on_token
+        self.guard = guard
         self.tracer = tracer or trace.get_tracer("keel.llm")
         headers = {"X-Trace-Id": trace_id} if trace_id else None
         self.client = openai.AsyncOpenAI(base_url=base_url, api_key=api_key, max_retries=0,
@@ -78,6 +79,8 @@ class LlmClient:
         chosen = model or self.default_model
         if not chosen:
             raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "No LiteLLM model alias configured")
+        if self.guard is not None:
+            messages = self.guard.prepare_messages(messages)
         attributes = {
             attrs.OBSERVATION_TYPE: "generation", attrs.AGENT: self.agent,
             attrs.MODEL: chosen, attrs.STATUS: "ok",
@@ -118,6 +121,9 @@ class LlmClient:
                     await asyncio.sleep(0.2)
                     response = await self.client.chat.completions.create(
                         model=chosen, messages=messages, **options)
+            except KeelError:
+                span.set_attribute(attrs.STATUS, "failed")
+                raise
             except openai.RateLimitError as exc:
                 span.set_attribute(attrs.STATUS, "failed")
                 raise KeelError(ErrorCode.GW_QUOTA_EXCEEDED) from exc

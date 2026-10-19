@@ -13,7 +13,7 @@ import java.nio.charset.StandardCharsets;
 public final class DebugSseRelay {
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    public record Final(String answer, String traceId) {}
+    public record Final(String answer, String traceId, boolean rememberable) {}
 
     private DebugSseRelay() {}
 
@@ -22,6 +22,7 @@ public final class DebugSseRelay {
         var event = "";
         var data = new StringBuilder();
         Final seen = null;
+        boolean tainted = false;
         try {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -29,7 +30,16 @@ public final class DebugSseRelay {
                 if (line.isEmpty()) {
                     output.write('\n');
                     output.flush();
-                    if ("final".equals(event)) seen = parseFinal(data.toString());
+                    if ("guardrail".equals(event)) {
+                        try {
+                            var guard = JSON.readTree(data.toString());
+                            tainted |= !guard.path("hit").isBoolean()
+                                    || (guard.path("hit").asBoolean() && !"off".equals(guard.path("mode").asText()));
+                        } catch (IOException error) {
+                            tainted = true;
+                        }
+                    }
+                    if ("final".equals(event)) seen = parseFinal(data.toString(), !tainted);
                     event = "";
                     data.setLength(0);
                     continue;
@@ -46,13 +56,14 @@ public final class DebugSseRelay {
         return seen;
     }
 
-    private static Final parseFinal(String body) {
+    private static Final parseFinal(String body, boolean rememberable) {
         try {
             var node = JSON.readTree(body);
             var trace = node.path("trace_id").asText("");
-            return new Final(node.path("answer").asText(""), trace.isBlank() ? null : trace);
+            if (!node.path("answer").isTextual() || trace.isBlank()) return null;
+            return new Final(node.path("answer").asText(), trace, rememberable);
         } catch (IOException error) {
-            return new Final("", null);
+            return null;
         }
     }
 }

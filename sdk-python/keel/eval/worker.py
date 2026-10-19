@@ -74,7 +74,9 @@ def run_experiment():
         span.set_attributes({"keel.agent": agent, "keel.env": env, "keel.eval_run": run_id})
         payload = item.input
         text = payload.get("text", "") if isinstance(payload, dict) else str(payload)
-        return invoke_text(endpoint, text, eval_run_id=run_id, env=env)
+        expected = item.expected_output
+        options = {"expected_error": expected["errorCode"]} if isinstance(expected, dict) and expected.get("errorCode") else {}
+        return invoke_text(endpoint, text, eval_run_id=run_id, env=env, **options)
 
     def evaluate(*, output, expected_output=None, metadata=None, **kwargs):
         tags = (metadata or {}).get("tags") or ["untagged"]

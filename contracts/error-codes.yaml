@@ -143,6 +143,12 @@ codes:
     http: 400
     note: 仅 enforce 模式拦截；shadow 模式只标注不拦
 
+  GUARD_OUTPUT_BLOCKED:
+    message: 输出被系统提示词泄露检测拦截
+    retryable: false
+    http: 400
+    note: canary 命中时不发送泄露标记、不写会话记忆
+
   # ── 薄网关 ──────────────────────────────────────────────────────
   LLM_BUDGET_EXCEEDED:
     message: 模型日预算已用完

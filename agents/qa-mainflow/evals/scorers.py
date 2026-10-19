@@ -28,6 +28,8 @@ def task_evidence(expected, actual, tags):
     expected = expected or {}
     if isinstance(expected, str):
         return 1.0 if expected in answer else 0.0
+    if expected.get("errorCode"):
+        return 1.0 if actual == expected["errorCode"] else 0.0
     required = expected.get("contains") or []
     forbidden = expected.get("notContains") or []
     if isinstance(required, str):

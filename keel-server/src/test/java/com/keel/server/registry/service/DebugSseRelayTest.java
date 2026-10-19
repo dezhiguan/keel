@@ -9,6 +9,15 @@ import java.nio.charset.StandardCharsets;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class DebugSseRelayTest {
+    @Test void taintedCallsStillStreamButCannotBeWrittenIntoSessionHistory() throws Exception {
+        var raw = "event: guardrail\ndata: {\"hit\":true,\"mode\":\"shadow\"}\n\nevent: final\ndata: {\"answer\":\"safe refusal\",\"trace_id\":\"tr_1\",\"run_id\":\"r\"}\n\n";
+        var out = new ByteArrayOutputStream();
+        var fin = DebugSseRelay.copy(new ByteArrayInputStream(raw.getBytes(StandardCharsets.UTF_8)), out);
+        assertThat(fin.answer()).isEqualTo("safe refusal");
+        assertThat(fin.rememberable()).isFalse();
+        assertThat(out.toString(StandardCharsets.UTF_8)).contains("event: guardrail").contains("event: final");
+    }
+
     @Test void keepsTheFinalAnswerAndForwardsEveryFrame() throws Exception {
         var raw = """
                 event: token
