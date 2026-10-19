@@ -1,0 +1,6 @@
+{
+  "qa-tools-1019-dev": {"qwen3.8-flash": {"enable_thinking": false, "preserve_thinking": false}},
+  "qa-guard-1019-dev": {"qwen3.8-flash": {"enable_thinking": false, "preserve_thinking": false}},
+  "qa-memory-1019-dev": {"qwen3.8-flash": {"enable_thinking": false, "preserve_thinking": false}},
+  "qa-routing-1019-dev": {"qwen3.8-flash": {"enable_thinking": false, "preserve_thinking": false}}
+}
