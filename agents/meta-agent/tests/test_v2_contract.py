@@ -38,12 +38,17 @@ def test_skill_artifact_and_string_scoring_contract():
     assert baseline(expected,'PASS',[])==0
 
 
-def test_evaluation_preview_uses_skill_and_logical_gateway_without_delivery(gateway, monkeypatch):
+@pytest.mark.parametrize('with_skill', [False, True])
+def test_evaluation_preview_uses_logical_gateway_without_delivery(gateway, monkeypatch, with_skill):
     import httpx
-    from app import app
+    from app import app, agent
     from test_candidate import ROLE_CODE, TEST_CODE
     from test_meta_agent import terminal
     from test_workflow import work
+
+    manifest = agent.manifest.model_dump(mode='json')
+    manifest['spec']['skills'] = [{'name':'keel-project-development','version':1}] if with_skill else []
+    monkeypatch.setattr(agent, 'manifest', type(agent.manifest).model_validate(manifest))
 
     request = work()
     request['action'] = 'GENERATE'
@@ -64,6 +69,6 @@ def test_evaluation_preview_uses_skill_and_logical_gateway_without_delivery(gate
     kind,event = terminal(asyncio.run(call()))
     assert kind=='final', event
     output=json.loads(event['answer'])
-    assert output['candidate']==candidate and output['skillVersion']==1
+    assert output['candidate']==candidate and output['skillVersion']==(1 if with_skill else None)
     assert gateway.requests[0]['model']=='chat-default'
-    assert any('人工审核的项目开发技能' in message['content'] for message in gateway.requests[0]['messages'])
+    assert any('人工审核的项目开发技能' in message['content'] for message in gateway.requests[0]['messages']) == with_skill

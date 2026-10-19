@@ -31,7 +31,7 @@ AGENTS.md；agents/meta-agent 的代码、prompts、skills、evals、tests、Doc
 
 ## 当前验收状态
 
-本地代码及隔离回归已完成；GitHub写入受当前审批策略never阻止，线上CI/CD、真实门禁和发布未完成。详见 docs/qa/2026-10-20-meta-agent-v2.md。
+本地代码及隔离回归已完成，两个实现提交已推送，远程CI全部通过。首次CD在部署前主动取消，以先封存v1并准备技能授权；旧版完整基线评测已启动，v2部署、真实门禁和发布未完成。详见 docs/qa/2026-10-20-meta-agent-v2.md。
 
 ## 双实例核实后的共享 SDK 范围
 

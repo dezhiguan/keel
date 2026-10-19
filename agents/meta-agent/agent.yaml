@@ -6,9 +6,6 @@ metadata:
   owner: 研发效能组 / amy
 spec:
   kind: workflow
-  skills:
-    - name: keel-project-development
-      version: 1
   runtime:
     type: code
     language: python
@@ -35,7 +32,7 @@ spec:
   audit:
     captureFields: [target_agent, version, job_id]
   eval:
-    dataset: meta-agent/v2-development
+    dataset: meta-agent/v2-gateway
     gate:
       minScore: 0.99
       maxRegression: 0.02
