@@ -25,7 +25,6 @@ const routes: RouteRecordRaw[] = [
       { path: 'services', component: () => import('@/views/services/SharedServices.vue'), meta: { title: '平台与能力服务' } },
       { path: 'traces', component: () => import('@/views/trace/TraceList.vue'), meta: { title: '调用链路' } },
       { path: 'traces/:id', component: () => import('@/views/trace/TraceDetail.vue'), meta: { title: '调用链路' } },
-      { path: 'quality', component: () => import('@/views/quality/QualityView.vue'), meta: { title: '质量中心' } },
       { path: 'eval', component: () => import('@/views/eval/EvalView.vue'), meta: { title: '评测与门禁' } },
       { path: 'prompts', component: () => import('@/views/prompts/PromptList.vue'), meta: { title: '提示词工程' } },
       { path: 'prompts/:agent/:name', component: () => import('@/views/prompts/PromptDetail.vue'), meta: { title: '提示词工程' } },

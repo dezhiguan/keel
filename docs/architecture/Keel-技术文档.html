@@ -505,7 +505,7 @@ footer{margin-top:60px;padding-top:16px;border-top:1px solid var(--line);font-si
 └── src/
     ├── main.ts · App.vue
     ├── api/                   <span class="c"># http.ts（axios 实例、JWT、trace_id 透传）+ 按模块的接口</span>
-    │   ├── agents.ts  services.ts  traces.ts  quality.ts  eval.ts
+    │   ├── agents.ts  services.ts  traces.ts  eval.ts
     │   └── audit.ts   tools.ts     approvals.ts  models.ts
     ├── stores/                <span class="c"># Pinia：user、env（dev/staging/prod）、approvals（待办数）</span>
     ├── router/index.ts        <span class="c"># 按角色控制菜单</span>
@@ -515,7 +515,7 @@ footer{margin-top:60px;padding-top:16px;border-top:1px solid var(--line);font-si
     │   ├── agents/            <span class="c"># AgentList、AgentDetail、AgentDebug、AgentCreateWizard</span>
     │   ├── services/          <span class="c"># SharedServices</span>
     │   ├── trace/             <span class="c"># TraceList、TraceDetail（Graph / Lanes / Tree 三个子组件）</span>
-    │   ├── quality/  eval/  audit/
+    │   ├── eval/  audit/
     │   ├── tools/             <span class="c"># ToolRegistry、ToolDetail、ApprovalInbox</span>
     │   └── models/            <span class="c"># ModelGateway</span>
     ├── components/            <span class="c"># StatusPill、KpiCard、ManifestPreview、JsonViewer …</span>

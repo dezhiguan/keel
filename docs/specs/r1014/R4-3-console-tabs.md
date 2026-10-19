@@ -51,7 +51,7 @@ console/src/views/audit/AuditView.vue
 
 ## 实现要点
 
-- 质量中心留在观测菜单里。原型没有这一项，R3-3 已经单独加过。
+- 观测菜单与第 3 版原型一致，不单列质量中心。
 - 待我处理继续用同一种卡片，不另起表格。
 - 能力服务的「谁在用」当前接口没有这份名单，显示「未接入」。
 - 页面先展示后续阶段的技能、渠道发布、结构化提示词、试运行和路由告警入口；尚无接口的内容统一标「占位」，不生成模拟记录、状态或用量。研发沙箱缺少探测结果时显示「未接入」，不能按原型示例填成在线。
@@ -63,7 +63,7 @@ mvn -o -pl :keel-server -Dtest=SharedServiceMonitorTest test
 cd console && npx vitest related src/router/nav.test.ts src/views/overview/OverviewView.vue src/views/services/SharedServices.vue src/views/eval/EvalView.vue src/views/models/ModelGateway.vue --run
 ```
 
-- [x] 侧栏名称与原型第 3 版一致，质量中心仍在。
+- [x] 侧栏名称与原型第 3 版一致。
 - [x] 总览、服务、评测、模型页用 tab 切换，不同时堆叠。
 - [x] 平台组件有「坏了会怎样」；能力服务状态来自健康探测。
 

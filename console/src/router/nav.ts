@@ -18,7 +18,6 @@ export const NAV: NavItem[] = [
   { path: '/services', title: '平台与能力服务', icon: '◎', group: '运营' },
   { path: '/traces', title: '调用链路', icon: '≋', group: '观测' },
   { path: '/eval', title: '评测与门禁', icon: '✓', group: '观测' },
-  { path: '/quality', title: '质量中心', icon: '◔', group: '观测' },
   { path: '/prompts', title: '提示词工程', icon: '✎', group: '观测' },
   { path: '/tools', title: '工具与技能', icon: '⚙', group: '治理' },
   { path: '/approvals', title: '待我处理', icon: '⊜', group: '治理' },

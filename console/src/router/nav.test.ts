@@ -16,10 +16,10 @@ describe('sidebar active item', () => {
     expect(isNavActive('/jobs', '/jobs/DF-0019')).toBe(true)
     expect(isNavActive('/jobs', '/jobs/batches')).toBe(true)
     expect(isNavActive('/eval', '/evaluation')).toBe(false)
-    expect(NAV.some((item) => item.path === '/quality' && item.title === '质量中心')).toBe(true)
+    expect(NAV.some((item) => item.path === '/quality')).toBe(false)
     expect(NAV.map((item) => item.title)).toEqual([
       '运行总览', '智能体目录', '智能体生产线', '平台与能力服务',
-      '调用链路', '评测与门禁', '质量中心', '提示词工程',
+      '调用链路', '评测与门禁', '提示词工程',
       '工具与技能', '待我处理', '审计留痕', '模型与成本',
     ])
   })
