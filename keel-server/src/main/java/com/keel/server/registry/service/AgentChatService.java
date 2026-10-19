@@ -128,10 +128,20 @@ public class AgentChatService {
         var rag = secrets == null ? null : secrets.knowledgeCredential(name);
         var bridge = "careermate".equals(name) ? careerMateToken : null;
         var history = remember ? sessions.history(name, owner, sessionId) : List.<Map<String, String>>of();
+        // Other runtimes may not yet consume structured history. Preserve their
+        // existing transcript behavior until their SDK advertises support.
+        var structured = "python".equalsIgnoreCase(detail.summary().language());
+        var inputText = text;
+        if (!structured && !history.isEmpty()) {
+            var prior = new StringBuilder("以下是本会话最近的对话，请接着回答本轮问题，不要复述这段提示。\n");
+            for (var message : history) prior.append("assistant".equals(message.get("role")) ? "助手：" : "用户：")
+                    .append(message.get("content")).append('\n');
+            inputText = prior.append("本轮：").append(text).toString();
+        }
         long started = System.nanoTime();
-        try (var input = endpoints.openStream(endpoint, text, bridge, name, env, userId,
+        try (var input = endpoints.openStream(endpoint, inputText, bridge, name, env, userId,
                 rag == null ? null : rag.token(), rag == null ? null : rag.kbIds(),
-                scopedSessionId(owner, sessionId), history)) {
+                scopedSessionId(owner, sessionId), structured ? history : null)) {
             var fin = DebugSseRelay.copy(input, output);
             var traceId = fin == null ? null : fin.traceId();
             audits.append(name, env, "invoke", "low", fin == null ? "error" : "allowed", name, traceId);
