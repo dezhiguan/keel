@@ -92,10 +92,10 @@ public class CodeCandidateService {
         try { hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8))); }
         catch (Exception error) { throw new IllegalStateException(error); }
         jdbc.update("""
-                INSERT INTO agent_version(agent_name,version,env,manifest_json,manifest_hash,released_by)
-                VALUES (?,'v0',?,?::jsonb,?,?)
+                INSERT INTO agent_version(agent_name,version,env,manifest_json,manifest_hash,released_by,released_at)
+                VALUES (?,'v0',?,?::jsonb,?,?,clock_timestamp())
                 ON CONFLICT(agent_name,env,version) DO UPDATE SET manifest_json=EXCLUDED.manifest_json,
-                    manifest_hash=EXCLUDED.manifest_hash,released_at=now(),image=NULL,gate_run_id=NULL,released_by=EXCLUDED.released_by
+                    manifest_hash=EXCLUDED.manifest_hash,released_at=EXCLUDED.released_at,image=NULL,gate_run_id=NULL,released_by=EXCLUDED.released_by
                 """, name, env, text, hash, actor);
         audit.append(name, env, "config.change", "mid", "allowed", "agent:" + name, null, actor,
                 Map.of("version", "v0"));

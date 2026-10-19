@@ -290,6 +290,12 @@ def create_app(agent) -> Starlette:
                             eval_run_id: str | None = None):
         trace_id = record_trace(request)
         events: asyncio.Queue = asyncio.Queue()
+        root = tracer.start_span("agent.resume", attributes={
+            attrs.OBSERVATION_TYPE: "agent", attrs.AGENT: agent.name,
+            attrs.RUN_ID: run_id, attrs.STATUS: "ok",
+        })
+        if root.get_span_context().is_valid:
+            trace_id = f"{root.get_span_context().trace_id:032x}"
         context = Context(agent.name, run_id, trace_id, events, tracer,
                           manifest=agent.manifest, tool_functions=agent._tools,
                           children=agent._children, budget=_budget(request),
@@ -299,10 +305,6 @@ def create_app(agent) -> Starlette:
         context.resuming = True
         context.delegation_token = delegation_token
         entry_request = SimpleNamespace(**data, resume=True)
-        root = tracer.start_span("agent.resume", attributes={
-            attrs.OBSERVATION_TYPE: "agent", attrs.AGENT: agent.name,
-            attrs.RUN_ID: run_id, attrs.STATUS: "ok",
-        })
         _stamp_call(root, data, request.headers.get("X-Keel-Env") or os.environ.get("KEEL_ENV"))
 
         async def execute():

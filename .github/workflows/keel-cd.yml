@@ -847,7 +847,7 @@ jobs:
           python-version: '3.13'
       - run: pip install -e ./sdk-python pytest
       - run: PYTHONPATH="$PWD/sdk-python" pytest agents/meta-agent/tests -q
-      - run: PYTHONPATH="$PWD/sdk-python" pytest sdk-python/tests/test_run_concurrency.py sdk-python/tests/skills -q
+      - run: PYTHONPATH="$PWD/sdk-python" pytest sdk-python/tests/test_run_concurrency.py sdk-python/tests/test_resume_trace.py sdk-python/tests/skills -q
       - run: PYTHONPATH="$PWD/services/git-ci:$PWD/sdk-python" pytest services/git-ci/tests -q
       - run: PYTHONPATH="$PWD/sdk-python" pytest sdk-python/tests/cli/test_ledger.py sdk-python/tests/cli/test_repo.py -q
 
