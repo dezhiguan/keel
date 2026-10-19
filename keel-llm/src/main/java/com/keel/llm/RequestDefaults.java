@@ -25,6 +25,10 @@ final class RequestDefaults {
                             case "enable_thinking", "preserve_thinking" -> field.getValue().isBoolean();
                             case "thinking_budget" -> field.getValue().isIntegralNumber()
                                     && field.getValue().canConvertToInt() && field.getValue().intValue() > 0;
+                            case "thinking" -> field.getValue().isObject() && field.getValue().size() == 1
+                                    && field.getValue().path("type").isTextual()
+                                    && (field.getValue().path("type").asText().equals("enabled")
+                                    || field.getValue().path("type").asText().equals("disabled"));
                             default -> false;
                         };
                         if (!valid) throw new IllegalArgumentException();

@@ -77,6 +77,31 @@ class RequestDefaultsTest {
         assertThat(body.has("thinking_budget")).isFalse();
     }
 
+    @Test void deepseekThinkingObjectIsScopedAndExplicitRequestWins() throws Exception {
+        var defaults = new RequestDefaults("""
+            {"qa-routing-1019-prod":{"deepseek-flash":{"thinking":{"type":"disabled"}}}}
+            """);
+        var original = (ObjectNode) JSON.readTree("{\"messages\":[]}");
+        var applied = JSON.readTree(defaults.apply(original, "qa-routing-1019-prod", "deepseek-flash", "/v1/chat/completions"));
+        assertThat(applied.path("thinking").path("type").asText()).isEqualTo("disabled");
+        assertThat(original.has("thinking")).isFalse();
+        assertThat(JSON.readTree(defaults.apply(original, "another-prod", "deepseek-flash", "/v1/chat/completions"))
+                .has("thinking")).isFalse();
+        assertThat(JSON.readTree(defaults.apply(original, "qa-routing-1019-prod", "qwen3.8-flash", "/v1/chat/completions"))
+                .has("thinking")).isFalse();
+        original.putObject("thinking").put("type", "enabled");
+        assertThat(JSON.readTree(defaults.apply(original, "qa-routing-1019-prod", "deepseek-flash", "/v1/chat/completions"))
+                .path("thinking").path("type").asText()).isEqualTo("enabled");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"false", "[]", "{}", "{\"type\":false}", "{\"type\":\"auto\"}",
+            "{\"type\":\"disabled\",\"model\":\"other\"}", "{\"type\":\"disabled\",\"budget\":100}"})
+    void malformedThinkingObjectsRefuseStartup(String thinking) {
+        assertThatThrownBy(() -> new RequestDefaults("{\"qa-routing-1019-prod\":{\"deepseek-flash\":{\"thinking\":"
+                + thinking + "}}}" )).isInstanceOf(IllegalArgumentException.class);
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"[]", "broken", "{\"meta-agent-dev\":[]}",
             "{\"meta-agent-dev\":{\"qwen3.8-flash\":{\"model\":\"another-model\"}}}",

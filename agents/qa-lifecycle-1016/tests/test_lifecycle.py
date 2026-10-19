@@ -63,7 +63,11 @@ def test_natural_language_tool_cycle_and_session_history(monkeypatch, tmp_path):
 
     def gateway(request):
         requests.append(json.loads(request.content))
-        return httpx.Response(200, json=responses.pop(0))
+        response = responses.pop(0)
+        calls = response["choices"][0]["message"].get("tool_calls", [])
+        if calls:
+            calls[0]["function"]["name"] = requests[-1]["tools"][0]["function"]["name"]
+        return httpx.Response(200, json=response)
 
     async def turn(text, run_id):
         llm = LlmClient(app.agent.name, "qwen-plus", run_id,
@@ -84,7 +88,11 @@ def test_natural_language_tool_cycle_and_session_history(monkeypatch, tmp_path):
     assert "刚才" in asyncio.run(turn("刚才讨论了什么？", "run-2")).answer
     assert "来源：FAQ.txt" in asyncio.run(turn("平台基准库的 FAQ 文件叫什么？", "run-3")).answer
     assert len(requests) == 3
-    assert requests[0]["tools"][0]["function"]["name"] == "shift.policy"
+    wire_name = requests[0]["tools"][0]["function"]["name"]
+    assert wire_name != "shift.policy"
+    assert all(char.isalnum() or char in "_-" for char in wire_name)
+    assert requests[0]["tools"][0]["function"]["parameters"]["properties"].get("category")
+    assert requests[1]["messages"][-2]["tool_calls"][0]["function"]["name"] == wire_name
     assert requests[1]["messages"][-1]["role"] == "tool"
     assert any(row.get("content") == "故障值班先确认影响范围" for row in requests[2]["messages"])
     assert requests[2]["messages"][0]["role"] == "system"
