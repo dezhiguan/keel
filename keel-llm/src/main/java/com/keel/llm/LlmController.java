@@ -293,7 +293,7 @@ public class LlmController {
     @ExceptionHandler(Gateway.GatewayException.class)
     ResponseEntity<Map<String, Object>> gatewayError(Gateway.GatewayException error, HttpServletRequest request) {
         var code = error.code();
-        return ResponseEntity.status(code.http()).body(Map.of(
+        return ResponseEntity.status(code.http()).contentType(org.springframework.http.MediaType.APPLICATION_JSON).body(Map.of(
                 "code", code.name(),
                 "message", error.getMessage(),
                 "trace_id", trace(request),
@@ -303,7 +303,7 @@ public class LlmController {
     @ExceptionHandler(IllegalStateException.class)
     ResponseEntity<Map<String, Object>> startup(IllegalStateException error, HttpServletRequest request) {
         var code = ErrorCode.SERVER_INTERNAL_ERROR;
-        return ResponseEntity.status(code.http()).body(Map.of(
+        return ResponseEntity.status(code.http()).contentType(org.springframework.http.MediaType.APPLICATION_JSON).body(Map.of(
                 "code", code.name(),
                 "message", error.getMessage(),
                 "trace_id", trace(request),

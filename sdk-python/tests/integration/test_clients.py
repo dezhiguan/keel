@@ -407,3 +407,28 @@ def test_no_vendor_sdk_direct_imports():
             modules = ([alias.name for alias in node.names] if isinstance(node, ast.Import)
                        else [node.module or ""])
             assert all(not module.startswith(forbidden) for module in modules)
+
+
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("upstream,expected", [("LLM_RATE_LIMITED", ErrorCode.LLM_RATE_LIMITED),
+                                               ("LLM_BUDGET_EXCEEDED", ErrorCode.LLM_BUDGET_EXCEEDED),
+                                               ("UNKNOWN", ErrorCode.GW_QUOTA_EXCEEDED),
+                                               ("SERVER_INTERNAL_ERROR", ErrorCode.GW_QUOTA_EXCEEDED)])
+def test_gateway_429_preserves_registered_quota_reason(monkeypatch, stream, upstream, expected):
+    monkeypatch.setenv("KEEL_LLM_BASE_URL", "https://gateway.test/v1")
+    monkeypatch.setenv("KEEL_LLM_KEY", "virtual-test-key")
+    calls = []
+    def handle(request):
+        calls.append(request)
+        return httpx.Response(429, json={"code": upstream, "message": "quota reached"})
+    client = LlmClient("agent", "qwen-plus", "trace", http_client=httpx.AsyncClient(
+        transport=httpx.MockTransport(handle)), on_token=(lambda token: None) if stream else None)
+    async def scenario():
+        try:
+            with pytest.raises(KeelError) as error:
+                await client.chat([{"role": "user", "content": "hello"}])
+            assert error.value.code is expected
+        finally:
+            await client.aclose()
+    run(scenario())
+    assert len(calls) == 1

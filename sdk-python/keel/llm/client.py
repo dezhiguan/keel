@@ -126,7 +126,11 @@ class LlmClient:
                 raise
             except openai.RateLimitError as exc:
                 span.set_attribute(attrs.STATUS, "failed")
-                raise KeelError(ErrorCode.GW_QUOTA_EXCEEDED) from exc
+                payload = exc.body if isinstance(exc.body, dict) else {}
+                code = ErrorCode.__members__.get(str(payload.get("code")), ErrorCode.GW_QUOTA_EXCEEDED)
+                if code.http != 429:
+                    code = ErrorCode.GW_QUOTA_EXCEEDED
+                raise KeelError(code) from exc
             except openai.APIStatusError as exc:
                 span.set_attribute(attrs.STATUS, "failed")
                 target = "模型服务" if self.standalone else "薄网关"

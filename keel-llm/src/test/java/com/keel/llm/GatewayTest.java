@@ -509,6 +509,26 @@ class GatewayTest {
         }
     }
 
+    @Test void streamingAdmissionErrorIs429JsonInsteadOfAnEmpty500() throws Exception {
+        var server = echoServer();
+        try {
+            var gateway = gateway(server);
+            var key = gateway.create("echo-dev", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false, 1, null, null);
+            gateway.complete("Bearer " + key.key(), "/v1/chat/completions", "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2));
+            var controller = new LlmController(gateway, catalog(server), new LlmConfiguration.LlmProperties());
+            var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(controller).build();
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/v1/chat/completions")
+                    .header("Authorization", "Bearer " + key.key())
+                    .accept("text/event-stream").contentType("application/json")
+                    .content("{\"model\":\"qwen-plus\",\"stream\":true}"))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isTooManyRequests())
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentTypeCompatibleWith("application/json"))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code").value("LLM_RATE_LIMITED"));
+        } finally {
+            server.stop(0);
+        }
+    }
+
     @Test void rateLimitRejectsTheSecondCallWithoutReservingMoreBudget() throws Exception {
         var server = echoServer();
         try {
