@@ -475,3 +475,48 @@ def test_cancelled_stream_marks_generation_failed_and_propagates_cancel(monkeypa
     assert span.attributes['langfuse.observation.output'] == '调用已取消'
     assert span.attributes['keel.llm.request_id'] == 'cancelled-request'
     provider.shutdown()
+
+
+def test_pii_stream_and_generation_output_are_both_masked(monkeypatch):
+    from keel.guard.injection import InvocationGuard
+    monkeypatch.setenv('KEEL_LLM_BASE_URL', 'https://gateway.test/v1')
+    monkeypatch.setenv('KEEL_LLM_KEY', 'test-virtual-key')
+    provider = TracerProvider()
+    exported = InMemorySpanExporter()
+    provider.add_span_processor(SimpleSpanProcessor(exported))
+    manifest = AgentManifest.model_validate({'apiVersion': 'keel/v1', 'metadata': {'name': 'echo'},
+                                           'spec': {'runtime': {'endpoint': 'http://test'}, 'guardrails': {'pii': 'mask'}}})
+    guard = InvocationGuard(manifest.spec.guardrails, 'echo', 'dev', provider.get_tracer('test'), asyncio.Queue())
+    visible = []
+
+    def emit(text):
+        safe = guard.token(text)
+        if safe:
+            visible.append(safe)
+
+    def handle(request):
+        chunks = []
+        for part in ['a' * 45 + '1380', '013', '8000done']:
+            body = {'id': '1', 'object': 'chat.completion.chunk', 'created': 1, 'model': 'test',
+                    'choices': [{'index': 0, 'delta': {'content': part}, 'finish_reason': None}]}
+            chunks.append('data: ' + json.dumps(body) + '\n\n')
+        return httpx.Response(200, headers={'content-type': 'text/event-stream'},
+                              content=(''.join(chunks) + 'data: [DONE]\n\n').encode())
+
+    client = LlmClient('echo', 'test', 'trace-1', provider.get_tracer('test'), guard=guard, on_token=emit,
+                       http_client=httpx.AsyncClient(transport=httpx.MockTransport(handle)))
+
+    async def scenario():
+        try:
+            result = await client.chat([{'role': 'user', 'content': 'test output'}])
+            visible.append(guard.final(result))
+            return result
+        finally:
+            await client.aclose()
+
+    expected = 'a' * 45 + '138****8000done'
+    assert run(scenario()) == expected
+    assert ''.join(visible) == expected
+    generation = next(span for span in exported.get_finished_spans() if span.name == 'llm.chat')
+    assert generation.attributes['langfuse.observation.output'] == expected
+    provider.shutdown()

@@ -21,7 +21,7 @@
         "source": { "enum": ["user", "tool", "kb", "output"] },
         "mode": { "type": "string" },
         "hit": { "type": "boolean" },
-        "action": { "enum": ["pass", "off", "shadow", "blocked", "stripped", "approval"] }
+        "action": { "enum": ["pass", "off", "shadow", "blocked", "stripped", "approval", "masked"] }
       }
     },
     "status": {

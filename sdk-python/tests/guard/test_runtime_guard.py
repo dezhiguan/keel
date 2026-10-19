@@ -170,3 +170,93 @@ def test_async_generator_cannot_bypass_the_output_guard_with_raw_events():
     assert events[-1][0] == "error"
     assert events[-1][1]["code"] == ErrorCode.GUARD_OUTPUT_BLOCKED.value
     assert not any(event == "final" for event, _ in events)
+
+
+@pytest.mark.parametrize('raw,expected', [
+    ('联系13800138000。', '联系138****8000。'),
+    ('联系+86 13800138000。', '联系+86 138****8000。'),
+    ('联系138-0013-8000。', '联系138-****-8000。'),
+    ('联系0086 138 0013 8000。', '联系0086 138 **** 8000。'),
+    ('证件11010519491231002X。', '证件110105********002X。'),
+    ('证件130503670401001。', '证件130503*****1001。'),
+])
+def test_pii_output_mask_handles_every_stream_split(raw, expected):
+    from opentelemetry import trace
+    from keel.guard.injection import InvocationGuard
+    for cut in range(len(raw) + 1):
+        queue = asyncio.Queue()
+        guard = InvocationGuard(manifest(pii='mask').spec.guardrails, 'guard-agent', 'dev',
+                                trace.get_tracer('test'), queue)
+        streamed = guard.token(raw[:cut]) + guard.token(raw[cut:]) + guard.final(raw)
+        assert streamed == expected
+        assert guard.redact(raw) == expected
+        events = [queue.get_nowait() for _ in range(queue.qsize())]
+        assert len(events) == 1
+        assert events[0].name == 'guard.pii'
+        assert events[0].action.value == 'masked'
+
+
+def test_pii_tail_keeps_long_output_incremental_and_off_preserves_text():
+    from opentelemetry import trace
+    from keel.guard.injection import InvocationGuard
+    raw = '正常文本' * 30 + '联系13800138000。'
+    guard = InvocationGuard(manifest(pii='mask').spec.guardrails, 'guard-agent', 'dev',
+                            trace.get_tracer('test'), asyncio.Queue())
+    first = guard.token(raw[:90])
+    assert first and len(first) < 90
+    assert first + guard.token(raw[90:]) + guard.final(raw) == raw.replace('13800138000', '138****8000')
+    off = InvocationGuard(manifest(pii='off').spec.guardrails, 'guard-agent', 'dev',
+                          trace.get_tracer('test'), asyncio.Queue())
+    assert off.token(raw) + off.final(raw) == raw
+
+
+@pytest.mark.parametrize('generator', [False, True])
+def test_pii_masks_direct_final_and_async_generator_frames(generator, monkeypatch):
+    monkeypatch.delenv('LANGFUSE_PUBLIC_KEY', raising=False)
+    agent = Agent(manifest(pii='mask'))
+    raw = '正常文本' * 20 + '测试13800138000。'
+    if generator:
+        @agent.entry
+        async def run(req, ctx):
+            for char in raw:
+                yield TokenEvent(text=char)
+            yield FinalEvent(answer=raw, trace_id=ctx.trace_id, run_id=ctx.run_id)
+    else:
+        @agent.entry
+        async def run(req, ctx):
+            return FinalEvent(answer=raw, trace_id=ctx.trace_id, run_id=ctx.run_id)
+    response = asyncio.run(request(agent.asgi(), '/v1/invoke', {'input': {'text': '测试输出脱敏'}}))
+    assert '13800138000' not in response.text
+    events = frames(response)
+    assert events[-1][0] == 'final'
+    assert events[-1][1]['answer'] == raw.replace('13800138000', '138****8000')
+    if generator:
+        assert ''.join(data['text'] for event, data in events if event == 'token') == events[-1][1]['answer']
+
+
+def test_pii_masks_assistant_memory_and_cannot_hide_a_canary(tmp_path, monkeypatch):
+    from keel.llm.client import ChatResult
+    monkeypatch.chdir(tmp_path)
+
+    class Llm:
+        async def chat(self, messages, **kwargs):
+            return ChatResult('测试13800138000', ())
+
+        async def aclose(self):
+            pass
+
+    ctx = Context('guard-agent', 'pii-memory', 'trace-1', asyncio.Queue(), manifest=manifest(pii='mask'),
+                  session_id='s-pii', llm_client=Llm())
+
+    async def scenario():
+        try:
+            return await ctx.loop([{'role': 'user', 'content': '测试输出'}], [])
+        finally:
+            await ctx.aclose()
+
+    assert asyncio.run(scenario()).answer == '测试138****8000'
+    assert ctx.memory.history()[-1]['content'] == '测试138****8000'
+    ctx.guard.canary = 'KEEL_CANARY_13800138000_secret'
+    with pytest.raises(KeelError) as blocked:
+        ctx.guard.redact(ctx.guard.canary)
+    assert blocked.value.code == ErrorCode.GUARD_OUTPUT_BLOCKED

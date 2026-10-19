@@ -35,6 +35,7 @@ class GuardrailEventActionValue(str, Enum):
     BLOCKED = 'blocked'
     STRIPPED = 'stripped'
     APPROVAL = 'approval'
+    MASKED = 'masked'
 
 
 class StepEventStatusValue(str, Enum):

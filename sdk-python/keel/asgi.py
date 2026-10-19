@@ -142,7 +142,7 @@ def create_app(agent) -> Starlette:
                     if inspect.isawaitable(result):
                         result = await result
                     if isinstance(result, (FinalEvent, SuspendEvent, ErrorEvent)):
-                        context.guard_event(result)
+                        result = context.guard_event(result)
                         if isinstance(result, SuspendEvent):
                             root.set_attribute(attrs.RUN_SUSPENDED, True)
                             _remember(agent.name, run_id, trace_id, data.get("input"), result, context.pending,
@@ -311,7 +311,7 @@ def create_app(agent) -> Starlette:
                     if inspect.isawaitable(result):
                         result = await result
                     if isinstance(result, (FinalEvent, SuspendEvent, ErrorEvent)):
-                        context.guard_event(result)
+                        result = context.guard_event(result)
                         if isinstance(result, SuspendEvent):
                             root.set_attribute(attrs.RUN_SUSPENDED, True)
                             _remember(agent.name, run_id, trace_id, original, result, context.pending,

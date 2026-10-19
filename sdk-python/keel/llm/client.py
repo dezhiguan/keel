@@ -110,6 +110,8 @@ class LlmClient:
                 if self.on_token is not None:
                     reply, calls, usage = await self._stream(chosen, messages, options, span)
                     self._record_usage(span, usage)
+                    if self.guard is not None:
+                        reply = self.guard.redact(reply)
                     span.set_attribute(attrs.OBSERVATION_OUTPUT, reply)
                     if tools is None:
                         return reply
@@ -166,6 +168,8 @@ class LlmClient:
                 logger.warning("LiteLLM reported zero cost for nonzero tokens trace_id=%s agent=%s",
                                self.trace_id, self.agent)
             reply = response.choices[0].message.content or ""
+            if self.guard is not None:
+                reply = self.guard.redact(reply)
             span.set_attribute(attrs.OBSERVATION_OUTPUT, reply)
             if tools is None:
                 return reply

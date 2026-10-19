@@ -198,6 +198,7 @@ class Context:
             return TokenEvent(text=safe) if safe else None
         if isinstance(event, FinalEvent):
             tail = self.guard.final(event.answer)
+            event = event.model_copy(update={"answer": self.guard.redact(event.answer)})
             if tail:
                 self._events.put_nowait(TokenEvent(text=tail))
         return event
@@ -205,6 +206,7 @@ class Context:
     def final(self, answer: str, citations: list[dict[str, Any]] | None = None,
               meta: dict[str, Any] | None = None) -> FinalEvent:
         tail = self.guard.final(answer)
+        answer = self.guard.redact(answer)
         if tail:
             self._events.put_nowait(TokenEvent(text=tail))
         evidence = {**(meta or {}), "prompt_versions": dict(self._prompt_versions),
@@ -330,7 +332,7 @@ class Context:
                             for message in turn_messages:
                                 if message.get("role") == "user" and isinstance(message.get("content"), str):
                                     self.memory.append("user", message["content"])
-                            self.memory.append("assistant", result.content)
+                            self.memory.append("assistant", terminal.answer)
                         checkpoint.unlink(missing_ok=True)
                         return terminal
                     if not active_tools:

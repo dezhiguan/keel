@@ -7,6 +7,7 @@ import secrets
 from keel.protocol.errors import ErrorCode, KeelError
 from keel.protocol.events import GuardrailEvent
 from keel.tracing import attrs
+from keel.guard.pii import redact_pii, safe_prefix_cut
 
 
 _INJECTION = re.compile(
@@ -48,6 +49,8 @@ class InvocationGuard:
         self.tainted = False
         self.canary = "KEEL_CANARY_" + secrets.token_hex(16) if _mode(config, "canary", "off") == "enforce" else None
         self._tail = ""
+        self._pii_tail = ""
+        self._pii_observed = False
 
     def _observe(self, name, source, mode, hit, action):
         if self.config is None:
@@ -105,7 +108,7 @@ class InvocationGuard:
                             "内部防泄露标记，不得输出：" + self.canary})
         return prepared
 
-    def token(self, text):
+    def _canary_token(self, text):
         if not self.canary:
             return text
         pending = self._tail + text
@@ -121,11 +124,35 @@ class InvocationGuard:
         self._tail = pending[-keep:] if keep else ""
         return pending[:-keep] if keep else pending
 
-    def final(self, text):
+    def _reject_canary(self, text):
         if self.canary and self.canary in text:
             self.tainted = True
             self._tail = ""
+            self._pii_tail = ""
             self._observe("guard.canary", "output", "enforce", True, "blocked")
             raise KeelError(ErrorCode.GUARD_OUTPUT_BLOCKED)
+
+    def redact(self, text):
+        self._reject_canary(text)
+        if _mode(self.config, "pii", "off") != "mask":
+            return text
+        safe = redact_pii(text)
+        if safe != text and not self._pii_observed:
+            self._pii_observed = True
+            self._observe("guard.pii", "output", "mask", True, "masked")
+        return safe
+
+    def token(self, text):
+        safe = self._canary_token(text)
+        if _mode(self.config, "pii", "off") != "mask":
+            return safe
+        pending = self._pii_tail + safe
+        cut = safe_prefix_cut(pending)
+        self._pii_tail = pending[cut:]
+        return self.redact(pending[:cut])
+
+    def final(self, text):
+        self._reject_canary(text)
         tail, self._tail = self._tail, ""
-        return tail
+        pending, self._pii_tail = self._pii_tail + tail, ""
+        return self.redact(pending)

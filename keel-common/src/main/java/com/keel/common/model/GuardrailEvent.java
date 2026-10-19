@@ -29,7 +29,7 @@ public record GuardrailEvent(
     }
 
     public enum GuardrailEventActionValue {
-        PASS("pass"), OFF("off"), SHADOW("shadow"), BLOCKED("blocked"), STRIPPED("stripped"), APPROVAL("approval");
+        PASS("pass"), OFF("off"), SHADOW("shadow"), BLOCKED("blocked"), STRIPPED("stripped"), APPROVAL("approval"), MASKED("masked");
         private final String value;
         GuardrailEventActionValue(String value) { this.value = value; }
         @JsonValue public String value() { return value; }
