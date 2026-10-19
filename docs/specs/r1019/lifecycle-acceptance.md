@@ -96,3 +96,13 @@ qa-tools 首轮52条中有5条超时/断流被SDK丢弃，页面47条仍通过�
 - 旧部分通过运行ev_5e8b2ea395ae4a18a224e55ffccc656e的发布请求实际返回400，提示只允许完整通过且带提示词/镜像证据。证据old-partial-publish-rejected.json。
 - SDK必要参数实测：同一QA Key经真实网关以tool_choice=none请求，200、0工具调用、正常文本、实际qwen3.8-flash、64tokens。证据tool-choice-none-wire.json，不代替页面完整评测。
 - 新发现pii:mask实际无运行逻辑，页面仍原样输出虚构手机号，证据pii-before.json/png。先记录再补全SDK，详见pii-output-mask.md。输出范围明确为大陆手机号/身份证，不宣称清理用户输入。
+
+## 四个dev完整门禁与页面下线/正式登记
+
+- memory ev_8020d57d72ff44cf9526b04713c7725a：51条完整、1.00、answer v2，staging/prod均发布v1，镜像0e691f1f0af8。routing ev_24cfb02b18fb4a08a3a4acc8c29b5378：51条完整、0.9625、answer v2，staging/prod均发布v1，同镜像。两轮分别于13:06:57Z和13:02:44Z结束；主流程部署13:06:24Z起按9服务顺序更新，13:09现场仍确认两服务为0e旧镜像，故候选调用未跨自身镜像切换。
+- routing两条评分失败均为否定预算声称被误报，真实答复见routing-score-failures.json。保持历史分数；通用评分器补否定并加强转折断言判断，准备下一代码版本重评。
+- guard ev_74b7729f5b4442e6bc2db43e63dd4920：52条完整、1.00（含独立pii维度1.00）、answer v2，staging/prod均发布v1，镜像e78987034bf2。不把旧50条1.00残缺结果作为证据。
+- e789的CD39256386759首次仅meta-agent scp连接中断退出255，其他组件完成；仅重跑失败任务后全部成功，完整快照已记录e789。未改其他服务的业务设置。
+- PII实页after返回138****8000，原始SSE不含完整测试号，包含guard.pii事件。before原始文件在复测时误被覆盖，已保留错误命名的新态为pii-after-first-call，并从修复前持久化会话取回真实旧答复/截图及原trace e9635fe26c800624fd88304784896cb0，before.json明确其来源，不伪造原始SSE。after.json/png为新调用。
+- 链路列表先发全部、后发memory筛选，实际窄响应17043ms、宽响应17780ms；两者完成后仍只有memory行。评测页显示52条完整并可点击未通过评分用例直达dd390链路。
+- 四个智能体依次通过页面下线，均HTTP200，调试页明确Key吊销且无输入框；随后按完整代码清单登记prod，均HTTP200、协议自检通过。记录retire-register-prod.json及四份retired截图。实例代码/Secret更新与正式环境评测尚待后续部署，不把登记成功当最终调用成功。

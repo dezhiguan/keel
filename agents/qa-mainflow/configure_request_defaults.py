@@ -12,10 +12,13 @@ def merge(existing, configured):
         raise ValueError("only the lifecycle QA dev/prod keys may be configured")
     result = dict(existing)
     for alias, models in configured.items():
-        if set(models) != {"qwen3.8-flash"} or models["qwen3.8-flash"] != {
-                "enable_thinking": False, "preserve_thinking": False}:
+        expected = {"qwen3.8-flash": {"enable_thinking": False, "preserve_thinking": False},
+                    "deepseek-flash": {"thinking": {"type": "disabled"}}}
+        if models != expected:
             raise ValueError("unexpected QA model defaults")
-        result[alias] = {**existing.get(alias, {}), **models}
+        prior = existing.get(alias, {})
+        result[alias] = {**prior, **{name: {**prior.get(name, {}), **defaults}
+                                  for name, defaults in models.items()}}
     return result
 
 

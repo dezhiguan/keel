@@ -3,48 +3,88 @@
     "qwen3.8-flash": {
       "enable_thinking": false,
       "preserve_thinking": false
+    },
+    "deepseek-flash": {
+      "thinking": {
+        "type": "disabled"
+      }
     }
   },
   "qa-guard-1019-dev": {
     "qwen3.8-flash": {
       "enable_thinking": false,
       "preserve_thinking": false
+    },
+    "deepseek-flash": {
+      "thinking": {
+        "type": "disabled"
+      }
     }
   },
   "qa-memory-1019-dev": {
     "qwen3.8-flash": {
       "enable_thinking": false,
       "preserve_thinking": false
+    },
+    "deepseek-flash": {
+      "thinking": {
+        "type": "disabled"
+      }
     }
   },
   "qa-routing-1019-dev": {
     "qwen3.8-flash": {
       "enable_thinking": false,
       "preserve_thinking": false
+    },
+    "deepseek-flash": {
+      "thinking": {
+        "type": "disabled"
+      }
     }
   },
   "qa-tools-1019-prod": {
     "qwen3.8-flash": {
       "enable_thinking": false,
       "preserve_thinking": false
+    },
+    "deepseek-flash": {
+      "thinking": {
+        "type": "disabled"
+      }
     }
   },
   "qa-guard-1019-prod": {
     "qwen3.8-flash": {
       "enable_thinking": false,
       "preserve_thinking": false
+    },
+    "deepseek-flash": {
+      "thinking": {
+        "type": "disabled"
+      }
     }
   },
   "qa-memory-1019-prod": {
     "qwen3.8-flash": {
       "enable_thinking": false,
       "preserve_thinking": false
+    },
+    "deepseek-flash": {
+      "thinking": {
+        "type": "disabled"
+      }
     }
   },
   "qa-routing-1019-prod": {
     "qwen3.8-flash": {
       "enable_thinking": false,
       "preserve_thinking": false
+    },
+    "deepseek-flash": {
+      "thinking": {
+        "type": "disabled"
+      }
     }
   }
 }

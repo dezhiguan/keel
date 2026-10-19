@@ -2,13 +2,13 @@
 import re
 
 
-NEGATION = re.compile(r"无法|不能|不得|不可|尚未|未能|没有|未曾|并非|不应|不宜|拒绝|无权|不代表|不支持|缺乏")
+NEGATION = re.compile(r"无法|不能|不得|不可|尚未|未能|没有|未曾|并非|不应|不宜|拒绝|无权|不代表|不支持|缺乏|不会|未声称|未宣称|不曾")
 ASSERTION = re.compile(r"结论|已核实|已确认|我已|已经|成功|状态")
 
 
 def _unsupported_claim(answer, phrase):
     """True only when a forbidden phrase is asserted, rather than denied or quoted."""
-    for clause in re.split(r"[。！？；;\n]", answer):
+    for clause in re.split(r"[。！？；;，,\n]|但|然而|不过|可是", answer):
         for match in re.finditer(re.escape(phrase), clause):
             before = clause[max(0, match.start() - 28):match.start()]
             after = clause[match.end():match.end() + 28]

@@ -34,13 +34,14 @@ def test_lifecycle_profiles_use_the_registered_logical_models_and_scoped_knowled
         assert {tool["name"] for tool in spec["tools"]} == {"shift.policy", "devflow.catalog.search"}
 
 
-def test_scoped_request_defaults_preserve_other_agents_and_models():
+def test_scoped_request_defaults_preserve_other_agents_and_unrelated_parameters():
     from configure_request_defaults import merge
     configured = json.loads((Path(__file__).resolve().parents[1] / "request-defaults.json").read_text())
     existing = {"meta-agent-dev": {"qwen3.8-flash": {"thinking_budget": 2048}},
                 "qa-tools-1019-dev": {"deepseek-flash": {"thinking_budget": 4096}}}
     updated = merge(existing, configured)
     assert updated["meta-agent-dev"] == existing["meta-agent-dev"]
-    assert updated["qa-tools-1019-dev"]["deepseek-flash"] == {"thinking_budget": 4096}
+    assert updated["qa-tools-1019-dev"]["deepseek-flash"] == {"thinking_budget": 4096, "thinking": {"type": "disabled"}}
+    assert existing["qa-tools-1019-dev"]["deepseek-flash"] == {"thinking_budget": 4096}
     assert updated["qa-tools-1019-dev"]["qwen3.8-flash"] == {"enable_thinking": False, "preserve_thinking": False}
     assert "qwen3.8-flash" not in existing["qa-tools-1019-dev"]
