@@ -37,6 +37,23 @@ class GuardrailPageTest {
     }
 
     @Test
+    void readsFlattenedCloudOtelAttributesWithoutLosingOwnershipOrFailedStatus() throws Exception {
+        var observation = json.readTree("""
+                {"traceId":"tr_flat","type":"GUARDRAIL","name":"guard.input","startTime":"2026-10-19T01:00:00Z",
+                 "metadata":{"attributes.keel.agent":"qa-guard-1019","attributes.keel.status":"failed",
+                             "attributes.langfuse.observation.type":"guardrail"}}
+                """);
+        var page = GuardrailPage.view("qa-guard-1019", "v0", "dev", "pod", null,
+                List.of(observation), List.of(observation), List.of());
+        assertEquals("qa-guard-1019", GuardrailPage.agentOf(observation));
+        assertEquals(true, GuardrailPage.hit(observation));
+        assertEquals("tr_flat", page.get("traceId"));
+        assertEquals(1, ((java.util.Map<?, ?>) ((List<?>) page.get("checks")).get(0)).get("hits"));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) observation.get("metadata")).put("keel.agent", "direct");
+        assertEquals("direct", GuardrailPage.agentOf(observation));
+    }
+
+    @Test
     void leavesHitsUnknownWhenLangfuseWasNotRead() throws Exception {
         var page = GuardrailPage.view("careermate", null, null, null, null, null, List.of(), List.of());
         var checks = (List<?>) page.get("checks");

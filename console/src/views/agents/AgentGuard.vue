@@ -158,7 +158,7 @@ function layerPill(layer: GuardCaller['layer']) {
 
     <div class="guard-grid">
       <div class="card">
-        <h3>智能体层检查 <small>近 7 天 · 写在 agent.yaml，随部署生效</small></h3>
+        <h3>智能体层检查 <small>近 7 天观测样本 · 写在 agent.yaml，随部署生效</small></h3>
         <table class="t">
           <thead><tr><th>检查</th><th>模式</th><th>命中</th><th>处理</th></tr></thead>
           <tbody>
@@ -181,6 +181,7 @@ function layerPill(layer: GuardCaller['layer']) {
             </tr>
           </tbody>
         </table>
+        <p class="mut">命中数仅统计全平台最近 100 条护栏观测中的本智能体样本，不是完整累计。</p>
         <div class="save"><button v-write class="btn pri" type="button" :disabled="saving || !checks.length" @click="save">{{ saving ? '保存中…' : '保存' }}</button></div>
       </div>
 

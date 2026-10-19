@@ -187,29 +187,24 @@ public final class GuardrailPage {
         return output.contains("命中");
     }
 
-    private static String status(JsonNode row) {
+    private static String attribute(JsonNode row, String key) {
         var meta = row.path("metadata");
-        var direct = meta.path("keel.status").asText("");
-        if (!direct.isBlank()) {
-            return direct;
+        for (var value : List.of(meta.path(key), meta.path("attributes." + key), meta.path("attributes").path(key))) {
+            if (!value.asText("").isBlank()) return value.asText();
         }
-        return meta.path("attributes").path("keel.status").asText("");
+        return "";
+    }
+
+    private static String status(JsonNode row) {
+        return attribute(row, "keel.status");
     }
 
     static String agentOf(JsonNode row) {
-        var meta = row.path("metadata");
-        var direct = meta.path("keel.agent").asText("");
-        if (!direct.isBlank()) {
-            return direct;
-        }
-        return meta.path("attributes").path("keel.agent").asText("");
+        return attribute(row, "keel.agent");
     }
 
     private static String observationType(JsonNode row) {
-        var named = row.path("metadata").path("langfuse.observation.type").asText("");
-        if (named.isBlank()) {
-            named = row.path("metadata").path("attributes").path("langfuse.observation.type").asText("");
-        }
+        var named = attribute(row, "langfuse.observation.type");
         if (!named.isBlank()) {
             return named.toLowerCase(Locale.ROOT);
         }
