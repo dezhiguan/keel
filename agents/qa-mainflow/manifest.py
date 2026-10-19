@@ -16,7 +16,7 @@ def build(name: str) -> dict:
         "runtime": {"type": "code", "language": "python", "template": profile["template"],
                     "endpoint": f"http://{name}.agents.svc.cluster.local:8000", "liveness": "k8s"},
         "auth": {"audience": name},
-        "models": {"default": "qwen-plus", "budget": {"dailyCny": 5, "maxSteps": 6}},
+        "models": {"default": profile.get("model", "qwen-plus"), "budget": {"dailyCny": profile.get("dailyCny", 5), "maxSteps": 6}},
         "tools": [{"name": tool, "access": "read", "risk": "low"} for tool in profile["tools"]],
         "guardrails": {"inputInjection": "enforce", "grounding": "shadow", "pii": "mask"},
         "eval": {"dataset": f"{name}/smoke", "gate": {"minScore": 0.8, "maxRegression": 0.02}},
