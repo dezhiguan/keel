@@ -203,8 +203,9 @@ public final class Gateway {
     public Completion complete(String bearer, String path, String body, Duration timeout, String traceId) {
         var key = virtualKey(bearer);
         var request = read(body);
-        var requested = request.path("model").asText("");
-        if (!key.models.contains(requested)) {
+        var named = request.path("model").asText("");
+        var requested = liveModel(named);
+        if (!key.models.contains(named) && !key.models.contains(requested)) {
             throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "模型不在该 Key 的允许列表里");
         }
         var attempts = attempts(key, requested, "/v1/embeddings".equals(path));
@@ -286,8 +287,9 @@ public final class Gateway {
     public Spend stream(String bearer, String path, String body, Duration timeout, java.io.OutputStream client, String traceId) {
         var key = virtualKey(bearer);
         var request = read(body);
-        var requested = request.path("model").asText("");
-        if (!key.models.contains(requested)) {
+        var named = request.path("model").asText("");
+        var requested = liveModel(named);
+        if (!key.models.contains(named) && !key.models.contains(requested)) {
             throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "模型不在该 Key 的允许列表里");
         }
         var attempts = attempts(key, requested, "/v1/embeddings".equals(path));
@@ -448,11 +450,31 @@ public final class Gateway {
 
     public Preview preview(String alias, String model) {
         var key = requireAlias(alias);
-        if (!key.models().contains(model)) {
+        var live = liveModel(model);
+        if (!key.models().contains(model) && !key.models().contains(live)) {
             throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "模型不在该 Key 的允许列表里");
         }
         var version = routes.current();
-        return new Preview(version.version(), version.objective(), routes.plan(key, model, false, catalog, breakerKey(key, model)));
+        return new Preview(version.version(), version.objective(), routes.plan(key, live, false, catalog, breakerKey(key, live)));
+    }
+
+    /** Keys issued before the catalog rename still name qwen-plus and deepseek-v3. */
+    private String liveModel(String requested) {
+        if (requested != null && catalog.models().containsKey(requested)) {
+            return requested;
+        }
+        var replacement = switch (requested == null ? "" : requested) {
+            case "qwen-plus" -> "qwen3.8-flash";
+            case "deepseek-v3" -> "deepseek-flash";
+            default -> "";
+        };
+        if (!replacement.isEmpty() && catalog.models().containsKey(replacement)) {
+            return replacement;
+        }
+        if (requested == null || requested.isBlank() || !catalog.models().containsKey(requested)) {
+            throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "未知模型: " + requested);
+        }
+        return requested;
     }
 
     public AlertRule addAlert(String name, String metric, double threshold, String window, String groupBy) {

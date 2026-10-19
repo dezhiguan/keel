@@ -685,6 +685,33 @@ class GatewayTest {
 
     private static volatile String lastRequestBody;
 
+    @Test void retiredAliasUsesTheCurrentCatalogModel() throws Exception {
+        var seen = new ArrayList<String>();
+        var server = server((model, exchange) -> {
+            seen.add(model);
+            write(exchange, 200, usage("qwen3.8-flash", 4, 2));
+        });
+        try {
+            var base = "http://127.0.0.1:" + server.getAddress().getPort();
+            var flash = new ModelCatalog.Model("qwen3.8-flash", new BigDecimal("0.0000008"), new BigDecimal("0.0000027"),
+                    base, "vendor", 4096, 4096);
+            var plus = new ModelCatalog.Model("qwen-plus", new BigDecimal("0.0000008"), new BigDecimal("0.000002"),
+                    base, "vendor", 4096, 4096);
+            var keys = new KeyDirectory();
+            var issuer = new Gateway(new ModelCatalog(Map.of("qwen-plus", plus, "qwen3.8-flash", flash)),
+                    new BudgetCounter(), new Upstream(), keys);
+            var created = issuer.create("chat-demo-dev", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false);
+            var live = new Gateway(new ModelCatalog(Map.of("qwen3.8-flash", flash)), new BudgetCounter(), new Upstream(), keys);
+            var completion = live.complete("Bearer " + created.key(), "/v1/chat/completions",
+                    "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2));
+            assertThat(completion.status()).isEqualTo(200);
+            assertThat(completion.spend().model()).isEqualTo("qwen3.8-flash");
+            assertThat(seen).containsExactly("qwen3.8-flash");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static HttpServer server(Handler handler) {
         try {
             var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
