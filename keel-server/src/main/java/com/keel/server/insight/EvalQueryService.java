@@ -94,6 +94,10 @@ public class EvalQueryService {
         return Map.of("rows", GateBoard.assemble(jobs, names, produced, scores));
     }
 
+    public Map<String, String> active(String agent) {
+        return jobs.active(agent);
+    }
+
     public Map<String, Object> latest(String agent) {
         var executed = jobs == null ? null : jobs.latest(agent);
         if (executed != null) return executed;

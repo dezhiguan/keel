@@ -21,3 +21,7 @@ export function runEval(agent: string) {
 export function getEvalRun(runId: string) {
   return get<EvalRun>(`/eval/runs/${encodeURIComponent(runId)}`)
 }
+
+export function getActiveEvalRun(agent: string) {
+  return get<{ runId?: string } | null>(`/eval/${encodeURIComponent(agent)}/runs/active`)
+}

@@ -4,7 +4,7 @@ import { RouterLink } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import AgentName from '@/components/AgentName.vue'
 import StatusPill from '@/components/StatusPill.vue'
-import { getEvalGates, getEvalRun, getLatestEval, runEval, type EvalGateRow, type EvalResult } from '@/api/eval'
+import { getActiveEvalRun, getEvalGates, getEvalRun, getLatestEval, runEval, type EvalGateRow, type EvalResult } from '@/api/eval'
 import { listSuspendedRuns, openApproval } from '@/api/approvals'
 import { listAgents } from '@/api/agents'
 import { toKeelError } from '@/api/http'
@@ -38,12 +38,14 @@ const expecting = ref(false)
 const expectReason = ref('')
 const expectInvalid = ref(false)
 let timer: ReturnType<typeof setInterval> | undefined
-let polling = false
 let loadSeq = 0
 
 async function load() {
   const seq = ++loadSeq
   const name = agent.value
+  clearInterval(timer)
+  progress.value = null
+  void recoverRun(seq, name)
   loading.value = true
   try {
     const next = await getLatestEval(name)
@@ -59,34 +61,60 @@ async function load() {
   }
 }
 
-async function run() {
-  if (!agent.value) return
+function pollRun(runId: string, seq: number) {
+  clearInterval(timer)
+  progress.value = 0
+  let busy = false
+  const poll = async () => {
+    if (busy || seq !== loadSeq) return
+    busy = true
+    try {
+      const r = await getEvalRun(runId)
+      if (seq !== loadSeq) return
+      progress.value = r.progress ?? 0
+      if (r.state === 'RUNNING' || r.state === 'QUEUED') return
+      clearInterval(timer)
+      progress.value = null
+      if (r.result) result.value = r.result
+      if (r.state === 'FAILED') ElMessage.error(`评测执行失败：${r.error || '请检查运行服务和评分器'}`)
+      else ElMessage[r.result?.passed ? 'success' : 'warning'](`回归完成：总分 ${r.result?.scoreTotal ?? '—'}`)
+    } catch (error) {
+      if (seq !== loadSeq) return
+      clearInterval(timer)
+      progress.value = null
+      ElMessage.error(`读取评测任务失败：${toKeelError(error).message}`)
+    } finally {
+      busy = false
+    }
+  }
+  timer = setInterval(poll, 2000)
+  void poll()
+}
+
+async function recoverRun(seq: number, name: string) {
   try {
-    const { runId } = await runEval(agent.value)
-    progress.value = 0
-    clearInterval(timer)
-    timer = setInterval(async () => {
-      if (polling) return
-      polling = true
-      try {
-        const r = await getEvalRun(runId!)
-        progress.value = r.progress ?? 0
-        if (r.state === 'RUNNING' || r.state === 'QUEUED') return
-        clearInterval(timer)
-        progress.value = null
-        if (r.result) result.value = r.result
-        if (r.state === 'FAILED') ElMessage.error(`评测执行失败：${r.error || '请检查运行服务和评分器'}`)
-        else ElMessage[r.result?.passed ? 'success' : 'warning'](`回归完成：总分 ${r.result?.scoreTotal ?? '—'}`)
-      } catch (error) {
-        clearInterval(timer)
-        progress.value = null
-        ElMessage.error(`读取评测任务失败：${toKeelError(error).message}`)
-      } finally {
-        polling = false
-      }
-    }, 2000)
+    const active = await getActiveEvalRun(name)
+    if (seq === loadSeq && active?.runId) pollRun(active.runId, seq)
   } catch (error) {
+    if (seq === loadSeq) ElMessage.error(`恢复评测进度失败：${toKeelError(error).message}`)
+  }
+}
+
+async function run() {
+  if (!agent.value || progress.value !== null) return
+  const seq = loadSeq
+  const name = agent.value
+  progress.value = 0
+  try {
+    const { runId } = await runEval(name)
+    if (seq !== loadSeq) return
+    if (runId) pollRun(runId, seq)
+    else progress.value = null
+  } catch (error) {
+    if (seq !== loadSeq) return
+    progress.value = null
     ElMessage.error(`运行回归失败：${toKeelError(error).message}`)
+    await recoverRun(seq, name)
   }
 }
 
@@ -180,7 +208,7 @@ async function loadAgents() {
     ElMessage.error(`加载智能体失败：${toKeelError(error).message}`)
   }
 }
-onBeforeUnmount(() => clearInterval(timer))
+onBeforeUnmount(() => { ++loadSeq; clearInterval(timer) })
 watch(agent, () => {
   if (agent.value) load()
 })
@@ -198,6 +226,8 @@ watch(agent, () => {
       </select>
       <button v-write class="btn pri" :disabled="!agent || progress !== null" @click="run">▶ 运行回归</button>
     </div>
+
+    <p v-if="progress !== null" role="status">回归正在排队或执行中，刷新页面可恢复进度。</p>
 
     <div class="chipsel" style="margin-bottom: 14px">
       <button :class="{ on: evalTab === 'cmp' }" @click="evalTab = 'cmp'">分维度对比</button>

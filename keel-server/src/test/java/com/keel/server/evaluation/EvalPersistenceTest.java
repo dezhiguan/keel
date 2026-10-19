@@ -31,6 +31,20 @@ class EvalPersistenceTest {
         assertThat(restarted.run("ev_persist")).containsEntry("error","scorer missing").containsEntry("state","FAILED");
     }
 
+    @Test @Transactional void activeRunSurvivesServiceRestartAndDisappearsAfterCompletion() {
+        jdbc.update("""
+            INSERT INTO eval_run(run_id,agent_name,env,namespace,source_pod,image,endpoint,dataset,requested_by)
+            VALUES ('ev_recover','qa-recover','dev','agents','pod','image','http://agent','qa/smoke','operator')
+            """);
+        var restarted = new EvalJobs(jdbc,json,null,null,null);
+        assertThat(restarted.active("qa-recover")).containsEntry("runId", "ev_recover");
+        assertThat(restarted.active("another-agent")).isNull();
+        jdbc.update("UPDATE eval_run SET state='RUNNING' WHERE run_id='ev_recover'");
+        assertThat(restarted.active("qa-recover")).containsEntry("runId", "ev_recover");
+        jdbc.update("UPDATE eval_run SET state='DONE' WHERE run_id='ev_recover'");
+        assertThat(restarted.active("qa-recover")).isNull();
+    }
+
     @Test @Transactional void duplicateConcurrentRunIsRejectedByDatabase() {
         jdbc.update("""
             INSERT INTO eval_run(run_id,agent_name,env,namespace,source_pod,image,endpoint,dataset,requested_by)

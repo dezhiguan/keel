@@ -36,6 +36,11 @@ public class EvalController {
         return ResponseEntity.status(202).body(R.ok(Map.of("runId", eval.start(agent))));
     }
 
+    @GetMapping("/{agent}/runs/active")
+    public R<Map<String, String>> active(@PathVariable String agent) {
+        return R.ok(eval.active(agent));
+    }
+
     @GetMapping("/runs/{runId}")
     public R<Map<String, Object>> runStatus(@PathVariable String runId) {
         return R.ok(eval.run(runId));

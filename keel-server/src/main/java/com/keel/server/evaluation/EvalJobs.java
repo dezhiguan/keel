@@ -62,6 +62,12 @@ public class EvalJobs {
         return id;
     }
 
+    public Map<String, String> active(String agent) {
+        var rows = jdbc.query("SELECT run_id FROM eval_run WHERE agent_name=? AND state IN ('QUEUED','RUNNING') ORDER BY created_at DESC LIMIT 1",
+                (rs, n) -> Map.of("runId", rs.getString(1)), agent);
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
     public Map<String,Object> run(String id) {
         var rows=jdbc.query("SELECT state,result::text,error FROM eval_run WHERE run_id=?",(rs,n)-> {
             var body=new LinkedHashMap<String,Object>();

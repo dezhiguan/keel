@@ -956,6 +956,32 @@ paths:
                         properties:
                           runId: { type: string }
 
+  /eval/{agent}/runs/active:
+    parameters:
+      - name: agent
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [eval]
+      operationId: getActiveEvalRun
+      summary: 当前执行中的回归任务，供刷新后恢复进度
+      responses:
+        "200":
+          description: 无活跃任务时 data 为 null
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        nullable: true
+                        properties:
+                          runId: { type: string }
+
   /eval/runs/{runId}:
     parameters:
       - name: runId

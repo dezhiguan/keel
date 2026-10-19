@@ -610,6 +610,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/eval/{agent}/runs/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent: string;
+            };
+            cookie?: never;
+        };
+        /** 当前执行中的回归任务，供刷新后恢复进度 */
+        get: operations["getActiveEvalRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/eval/runs/{runId}": {
         parameters: {
             query?: never;
@@ -4830,6 +4849,32 @@ export interface operations {
                         data?: {
                             runId?: string;
                         };
+                    };
+                };
+            };
+        };
+    };
+    getActiveEvalRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 无活跃任务时 data 为 null */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            runId?: string;
+                        } | null;
                     };
                 };
             };
