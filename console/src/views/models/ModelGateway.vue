@@ -4,12 +4,10 @@ import { ElMessage } from 'element-plus'
 import Pager from '@/components/Pager.vue'
 import {
   addModelChannel,
-  exportModelBills,
   getModelGateway,
   previewRoute,
   probeModel,
   probeModelChannel,
-  publishRoutePolicy,
   rollbackRoutePolicy,
   rotateModelKey,
   simulateChannelFailures,
@@ -27,7 +25,6 @@ import { fmtN } from '@/utils/format'
 type PageSize = 10 | 20 | 50 | 100
 type GatewayKey = NonNullable<ModelGateway['keys']>[number]
 type GatewayModel = NonNullable<ModelGateway['models']>[number]
-type Objective = 'balanced' | 'cost' | 'latency'
 type LiveChannel = {
   id: string
   name?: string
@@ -41,12 +38,6 @@ type LiveChannel = {
   openUntil?: number
   bound?: number
 }
-
-const OBJECTIVES: { id: Objective; label: string }[] = [
-  { id: 'balanced', label: '均衡' },
-  { id: 'cost', label: '成本优先' },
-  { id: 'latency', label: '延迟优先' },
-]
 
 const envStore = useEnvStore()
 const userStore = useUserStore()
@@ -63,7 +54,6 @@ const modelPage = ref(1)
 const modelSize = ref<PageSize>(10)
 const keyPage = ref(1)
 const keySize = ref<PageSize>(10)
-const pendingObjective = ref<Objective | null>(null)
 const routeBusy = ref(false)
 const previewAlias = ref('')
 const previewModel = ref('')
@@ -84,6 +74,7 @@ const models = computed(() => data.value?.models ?? [])
 const keys = computed(() => data.value?.keys ?? [])
 const bills = computed(() => data.value?.bills ?? [])
 const failedBills = computed(() => bills.value.filter((bill) => bill.status === 'FAILED'))
+const simulated = ref<{ time: string; alias: string; tone: string; result: string; reason: string }[]>([])
 const admin = computed(() => userStore.user?.platformRole === 'ADMIN')
 const objective = computed(() => data.value?.routePolicy?.objective)
 const policyVersion = computed(() => data.value?.routePolicy?.version)
@@ -279,27 +270,6 @@ async function confirmRotation() {
   }
 }
 
-function askObjective(next: Objective) {
-  if (!admin.value || next === objective.value || routeBusy.value) return
-  pendingObjective.value = next
-}
-
-async function confirmObjective() {
-  const next = pendingObjective.value
-  if (!next) return
-  routeBusy.value = true
-  try {
-    await publishRoutePolicy(next)
-    ElMessage.success(`路由策略已发布为${objectiveLabel(next)}`)
-    pendingObjective.value = null
-    await load()
-  } catch (error) {
-    ElMessage.error(toKeelError(error).message)
-  } finally {
-    routeBusy.value = false
-  }
-}
-
 async function rollback() {
   if (!admin.value) return
   if ((policyVersion.value ?? 1) <= 1) {
@@ -338,19 +308,53 @@ async function simulate() {
   }
 }
 
-async function exportBills() {
-  try {
-    const csv = await exportModelBills({ env: envStore.env, range: '24h' })
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'bills.csv'
-    link.click()
-    URL.revokeObjectURL(url)
-  } catch (error) {
-    ElMessage.error(`导出失败：${toKeelError(error).message}`)
+function channelFits(channel: LiveChannel, env?: string | null) {
+  if (!env) return true
+  const listed = (channel.env || '').split('、').filter(Boolean)
+  return !listed.length || listed.includes(env)
+}
+
+function simulateOnce() {
+  const pool = keys.value.filter((key) => (key.models?.length ?? 0) > 0)
+  if (!pool.length) {
+    ElMessage.warning('这个环境还没有可用的 Key')
+    return
   }
+  const key = pool[Math.floor(Math.random() * pool.length)]
+  const model = key.models?.[0] || ''
+  const same = liveChannels.value.filter((channel) => channel.model === model && channelFits(channel, key.env))
+  const from = same[0] ?? liveChannels.value.find((channel) => channel.model === model)
+  const fromName = from?.name || model || '渠道'
+  const healthy = (channel: LiveChannel) => breakerLabel(channel.breaker, channel.openUntil, nowMs.value).label === '正常'
+  const alt = same.find((channel) => channel.id !== from?.id && healthy(channel))
+  const time = new Date().toLocaleTimeString('zh-CN', { hour12: false })
+  const vendor = Math.random() < 0.6
+  if (!vendor) {
+    simulated.value.unshift({
+      time,
+      alias: key.alias || '—',
+      tone: 'p-warn',
+      result: '网关拒绝 429',
+      reason: `超出 Key 在「${fromName}」的份额 RPM ${limitLabel(key.rpm)}，未打到厂商，不换渠道`,
+    })
+  } else if (alt) {
+    simulated.value.unshift({
+      time,
+      alias: key.alias || '—',
+      tone: 'p-ok',
+      result: '厂商 429 → 已换渠道',
+      reason: `「${fromName}」返回 429（Retry-After 20s，期间跳过）→ 改打本 Key 允许的同模型「${alt.name}」成功，计 1 次切换`,
+    })
+  } else {
+    simulated.value.unshift({
+      time,
+      alias: key.alias || '—',
+      tone: 'p-bad',
+      result: '厂商限流 429',
+      reason: `「${fromName}」达到厂商上限；同模型同环境没有可用渠道，返回 429 并记渠道告警。可「新增渠道」加一个生产账号`,
+    })
+  }
+  simulated.value = simulated.value.slice(0, 6)
 }
 
 watch(previewAlias, (alias) => {
@@ -487,7 +491,6 @@ watch(() => envStore.env, load, { immediate: true })
           <span class="sp" />
           <button v-if="admin" v-write class="btn sm" type="button" @click="openSwitch">切换 prod 渠道</button>
           <button v-if="admin" v-write class="btn pri sm" type="button" @click="openAdd">+ 新增渠道</button>
-          <button class="btn sm" type="button" @click="exportBills">导出账单</button>
         </h3>
         <table class="t">
           <thead>
@@ -582,7 +585,7 @@ watch(() => envStore.env, load, { immediate: true })
                 <td class="mono">{{ key.tpm == null ? '不限制' : key.tpm.toLocaleString('zh-CN') }}</td>
                 <td class="mono">{{ limitLabel(key.concurrency) }}</td>
                 <td>
-                  <button class="btn sm" type="button" @click="openQuota(key)">配额</button>
+                  <button class="btn sm quota" type="button" @click="openQuota(key)">配额</button>
                 </td>
               </tr>
               <tr v-if="!keyRows.length"><td colspan="6" class="empty">这个环境还没有虚拟 Key</td></tr>
@@ -592,21 +595,27 @@ watch(() => envStore.env, load, { immediate: true })
       </div>
       <div class="card">
         <h3>
-          最近失败的请求
-          <small>来自近 24 小时账单</small>
+          最近被拒绝的请求
+          <small>区分网关份额和厂商限流</small>
           <span class="sp" />
-          <button class="btn sm" type="button" @click="exportBills">导出</button>
+          <button v-write class="btn sm" type="button" @click="simulateOnce">模拟一次请求</button>
         </h3>
         <table class="t">
           <thead><tr><th>时间</th><th>Key</th><th>结果</th><th>原因</th></tr></thead>
           <tbody>
+            <tr v-for="(row, index) in simulated" :key="`sim-${index}-${row.time}`">
+              <td class="mono">{{ row.time }}</td>
+              <td class="mono">{{ row.alias }}</td>
+              <td><span class="pill" :class="row.tone">{{ row.result }}</span></td>
+              <td class="mut">{{ row.reason }}</td>
+            </tr>
             <tr v-for="(bill, index) in failedBills" :key="`${bill.attemptId || bill.requestId}-${index}`">
               <td class="mono">{{ billClock(bill.ts) }}</td>
               <td class="mono">{{ bill.alias || '—' }}</td>
               <td><span class="pill p-bad">{{ billStatusLabel(bill.status) }}</span></td>
               <td class="mut">{{ bill.model || '—' }} · {{ yuan(bill.costCny) }}</td>
             </tr>
-            <tr v-if="!failedBills.length"><td colspan="4" class="mut">当前窗口没有失败请求</td></tr>
+            <tr v-if="!simulated.length && !failedBills.length"><td colspan="4" class="mut">点「模拟一次请求」</td></tr>
           </tbody>
         </table>
       </div>
@@ -620,7 +629,6 @@ watch(() => envStore.env, load, { immediate: true })
           <small>{{ objectiveLabel(objective) }}</small>
           <span class="sp" />
           <button v-if="admin" v-write class="btn sm" type="button" :disabled="routeBusy" @click="rollback">回滚</button>
-          <button v-if="admin" v-write class="btn pri sm" type="button" :disabled="routeBusy || !pendingObjective" @click="confirmObjective">发布</button>
         </h3>
         <table class="t route-table">
           <thead>
@@ -650,15 +658,6 @@ watch(() => envStore.env, load, { immediate: true })
             <tr v-if="!keys.length"><td colspan="7" class="empty">这个环境还没有降级链</td></tr>
           </tbody>
         </table>
-        <div class="chipsel route-obj">
-          <button
-            v-for="item in OBJECTIVES"
-            :key="item.id"
-            type="button"
-            :class="{ on: (pendingObjective ?? objective) === item.id }"
-            @click="askObjective(item.id)"
-          >{{ item.label }}</button>
-        </div>
         <div class="pbanner ok">请求里写了模型就先用它。超时或 5xx 只切换一次；401、403 和预算不足不降级。渠道连续 2 次 5xx 后熔断 60 秒。</div>
       </div>
       <div class="card">
@@ -825,6 +824,7 @@ h3 .btn { margin-left: 8px; }
 .budget-now { color: var(--white); }
 .ops { display: flex; gap: 8px; margin-top: 8px; }
 .route-table { margin-top: 0; }
-.route-obj { margin-top: 12px; }
 .banner { margin-top: 12px; }
+.btn.quota { background: #ffd24a; border-color: #ffd24a; color: #2a2208; font-weight: 600; }
+.btn.quota:hover { filter: brightness(1.06); }
 </style>
