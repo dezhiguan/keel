@@ -5,6 +5,7 @@ metadata:
   displayName: 元智能体
   owner: 研发效能组 / amy
 spec:
+  kind: workflow
   runtime:
     type: code
     language: python
@@ -13,7 +14,7 @@ spec:
   auth:
     audience: meta-agent
   models:
-    default: qwen3.8-flash
+    default: chat-default
     budget:
       dailyCny: 50
   tools:
@@ -31,7 +32,7 @@ spec:
   audit:
     captureFields: [target_agent, version, job_id]
   eval:
-    dataset: meta-agent/dev-employee-specs
+    dataset: meta-agent/v2-gateway
     gate:
       minScore: 0.99
       maxRegression: 0.02
@@ -41,4 +42,10 @@ spec:
       - name: draft
         type: text
       - name: revise
+        type: text
+      - name: generate
+        type: text
+      - name: review
+        type: text
+      - name: expand
         type: text

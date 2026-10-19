@@ -1,9 +1,8 @@
-"""Run state kept by the agent itself; Keel only stores the run_id as the checkpoint reference.
-
-TODO(DF-5d): move to the devflow job ledger so state survives pod restarts in K8s.
-"""
+"""Atomic intake checkpoints on the retained volume shared by runtime replicas."""
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
 ROOT = Path(".keel/meta-agent")
@@ -18,7 +17,16 @@ def folder(run_id: str) -> Path:
 def save(run_id: str, state: dict) -> None:
     path = folder(run_id)
     path.mkdir(parents=True, exist_ok=True)
-    (path / "state.json").write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    descriptor, temporary = tempfile.mkstemp(prefix="state-", suffix=".tmp", dir=path)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as file:
+            json.dump(state, file, ensure_ascii=False, indent=2)
+            file.flush()
+            os.fsync(file.fileno())
+        os.replace(temporary, path / "state.json")
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 def load(run_id: str) -> dict | None:

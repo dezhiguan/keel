@@ -1,3 +1,4 @@
+from model_context import model_context
 import asyncio
 import ast
 import json
@@ -64,7 +65,7 @@ def test_meta_agent_generates_role_code_from_confirmed_spec():
                            {"path": "prompts/role.md", "content": "岗位任务：{{input}}"},
                            {"path": "tests/test_role.py", "content": TEST_CODE}]}
     llm = FakeModel([json.dumps(candidate)])
-    ctx = type("Ctx", (), {"llm": llm})()
+    ctx = model_context(llm)
     work = {"requirement": {"target_agent": "spec-agent", "template": "graph-agent", "tools": []},
             "draft": {"spec": {"goal": "把真实需求变成结构化需求单"},
                       "manifest": {"spec": {"tools": []}}}}
@@ -85,7 +86,7 @@ def test_repair_rejects_malformed_json_then_applies_the_corrected_patch_before_d
     work = {"requirement": {"target_agent": "spec-agent", "template": "graph-agent", "tools": []},
             "draft": {"spec": {"goal": "分析需求"}, "manifest": {"spec": {"tools": []}}},
             "repair": {"attempt": 2, "previousCandidate": previous, "report": "修复空需求"}}
-    result = asyncio.run(generate(work, type("Ctx", (), {"llm": llm})()))
+    result = asyncio.run(generate(work, model_context(llm)))
     assert len(llm.prompts) == 2
     assert 'data.get("requirement") or ""' in result["files"][0]["content"]
     feedback = llm.prompts[1][-1]["content"]
@@ -104,7 +105,7 @@ def test_repeated_ambiguous_anchor_reports_file_and_count_then_requests_complete
     work = {"requirement": {"target_agent": "spec-agent", "template": "graph-agent", "tools": []},
             "draft": {"spec": {"goal": "分析需求"}, "manifest": {"spec": {"tools": []}}},
             "repair": {"attempt": 2, "previousCandidate": previous}}
-    result = asyncio.run(generate(work, type("Ctx", (), {"llm": llm})()))
+    result = asyncio.run(generate(work, model_context(llm)))
     assert result == previous
     assert len(llm.prompts) == 3
     assert "补丁 #1 (tests/test_role.py) old 锚点匹配 2 次" in llm.prompts[1][-1]["content"]
@@ -158,7 +159,7 @@ def test_meta_agent_generates_general_agent_from_confirmed_goal():
                            {"path": "prompts/role.md", "content": "任务：{{input}}"},
                            {"path": "tests/test_role.py", "content": TEST_CODE}]}
     llm = FakeModel([json.dumps(candidate)])
-    ctx = type("Ctx", (), {"llm": llm})()
+    ctx = model_context(llm)
     work = {"requirement": {"target_agent": "qa-incident-helper", "template": "tool-agent",
                             "goal": "分析故障并调用日志工具", "tools": ["ci.log.fetch"]},
             "draft": {"spec": {"goal": "按证据给出故障原因"},
@@ -183,7 +184,7 @@ def test_generation_retry_includes_rejected_candidate_and_specific_errors():
     model = FakeModel([json.dumps(bad), json.dumps(fixed)])
     work = {"requirement": {"target_agent": "spec-agent", "template": "graph-agent", "tools": []},
             "draft": {"spec": {"goal": "写需求单"}, "manifest": {"spec": {"tools": []}}}}
-    assert asyncio.run(generate(work, type("Ctx", (), {"llm": model})())) == fixed
+    assert asyncio.run(generate(work, model_context(model))) == fixed
     assert len(model.prompts[1]) == 4
     assert model.prompts[1][2] == {"role": "assistant", "content": json.dumps(bad)}
     assert "未经允许的模块" in model.prompts[1][3]["content"]
@@ -200,7 +201,7 @@ def test_repair_keeps_old_code_and_failure_report_below_trusted_rules_on_retry()
             "draft": {"spec": {"goal": "写需求单"}, "manifest": {"spec": {"tools": []}}},
             "repair": {"attempt": 2, "previousCandidate": previous,
                        "report": "UNTRUSTED_OLD_REPORT"}}
-    assert asyncio.run(generate(work, type("Ctx", (), {"llm": model})())) == previous
+    assert asyncio.run(generate(work, model_context(model))) == previous
     for messages in model.prompts:
         assert messages[0]["role"] == "system"
         assert "UNTRUSTED_OLD_REPORT" not in messages[0]["content"]
@@ -586,7 +587,7 @@ def test_developer_clarification_requires_complete_files_without_extra_model_rev
         "repair": {"attempt": 2, "previousCandidate": previous,
                    "feedback": "补充信任边界", "report": "UNTRUSTED_OLD_REPORT\nFAILED tests/test_role.py::test_normal - AssertionError: wrong expectation"},
         "hiddenSeeds": [{"secret": "MUST_NOT_REACH_GENERATION"}]}
-    result = asyncio.run(generate(work, type("Ctx", (), {"llm": model})()))
+    result = asyncio.run(generate(work, model_context(model)))
     assert result == corrected
     assert len(model.prompts) == 2
     assert "三个完整岗位文件，不允许edits" in model.prompts[0][0]["content"]
@@ -612,7 +613,7 @@ def test_verified_candidate_feedback_patches_without_discarding_regression_tests
         "draft": {"spec": {"goal": "分析需求"}, "manifest": {"spec": {"tools": []}}},
         "repair": {"attempt": 3, "failedSha": "abc", "previousCandidate": previous,
                    "feedback": "只修空输入", "report": f"sha=abc snapshot=ok tests={outcome}\nactual sandbox details"}}
-    result = asyncio.run(generate(work, type("Ctx", (), {"llm": model})()))
+    result = asyncio.run(generate(work, model_context(model)))
     assert len(model.prompts) == 1
     assert result["files"][1:] == previous["files"][1:]
     assert 'data.get("requirement") or ""' in result["files"][0]["content"]
@@ -623,7 +624,7 @@ def test_verified_candidate_feedback_patches_without_discarding_regression_tests
     for report in ["sha=stale snapshot=ok tests=PASS\n", "failed\nsha=abc snapshot=ok tests=PASS\n"]:
         work["repair"]["report"] = report
         model = FakeModel([json.dumps(previous)])
-        asyncio.run(generate(work, type("Ctx", (), {"llm": model})()))
+        asyncio.run(generate(work, model_context(model)))
         assert len(json.loads(model.prompts[0][1]["content"])["previousCandidate"]["files"]) == 2
 
 
@@ -676,7 +677,7 @@ async def test_chinese_inputs():
 ])
 def test_mock_loop_allows_fresh_context_or_stateless_double(setup):
     import ast
-    from candidate import _shared_mock_errors
+    from candidate_validation import _shared_mock_errors
     source = f'''async def test_inputs():
     ctx.tools.call.side_effect = [[], []]
     for text in ["a", "b"]:
@@ -704,5 +705,5 @@ async def test_extra():
 @pytest.mark.parametrize("mark", ["@pytest.mark.asyncio", "@pytest.mark.anyio", "@pytest.mark.asyncio(loop_scope='module')"])
 def test_async_test_markers_are_accepted(mark):
     import ast
-    from candidate import _async_test_errors
+    from candidate_validation import _async_test_errors
     assert _async_test_errors(ast.parse(mark + "\nasync def test_extra():\n    await execute({}, None)")) == []

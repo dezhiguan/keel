@@ -231,6 +231,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agents/{name}/candidate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 更新代码智能体的未发布候选配置
+         * @description 仅更新候选v0，不修改已发布快照。权限、身份、运行地址、预算和护栏保持原样；技能须已授权。评测进行中拒绝更新，发布仍走完整评测门禁。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        env: "dev" | "test" | "staging";
+                        expectedHash: string;
+                        manifest: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description 未发布候选已保存，需同步提示词并重新评测 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code?: string;
+                            data?: {
+                                env?: string;
+                                manifestHash?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agents/{name}/self-check": {
         parameters: {
             query?: never;

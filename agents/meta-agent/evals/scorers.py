@@ -8,6 +8,11 @@ _SECRET = re.compile(r"sk-|api[_-]?key|password|BEGIN PRIVATE", re.IGNORECASE)
 
 
 def baseline(expected, answer, tags) -> float:
+    if isinstance(expected, str):
+        try:
+            expected = json.loads(expected)
+        except (TypeError, json.JSONDecodeError):
+            return 0.0
     if not isinstance(expected, dict):
         return 0.0
     code = expected.get("errorCode")
@@ -22,6 +27,18 @@ def baseline(expected, answer, tags) -> float:
         return _draft(body, expected)
     if kind == "eval":
         return _expand(body, expected)
+    if kind == "review":
+        return float(isinstance(body, dict) and body.get("sha") == expected.get("sha")
+                     and body.get("approved") is True and body.get("findings") == []
+                     and isinstance(body.get("checks"), dict)
+                     and all(body["checks"].get(name) is True for name in expected["checks"]))
+    if kind == "generation":
+        from candidate_validation import parse
+        if not isinstance(body, dict) or body.get("skillVersion") != expected.get("skillVersion"):
+            return 0.0
+        _, errors = parse(json.dumps(body.get("candidate")), template=expected["template"],
+                          selected_tools=expected.get("tools", []))
+        return float(not errors)
     return 0.0
 
 
@@ -50,7 +67,7 @@ def _draft(body: dict, expected: dict) -> float:
         runtime.get("language") == "python",
         agent_spec.get("kind") == "workflow",
         (agent_spec.get("auth") or {}).get("audience") == name,
-        models.get("default") == "qwen3.8-flash",
+        models.get("default") == expected.get("model", "qwen3.8-flash"),
         budget.get("dailyCny") == expected.get("dailyCny"),
         agent_spec.get("knowledge") == [],
         agent_spec.get("delegates") == expected.get("delegates", []),

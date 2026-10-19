@@ -1,3 +1,4 @@
+from model_context import model_context
 import asyncio
 import importlib
 import json
@@ -193,9 +194,9 @@ def test_review_fails_closed_on_hardcoded_prompt_dimension():
                                    "detail": "岗位指令写在代码里，应改为 ctx.prompt 读取。"}]})
 
     request = {"delivery": {"sha": "a" * 40}, "snapshot": {"sha": "a" * 40, "files": files}}
-    report = asyncio.run(review_candidate(request, type("Ctx", (), {"llm": Llm()})()))
+    report = asyncio.run(review_candidate(request, model_context(Llm())))
     assert report["approved"] is False
     assert report["findings"][0]["severity"] == "MID"
     request["snapshot"]["files"] = [item for item in files if item["path"] != "prompts/role.md"]
     with pytest.raises(Exception, match="缺少代码评审所需文件"):
-        asyncio.run(review_candidate(request, type("Ctx", (), {"llm": Llm()})()))
+        asyncio.run(review_candidate(request, model_context(Llm())))

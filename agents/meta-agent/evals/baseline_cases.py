@@ -203,7 +203,7 @@ def _draft_case(case_id: str, tag: str, *, target: str, template: str, title: st
     if feedback:
         work["feedback"] = feedback
         work["draft"] = {"spec": {"title": "旧稿"}, "manifest": {"metadata": {"name": previous_name or "old-agent"}}}
-    expected = {"kind": "draft", "name": target, "title": title, "owner": owner, "dailyCny": daily,
+    expected = {"kind": "draft", "name": target, "model": "chat-default", "title": title, "owner": owner, "dailyCny": daily,
                 "delegates": delegates, "tools": tools, "goal": goal, "users": users, "io": io, "success": success}
     return _row(case_id, _dump(work), expected, tag)
 

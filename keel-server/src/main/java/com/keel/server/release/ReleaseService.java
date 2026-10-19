@@ -173,8 +173,8 @@ public class ReleaseService {
                 """, (rs, row) -> rs.getString(1), agent, sourceEnv, evalRunId);
         if (!prior.isEmpty()) return prior.getFirst();
         var latest = jdbc.query("""
-                SELECT version FROM agent_version WHERE agent_name=? AND env=?
-                ORDER BY released_at DESC, id DESC LIMIT 1
+                SELECT version FROM agent_version WHERE agent_name=? AND env=? AND version ~ '^v[0-9]+$'
+                ORDER BY CAST(substring(version FROM 2) AS integer) DESC LIMIT 1
                 """, (rs, row) -> rs.getString(1), agent, sourceEnv);
         if (latest.isEmpty() || !latest.getFirst().matches("v[0-9]+")) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "没有可发布的 " + sourceEnv + " 智能体版本");

@@ -1,3 +1,5 @@
+import delivery
+from model_context import model_context
 import json
 import asyncio
 import httpx
@@ -29,8 +31,8 @@ def test_general_supervisor_draft_declares_selected_delegates(gateway):
     manifest = json.loads(event["answer"])["manifest"]
     assert manifest["spec"]["delegates"] == ["qa-ci-investigator-1017"]
     # Ignore the outdated model in the draft model response; use trusted configuration.
-    assert manifest["spec"]["models"]["default"] == "qwen3.8-flash"
-    assert gateway.requests[0]["model"] == "qwen3.8-flash"
+    assert manifest["spec"]["models"]["default"] == "chat-default"
+    assert gateway.requests[0]["model"] == "chat-default"
 
 
 def test_bootstrap_code_review_is_bound_to_snapshot_and_fails_closed():
@@ -51,12 +53,12 @@ def test_bootstrap_code_review_is_bound_to_snapshot_and_fails_closed():
     class Ctx:
         llm = Llm()
 
-    result = asyncio.run(review_candidate(request, Ctx()))
+    result = asyncio.run(review_candidate(request, model_context(Ctx.llm)))
     assert result["sha"] == "a" * 40
     assert result["approved"] is False
     request["snapshot"]["sha"] = "b" * 40
     with pytest.raises(Exception, match="快照与候选提交不一致"):
-        asyncio.run(review_candidate(request, Ctx()))
+        asyncio.run(review_candidate(request, model_context(Ctx.llm)))
 
 
 def test_bootstrap_review_receives_trusted_tool_risk():
@@ -79,7 +81,7 @@ def test_bootstrap_review_receives_trusted_tool_risk():
     class Ctx:
         llm = Llm()
 
-    assert asyncio.run(review_candidate(request, Ctx()))["approved"] is True
+    assert asyncio.run(review_candidate(request, model_context(Ctx.llm)))["approved"] is True
 
 
 def test_bootstrap_review_rejects_unactionable_failure():
@@ -97,7 +99,7 @@ def test_bootstrap_review_rejects_unactionable_failure():
     request = {**work(), "action": "REVIEW", "delivery": {"sha": "a" * 40},
                "snapshot": {"sha": "a" * 40, "files": files}}
     with pytest.raises(Exception, match="未返回有效结构化结论"):
-        asyncio.run(review_candidate(request, type("Ctx", (), {"llm": Llm()})()))
+        asyncio.run(review_candidate(request, model_context(Llm())))
 
 
 def test_bootstrap_review_rechecks_findings_against_original_contract_and_source():
@@ -130,7 +132,7 @@ def test_bootstrap_review_rechecks_findings_against_original_contract_and_source
     request = {**work(), "action": "REVIEW", "delivery": {"sha": "a" * 40},
                "draft": {"spec": {"io": "return evidence"}},
                "snapshot": {"sha": "a" * 40, "files": files}}
-    assert asyncio.run(review_candidate(request, type("Ctx", (), {"llm": Llm()})()))["approved"]
+    assert asyncio.run(review_candidate(request, model_context(Llm())))["approved"]
     assert len(calls) == 2
 
 
@@ -173,7 +175,7 @@ def test_workflow_delivery_preserves_edits_and_does_not_repeat_git_writes(gatewa
     monkeypatch.setenv("KEEL_GIT_CI_TOKEN", "test-git-token")
     request = {**work(), "action": "DELIVER", "draft": draft}
     import workflow
-    original_post = workflow._post
+    original_post = delivery._post
     failed_once = False
 
     def transient_git_disconnect(base, tool, body):
@@ -183,7 +185,7 @@ def test_workflow_delivery_preserves_edits_and_does_not_repeat_git_writes(gatewa
             raise httpx.ConnectError("transient Git connection failure")
         return original_post(base, tool, body)
 
-    monkeypatch.setattr(workflow, "_post", transient_git_disconnect)
+    monkeypatch.setattr(delivery, "_post", transient_git_disconnect)
     kind, event = terminal(invoke(json.dumps(request)))
     assert kind == "error"
     assert event["code"] == "GIT_UPSTREAM_FAILED"

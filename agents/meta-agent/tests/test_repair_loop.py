@@ -1,3 +1,5 @@
+import delivery
+from model_context import model_context
 import asyncio
 import json
 import subprocess
@@ -65,7 +67,7 @@ def test_failed_candidate_is_repaired_and_conditionally_pushed(tmp_path, monkeyp
         return {"repo": "keel-agents/spec-agent", "number": 1,
                 "url": "https://git.test/keel-agents/spec-agent/pull/1"}
 
-    monkeypatch.setattr(workflow, "_post", git)
+    monkeypatch.setattr(delivery, "_post", git)
     first = _deliver(work(candidate(False)))
     assert first["sha"] == SHA_A
     failed = subprocess.run([sys.executable, "-m", "pytest", "tests/test_role.py", "-q"],
@@ -85,7 +87,7 @@ def test_failed_candidate_is_repaired_and_conditionally_pushed(tmp_path, monkeyp
 
     model = Model()
     corrected = asyncio.run(generate({**work(candidate(False), repair), "repair": repair},
-                                     type("Ctx", (), {"llm": model})()))
+                                     model_context(model)))
     assert model.prompts[0][0]["role"] == "system"
     assert "snapshot=ok tests=FAIL" not in model.prompts[0][0]["content"]
     assert "snapshot=ok tests=FAIL" in model.prompts[0][1]["content"]
@@ -198,7 +200,7 @@ def test_infrastructure_refresh_keeps_exact_old_candidate_for_new_contract_tests
             return {"repo": "keel-agents/spec-agent"}
         return {"repo": "keel-agents/spec-agent", "number": 1, "url": "https://git.test/pr/1"}
 
-    monkeypatch.setattr(workflow, "_post", git)
+    monkeypatch.setattr(delivery, "_post", git)
     _deliver(work(candidate(True)))
     old = candidate(True)
     old["files"][0]["content"] += '''\nimport re
@@ -213,13 +215,13 @@ def unsafe(llm_response):
 
 
 def test_generation_prompt_separates_status_questions_from_commands():
-    source = Path(__file__).resolve().parents[1].joinpath("candidate.py").read_text(encoding="utf-8")
+    source = Path(__file__).resolve().parents[1].joinpath("prompts/generate.md").read_text(encoding="utf-8")
     assert "不要为该说法再追加一条动词正则" in source
     assert "发布到生产的时间或进度" in source
 
 
 def test_generated_entry_checks_text_type_before_json():
-    source = Path(__file__).resolve().parents[1].joinpath("workflow.py").read_text(encoding="utf-8")
+    source = Path(__file__).resolve().parents[1].joinpath("scaffolding.py").read_text(encoding="utf-8")
     assert "if not isinstance(raw, str):" in source
     assert "输入 text 必须是字符串" in source
 

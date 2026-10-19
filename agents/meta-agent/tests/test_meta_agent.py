@@ -81,7 +81,7 @@ def test_draft_then_confirm_writes_a_loadable_manifest(gateway):
     folder = ROOT / ".keel/meta-agent" / suspended["run_id"]
     loaded = load_manifest(folder / "agent.yaml")
     assert loaded.metadata.name == "spec-agent"
-    assert loaded.spec.models.default_ == "qwen3.8-flash"
+    assert loaded.spec.models.default_ == "chat-default"
     assert loaded.spec.runtime.endpoint == "http://spec-agent.agents.svc.cluster.local:8000"
     assert loaded.spec.prompts.items[0].name == "role"
     assert loaded.spec.knowledge == []

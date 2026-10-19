@@ -1,3 +1,4 @@
+from model_context import model_context
 import asyncio
 import json
 
@@ -13,12 +14,12 @@ def test_expansion_keeps_human_examples_out_of_model_output():
     prompts = []
 
     class Llm:
-        async def chat(self, messages):
+        async def chat(self, messages, **kwargs):
             prompts.append(messages[0]["content"])
             return json.dumps(AGENT, ensure_ascii=False)
 
     result = asyncio.run(expand({"requirement": {"target_agent": "spec-agent"}, "humanSeeds": HUMAN},
-                                type("Ctx", (), {"llm": Llm()})()))
+                                model_context(Llm())))
     assert result == AGENT
     assert "h-1" in prompts[0]
     assert result["cases"][0]["caseId"] != HUMAN[0]["caseId"]
@@ -35,11 +36,11 @@ def test_expansion_rejects_reused_human_case_and_input():
 def test_expansion_uses_confirmed_spec_and_reports_invalid_json_position():
     prompts = []
     class Llm:
-        async def chat(self, messages):
+        async def chat(self, messages, **kwargs):
             prompts.append(messages[0]["content"])
             return '{"cases": [{"input": "\\x00"}]}' if len(prompts) == 1 else json.dumps(AGENT)
     work = {"requirement": {"target_agent": "guide"}, "humanSeeds": HUMAN,
             "draft": {"spec": {"io": "仅一个任务编号，中文紧邻编号合法"}}}
-    assert asyncio.run(expand(work, type("Ctx", (), {"llm": Llm()})())) == AGENT
+    assert asyncio.run(expand(work, model_context(Llm()))) == AGENT
     assert "中文紧邻编号合法" in prompts[0]
     assert "Invalid" in prompts[1] and "行第" in prompts[1]

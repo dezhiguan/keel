@@ -1,7 +1,33 @@
 # meta-agent
 
-这个目录是独立仓库 `dezhiguan/meta-agent` 的根。它不在 `keel-agents` 组织下，研发员工没有写权限。
+由人编写、维护和发布的 Keel 元智能体，负责受控生产研发智能体。保留 CREATE 与人工审批边界，自身定位为 workflow。第二版使用逻辑模型入口 `chat-default`，不绑定具体模型。
 
-镜像只使用本目录作为构建上下文。CI 先构建 `keel-sdk` wheel，放到 `vendor/`（不提交），Dockerfile 安装该 wheel。脚手架模板在 wheel 的 `keel/_templates` 里，不从底座源码树复制。
+## 项目结构
 
-本任务不创建、不推送远程仓库。远程仓库建好之前，底座的发布流程仍用这个目录构建同一份镜像。
+| 路径 | 职责 |
+| --- | --- |
+| `app.py`、`bridge.py` | ASGI 入口、工具绑定、平台桥接身份校验 |
+| `intake.py`、`workflow.py` | 需求确认与平台模型步骤编排 |
+| `candidate.py`、`candidate_validation.py` | 候选生成与静态校验 |
+| `review.py`、`evalset.py` | 精确提交评审与人工种子用例扩充 |
+| `delivery.py`、`scaffolding.py` | 有锁、可重试的 Git 交付与独立项目适配 |
+| `model_steps.py`、`tool_contracts.py` | 版本化模型步骤、技能加载与工具契约 |
+| `prompts/`、`skills/` | 提示词及人工维护的项目开发技能 |
+| `tools/`、`evals/`、`tests/` | 本地工具、评测定义及自动化测试 |
+| `ops/` | 有认证的基线、候选、提示词、技能、评测与发布操作 |
+
+本目录是独立项目根，不属于研发员工可写的 `keel-agents` 组织。当前仍由底座仓库 CI 构建、发布镜像；本轮不创建其他远程仓库。构建上下文仅为本目录，SDK wheel 由 CI 放入 `vendor/`，模板随 wheel 分发。
+
+## 评测与发布
+
+先保留原数据集 `meta-agent/dev-employee-specs` 的52条/16标签基线，通过平台完整评测发布为第一版。网关候选与技能候选分别使用 `meta-agent/v2-gateway`、`meta-agent/v2-development`；两者保留相同52条核心题，仅把模型接入契约改为逻辑入口，另加生成与成功评审题。技能用例另有来源标记，不代替原回归题。门槛仍为0.99、每维度最大回归2个百分点。
+
+`ops/release.py` 通过现有管理员会话调用平台 API；认证文件由操作者提供，不进 Git，也不打印。保存基线后更新未发布候选，按提交同步并激活提示词，启动完整评测；通过后使用该评测绑定的镜像和提示词发布。`ops/dataset.py` 在应用节点导入版本化题集，保留原数据集及每阶段定义快照。
+
+技能仅在 manifest 声明且平台授予同一版本后加载。它不授予工具权限；调用失败显式报错。元智能体不得自行修改或发布技能。部署前核实运行 Secret 有平台服务地址、audience 和已登记私钥。
+
+## 双实例
+
+两个实例共享 `.keel` 持久卷，交付使用每任务文件锁，运行索引通过 SDK 进程锁与原子恢复消费避免丢失和重复执行；追踪、审计暂存文件按 Pod 隔离。当前持久卷为单节点 local volume，两个副本必须在该节点上运行；这提供进程冗余，不提供节点容灾。扩展到多节点需先替换共享存储，不能直接移动到互不共享的本地卷。
+
+本地验证：`PYTHONPATH=sdk-python pytest agents/meta-agent/tests -q`（从底座仓库根执行）。隔离环境中的纯模型步骤测试可使用 `--noconftest` 与显式测试运行配置；完整集成测试需允许本机监听。

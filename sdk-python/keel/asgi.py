@@ -28,6 +28,7 @@ from keel.manifest import _contract_file
 from keel.protocol.errors import ErrorCode, KeelError
 from keel.runs import get as get_run
 from keel.runs import save as save_run
+from keel.runs import claim as claim_run
 from keel.protocol.events import ErrorEvent, FinalEvent, SuspendEvent
 from keel.protocol.sse import encode_event
 from keel.tracing import attrs
@@ -271,8 +272,9 @@ def create_app(agent) -> Starlette:
             except DelegationDenied:
                 code = ErrorCode.RUN_RESUME_DENIED
                 return JSONResponse(_error(code, trace_id), status_code=code.http)
-        record["status"] = "DONE"
-        save_run(record)
+        if not claim_run(record["run_id"], body["resume_token"]):
+            code = ErrorCode.RUN_NOT_RESUMABLE
+            return JSONResponse(_error(code, trace_id), status_code=code.http)
         original = dict(record["input"] or {})
         resumed = dict(original)
         if record["reason"] == "input_required":

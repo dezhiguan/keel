@@ -15,7 +15,7 @@ metadata:
   name: meta-agent
   namespace: keel-system
 spec:
-  replicas: 1
+  replicas: 2
   strategy: {type: Recreate}
   selector:
     matchLabels: {app: meta-agent}
@@ -36,6 +36,13 @@ spec:
             - secretRef: {name: keel-meta-agent}
             - secretRef: {name: keel-meta-bridge}
           env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef: {fieldPath: metadata.name}
+            - name: KEEL_TRACE_BUFFER_PATH
+              value: .keel/instances/$(POD_NAME)/traces
+            - name: KEEL_AUDIT_SPOOL_PATH
+              value: .keel/instances/$(POD_NAME)/audit-spool.jsonl
             - name: KEEL_GIT_CI_TOKEN
               valueFrom:
                 secretKeyRef: {name: git-ci-github, key: KEEL_GIT_CI_TOKEN}
