@@ -83,8 +83,10 @@ public class AgentController {
     }
 
     @GetMapping("/{name}")
-    public R<AgentDetail> detail(@PathVariable String name) {
-        return R.ok(evaluations.withGate(agentRegistryService.detail(name)));
+    public R<AgentDetail> detail(@PathVariable String name,
+            @RequestParam(defaultValue = "true") boolean includeRuntimeEvidence) {
+        return R.ok(evaluations.withGate(includeRuntimeEvidence
+                ? agentRegistryService.detail(name) : agentRegistryService.registeredDetail(name)));
     }
 
     @PostMapping("/{name}/chat")
@@ -96,14 +98,14 @@ public class AgentController {
     @GetMapping("/{name}/sessions")
     public R<java.util.Map<String, Object>> sessions(@PathVariable String name, @RequestParam(required = false) String cursor) {
         var owner = sessions.requireOwner();
-        var env = agentRegistryService.detail(name).summary().env();
+        var env = agentRegistryService.registeredDetail(name).summary().env();
         return R.ok(sessions.list(name, env, owner, cursor));
     }
 
     @PostMapping("/{name}/sessions")
     public R<java.util.Map<String, Object>> createSession(@PathVariable String name) {
         var owner = sessions.requireOwner();
-        var env = agentRegistryService.detail(name).summary().env();
+        var env = agentRegistryService.registeredDetail(name).summary().env();
         return R.ok(sessions.create(name, env, owner));
     }
 

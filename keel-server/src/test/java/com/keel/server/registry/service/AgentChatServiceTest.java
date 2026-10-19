@@ -25,7 +25,7 @@ class AgentChatServiceTest {
     private String auditEnv;
     private String forwardedSession;
     private final AgentRegistryService registry = new AgentRegistryService(null, null, null, null, null, null) {
-        @Override public AgentDetail detail(String name) { return current; }
+        @Override public AgentDetail registeredDetail(String name) { return current; }
         @Override public String invokeEndpoint(String name) { return endpoint; }
     };
     private final AgentEndpointClient endpoints = new AgentEndpointClient() {

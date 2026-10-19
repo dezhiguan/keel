@@ -444,7 +444,7 @@ watch(name, async (agent) => {
   if (!agent) return
   loading.value = true
   try {
-    const result = await getAgent(agent)
+    const result = await getAgent(agent, false)
     if (agent !== name.value) return
     detail.value = result
   } catch (error) {

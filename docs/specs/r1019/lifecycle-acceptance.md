@@ -141,3 +141,9 @@ qa-tools 首轮52条中有5条超时/断流被SDK丢弃，页面47条仍通过�
 - memory部署后ev_ce67d496752e4c56a518af32607b24a8：51条、1.00、完整通过；tool prodScore=0.95、catalog prodScore=0.80，正确来自当时已发布的ev68，而非旧dev/prod混用。暂未发布这一新1.00，准备下一轮核验未发布结果不污染基线。
 - 下一次启动连续两次约60秒504，active接口200且无新任务；页面持续错误已恢复，未虚构运行号。定位EvalJobs.start/reconcile误用包含外部链路证据的详情查询，至多8个串行trace读取阻塞控制路径。补eval-start-without-observation.md，控制路径只读登记数据，保留资源ACTIVE与实例就绪校验；待部署验证。
 - 正式RPM1页面验证首请求成功trace2ad6be18a8e013e5324c1f305f7b4a19，第二次LLM_RATE_LIMITED trace75fa22fd15dc8c5ce75a7478f231bcc9，限制与预算已恢复并回读验证。恢复后的新会话正常返回final、trace4509a3b5fdc8a6ae3ef1ad5a00ec6842。
+
+## b7部署后的门禁与页面性能测量
+
+- 集群直接确认keel-server:b7e5cbfc64d2两个新副本就绪；GitHub状态接口期间反复502且流水线queued状态滞后，CI39277176712已成功，不把状态接口滞后误写成应用未部署。
+- 同一memory评测启动修复前两次约60020ms/504，修复后202、浏览器资源计时69.7ms，创建ev_6b7b3384f10b4ba6817db9f9eedabe43。该轮51条、1.00、完整通过；基线仍tool0.95/catalog0.80，未采用未发布ce67的1.00。已通过页面发布staging/prod v2，镜像仍ec8。证据eval-start-after-b7-timing.json及对应运行/发布文件。
+- 四个调试入口均可输入，但memory约24秒、routing约37秒。进一步计时routing详情API25095ms、会话API11744ms，确认相同的外部链路补证污染调试与会话读取。新增debug-without-observation.md及可选includeRuntimeEvidence契约；控制入口保留全部原校验，调试页显式跳过观测补证，完整抽屉默认保持完整证据。待部署后复测，不以“能输入”掩盖长耗时。

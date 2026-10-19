@@ -4187,7 +4187,10 @@ export interface operations {
     };
     getAgent: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 是否补充运行观测证据；调试页可关闭以独立于外部观测读取登记信息 */
+                includeRuntimeEvidence?: boolean;
+            };
             header?: never;
             path: {
                 name: components["parameters"]["AgentName"];

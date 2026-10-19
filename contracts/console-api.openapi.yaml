@@ -351,6 +351,11 @@ paths:
       tags: [agents]
       operationId: getAgent
       summary: 智能体详情（抽屉）
+      parameters:
+        - name: includeRuntimeEvidence
+          in: query
+          description: 是否补充运行观测证据；调试页可关闭以独立于外部观测读取登记信息
+          schema: { type: boolean, default: true }
       responses:
         "200":
           description: OK

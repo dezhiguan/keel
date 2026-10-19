@@ -32,8 +32,8 @@ export function mergeUsage<T extends AgentSummary>(agent: T, usage?: AgentSummar
 
 export type AgentDetail = components['schemas']['AgentDetail']
 
-export function getAgent(name: string) {
-  return get<AgentDetail>(`/agents/${encodeURIComponent(name)}`)
+export function getAgent(name: string, includeRuntimeEvidence?: boolean) {
+  return get<AgentDetail>(`/agents/${encodeURIComponent(name)}`, { params: { includeRuntimeEvidence } })
 }
 
 export function recheckAgent(name: string) {

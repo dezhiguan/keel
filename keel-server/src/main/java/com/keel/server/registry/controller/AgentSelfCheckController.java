@@ -22,7 +22,7 @@ public class AgentSelfCheckController {
     }
     @PostMapping("/{name}/self-check")
     public R<SelfCheckService.Report> check(@PathVariable String name) {
-        var detail = registry.detail(name);
+        var detail = registry.registeredDetail(name);
         if (detail.summary().status() == AgentStatus.RETIRED
                 || detail.resources().isEmpty() || detail.resources().stream().anyMatch(r -> !"ACTIVE".equals(r.status()))) {
             throw new KeelException(ErrorCode.GW_AGENT_OFFLINE, "智能体尚未开通或已下线");

@@ -39,7 +39,7 @@ public class ToolInvokeController {
         var principal=ConsolePrincipal.current();
         if(principal==null || !"SERVICE".equals(principal.mode())) throw denied();
         var agent=principal.username();
-        var detail=registry.detail(agent);
+        var detail=registry.registeredDetail(agent);
         if(detail.summary().status()==AgentStatus.RETIRED) throw denied();
         var manifests = registeredManifest(agent, env);
         String resourceEnv = resourceEnvironment(env, !manifests.isEmpty(),

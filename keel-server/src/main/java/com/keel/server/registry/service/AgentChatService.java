@@ -62,7 +62,7 @@ public class AgentChatService {
         if (sessionId != null && !sessionId.matches("[A-Za-z0-9_-]{1,128}")) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "sessionId 格式不正确");
         }
-        var detail = registry.detail(name);
+        var detail = registry.registeredDetail(name);
         var status = detail.summary().status();
         var env = detail.summary().env();
         if (status == com.keel.server.registry.model.enums.AgentStatus.RETIRED
@@ -166,7 +166,7 @@ public class AgentChatService {
         if (text == null || text.isBlank()) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, ErrorCode.SERVER_INVALID_PARAM.message());
         }
-        var detail = registry.detail(name);
+        var detail = registry.registeredDetail(name);
         var status = detail.summary().status();
         var env = detail.summary().env();
         if (status == com.keel.server.registry.model.enums.AgentStatus.RETIRED
@@ -186,7 +186,7 @@ public class AgentChatService {
 
     public void channelStream(String name, String text, String channel, String userId, OutputStream output) {
         if (text == null || text.isBlank()) throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "输入不能为空");
-        var detail = registry.detail(name);
+        var detail = registry.registeredDetail(name);
         if (detail.summary().status() != com.keel.server.registry.model.enums.AgentStatus.ONLINE) {
             throw new KeelException(ErrorCode.GW_AGENT_OFFLINE, "智能体未上线");
         }
