@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import AgentName from '@/components/AgentName.vue'
 import Pager from '@/components/Pager.vue'
-import StatusPill from '@/components/StatusPill.vue'
 import {
-  createAlertRule,
   exportModelBills,
   getModelGateway,
   previewRoute,
@@ -16,23 +13,11 @@ import {
   updateModelBudget,
   type ModelGateway,
 } from '@/api/models'
-import {
-  billClock,
-  billStatusLabel,
-  capabilityLabel,
-  groupLabel,
-  healthPill,
-  limitLabel,
-  metricLabel,
-  objectiveLabel,
-  routeReason,
-  thresholdLabel,
-  unitPrice,
-} from './modelBill'
+import { billClock, billStatusLabel, limitLabel, objectiveLabel } from './modelBill'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { useUserStore } from '@/stores/user'
-import { fmtN, orDash } from '@/utils/format'
+import { fmtN } from '@/utils/format'
 
 type PageSize = 10 | 20 | 50 | 100
 type GatewayKey = NonNullable<ModelGateway['keys']>[number]
@@ -64,40 +49,74 @@ const pendingObjective = ref<Objective | null>(null)
 const routeBusy = ref(false)
 const previewAlias = ref('')
 const previewModel = ref('')
-const previewText = ref('选择 Key 和模型后试算，显示策略版本和实际会尝试的模型。')
+const previewText = ref('选择 Key 和模型后试算，结果来自薄网关。')
 const previewTone = ref<'info' | 'warn'>('info')
-const ruleOpen = ref(false)
-const ruleName = ref('')
-const ruleMetric = ref('budget')
-const ruleThreshold = ref(0.8)
-const ruleWindow = ref('15m')
-const ruleGroup = ref('alias')
 
 const models = computed(() => data.value?.models ?? [])
 const keys = computed(() => data.value?.keys ?? [])
 const bills = computed(() => data.value?.bills ?? [])
-const modelRows = computed(() => models.value.slice((modelPage.value - 1) * modelSize.value, modelPage.value * modelSize.value))
-const keyRows = computed(() => keys.value.slice((keyPage.value - 1) * keySize.value, keyPage.value * keySize.value))
-const chains = computed(() => keys.value.filter((key) => (key.models?.length ?? 0) > 0))
-const selectedKey = computed(() => keys.value.find((key) => key.alias === selectedAlias.value) ?? null)
-const previewChoices = computed(() => keys.value.find((key) => key.alias === previewAlias.value)?.models ?? [])
+const failedBills = computed(() => bills.value.filter((bill) => bill.status === 'FAILED'))
 const admin = computed(() => userStore.user?.platformRole === 'ADMIN')
 const objective = computed(() => data.value?.routePolicy?.objective)
 const policyVersion = computed(() => data.value?.routePolicy?.version)
+const selectedKey = computed(() => keys.value.find((key) => key.alias === selectedAlias.value) ?? null)
+const previewChoices = computed(() => keys.value.find((key) => key.alias === previewAlias.value)?.models ?? [])
+const keyRows = computed(() => keys.value.slice((keyPage.value - 1) * keySize.value, keyPage.value * keySize.value))
 
-const usage = (spent = 0, budget = 1) => Math.min(100, ((spent) / budget) * 100)
-const barColor = (percent: number) => (percent > 80 ? 'var(--bad)' : percent > 60 ? 'var(--warn)' : 'var(--teal)')
+const channels = computed(() => models.value.map((model) => {
+  const name = model.model || ''
+  const users = keys.value.filter((key) => key.models?.includes(name))
+  const envs = [...new Set(users.map((key) => key.env).filter(Boolean))]
+  const caps = users.map((key) => key.rpm).filter((rpm): rpm is number => rpm != null)
+  const total = keys.value.length
+  const used = users.length
+  const percent = total ? Math.round((used / total) * 100) : 0
+  return {
+    model,
+    host: channelHost(model.provider),
+    envs: envs.length ? envs.join('、') : '—',
+    rpmLabel: caps.length ? String(Math.max(...caps)) : '不限制',
+    used,
+    total,
+    percent,
+    tone: percent > 85 ? 'p-warn' : 'p-ok',
+    color: percent > 85 ? 'var(--warn)' : 'var(--soft)',
+    usage: usageText(model),
+    health: healthView(model),
+  }
+}))
+const channelRows = computed(() => channels.value.slice((modelPage.value - 1) * modelSize.value, modelPage.value * modelSize.value))
 
-function fmtTimeout(rate?: number | null) {
-  if (rate == null || Number.isNaN(rate)) return '—'
-  const pct = rate * 100
+const sameEnvModels = computed(() => {
+  const env = selectedKey.value?.env
+  if (!env) return models.value
+  const names = new Set(keys.value.filter((key) => key.env === env).flatMap((key) => key.models ?? []))
+  const listed = models.value.filter((model) => names.has(model.model || ''))
+  return listed.length ? listed : models.value
+})
+
+function channelHost(provider?: string | null) {
+  const name = (provider || '').toLowerCase()
+  if (name.includes('dash') || name.includes('qwen') || name.includes('百炼')) return 'dashscope.aliyuncs.com'
+  if (name.includes('deepseek')) return 'api.deepseek.com'
+  return '—'
+}
+
+function usageText(model: GatewayModel) {
+  if (model.errorRate == null || Number.isNaN(model.errorRate)) return model.calls == null ? '—' : `${fmtN(model.calls)} 次`
+  const pct = model.errorRate * 100
   return pct === 0 ? '0%' : `${pct.toFixed(1)}%`
 }
 
-function timeoutStyle(status?: string) {
-  if (status === 'warn') return { color: 'var(--warn)' }
-  if (status === 'bad') return { color: 'var(--bad)' }
-  return undefined
+function healthView(model: GatewayModel) {
+  if (model.priceConfigured === false) return { tone: 'p-bad', label: '未配单价' }
+  if (model.drift) return { tone: 'p-bad', label: '配置漂移' }
+  if (model.status === 'bad') return { tone: 'p-bad', label: '异常' }
+  if (model.status === 'warn') return { tone: 'p-warn', label: '波动' }
+  if (model.health === 'LIVE') return { tone: 'p-ok', label: '有真实调用' }
+  if (model.health === 'PROBED') return { tone: 'p-soft', label: '已探测' }
+  if (model.health === 'CONFIGURED') return { tone: 'p-mute', label: '已配置' }
+  return { tone: 'p-mute', label: '—' }
 }
 
 function yuan(value?: number | null) {
@@ -105,27 +124,18 @@ function yuan(value?: number | null) {
   return `¥${value.toFixed(Math.abs(value) > 0 && Math.abs(value) < 0.01 ? 6 : 2)}`
 }
 
-function priceOf(model: GatewayModel) {
-  return unitPrice(model.inputCnyPerToken, model.outputCnyPerToken, model.cacheCnyPerToken, model.priceVersion)
-}
-
-function channelOf(model: GatewayModel) {
-  const provider = (model.provider || 'unknown').toLowerCase()
-  return `${model.model}@${provider}`
-}
-
 function selectKey(key: GatewayKey) {
   selectedAlias.value = key.alias ?? ''
   const current = key.dailyBudgetCny ?? 30
   const stepped = Math.round(current / 5) * 5
-  nextBudget.value = Math.min(200, Math.max(10, stepped))
+  nextBudget.value = Math.min(200, Math.max(10, stepped || 10))
 }
 
 async function load() {
   loading.value = true
   try {
     data.value = await getModelGateway({ env: envStore.env, range: '24h' })
-    clamp(modelPage, modelSize.value, models.value.length)
+    clamp(modelPage, modelSize.value, channels.value.length)
     clamp(keyPage, keySize.value, keys.value.length)
     const current = keys.value.find((key) => key.alias === selectedAlias.value) ?? keys.value[0]
     if (current) selectKey(current)
@@ -162,7 +172,7 @@ async function saveBudget() {
   saving.value = true
   try {
     await updateModelBudget(key.alias, nextBudget.value)
-    ElMessage.success(`已更新 ${key.agent} 日预算为 ¥${nextBudget.value}`)
+    ElMessage.success(`已更新 ${key.alias} 日预算为 ¥${nextBudget.value}`)
     await load()
   } catch (error) {
     ElMessage.error(`调整配额失败：${toKeelError(error).message}`)
@@ -256,25 +266,6 @@ async function simulate() {
   }
 }
 
-async function saveRule() {
-  if (!ruleName.value.trim()) return
-  try {
-    await createAlertRule({
-      name: ruleName.value.trim(),
-      metric: ruleMetric.value,
-      threshold: ruleThreshold.value,
-      window: ruleWindow.value,
-      groupBy: ruleGroup.value,
-    })
-    ruleName.value = ''
-    ruleOpen.value = false
-    ElMessage.success('已新建告警规则')
-    await load()
-  } catch (error) {
-    ElMessage.error(`新建规则失败：${toKeelError(error).message}`)
-  }
-}
-
 async function exportBills() {
   try {
     const csv = await exportModelBills({ env: envStore.env, range: '24h' })
@@ -299,7 +290,7 @@ watch(() => envStore.env, load, { immediate: true })
 </script>
 
 <template>
-  <div v-loading="loading">
+  <div v-loading="loading" class="models">
     <div class="vh">
       <h2>模型与成本</h2>
     </div>
@@ -309,197 +300,209 @@ watch(() => envStore.env, load, { immediate: true })
       <button type="button" :class="{ on: tab === 'route' }" @click="tab = 'route'">路由</button>
     </div>
 
-    <template v-if="tab === 'model'">
-      <div class="card">
-        <table class="t">
-          <thead>
-            <tr>
-              <th>模型</th>
-              <th>渠道</th>
-              <th>能力</th>
-              <th>单价 输入 / 输出 / 缓存</th>
-              <th>24h 调用</th>
-              <th>P95</th>
-              <th>超时率</th>
-              <th>成本</th>
-              <th>健康</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="model in modelRows" :key="model.model">
-              <td class="mono">{{ model.model }}</td>
-              <td>{{ orDash(model.provider) }}</td>
-              <td class="cap">{{ capabilityLabel(model.role, model.embedding) }}</td>
-              <td class="mono price">
-                {{ priceOf(model).prices }}
-                <div class="mut ver">{{ priceOf(model).version }}</div>
-              </td>
-              <td class="mono">{{ fmtN(model.calls) }}</td>
-              <td class="mono">{{ orDash(model.p95) }}</td>
-              <td class="mono" :style="timeoutStyle(model.status)">{{ fmtTimeout(model.errorRate) }}</td>
-              <td class="mono">{{ model.priceConfigured === false || model.costCny == null ? '—' : yuan(model.costCny) }}</td>
-              <td class="health">
-                <StatusPill v-bind="healthPill(model)" />
-                <button v-if="model.health !== 'LIVE'" v-write class="btn sm" type="button" @click="probe(model.model)">探测</button>
-              </td>
-            </tr>
-            <tr v-if="!modelRows.length"><td colspan="9" class="empty">这个环境还没有模型</td></tr>
-          </tbody>
-        </table>
-        <Pager v-model:page="modelPage" v-model:size="modelSize" :total="models.length" />
-      </div>
+    <div v-show="tab === 'model'">
       <div class="card">
         <h3>
-          账单
-          <small>近 24 小时 · 待计费 {{ data?.pendingCount ?? 0 }}</small>
+          渠道
           <span class="sp" />
-          <button class="btn sm" type="button" @click="exportBills">导出</button>
+          <button class="btn sm" type="button" @click="exportBills">导出账单</button>
         </h3>
         <table class="t">
           <thead>
             <tr>
-              <th>时间</th>
-              <th>requestId</th>
-              <th>智能体</th>
+              <th>渠道</th>
               <th>模型</th>
-              <th>路由</th>
-              <th>tokens</th>
-              <th>费用</th>
+              <th>绑定环境</th>
+              <th title="RPM：每分钟请求数">厂商上限 RPM<br><small>每分钟请求数</small></th>
+              <th>已分配</th>
+              <th>当前用量</th>
               <th>状态</th>
+              <th>熔断（按渠道）</th>
+              <th />
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(bill, index) in bills" :key="`${bill.attemptId || bill.requestId}-${index}`">
-              <td class="mono">{{ billClock(bill.ts) }}</td>
-              <td class="mono">{{ orDash(bill.requestId) }}</td>
-              <td><AgentName :id="bill.agent" /></td>
-              <td class="mono">{{ orDash(bill.model) }}</td>
-              <td><span class="pill nd p-soft">{{ routeReason(bill.routeVersion) }}</span></td>
-              <td class="mono">{{ bill.inputTokens == null || bill.outputTokens == null ? '—' : fmtN(bill.inputTokens + bill.outputTokens) }}</td>
-              <td class="mono">{{ bill.costCny == null ? '—' : yuan(bill.costCny) }}</td>
-              <td><span class="pill" :class="bill.status === 'PENDING' ? 'p-warn' : bill.status === 'FAILED' ? 'p-bad' : 'p-ok'">{{ billStatusLabel(bill.status) }}</span></td>
-            </tr>
-            <tr v-if="!bills.length"><td colspan="8" class="empty">当前窗口没有账单</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </template>
-
-    <div v-else-if="tab === 'key'" class="row2">
-      <div class="card">
-        <table class="t">
-          <thead>
-            <tr>
-              <th>智能体</th>
-              <th>Key</th>
-              <th>可用模型</th>
-              <th>已结算 + 预留 / 日预算</th>
-              <th>RPM / TPM</th>
-              <th>并发</th>
-              <th>状态</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="key in keyRows"
-              :key="key.alias"
-              class="click"
-              :class="{ sel: key.alias === selectedAlias }"
-              @click="selectKey(key)"
-            >
-              <td><AgentName :id="key.agent" /></td>
-              <td class="mono">{{ key.alias }} · v{{ key.version ?? 1 }}</td>
-              <td class="mono">{{ key.models?.length }}</td>
+            <tr v-for="row in channelRows" :key="row.model.model">
+              <td class="nm"><b>{{ row.model.provider || '—' }}</b><small>{{ row.host }}</small></td>
+              <td>{{ row.model.model }}</td>
+              <td>{{ row.envs }}</td>
+              <td class="mono">{{ row.rpmLabel }}</td>
               <td>
-                <div class="budget-line">
-                  <span class="mono">{{ yuan(key.spentCny) }} + {{ yuan(key.reservedCny) }}</span>
-                  <span class="mono mut">¥{{ key.dailyBudgetCny }}</span>
-                </div>
-                <div class="bar"><i :style="{ width: `${usage((key.spentCny ?? 0) + (key.reservedCny ?? 0), key.dailyBudgetCny)}%`, background: barColor(usage((key.spentCny ?? 0) + (key.reservedCny ?? 0), key.dailyBudgetCny)) }" /></div>
+                <div class="bar"><i :style="{ width: `${row.percent}%`, background: row.color }" /></div>
+                <span class="mono alloc">{{ row.used }} / {{ row.total }} · {{ row.percent }}%</span>
               </td>
-              <td class="mono limit">{{ limitLabel(key.rpm) }} / {{ limitLabel(key.tpm) }}</td>
-              <td class="mono">{{ limitLabel(key.concurrency) }}</td>
+              <td class="mono">{{ row.usage }}</td>
+              <td><span class="pill" :class="row.health.tone">{{ row.health.label }}</span></td>
+              <td><span class="pill p-mute">未接入</span></td>
               <td>
-                <StatusPill v-if="key.status === 'BLOCKED'" tone="idle" label="已吊销" />
-                <StatusPill v-else-if="usage((key.spentCny ?? 0) + (key.reservedCny ?? 0), key.dailyBudgetCny) > 60" tone="degraded" :label="`${Math.round(usage((key.spentCny ?? 0) + (key.reservedCny ?? 0), key.dailyBudgetCny))}%`" />
-                <StatusPill v-else tone="ok" label="有效" />
+                <button v-if="row.model.health !== 'LIVE'" v-write class="btn sm" type="button" @click="probe(row.model.model)">探测</button>
               </td>
             </tr>
-            <tr v-if="!keyRows.length"><td colspan="7" class="empty">这个环境还没有虚拟 Key</td></tr>
+            <tr v-if="!channelRows.length"><td colspan="9" class="empty">这个环境还没有模型</td></tr>
           </tbody>
         </table>
-        <Pager v-model:page="keyPage" v-model:size="keySize" :total="keys.length" />
-      </div>
-      <div class="card">
-        <h3>配额 · <span class="mono">{{ selectedKey?.alias || '—' }}</span></h3>
-        <template v-if="selectedKey">
-          <div class="kv">
-            <span>可用模型</span><b>{{ selectedKey.models?.join('、') || '—' }}</b>
-            <span>RPM / TPM</span><b class="mono">{{ limitLabel(selectedKey.rpm) }} / {{ limitLabel(selectedKey.tpm) }}</b>
-            <span>并发</span><b class="mono">{{ limitLabel(selectedKey.concurrency) }}</b>
-            <span>今日已用</span><b class="mono">{{ yuan(selectedKey.spentCny) }} + {{ yuan(selectedKey.reservedCny) }}</b>
-          </div>
-          <div class="field">
-            <label>调整为：<b class="budget-now">¥{{ nextBudget }}</b> <span class="mut">当前 ¥{{ selectedKey.dailyBudgetCny }}</span></label>
-            <input v-model.number="nextBudget" class="budget-range" type="range" min="10" max="200" step="5" :disabled="selectedKey.status === 'BLOCKED'">
-          </div>
-          <div class="ops">
-            <button v-if="selectedKey.status !== 'BLOCKED'" v-write class="btn pri" type="button" :disabled="saving" @click="saveBudget">保存</button>
-            <button v-if="admin && selectedKey.status !== 'BLOCKED'" v-write class="btn" type="button" @click="openRotation(selectedKey)">轮换</button>
-          </div>
-        </template>
-        <p v-else class="empty">还没有可选的 Key</p>
+        <Pager v-model:page="modelPage" v-model:size="modelSize" :total="channels.length" />
       </div>
     </div>
 
-    <template v-else>
+    <div v-show="tab === 'key'">
       <div class="row2">
         <div class="card">
-          <h3>
-            路由策略
-            <small class="mono">v{{ policyVersion ?? '—' }} · {{ objectiveLabel(objective) }}</small>
-            <span class="sp" />
-            <button v-if="admin" v-write class="btn sm" type="button" :disabled="routeBusy" @click="rollback">回滚</button>
-          </h3>
-          <div class="chipsel">
-            <button
-              v-for="item in OBJECTIVES"
-              :key="item.id"
-              type="button"
-              :class="{ on: objective === item.id }"
-              @click="askObjective(item.id)"
-            >{{ item.label }}</button>
-          </div>
-          <div class="kv route-rules">
-            <span>先用指定模型</span><b>请求里写了模型就先用它</b>
-            <span>降级条件</span><b>超时或 5xx 只切换一次</b>
-            <span>不降级</span><b>401、403 和预算不足。向量模型不降级</b>
-            <span>熔断</span><b>同一渠道连续 2 次失败后跳过 60 秒，冷却后放行一次探测</b>
-          </div>
-          <h3 class="subhead">降级链</h3>
+          <h3>Key 份额 <small>点一行查看这把 Key 在网关上的配额</small></h3>
+          <div class="mut legend">RPM = 每分钟请求数 · TPM = 每分钟 Token 数（输入 + 输出）· 并发 = 同时进行中的请求数</div>
           <table class="t">
+            <thead>
+              <tr>
+                <th>Key</th>
+                <th title="RPM：每分钟请求数">允许的渠道 · RPM（每分钟请求数）</th>
+                <th>路由覆盖</th>
+                <th title="TPM：每分钟 Token 数">TPM（每分钟 Token 数）</th>
+                <th title="同时进行中的请求数">并发</th>
+              </tr>
+            </thead>
             <tbody>
-              <tr v-for="key in chains" :key="key.alias">
+              <tr
+                v-for="key in keyRows"
+                :key="key.alias"
+                class="click"
+                :class="{ sel: key.alias === selectedAlias }"
+                @click="selectKey(key)"
+              >
                 <td class="mono">{{ key.alias }}</td>
-                <td>{{ key.models?.join(' → ') }}</td>
+                <td>
+                  <span v-for="name in key.models ?? []" :key="name" class="pill nd p-mute share">{{ name }} · {{ limitLabel(key.rpm) }}</span>
+                  <span v-if="!(key.models ?? []).length" class="mut">—</span>
+                </td>
+                <td>
+                  <span v-if="key.models?.length" class="pill p-ok">已覆盖</span>
+                  <span v-else class="pill p-bad">缺模型</span>
+                </td>
+                <td class="mono">{{ key.tpm == null ? '不限制' : key.tpm.toLocaleString('zh-CN') }}</td>
+                <td class="mono">{{ limitLabel(key.concurrency) }}</td>
               </tr>
-              <tr v-if="!chains.length"><td class="empty">这个环境还没有降级链</td></tr>
+              <tr v-if="!keyRows.length"><td colspan="5" class="empty">这个环境还没有虚拟 Key</td></tr>
             </tbody>
           </table>
-          <h3 class="subhead">渠道熔断</h3>
-          <table class="t">
-            <tbody>
-              <tr v-for="model in models" :key="model.model">
-                <td class="mono">{{ channelOf(model) }}</td>
-                <td class="mono" :style="timeoutStyle(model.status)">{{ fmtTimeout(model.errorRate) }}</td>
-                <td><span class="pill p-mute">未接入</span></td>
-              </tr>
-              <tr v-if="!models.length"><td class="empty">还没有渠道</td></tr>
-            </tbody>
-          </table>
+          <Pager v-model:page="keyPage" v-model:size="keySize" :total="keys.length" />
         </div>
         <div class="card">
-          <h3>路由试算</h3>
+          <h3>分配份额 · <span class="mono">{{ selectedKey?.alias || '—' }}</span></h3>
+          <template v-if="selectedKey">
+            <div class="field">
+              <label>允许的渠道（只列同环境）</label>
+              <div v-for="model in sameEnvModels" :key="model.model" class="ch-row">
+                <label>
+                  <input type="checkbox" disabled :checked="selectedKey.models?.includes(model.model || '')">
+                  {{ model.provider || '渠道' }}
+                  <span class="mut">{{ model.model }}</span>
+                </label>
+                <input class="inp rpm" type="text" disabled :value="limitLabel(selectedKey.rpm)" title="RPM：每分钟请求数">
+              </div>
+            </div>
+            <div class="share-grid">
+              <div class="field">
+                <label>TPM（每分钟 Token 数，输入 + 输出）</label>
+                <input class="inp" type="text" disabled :value="selectedKey.tpm == null ? '不限制' : selectedKey.tpm.toLocaleString('zh-CN')">
+              </div>
+              <div class="field">
+                <label>并发</label>
+                <input class="inp" type="text" disabled :value="limitLabel(selectedKey.concurrency)">
+              </div>
+            </div>
+            <div class="field">
+              <label>日预算：<b class="budget-now">¥{{ nextBudget }}</b> <span class="mut">当前 ¥{{ selectedKey.dailyBudgetCny }}</span></label>
+              <input v-model.number="nextBudget" class="budget-range" type="range" min="10" max="200" step="5" :disabled="selectedKey.status === 'BLOCKED'">
+            </div>
+            <div v-if="selectedKey.models?.length" class="pbanner ok">
+              已允许的模型：{{ selectedKey.models.join('、') }}。
+              <div class="mut">今日 {{ yuan(selectedKey.spentCny) }} + {{ yuan(selectedKey.reservedCny) }} / ¥{{ selectedKey.dailyBudgetCny }}</div>
+            </div>
+            <div v-else class="pbanner bad">这把 Key 没有允许的模型，请求发不出去。</div>
+            <div class="ops">
+              <button v-if="selectedKey.status !== 'BLOCKED'" v-write class="btn pri" type="button" :disabled="saving" @click="saveBudget">保存</button>
+              <button v-if="admin && selectedKey.status !== 'BLOCKED'" v-write class="btn" type="button" @click="openRotation(selectedKey)">轮换</button>
+            </div>
+          </template>
+          <p v-else class="empty">还没有可选的 Key</p>
+        </div>
+      </div>
+      <div class="card">
+        <h3>
+          最近失败的请求
+          <small>来自近 24 小时账单</small>
+          <span class="sp" />
+          <button class="btn sm" type="button" @click="exportBills">导出</button>
+        </h3>
+        <table class="t">
+          <thead><tr><th>时间</th><th>Key</th><th>结果</th><th>原因</th></tr></thead>
+          <tbody>
+            <tr v-for="(bill, index) in failedBills" :key="`${bill.attemptId || bill.requestId}-${index}`">
+              <td class="mono">{{ billClock(bill.ts) }}</td>
+              <td class="mono">{{ bill.alias || '—' }}</td>
+              <td><span class="pill p-bad">{{ billStatusLabel(bill.status) }}</span></td>
+              <td class="mut">{{ bill.model || '—' }} · {{ yuan(bill.costCny) }}</td>
+            </tr>
+            <tr v-if="!failedBills.length"><td colspan="4" class="mut">当前窗口没有失败请求</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div v-show="tab === 'route'">
+      <div class="card">
+        <h3>
+          路由表
+          <span class="pill nd p-soft mono">已发布 v{{ policyVersion ?? '—' }}</span>
+          <small>{{ objectiveLabel(objective) }}</small>
+          <span class="sp" />
+          <button v-if="admin" v-write class="btn sm" type="button" :disabled="routeBusy" @click="rollback">回滚</button>
+          <button v-if="admin" v-write class="btn pri sm" type="button" :disabled="routeBusy || !pendingObjective" @click="confirmObjective">发布</button>
+        </h3>
+        <div class="chipsel">
+          <button
+            v-for="item in OBJECTIVES"
+            :key="item.id"
+            type="button"
+            :class="{ on: (pendingObjective ?? objective) === item.id }"
+            @click="askObjective(item.id)"
+          >{{ item.label }}</button>
+        </div>
+        <table class="t route-table">
+          <thead>
+            <tr>
+              <th>Key</th>
+              <th>条件</th>
+              <th>主模型</th>
+              <th>降级</th>
+              <th>策略</th>
+              <th>Key 覆盖</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="key in keys" :key="key.alias">
+              <td class="mono">{{ key.alias }}</td>
+              <td>{{ key.env || '—' }}</td>
+              <td>{{ key.models?.[0] || '—' }}</td>
+              <td>{{ key.models && key.models.length > 1 ? key.models.slice(1).join(' → ') : '无' }}</td>
+              <td>{{ objectiveLabel(objective) }}</td>
+              <td>
+                <span v-if="key.models?.length" class="pill p-ok">已覆盖</span>
+                <span v-else class="pill p-bad">缺模型</span>
+              </td>
+            </tr>
+            <tr v-if="!keys.length"><td colspan="6" class="empty">这个环境还没有降级链</td></tr>
+          </tbody>
+        </table>
+        <div class="pbanner ok">请求里写了模型就先用它。超时或 5xx 只切换一次；401、403 和预算不足不降级。熔断状态没有列表，渠道页显示未接入。</div>
+      </div>
+      <div class="card">
+        <h3>
+          路由试算
+          <small>按当前已发布策略，向薄网关查询这把 Key 会尝试的模型</small>
+          <span class="sp" />
+          <button v-write class="btn pri sm" type="button" :disabled="routeBusy" @click="simulate">试算</button>
+        </h3>
+        <div class="share-grid">
           <div class="field">
             <label>虚拟 Key</label>
             <select v-model="previewAlias" class="inp">
@@ -512,89 +515,12 @@ watch(() => envStore.env, load, { immediate: true })
               <option v-for="name in previewChoices" :key="name" :value="name">{{ name }}</option>
             </select>
           </div>
-          <button v-write class="btn pri sim" type="button" :disabled="routeBusy" @click="simulate">试算</button>
-          <div class="banner" :class="previewTone">{{ previewText }}</div>
         </div>
+        <div class="banner" :class="previewTone">{{ previewText }}</div>
       </div>
-      <div class="card">
-        <h3>
-          告警规则
-          <small>触发后进入运行总览</small>
-          <span class="sp" />
-          <button v-write class="btn sm pri" type="button" @click="ruleOpen = true">+ 新建规则</button>
-        </h3>
-        <table class="t">
-          <thead><tr><th>规则</th><th>指标</th><th>阈值</th><th>窗口</th><th>分组</th><th>状态</th></tr></thead>
-          <tbody>
-            <tr v-for="rule in data?.alertRules ?? []" :key="rule.id">
-              <td><b>{{ rule.name }}</b></td>
-              <td>{{ metricLabel(rule.metric) }}</td>
-              <td class="mono">{{ thresholdLabel(rule.metric, rule.threshold) }}</td>
-              <td>{{ rule.window || '—' }}</td>
-              <td>{{ groupLabel(rule.groupBy) }}</td>
-              <td><span class="pill p-ok">启用</span></td>
-            </tr>
-            <tr v-if="!(data?.alertRules ?? []).length"><td colspan="6" class="empty">还没有告警规则</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </template>
+    </div>
 
     <Teleport to="body">
-      <div v-if="pendingObjective" class="mask on" @click="pendingObjective = null" />
-      <div v-if="pendingObjective" class="modal on" role="dialog" aria-label="发布路由策略">
-        <div class="mh">发布路由策略</div>
-        <div class="mb">
-          <p>将从「{{ objectiveLabel(objective) }}」发布为「{{ objectiveLabel(pendingObjective) }}」，版本加一。已发出的请求不受影响。</p>
-        </div>
-        <div class="mf">
-          <button class="btn" type="button" :disabled="routeBusy" @click="pendingObjective = null">取消</button>
-          <button v-write class="btn pri" type="button" :disabled="routeBusy" @click="confirmObjective">发布</button>
-        </div>
-      </div>
-
-      <div v-if="ruleOpen" class="mask on" @click="ruleOpen = false" />
-      <div v-if="ruleOpen" class="modal on" role="dialog" aria-label="新建告警规则">
-        <div class="mh">新建告警规则</div>
-        <div class="mb">
-          <div class="field">
-            <label>规则名称</label>
-            <input v-model="ruleName" class="inp" placeholder="例如 预算接近上限">
-          </div>
-          <div class="field">
-            <label>指标</label>
-            <select v-model="ruleMetric" class="inp">
-              <option value="budget">已结算 + 预留 / 日预算</option>
-              <option value="usage_missing">待计费条数</option>
-              <option value="channel_failure">错误率</option>
-            </select>
-          </div>
-          <div class="grid2">
-            <div class="field">
-              <label>阈值</label>
-              <input v-model.number="ruleThreshold" class="inp" type="number" min="0" step="0.1">
-            </div>
-            <div class="field">
-              <label>窗口</label>
-              <input v-model="ruleWindow" class="inp" placeholder="15m">
-            </div>
-          </div>
-          <div class="field">
-            <label>分组</label>
-            <select v-model="ruleGroup" class="inp">
-              <option value="alias">智能体</option>
-              <option value="model">模型</option>
-              <option value="channel">渠道</option>
-              <option value="env">环境</option>
-            </select>
-          </div>
-        </div>
-        <div class="mf">
-          <button class="btn" type="button" @click="ruleOpen = false">取消</button>
-          <button v-write class="btn pri" type="button" @click="saveRule">新建</button>
-        </div>
-      </div>
-
       <div v-if="rotating" class="mask on" @click="closeRotation" />
       <div v-if="rotating" class="modal on" role="dialog" aria-label="轮换虚拟 Key">
         <div class="mh">轮换 Key · {{ rotating.alias }}</div>
@@ -618,18 +544,23 @@ watch(() => envStore.env, load, { immediate: true })
 </template>
 
 <style scoped>
+.row2 { grid-template-columns: 1.25fr 1fr; }
+.pbanner { display: block; margin: 10px 0; }
+.t tr.sel { background: #131d2e; }
+.bar { min-width: 90px; }
+th small { font-weight: 400; }
+.legend { font-size: 11.5px; margin: -6px 0 8px; }
+.alloc { font-size: 11.5px; }
+.share { margin: 1px 2px; }
+.ch-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px solid #172235; }
+.ch-row label { display: flex; gap: 8px; align-items: center; flex: 1; margin: 0; color: var(--text); font-size: 12.8px; }
+.ch-row .mut { font-size: 11.5px; }
+.ch-row .rpm { width: 90px; flex: none; }
+.share-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .budget-range { accent-color: var(--acc); width: 100%; }
 .budget-now { color: var(--white); }
-.budget-line { display: flex; justify-content: space-between; font-size: 12px; }
-.cap, .price { font-size: 12px; }
-.ver { font-size: 10.5px; }
-.health, .ops { white-space: nowrap; }
-.health .btn { margin-left: 6px; }
-.ops { display: flex; gap: 8px; margin-top: 14px; }
-.limit { font-size: 12px; }
-.subhead { margin-top: 16px; }
-.sim { width: 100%; margin-top: 8px; }
-.route-rules { margin-top: 14px; }
+.ops { display: flex; gap: 8px; margin-top: 8px; }
+.route-table { margin-top: 12px; }
+.chipsel { margin-bottom: 12px; }
 .banner { margin-top: 12px; }
-.t tr.sel { background: #131d2e; }
 </style>
