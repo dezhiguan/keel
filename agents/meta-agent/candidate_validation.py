@@ -214,8 +214,8 @@ def parse(reply: str | None, *, allow_legacy_literals: bool = False,
             continue
         try:
             trees[path] = ast.parse(source, filename=path)
-        except SyntaxError:
-            errors.append(path + " 语法错误")
+        except SyntaxError as error:
+            errors.append(f"{path}:{error.lineno}:{error.offset} 语法错误：{error.msg}")
     if errors:
         return {}, errors
     if not allow_legacy_literals:

@@ -76,7 +76,9 @@ def main():
         if found:
             detail=api.request('GET',f'/api/v1/skills/{payload["name"]}')
             version=next((v for v in detail['versions'] if v['version']==payload['version']),None)
-            if not version or any(version.get(field)!=payload[field] for field in ('instructions','tools','examples','cases')):
+            # SkillService trims the authored text; Markdown keeps its final newline.
+            if (not version or version.get('instructions')!=payload['instructions'].strip()
+                    or any(version.get(field)!=payload[field] for field in ('tools','examples','cases'))):
                 raise RuntimeError('技能版本已存在但内容不同；必须人工发布新版本')
         else:
             created=api.request('POST','/api/v1/skills',payload)

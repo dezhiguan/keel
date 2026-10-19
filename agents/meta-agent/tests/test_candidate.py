@@ -707,3 +707,21 @@ def test_async_test_markers_are_accepted(mark):
     import ast
     from candidate_validation import _async_test_errors
     assert _async_test_errors(ast.parse(mark + "\nasync def test_extra():\n    await execute({}, None)")) == []
+
+
+def test_initial_generation_repairs_syntax_with_location_and_supported_response_format():
+    good = {'files': [{'path':'role.py','content':ROLE_CODE},
+                      {'path':'prompts/role.md','content':'岗位任务：{{input}}'},
+                      {'path':'tests/test_role.py','content':TEST_CODE}]}
+    bad = {'files': [*good['files'][:2],
+                     {'path':'tests/test_role.py','content':TEST_CODE+'\ndef test_broken(:\n    pass\n'}]}
+    model = FakeModel([json.dumps(bad), json.dumps(good)])
+    work = {'requirement': {'target_agent':'spec-agent','template':'graph-agent','tools':[]},
+            'draft': {'spec':{'goal':'结构化需求'},'manifest':{'spec':{'tools':[]}}}}
+    assert asyncio.run(generate(work, model_context(model))) == good
+    feedback = model.prompts[1][-1]['content']
+    assert 'tests/test_role.py:' in feedback and '语法错误：invalid syntax' in feedback
+    assert '必须返回三个完整文件，不能用edits' in feedback
+    assert '可用精确edits' not in feedback
+    assert 'def test_broken' not in feedback
+    assert json.loads(model.prompts[1][-2]['content']) == bad

@@ -31,7 +31,8 @@ def logical_key_request(current,routes):
         raise ValueError('只允许调整当前有效的 meta-agent-dev Key')
     rows=[row for row in routes['data'] if row['logical']=='chat-default']
     if not rows: raise ValueError('网关未发布 chat-default')
-    targets=sorted({row[field] for row in rows for field in ('primary','secondary')})
+    # The current gateway authorizes the logical name and expands its live targets.
+    targets=sorted({'chat-default'}|{row[field] for row in rows for field in ('primary','secondary')})
     if set(targets).issubset(current['models']): return None
     return {'alias':current['alias'],'models':sorted(set(current['models'])|set(targets)),
             **{key:current[key] for key in ('fallback','dailyBudgetCny','allowFallback')},
