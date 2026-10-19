@@ -825,6 +825,6 @@ h3 .btn { margin-left: 8px; }
 .ops { display: flex; gap: 8px; margin-top: 8px; }
 .route-table { margin-top: 0; }
 .banner { margin-top: 12px; }
-.btn.quota { background: #ffd24a; border-color: #ffd24a; color: #2a2208; font-weight: 600; }
-.btn.quota:hover { filter: brightness(1.06); }
+.btn.quota { background: var(--acc); border-color: var(--acc); color: #1d0e05; font-weight: 700; }
+.btn.quota:hover { filter: brightness(1.08); }
 </style>
