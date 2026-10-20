@@ -50,6 +50,20 @@ class OverviewReadModelTest {
             assertThat(result.dataStatus().get("state")).isEqualTo("stale");
         } finally {model.close();}
     }
+    @Test void aFreshAggregateStillReportsDelayedTraceSourceAndPreservesItsKnownValues() {
+        var store=new MemorySnapshots();
+        store.snapshots.put("overview-v1:all:24h",new InsightSnapshots.Snapshot(store.encode(value(42L).withStatus(Map.of("state","ready","complete",true))),Instant.now(),false));
+        var service=new OverviewService(null,null,null,null,null,null,null);
+        var sync=new TraceIndexSync(null,null,null) {
+            @Override public Map<String,Object> status(Instant from,Instant to) {return Map.of("state","stale","complete",true);}
+        };
+        var model=new OverviewReadModel(store,service,sync);
+        try {
+            var result=model.read("all","24h");
+            assertThat(result.kpi().calls()).isEqualTo(42L);
+            assertThat(result.dataStatus().get("state")).isEqualTo("stale");
+        } finally {model.close();}
+    }
     static OverviewService.Overview value(Long calls) {
         return new OverviewService.Overview(new OverviewService.Kpi(2,3,1,1,calls,null,null,null,.85,0,null),List.of(),List.of(),List.of(),null,List.of(),LayerValue.empty());
     }

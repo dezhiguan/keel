@@ -31,6 +31,9 @@ public class OverviewReadModel {
         var window="30d".equals(range)?Duration.ofDays(30):"7d".equals(range)?Duration.ofDays(7):Duration.ofHours(24);
         var trace=result.dataStatus()==null ? traceSync.status(Instant.now().minus(window),null) : result.dataStatus();
         if(!Boolean.TRUE.equals(trace.get("complete"))) {status.put("complete",false);if(!snap.failed()) status.put("state","loading");}
+        var liveTrace=traceSync.status(Instant.now().minus(window),null);
+        if(java.util.Set.of("stale","unavailable").contains(String.valueOf(trace.get("state")))
+                || java.util.Set.of("stale","unavailable").contains(String.valueOf(liveTrace.get("state")))) status.put("state",snap.at()==null?"unavailable":"stale");
         return result.withStatus(status);
     }
     @Scheduled(initialDelay=5000,fixedDelay=30000) public void tick() {for(var key:requested) schedule(key);}

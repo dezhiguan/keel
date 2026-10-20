@@ -33,6 +33,7 @@ let loadSequence = 0
 let controller: AbortController | undefined
 let jobsController: AbortController | undefined
 let poll: ReturnType<typeof setTimeout> | undefined
+let pipelinePoll: ReturnType<typeof setTimeout> | undefined
 let disposed = false
 const failed = ref(false)
 
@@ -86,16 +87,18 @@ async function load() {
 }
 
 async function loadPipeline() {
+  clearTimeout(pipelinePoll)
   jobsController?.abort()
   const current = new AbortController()
   jobsController = current
   try {
     const jobs = await listDevflowJobs({ view: 'compact' }, current.signal)
     if (!current.signal.aborted && !disposed) pipeline.value = pipelineCards(jobs)
-  } catch { /* The independent pipeline cards stay unknown when unavailable. */ }
+  } catch { /* Retain the last independent pipeline snapshot when unavailable. */ }
+  finally { if (!disposed) pipelinePoll = setTimeout(loadPipeline, 30000) }
 }
 loadPipeline()
-onBeforeUnmount(() => { disposed = true; ++loadSequence; clearTimeout(poll); controller?.abort(); jobsController?.abort() })
+onBeforeUnmount(() => { disposed = true; ++loadSequence; clearTimeout(poll); clearTimeout(pipelinePoll); controller?.abort(); jobsController?.abort() })
 
 function open(name?: string) {
   if (!name) return
