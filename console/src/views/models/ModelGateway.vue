@@ -216,6 +216,7 @@ function selectKey(key: GatewayKey) {
 }
 
 function quotaLimits(key: GatewayKey) {
+  if (!key.shares?.length && key.rpm == null && key.tpm == null && key.concurrency == null) return '未设限'
   const rpm = key.shares?.length ? '按渠道' : key.rpm == null ? '未设限' : key.rpm.toLocaleString('zh-CN')
   const tpm = key.tpm == null ? '未设限' : key.tpm.toLocaleString('zh-CN')
   const concurrency = key.concurrency == null ? '未设限' : key.concurrency.toLocaleString('zh-CN')
@@ -704,32 +705,33 @@ watch(tab, (value) => {
           <div class="mut legend">RPM = 每分钟请求数 · TPM = 每分钟 Token 数（输入 + 输出）· 并发 = 同时进行中的请求数</div>
           <div class="key-table-scroll">
           <table class="t key-table">
+            <colgroup>
+              <col style="width: 24%">
+              <col style="width: 7%">
+              <col style="width: 25%">
+              <col style="width: 15%">
+              <col style="width: 9%">
+              <col style="width: 12%">
+              <col style="width: 8%">
+            </colgroup>
             <thead>
               <tr>
-                <th>智能体</th>
+                <th>智能体 / Key</th>
                 <th>环境</th>
-                <th>Key 别名 · 版本</th>
-                <th>允许渠道</th>
-                <th>路由覆盖</th>
-                <th title="RPM：每分钟请求数；TPM：每分钟 Token 数；并发：同时进行中的请求数">RPM / TPM / 并发</th>
                 <th>已结算 + 预留 / 日预算</th>
-                <th />
+                <th>允许渠道</th>
+                <th>路由</th>
+                <th title="RPM / TPM / 并发：每分钟请求数 / 每分钟 Token 数 / 同时进行中的请求数">限流</th>
+                <th>操作</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="key in keyRows" :key="key.alias">
-                <td>{{ key.agent || '—' }}</td>
+                <td class="key-identity">
+                  <div class="key-agent" :title="key.agent">{{ key.agent || '—' }}</div>
+                  <div class="mono mut key-alias" :title="`${key.alias} · ${key.version == null ? '—' : `v${key.version}`}`">{{ key.alias }} · {{ key.version == null ? '—' : `v${key.version}` }}</div>
+                </td>
                 <td><span class="pill nd p-mute">{{ key.env || '—' }}</span></td>
-                <td class="mono key-alias">{{ key.alias }} · {{ key.version == null ? '—' : `v${key.version}` }}</td>
-                <td>
-                  <span v-for="pill in channelPills(key, liveChannels)" :key="pill" class="pill nd p-mute share">{{ pill }}</span>
-                  <span v-if="!channelPills(key, liveChannels).length" class="mut">—</span>
-                </td>
-                <td>
-                  <span v-if="keyGap(key).length" class="pill p-bad">缺 {{ keyGap(key).join('、') }}</span>
-                  <span v-else class="pill p-ok">已覆盖</span>
-                </td>
-                <td class="mono key-limits">{{ quotaLimits(key) }}</td>
                 <td class="key-budget">
                   <div class="budget-amounts mono"><span>{{ yuan(key.spentCny) }} + {{ yuan(key.reservedCny) }}</span><span class="mut">{{ yuan(key.dailyBudgetCny) }}</span></div>
                   <div v-if="budgetProgress(key) != null" class="bar" role="progressbar" aria-label="Key 日预算使用率" :aria-valuenow="Math.min(100, Math.round(budgetProgress(key)!))" :aria-valuetext="`${yuan(key.spentCny)} + ${yuan(key.reservedCny)} / ${yuan(key.dailyBudgetCny)}`" aria-valuemin="0" aria-valuemax="100">
@@ -737,10 +739,21 @@ watch(tab, (value) => {
                   </div>
                 </td>
                 <td>
+                  <div class="key-channels">
+                    <span v-for="pill in channelPills(key, liveChannels)" :key="pill" class="pill nd p-mute share" :title="pill">{{ pill.replace(/^DashScope(?= ·|$)/, 'Qwen') }}</span>
+                    <span v-if="!channelPills(key, liveChannels).length" class="mut">—</span>
+                  </div>
+                </td>
+                <td>
+                  <span v-if="keyGap(key).length" class="pill p-bad" :title="`缺少模型授权：${keyGap(key).join('、')}`" :aria-label="`缺少模型授权：${keyGap(key).join('、')}`">缺授权</span>
+                  <span v-else class="pill p-ok">已覆盖</span>
+                </td>
+                <td><div class="mono key-limits" :title="`RPM / TPM / 并发：${quotaLimits(key)}`">{{ quotaLimits(key) }}</div></td>
+                <td>
                   <button class="btn sm quota" type="button" @click="openQuota(key)">配额</button>
                 </td>
               </tr>
-              <tr v-if="!keyRows.length"><td colspan="8" class="empty">这个环境还没有虚拟 Key</td></tr>
+              <tr v-if="!keyRows.length"><td colspan="7" class="empty">这个环境还没有虚拟 Key</td></tr>
             </tbody>
           </table>
           </div>
@@ -982,10 +995,16 @@ watch(tab, (value) => {
 
 <style scoped>
 .key-table-scroll { overflow-x: auto; }
-.key-table { min-width: 1220px; }
-.key-table th, .key-alias, .key-limits { white-space: nowrap; }
-.key-budget { min-width: 245px; }
-.budget-amounts { display: flex; justify-content: space-between; gap: 18px; white-space: nowrap; margin-bottom: 5px; }
+.key-table { table-layout: fixed; width: 100%; min-width: 880px; }
+.key-table th, .key-table td { padding: 10px 8px; }
+.key-table th { white-space: nowrap; }
+.key-agent, .key-alias, .key-limits { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.key-agent { font-weight: 600; }
+.key-alias { font-size: 11px; margin-top: 3px; }
+.key-channels { display: flex; flex-wrap: wrap; gap: 4px; }
+.key-channels .share { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; padding: 2px 6px; font-size: 11px; }
+.key-table .pill { white-space: nowrap; }
+.budget-amounts { display: flex; justify-content: space-between; gap: 8px; white-space: nowrap; margin-bottom: 5px; font-size: 12px; }
 .quota-budget { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 10px; }
 .quota-budget b { color: var(--text); }
 .quota-budget input[type="range"] { width: 100%; accent-color: var(--acc); }
