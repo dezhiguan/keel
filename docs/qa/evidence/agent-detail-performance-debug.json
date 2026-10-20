@@ -1,0 +1,366 @@
+{
+  "commits": [
+    "83e0bcf1d525a0462abfd3ab1b73b80d442c020a",
+    "56ef69745e893727ef1802ede3e78b0858b05a73",
+    "1c6af92f91466e037b6196f53f585bbdff6a0f0a"
+  ],
+  "workflows": {
+    "frontendAndDebug": {
+      "ci": 39380488901,
+      "cd": 39380488869,
+      "status": "success"
+    },
+    "final": {
+      "ci": 39382428983,
+      "cd": 39382428969,
+      "status": "success"
+    },
+    "backendTests": 367,
+    "frontendFocusedTests": 29
+  },
+  "deployment": {
+    "server": {
+      "image": "keel-server:1c6af92f9146",
+      "ready": "2/2"
+    },
+    "console": {
+      "image": "keel-console:56ef69745e89",
+      "ready": "2/2"
+    },
+    "metaAgent": {
+      "image": "meta-agent:81e225616a68",
+      "version": "v4",
+      "ready": "2/2",
+      "businessManifestUnchanged": true
+    }
+  },
+  "performance": {
+    "beforeDefaultDetailMs": 23184,
+    "firstLightDetailMs": 73,
+    "finalColdDetailMs": 712,
+    "finalPage": {
+      "status": 200,
+      "report": {
+        "elements": {
+          "kind": "workflow",
+          "items": [
+            {
+              "name": "模型自己调工具",
+              "passed": false,
+              "detail": "manifest 缺少核心声明"
+            },
+            {
+              "name": "agent loop",
+              "passed": false,
+              "detail": "manifest 缺少核心声明"
+            },
+            {
+              "name": "记忆",
+              "passed": false,
+              "detail": "manifest 缺少核心声明"
+            },
+            {
+              "name": "有版本的提示词",
+              "passed": true,
+              "detail": "真实模型调用关联了提示词版本"
+            },
+            {
+              "name": "模型接入",
+              "passed": true,
+              "detail": "manifest 已声明"
+            },
+            {
+              "name": "知识检索",
+              "passed": null,
+              "detail": "未声明（可选）"
+            },
+            {
+              "name": "评测",
+              "passed": true,
+              "detail": "最近一次回归通过"
+            },
+            {
+              "name": "护栏与权限",
+              "passed": true,
+              "detail": "manifest 已声明"
+            },
+            {
+              "name": "人在回路",
+              "passed": null,
+              "detail": "无高风险工具"
+            },
+            {
+              "name": "可观测与审计",
+              "passed": true,
+              "detail": "已有审计事件"
+            },
+            {
+              "name": "身份与预算",
+              "passed": true,
+              "detail": "manifest 已声明"
+            },
+            {
+              "name": "多智能体委派",
+              "passed": null,
+              "detail": "未声明（可选）"
+            }
+          ],
+          "missing": [
+            "模型自己调工具",
+            "agent loop",
+            "记忆"
+          ]
+        },
+        "manifestHash": "a2db03c59b384d78d6f8b5959a2746fd1b4aef4b0d48b16f655b48c9d90ff820",
+        "checkedAt": "2026-10-20T06:54:40.118924109Z",
+        "unavailable": []
+      },
+      "requests": [
+        {
+          "path": "/api/v1/agents/meta-agent?includeRuntimeEvidence=false",
+          "ms": 56,
+          "bytes": 5901
+        },
+        {
+          "path": "/api/v1/agents/meta-agent/elements",
+          "ms": 1545,
+          "bytes": 1229
+        },
+        {
+          "path": "/api/v1/agents/meta-agent/elements",
+          "ms": 42,
+          "bytes": 1229
+        }
+      ],
+      "overlay": false,
+      "cells": [
+        "✗\n1. 模型自己调工具",
+        "✗\n2. agent loop",
+        "✗\n3. 记忆",
+        "✓\n4. 有版本的提示词",
+        "✓\n5. 模型接入",
+        "·\n6. 知识检索\n未声明",
+        "✓\n7. 评测",
+        "✓\n8. 护栏与权限",
+        "·\n9. 人在回路\n—",
+        "✓\n10. 可观测与审计",
+        "✓\n11. 身份与预算",
+        "·\n12. 多智能体委派\n未声明"
+      ],
+      "spinners": 0,
+      "savedSelfCheck": "✓\nagent.yaml 校验通过\nkeel/v1\n✓\n薄网关 虚拟 Key 已发放\n1 个模型 · ¥50/天\n✓\nLangfuse Key 已写入 Secret\nkeel-meta-agent\n✓\n/v1/health 返回 200\n✓\n调用协议自检\n383e79aa22df2fcb461093f3a91f3134\n✓\n追踪上报正常\n383e79aa22df2fcb461093f3a91f3134\n✓\n高风险工具已绑定审批\n✓\n评测门禁\n1.00 ≥ 0.99"
+    },
+    "history": {
+      "beforeAllJobsBytes": 110524,
+      "afterTargetedPageBytes": 256,
+      "afterTargetedPageMs": 49,
+      "path": "/api/v1/devflow/jobs?targetAgent=meta-agent&limit=10",
+      "requestedOnlyAfterTab": true
+    }
+  },
+  "browserFaultTests": {
+    "injectedOnlyIntoBrowser": true,
+    "delay": {
+      "baseVisible": true,
+      "wholeDrawerOverlay": false,
+      "tailSpinners": true,
+      "undeclaredNotLoading": true
+    },
+    "networkFailure": {
+      "baseVisible": true,
+      "spinners": 0,
+      "unavailableText": true,
+      "retryShown": true
+    },
+    "retry": {
+      "interceptionRemoved": true,
+      "realRequestsRestored": true,
+      "unavailableCleared": true
+    },
+    "closeCancellation": {
+      "sent": 1,
+      "aborted": 1,
+      "reopenedWithoutStaleFailure": true
+    },
+    "allInterceptionsRestored": true
+  },
+  "debug": {
+    "streamSuspend": {
+      "status": 200,
+      "traceId": "f6319a59a81264b51ac1d848d109a9a6",
+      "waitingForHuman": true,
+      "no401": true,
+      "noFalseMissingFinal": true,
+      "noAutoResumeOrPublish": true
+    },
+    "nonstream": {
+      "status": 200,
+      "code": "OK",
+      "traceId": "24404fa0a2dc31e57600dc2c82945604",
+      "hasSpec": true,
+      "hasManifest": true,
+      "hasManifestYaml": true,
+      "sessionRefreshUsedAfterExpiredTestRequest": true
+    },
+    "finalStream": {
+      "status": 200,
+      "sessionId": "ss_a48530f8",
+      "traceId": "4f54c6fbed7c93ca0281e4d146ebe3d0",
+      "completed": true,
+      "savedMessageCount": 2,
+      "savedRoles": [
+        "user",
+        "agent"
+      ]
+    },
+    "acceptance": {
+      "statuses": {
+        "account": 200,
+        "agent": 200,
+        "messages": 200,
+        "trace": 200
+      },
+      "account": {
+        "userId": "54",
+        "displayName": "官德志",
+        "readOnly": false
+      },
+      "agent": {
+        "version": "v4",
+        "status": "ONLINE",
+        "instances": "2/2",
+        "manifestHash": "a2db03c59b384d78d6f8b5959a2746fd1b4aef4b0d48b16f655b48c9d90ff820",
+        "versions": [
+          {
+            "version": "v4",
+            "env": "dev",
+            "gatePassed": true,
+            "scoreTotal": 1,
+            "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/meta-agent:81e225616a68",
+            "ciRunUrl": null,
+            "releasedBy": "guandezhi",
+            "releasedAt": "2026-10-20T04:14:00.320272Z",
+            "state": "VERSION",
+            "publishedEnvs": [
+              "prod"
+            ]
+          },
+          {
+            "version": "v3",
+            "env": "dev",
+            "gatePassed": true,
+            "scoreTotal": 1,
+            "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/meta-agent:d81879d16590",
+            "ciRunUrl": null,
+            "releasedBy": "guandezhi",
+            "releasedAt": "2026-10-20T03:01:34.795686Z",
+            "state": "VERSION",
+            "publishedEnvs": []
+          },
+          {
+            "version": "v0",
+            "env": "dev",
+            "gatePassed": null,
+            "scoreTotal": null,
+            "image": null,
+            "ciRunUrl": null,
+            "releasedBy": "guandezhi",
+            "releasedAt": "2026-10-20T02:27:52.740005Z",
+            "state": "ARCHIVED",
+            "publishedEnvs": []
+          },
+          {
+            "version": "v2",
+            "env": "dev",
+            "gatePassed": true,
+            "scoreTotal": 1,
+            "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/meta-agent:b7d072817000",
+            "ciRunUrl": null,
+            "releasedBy": "guandezhi",
+            "releasedAt": "2026-10-19T20:39:48.253749Z",
+            "state": "VERSION",
+            "publishedEnvs": []
+          },
+          {
+            "version": "v1",
+            "env": "dev",
+            "gatePassed": true,
+            "scoreTotal": 1,
+            "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/meta-agent:44b8bf07ff73",
+            "ciRunUrl": null,
+            "releasedBy": "guandezhi",
+            "releasedAt": "2026-10-19T18:41:42.925813Z",
+            "state": "VERSION",
+            "publishedEnvs": []
+          }
+        ],
+        "instanceList": [
+          {
+            "instanceId": "meta-agent-6ff4c9b456-r97mz",
+            "source": "k8s",
+            "version": null,
+            "ready": true,
+            "lastSeenAt": "2026-10-20T06:57:31.391834Z"
+          },
+          {
+            "instanceId": "meta-agent-6ff4c9b456-wllhh",
+            "source": "k8s",
+            "version": null,
+            "ready": true,
+            "lastSeenAt": "2026-10-20T06:57:31.399673Z"
+          }
+        ]
+      },
+      "messages": {
+        "count": 2,
+        "roles": [
+          "user",
+          "agent"
+        ]
+      },
+      "trace": {
+        "summary": {
+          "traceId": "4f54c6fbed7c93ca0281e4d146ebe3d0",
+          "startedAt": "2026-10-20T06:55:43.321Z",
+          "sessionId": "5648ce92b379e0addb589ab46f2283013aa8a9b53d8eb4291885df82df700464",
+          "userId": "官德志",
+          "env": "dev",
+          "runId": "e21df2a9618e488da4bcf877f3c1847e",
+          "devflowJobId": "QA-DEBUG-1020",
+          "rootAgent": "meta-agent",
+          "agents": [
+            "meta-agent"
+          ],
+          "multiAgent": false,
+          "durationMs": 18871,
+          "tokens": 2532,
+          "status": "ok",
+          "blocked": false,
+          "cached": false,
+          "costCny": 0.00457,
+          "pendingBillCount": 0
+        },
+        "nodeCount": 3,
+        "generations": [
+          {
+            "promptName": "meta-agent/draft",
+            "promptVersion": 3,
+            "model": "chat-default",
+            "status": "ok"
+          }
+        ]
+      }
+    }
+  },
+  "cleanup": {
+    "qaSessionsDeleted": [
+      "ss_0df0e1bf",
+      "ss_a48530f8"
+    ],
+    "originalSessionPreserved": {
+      "id": "ss_97683fe8",
+      "messageCount": 0
+    },
+    "noDeliveryOrReleaseInvoked": true
+  }
+}
