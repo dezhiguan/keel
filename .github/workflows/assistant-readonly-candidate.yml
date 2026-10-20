@@ -20,7 +20,7 @@ jobs:
           java-version: '21'
           cache: maven
       - name: Verify authorization, persisted resource scope and existing protocol boundaries
-        run: mvn -pl :keel-server -am -Dtest=UserReadContextTest,ReadContextPayloadTest,DebugSseRelayTest,DebugBridgeAuthenticationTest,AgentEndpointClientTest,EmployeeReadServiceTest,EmployeeReadPersistenceTest,ServiceAssertionTest,ServiceIdentityFilterTest,AgentChatServiceTest,CodeCandidateServiceTest,ToolGrantPolicyTest -Dsurefire.failIfNoSpecifiedTests=false test
+        run: mvn -pl :keel-server -am -Dtest=UserReadContextTest,ReadContextPayloadTest,StreamRelayErrorTest,DebugSseRelayTest,DebugBridgeAuthenticationTest,AgentEndpointClientTest,EmployeeReadServiceTest,EmployeeReadPersistenceTest,ServiceAssertionTest,ServiceIdentityFilterTest,AgentChatServiceTest,CodeCandidateServiceTest,ToolGrantPolicyTest -Dsurefire.failIfNoSpecifiedTests=false test
       - id: registry
         run: bash deploy/ci/resolve-image.sh keel-server
       - uses: docker/login-action@v3

@@ -160,6 +160,10 @@ public class AgentController {
         var detail=agentRegistryService.registeredDetail(name);
         // Capture trusted identity on the authenticated servlet thread, before async streaming.
         var readContext=readContexts.issue(com.keel.server.auth.ConsolePrincipal.current(),name,detail.summary().env(),sessionId);
+        var relayTrace=com.keel.server.common.TraceIds.current();
+        if(relayTrace==null || relayTrace.isBlank())relayTrace=java.util.UUID.randomUUID().toString().replace("-","");
+        var errorTrace=relayTrace;
+        var relayRun="console-relay-"+java.util.UUID.randomUUID();
         response.setHeader("Cache-Control", "no-cache");
         response.setHeader("X-Accel-Buffering", "no");
         response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
@@ -167,13 +171,21 @@ public class AgentController {
             try {
                 chats.streamChat(name, text, sessionId, owner, remember, output, readContext, evaluationRun);
             } catch (RuntimeException error) {
-                var message = error.getMessage() == null ? "调用失败" : error.getMessage();
-                var frame = "event: error\ndata: " + json.writeValueAsString(java.util.Map.of(
-                        "code", "SERVER_INTERNAL_ERROR", "message", message, "trace_id", "", "run_id", "", "retryable", true)) + "\n\n";
+                org.slf4j.LoggerFactory.getLogger(AgentController.class).warn(
+                        "trace_id={} agent={} stream relay interrupted run_id={}",errorTrace,name,relayRun);
+                var frame = streamError(errorTrace,relayRun);
                 output.write(frame.getBytes(java.nio.charset.StandardCharsets.UTF_8));
                 output.flush();
             }
         };
+    }
+
+    /** These IDs identify the real console relay execution, never an invented agent run. */
+    static String streamError(String traceId,String relayRun) throws java.io.IOException {
+        var code=com.keel.common.error.ErrorCode.SERVER_INTERNAL_ERROR;
+        return "event: error\ndata: "+new ObjectMapper().writeValueAsString(java.util.Map.of(
+                "code",code.name(),"message","流式连接中断或处理失败，结果未完成，请重试",
+                "trace_id",traceId,"run_id",relayRun,"retryable",code.retryable()))+"\n\n";
     }
 
     @DeleteMapping("/{name}")
