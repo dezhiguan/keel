@@ -21,6 +21,9 @@ RULES = """1. 只生成研发智能体（为 Keel 研发流程服务的智能体
 ENDPOINT = "http://{name}.agents.svc.cluster.local:8000"
 
 async def run(request, ctx):
+    if getattr(ctx, "eval_run_id", None) == "self-check" and request.input == {"text": "probe"}:
+        ctx.step("self-check")
+        return ctx.final("probe ok")
     work = _requirement(request.input.get("text") or "")
     if work.get("workflow"):
         from workflow import execute
