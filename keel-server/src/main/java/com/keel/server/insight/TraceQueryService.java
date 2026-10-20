@@ -133,7 +133,12 @@ public class TraceQueryService {
             if (page < 1 || !java.util.Set.of(10,20,50,100).contains(size))
                 throw new KeelException(ErrorCode.SERVER_INVALID_PARAM,"分页参数无效");
             var result=index.list(page,size,agent,env,status,from,to,multiOnly,minDurationMs,jobId);
-            result.put("dataStatus",indexSync.status(from,to));
+            var freshness=indexSync.status(from,to);
+            var billing=index.billingSnapshot();
+            if(billing.failed() || (billing.at()!=null && billing.at().plusSeconds(180).isBefore(Instant.now()))) freshness.put("state","stale");
+            else if(billing.at()==null && "ready".equals(freshness.get("state"))) freshness.put("state","loading");
+            if(billing.at()!=null && freshness.get("updatedAt") instanceof Instant at && billing.at().isBefore(at)) freshness.put("updatedAt",billing.at());
+            result.put("dataStatus",freshness);
             if(!host.isBlank() && !projectId.isBlank()) result.put("langfuseUrl",host+"/project/"+projectId+"/traces");
             return present(result);
         }

@@ -83,6 +83,26 @@ class InsightReadModelPersistenceTest {
         assertThat(index.list(1,10,"a","prod","pending",null,null,false,null,null).get("total")).isEqualTo(0L);
         assertThat(index.list(1,10,"a","prod","ok",null,null,false,null,null).get("total")).isEqualTo(1L);
     }
+    @Test void pendingBillsOverrideAProvisionalZeroAndSettlementIsSharedWithTheLedgerAtomically() throws Exception {
+        write(List.of(node("guard","tr-bill","",0,"prod","a","",true)));
+        var ledger=snapshots.decode("""
+                {"bills":[{"traceId":"tr-bill","status":"PENDING","costCny":null}],"keys":[],"models":[],"rules":[]}
+                """,com.keel.server.insight.CostService.Ledger.class);
+        var owner=snapshots.claim("overview-ledger-v1",Duration.ofMinutes(1));
+        assertThat(index.replaceBills(owner,ledger)).isTrue();
+        var item=items(index.list(1,10,"","all",null,null,null,false,null,null)).getFirst();
+        assertThat(item.get("costCny")).isNull();assertThat(item.get("pendingBillCount")).isEqualTo(1);
+        assertThat(snapshots.read("overview-ledger-v1").payload()).isNotNull();
+        jdbc.update("UPDATE insight_snapshot SET retry_at=now() WHERE snapshot_key='overview-ledger-v1'");
+        owner=snapshots.claim("overview-ledger-v1",Duration.ofMinutes(1));
+        ledger=snapshots.decode("""
+                {"bills":[{"traceId":"tr-bill","status":"SETTLED","costCny":0.25}],"keys":[],"models":[],"rules":[]}
+                """,com.keel.server.insight.CostService.Ledger.class);
+        assertThat(index.replaceBills(owner,ledger)).isTrue();
+        item=items(index.list(1,10,"","all",null,null,null,false,null,null)).getFirst();
+        assertThat(item.get("costCny")).isEqualTo(.25);assertThat(item.get("pendingBillCount")).isNull();
+    }
+
     @Test void failedPageDoesNotMoveCheckpointAndReplacedLeaseCannotWriteIndex() throws Exception {
         var owner=snapshots.claim(TraceIndexStore.KEY,Duration.ofMinutes(1));
         snapshots.finish(TraceIndexStore.KEY,owner,Map.of("cursor","first"),Duration.ZERO);

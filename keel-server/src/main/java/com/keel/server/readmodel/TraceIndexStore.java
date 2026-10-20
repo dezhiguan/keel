@@ -129,6 +129,7 @@ public class TraceIndexStore {
         return jdbc.query("SELECT payload::text FROM insight_trace WHERE COALESCE(payload->>'_evaluation','false')<>'true' AND started_at>=? AND started_at<? AND (?='all' OR payload->>'env'=?)",
                 (rs,n)->map(rs.getString(1)),Timestamp.from(from),Timestamp.from(to),env,env);
     }
+    public InsightSnapshots.Snapshot billingSnapshot() { return snapshots.read("overview-ledger-v1"); }
     public boolean replaceBills(String owner, com.keel.server.insight.CostService.Ledger ledger) {
         return Boolean.TRUE.equals(transaction.execute(tx -> {
             if(!snapshots.lockOwner("overview-ledger-v1",owner)) return false;
@@ -138,7 +139,10 @@ public class TraceIndexStore {
                 if(bill.traceId()==null || bill.traceId().isBlank()) continue;
                 var value=totals.computeIfAbsent(bill.traceId(),k->new LinkedHashMap<>());
                 if("SETTLED".equals(bill.status()) && bill.costCny()!=null) value.merge("costCny",bill.costCny(),(a,b)->((Number)a).doubleValue()+((Number)b).doubleValue());
-                if("PENDING".equals(bill.status())) value.merge("pendingBillCount",1,(a,b)->((Number)a).intValue()+1);
+                if("PENDING".equals(bill.status())) {
+                    value.putIfAbsent("costCny",null);
+                    value.merge("pendingBillCount",1,(a,b)->((Number)a).intValue()+1);
+                }
             }
             jdbc.update("DELETE FROM insight_trace_bill");
             totals.forEach((id,value)->jdbc.update("INSERT INTO insight_trace_bill(trace_id,payload) VALUES (?,?::jsonb)",id,snapshots.encode(value)));
