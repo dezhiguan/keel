@@ -37,7 +37,7 @@ public class ReadCapabilityService {
         if(prior.isEmpty() || !request.path("expectedHash").asText().equals(prior.getFirst().get("manifest_hash")))throw denied("配置基线变化，请重新读取");
         var form=json.createObjectNode();form.set("knowledgeBases",request.path("knowledgeBases"));
         var kbs=catalog.resolveKnowledge(form);
-        if(kbs.size()!=1)throw denied("只允许明确授权的一个知识库");
+        if(kbs.size()>1)throw denied("最多允许明确授权的一个知识库");
         for(var tool:TOOLS.subList(3,6)) {
             if(!Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM agent_tool_grant g JOIN tool t ON t.name=g.tool_name WHERE g.agent_name=? AND g.tool_name=? AND g.status='ACTIVE' AND t.scope='SHARED' AND t.status='ONLINE')",Boolean.class,agent,tool)))throw denied("须先通过共享工具授权："+tool);
         }
@@ -45,14 +45,23 @@ public class ReadCapabilityService {
         try {manifest=(ObjectNode)json.readTree(String.valueOf(prior.getFirst().get("manifest")));}
         catch(Exception error){throw denied("登记清单无效");}
         var spec=manifest.withObject("/spec");
-        if(spec.path("tools").size()>0 || spec.path("knowledge").size()>0)throw denied("本接入流程仅适用于尚未配置工具和知识库的聊天基线");
+        if(spec.path("knowledge").size()>0)throw denied("已有知识范围，须单独审查升级");
+        if(spec.path("tools").size()>0) {
+            var existing=new HashSet<String>();
+            for(var tool:spec.path("tools")) {
+                if(!TOOLS.contains(tool.path("name").asText()) || !"read".equals(tool.path("access").asText()) || !"low".equals(tool.path("risk").asText()))
+                    throw denied("已有工具不符合固定只读升级边界");
+                existing.add(tool.path("name").asText());
+            }
+            if(!existing.equals(new HashSet<>(TOOLS)) || spec.path("tools").size()!=TOOLS.size())throw denied("已有工具集合不符合固定只读边界");
+        }
         var tools=spec.putArray("tools");TOOLS.forEach(name->tools.addObject().put("name",name).put("access","read").put("risk","low").put("approval","none"));
-        spec.putArray("knowledge").addObject().put("kb",kbs.getFirst());
+        if(!kbs.isEmpty())spec.putArray("knowledge").addObject().put("kb",kbs.getFirst());
         var text=manifest.toString();String hash;
         try{hash=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)));}
         catch(Exception error){throw new IllegalStateException(error);}
         // Dedicated provisioning preserves model keys, budget and existing Secret configuration.
-        secrets.upgradeKnowledge(agent,env,kbs);
+        if(!kbs.isEmpty())secrets.upgradeKnowledge(agent,env,kbs);
         jdbc.update("""
           INSERT INTO agent_version(agent_name,version,env,manifest_json,manifest_hash,released_by,released_at)
           VALUES (?,'v0',?,?::jsonb,?,?,clock_timestamp())
