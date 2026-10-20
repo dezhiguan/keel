@@ -553,7 +553,7 @@ onUnmounted(() => {
             </table>
             <div class="drawer-actions">
               <button v-write class="btn" type="button" @click="openGrant">+ 添加技能</button>
-              <RouterLink class="btn ghost" to="/tools">技能注册表 →</RouterLink>
+              <RouterLink class="btn ghost" :to="{ path: '/tools', query: { tab: 'skill' } }">技能注册表 →</RouterLink>
             </div>
             <p class="mut">授权后还需在 agent.yaml 的 spec.skills 锁定版本并重新部署，运行时才会加载。依赖工具仍要逐个授权；技能用例会并入评测集。</p>
           </template>

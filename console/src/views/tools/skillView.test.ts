@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { grantPayload } from '@/api/skills'
-import { cleanCases, cleanExamples, formatSkillWhen, lineDiff, sameSkillContent, skillNameError, sourceLabel, splitList, versionMeta } from './skillView'
+import { cleanCases, cleanExamples, formatSkillWhen, lineDiff, pageSlice, sameSkillContent, skillNameError, sourceLabel, splitList, versionMeta } from './skillView'
 
 describe('skill grant', () => {
   it('sends only the skill name and version', () => {
@@ -27,6 +27,13 @@ describe('skill grant', () => {
       { id: 'case-1', input: ' 没有资料 ', expectedOutput: '无法确认' },
       { input: '   ', expectedOutput: '丢掉' },
     ])).toEqual([{ id: 'case-1', input: '没有资料', expectedOutput: '无法确认' }])
+  })
+
+  it('pages the registry the same way as the tools pager', () => {
+    const items = Array.from({ length: 12 }, (_, index) => `s${index + 1}`)
+    expect(pageSlice(items, 1, 10)).toEqual(items.slice(0, 10))
+    expect(pageSlice(items, 2, 10)).toEqual(['s11', 's12'])
+    expect(pageSlice(items, 3, 10)).toEqual([])
   })
 
   it('diffs a version against the previous one and refuses an unchanged body', () => {

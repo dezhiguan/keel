@@ -80,3 +80,9 @@ export function versionMeta(version: { createdBy?: string; createdAt?: string; n
 export function sourceLabel(source?: string) {
   return source === 'EXPERIENCE' ? '经验沉淀' : '人工编写'
 }
+
+/** Client-side page slice; same defaults as tools Pager (page from 1). */
+export function pageSlice<T>(items: T[], page: number, size: number): T[] {
+  const start = (Math.max(1, page) - 1) * Math.max(1, size)
+  return items.slice(start, start + Math.max(1, size))
+}

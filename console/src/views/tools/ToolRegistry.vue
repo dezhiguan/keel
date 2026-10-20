@@ -10,7 +10,7 @@ import { getSkill, listSkills, publishSkill, revokeSkill, upgradeSkill, type Ski
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { RISK, fmtN } from '@/utils/format'
-import { cleanCases, cleanExamples, lineDiff, normalizeSkillName, sameSkillContent, SKILL_NAME_HINT, skillNameError, sourceLabel, splitList, versionMeta, type SkillCaseDraft } from './skillView'
+import { cleanCases, cleanExamples, lineDiff, normalizeSkillName, pageSlice, sameSkillContent, SKILL_NAME_HINT, skillNameError, sourceLabel, splitList, versionMeta, type SkillCaseDraft } from './skillView'
 
 const ACCESS = { READ: '读', WRITE: '写', EXEC: '执行' } as const
 const SCOPE = { PRIVATE: '私有', SHARED: '共享' } as const
@@ -21,7 +21,7 @@ const envStore = useEnvStore()
 const result = ref<ToolPage | null>(null)
 const loading = ref(false)
 const registering = ref(false)
-const tab = ref<'tool' | 'skill'>(route.query.skill ? 'skill' : 'tool')
+const tab = ref<'tool' | 'skill'>(route.query.skill || route.query.tab === 'skill' ? 'skill' : 'tool')
 const skills = ref<SkillSummary[]>([])
 const detail = ref<SkillDetail | null>(null)
 const selectedVersion = ref<number | null>(null)
@@ -30,9 +30,9 @@ const nameInvalid = ref(false)
 const editing = ref(false)
 const noteInvalid = ref(false)
 const savingSkill = ref(false)
-const registryOnly = ref(false)
 const seenStatus = new Map<string, string>()
 let pollTimer: ReturnType<typeof setInterval> | undefined
+const skillPager = reactive({ page: 1, size: 10 as 10 | 20 | 50 | 100 })
 const skillForm = reactive({
   name: '',
   ownerOrg: '',
@@ -66,6 +66,7 @@ const filter = reactive<{ scope: NonNullable<ListToolsQuery['scope']>; page: num
 })
 
 const selectedSkill = computed(() => typeof route.query.skill === 'string' ? route.query.skill : '')
+const pagedSkills = computed(() => pageSlice(skills.value, skillPager.page, skillPager.size))
 const versions = computed(() => [...(detail.value?.versions ?? [])].sort((left, right) => right.version - left.version))
 const latestVersion = computed(() => versions.value.find((item) => item.version === detail.value?.latest) ?? versions.value[0] ?? null)
 const currentVersion = computed(() => versions.value.find((item) => item.version === selectedVersion.value) ?? latestVersion.value)
@@ -90,6 +91,8 @@ const diffLines = computed(() => {
 async function loadSkills() {
   try {
     skills.value = (await listSkills()).items ?? []
+    const pages = Math.max(1, Math.ceil(skills.value.length / skillPager.size))
+    if (skillPager.page > pages) skillPager.page = 1
   } catch (error) {
     ElMessage.error(`加载技能失败：${toKeelError(error).message}`)
   }
@@ -141,17 +144,31 @@ async function loadDetail() {
 }
 
 function selectSkill(name: string) {
-  registryOnly.value = false
+  tab.value = 'skill'
   selectedVersion.value = null
   seenStatus.clear()
-  router.push({ query: { ...route.query, skill: name } })
+  router.push({ query: { ...route.query, tab: 'skill', skill: name } })
 }
 
 function showRegistry() {
-  registryOnly.value = true
+  stopPoll()
+  detail.value = null
+  const query = { ...route.query, tab: 'skill' }
+  delete query.skill
+  router.push({ query })
+}
+
+function openSkillList() {
+  tab.value = 'skill'
+  showRegistry()
+}
+
+function openToolList() {
+  tab.value = 'tool'
   stopPoll()
   const query = { ...route.query }
   delete query.skill
+  delete query.tab
   router.push({ query })
 }
 
@@ -349,8 +366,11 @@ async function submitRegister() {
 
 async function openSkillTab() {
   await loadSkills()
-  if (!registryOnly.value && !selectedSkill.value && skills.value[0]) selectSkill(skills.value[0].name)
-  else if (selectedSkill.value) await loadDetail()
+  if (selectedSkill.value) await loadDetail()
+  else {
+    detail.value = null
+    stopPoll()
+  }
 }
 
 watch(tab, (value) => {
@@ -358,7 +378,12 @@ watch(tab, (value) => {
   else stopPoll()
 })
 watch(selectedSkill, (name) => {
-  if (tab.value === 'skill' && name && !registryOnly.value) loadDetail()
+  if (tab.value !== 'skill') return
+  if (name) loadDetail()
+  else {
+    detail.value = null
+    stopPoll()
+  }
 })
 if (tab.value === 'skill') openSkillTab()
 else loadSkills()
@@ -367,6 +392,7 @@ watch(() => envStore.env, () => {
   if (filter.page === 1) load()
   else filter.page = 1
 }, { immediate: true })
+watch(() => skillPager.size, () => { skillPager.page = 1 })
 </script>
 
 <template>
@@ -374,17 +400,15 @@ watch(() => envStore.env, () => {
     <div class="vh">
       <h2>工具与技能</h2>
       <span v-if="tab === 'tool'" class="sub">统一注册，声明读写属性和风险等级。高风险工具的每次调用都会被挂起，送到审批中心</span>
+      <span v-else-if="selectedSkill" class="sub">技能 › <b>{{ selectedSkill }}</b></span>
       <span class="sp" />
+      <button v-if="tab === 'skill' && selectedSkill" class="btn" type="button" @click="showRegistry">← 注册表</button>
       <button v-if="tab === 'tool'" v-write class="btn pri" @click="openRegister">+ 注册 MCP 工具</button>
       <button v-else v-write class="btn pri" @click="openPublish">+ 发布技能</button>
     </div>
     <div class="chipsel" style="margin-bottom: 14px">
-      <button :class="{ on: tab === 'tool' }" @click="tab = 'tool'">工具 · {{ result?.total ?? 0 }}</button>
-      <button :class="{ on: tab === 'skill' }" @click="tab = 'skill'">技能 · {{ skills.length }}</button>
-    </div>
-    <div v-if="tab === 'skill'" class="chipsel" style="margin-bottom: 14px">
-      <button :class="{ on: registryOnly || !selectedSkill }" @click="showRegistry">注册表</button>
-      <button v-for="skill in skills" :key="skill.name" :class="{ on: !registryOnly && selectedSkill === skill.name }" @click="selectSkill(skill.name)">{{ skill.name }}</button>
+      <button :class="{ on: tab === 'tool' }" @click="openToolList">工具（tool）· {{ result?.total ?? 0 }}</button>
+      <button :class="{ on: tab === 'skill' }" @click="openSkillList">技能（skill）· {{ skills.length }}</button>
     </div>
     <div v-if="tab === 'tool'" class="toolbar">
       <div class="chipsel">
@@ -415,12 +439,12 @@ watch(() => envStore.env, () => {
       </table>
       <Pager v-model:page="filter.page" v-model:size="filter.size" :total="result?.total ?? 0" />
     </div>
-    <div v-else-if="registryOnly || !selectedSkill" class="card">
+    <div v-else-if="!selectedSkill" class="card">
       <table class="t">
         <thead><tr><th>技能</th><th>所有者</th><th>版本</th><th>依赖工具</th><th>风险</th><th>使用方</th><th>来源</th></tr></thead>
         <tbody>
           <tr v-if="!skills.length"><td colspan="7" class="empty">还没有技能</td></tr>
-          <tr v-for="skill in skills" :key="skill.name" class="click" @click="selectSkill(skill.name)">
+          <tr v-for="skill in pagedSkills" :key="skill.name" class="click" @click="selectSkill(skill.name)">
             <td class="nm"><b class="mono">{{ skill.name }}</b><small>{{ skill.description }}</small></td>
             <td>{{ skill.ownerOrg }}</td>
             <td class="mono">v{{ skill.version }}</td>
@@ -431,8 +455,9 @@ watch(() => envStore.env, () => {
           </tr>
         </tbody>
       </table>
+      <Pager v-model:page="skillPager.page" v-model:size="skillPager.size" :total="skills.length" />
     </div>
-    <div v-if="tab === 'skill' && !registryOnly && selectedSkill && detail" class="row2 skill">
+    <div v-if="tab === 'skill' && selectedSkill && detail" class="row2 skill">
       <div class="card">
         <h3>版本 <small>点击查看，与上一版对比</small><span class="sp" /><button v-write class="btn pri sm" type="button" @click="openEdit">编辑（另存为新版本）</button></h3>
         <div class="skill-split">
