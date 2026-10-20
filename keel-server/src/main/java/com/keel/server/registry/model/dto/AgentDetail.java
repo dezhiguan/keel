@@ -284,16 +284,22 @@ public record AgentDetail(
 
     /** 版本页一行。评测分和门禁由 VersionEvidence 按该版本的评测或发布记录补上。 */
     public record VersionRow(String version, String env, Boolean gatePassed, Double scoreTotal,
-                             String image, String ciRunUrl, String releasedBy, String releasedAt) {
+                             String image, String ciRunUrl, String releasedBy, String releasedAt,
+                             String state, List<String> publishedEnvs) {
         public static VersionRow of(AgentVersion row) {
             return new VersionRow(row.getVersion(), row.getEnv(), null, null, row.getImage(), null,
-                    row.getReleasedBy(), row.getReleasedAt() == null ? null : row.getReleasedAt().toString());
+                    row.getReleasedBy(), row.getReleasedAt() == null ? null : row.getReleasedAt().toString(), null, List.of());
         }
 
         public VersionRow withEvaluation(Boolean gate, Double score) {
             if (gate == null && score == null) return this;
             return new VersionRow(version, env, gate != null ? gate : gatePassed, score != null ? score : scoreTotal,
-                    image, ciRunUrl, releasedBy, releasedAt);
+                    image, ciRunUrl, releasedBy, releasedAt, state, publishedEnvs);
+        }
+
+        public VersionRow withLifecycle(String state, List<String> publishedEnvs) {
+            return new VersionRow(version, env, gatePassed, scoreTotal, image, ciRunUrl, releasedBy, releasedAt,
+                    state, List.copyOf(publishedEnvs));
         }
     }
 

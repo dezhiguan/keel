@@ -950,9 +950,13 @@ function agentBody(a){
     <tr><td>薄网关 虚拟 Key</td><td class="mono">${a.id}-${a.env}</td><td>${a.st==='RETIRED'?'<span class="pill p-mute">已吊销</span>':a.st==='DRAFT'?'<span class="pill p-mute">未创建</span>':'<span class="pill p-ok">有效</span>'}</td></tr>
     <tr><td>K8s Secret</td><td class="mono">keel-${a.id}</td><td>${a.st==='RETIRED'?'<span class="pill p-mute">已删除</span>':a.st==='DRAFT'?'<span class="pill p-mute">未创建</span>':'<span class="pill p-ok">已写入</span>'}</td></tr>
     <tr><td>Langfuse 数据集</td><td class="mono">${a.id}/main</td><td>${a.st==='DRAFT'?'<span class="pill p-mute">未导入</span>':'<span class="pill p-ok">已导入</span>'}</td></tr></tbody></table>`;
-  if(dTab==='ver')body=`<table class="t"><thead><tr><th>版本</th><th>环境</th><th>变更</th><th>评测分</th><th>门禁</th><th>时间</th></tr></thead><tbody>
-    ${a.ver==='—'?'<tr><td colspan="6" class="empty">还没有版本</td></tr>':`<tr><td class="mono">${a.ver}</td><td>${a.env}</td><td>${a.id==='offshore-wind'?'提示词 v13 · 精简安全提示':'当前版本'}</td><td class="mono">${a.score??'—'}</td><td>${a.gate?'<span class="pill p-ok">通过</span>':'<span class="pill p-bad">未通过</span>'}</td><td class="mono">09-29 10:20</td></tr>
-    <tr><td class="mono">上一版</td><td>${a.env==='prod'?'已下线':'prod'}</td><td>—</td><td class="mono">${a.score?(a.score+.02).toFixed(2):'—'}</td><td><span class="pill p-ok">通过</span></td><td class="mono">09-25 16:02</td></tr>`}</tbody></table>`;
+  // R1020：实现中的版本页将候选草稿独立展示；已发布同哈希草稿归档。
+  // 正式版本表列为：版本、来源环境、状态、当前发布环境、评测分、门禁、创建时间。
+  // 每行读取自身评测；发布环境由最新发布/回滚记录给出，不代表实例健康。
+  if(dTab==='ver')body=`<p class="mut">正式版本以“智能体 + 来源环境 + 版本号”唯一；当前发布环境按最新发布或回滚记录展示，不代表实例健康。</p>
+    ${a.st==='DRAFT'?`<h4>候选草稿</h4><p class="mut">${a.env} · 待评测 / 发布。草稿可更新，发布后生成正式版本。</p>`:''}
+    <h4>正式版本</h4><table class="t"><thead><tr><th>版本</th><th>来源环境</th><th>状态</th><th>当前发布环境</th><th>评测分</th><th>门禁</th><th>创建时间</th></tr></thead><tbody>
+    ${a.ver==='—'||a.st==='DRAFT'?'<tr><td colspan="7" class="empty">还没有正式版本</td></tr>':`<tr><td class="mono">${a.ver}</td><td>${a.env}</td><td>当前登记版本</td><td>${a.env==='prod'?'prod':'—'}</td><td class="mono">${a.score??'—'}</td><td>${a.gate?'<span class="pill p-ok">通过</span>':'<span class="pill p-bad">未通过</span>'}</td><td class="mono">09-29 10:20</td></tr>`}</tbody></table>`;
   return `<div class="dtabs">${tabs.map(([k,n])=>`<button data-act="dTab" data-k="${k}" data-id="${a.id}" class="${dTab===k?'on':''}">${n}</button>`).join('')}</div>${body}`;
 }
 function agentFoot(a){

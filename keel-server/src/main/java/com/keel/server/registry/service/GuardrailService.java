@@ -114,6 +114,7 @@ public class GuardrailService {
         if (version.id == 0 || !(version.manifest instanceof ObjectNode root)) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "这个智能体还没有登记 agent.yaml");
         }
+        var before = root.deepCopy();
         try {
             GuardrailPage.apply(root, body);
         } catch (IllegalArgumentException ex) {
@@ -121,8 +122,16 @@ public class GuardrailService {
         }
         try {
             var text = json.writeValueAsString(root);
-            jdbc.update("UPDATE agent_version SET manifest_json = ?::jsonb, manifest_hash = ? WHERE id = ?",
-                    text, sha256(text), version.id);
+            if (!root.equals(before)) {
+                jdbc.update("""
+                        INSERT INTO agent_version(agent_name,version,env,manifest_json,manifest_hash,released_by,released_at)
+                        VALUES (?,'v0',?,?::jsonb,?,?,clock_timestamp())
+                        ON CONFLICT(agent_name,env,version) DO UPDATE SET manifest_json=EXCLUDED.manifest_json,
+                            manifest_hash=EXCLUDED.manifest_hash,released_by=EXCLUDED.released_by,
+                            released_at=EXCLUDED.released_at,image=NULL,gate_run_id=NULL
+                        """, name, version.env, text, sha256(text),
+                        com.keel.server.auth.ConsolePrincipal.requireUsername());
+            }
         } catch (KeelException ex) {
             throw ex;
         } catch (Exception ex) {

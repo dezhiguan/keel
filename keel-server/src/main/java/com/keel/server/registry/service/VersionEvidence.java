@@ -33,7 +33,27 @@ public class VersionEvidence {
             var release = releases.get(key(version.getVersion(), version.getEnv()));
             if (release != null && isEvalRun(release.runId())) runIds.add(release.runId());
         }
-        return rows(versions, evals(agent, runIds), releases);
+        return VersionLifecycle.attach(versions, rows(versions, evals(agent, runIds), releases), publications(agent));
+    }
+
+    private List<VersionLifecycle.Publication> publications(String agent) {
+        return jdbc.query("""
+                WITH current_release AS (
+                    SELECT DISTINCT ON (env) * FROM release_record
+                    WHERE agent_name=? AND kind IN ('release','rollback')
+                    ORDER BY env,created_at DESC,id DESC
+                )
+                SELECT c.env,c.version,
+                       CASE WHEN c.kind='rollback' THEN original.ci_run_url ELSE c.ci_run_url END,
+                       CASE WHEN c.kind='rollback' THEN original.image ELSE c.image END
+                FROM current_release c LEFT JOIN LATERAL (
+                    SELECT r.ci_run_url,r.image FROM release_record r
+                    WHERE r.agent_name=c.agent_name AND r.env=c.env AND r.version=c.version
+                      AND r.kind='release' AND (r.created_at,r.id)<=(c.created_at,c.id)
+                    ORDER BY r.created_at DESC,r.id DESC LIMIT 1
+                ) original ON true
+                """, (rs, n) -> new VersionLifecycle.Publication(rs.getString(1), rs.getString(2),
+                rs.getString(3), rs.getString(4)), agent);
     }
 
     static List<AgentDetail.VersionRow> rows(List<AgentVersion> versions, Map<String, EvalResult> evals,

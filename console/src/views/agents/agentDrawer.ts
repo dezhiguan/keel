@@ -6,6 +6,8 @@ const COLORS: Record<string, string> = {
 }
 
 export interface DrawerVersion {
+  state?: 'DRAFT' | 'ARCHIVED' | 'VERSION'
+  publishedEnvs?: string[]
   version?: string
   env?: string
   gatePassed?: boolean | null
@@ -105,6 +107,8 @@ export interface VersionRow {
   score: string
   gate: boolean | null
   time: string
+  state: string
+  published: string
 }
 
 export function avatarColor(name = '') {
@@ -177,27 +181,20 @@ export function seenAgo(iso?: string | null, now = Date.now()) {
 }
 
 export function versionRows(agent: DrawerAgent): VersionRow[] {
-  const records = agent.versions ?? []
-  if (!records.length) {
-    if (!agent.version) return []
-    return [{
-      version: agent.version,
-      env: agent.env || '—',
-      change: '当前版本',
-      score: scoreText(agent.score),
-      gate: agent.gatePassed ?? null,
-      time: '—',
-    }]
-  }
+  const records: DrawerVersion[] = agent.versions?.length ? agent.versions :
+    agent.version ? [{ version: agent.version, env: agent.env }] : []
   return records.map((record) => {
-    const current = !!record.version && record.version === agent.version && (!agent.env || !record.env || record.env === agent.env)
+    const state = record.state ?? (record.version === 'v0' ? 'DRAFT' : 'VERSION')
+    const current = state === 'VERSION' && record.version === agent.version && (!agent.env || record.env === agent.env)
     return {
       version: record.version || '—',
       env: record.env || '—',
-      change: current ? '当前版本' : '—',
-      score: scoreText(record.scoreTotal ?? (current ? agent.score : null)),
-      gate: record.gatePassed ?? (current ? agent.gatePassed ?? null : null),
+      change: state === 'DRAFT' ? '待评测 / 发布' : state === 'ARCHIVED' ? '已归档草稿' : current ? '当前登记版本' : '历史版本',
+      score: state === 'VERSION' ? scoreText(record.scoreTotal) : '—',
+      gate: state === 'VERSION' ? record.gatePassed ?? null : null,
       time: stamp(record.releasedAt),
+      state,
+      published: record.publishedEnvs?.join('、') || '—',
     }
   })
 }

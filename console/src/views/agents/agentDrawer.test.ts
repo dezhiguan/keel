@@ -72,13 +72,13 @@ describe('agent drawer', () => {
     expect(avatarLetter('风机维检')).toBe('风')
   })
 
-  it('shows the registered version when history is empty', () => {
+  it('does not invent version evaluation when history is empty', () => {
     expect(versionRows({ version: 'v2.4.1', env: 'prod', score: 0.91, gatePassed: true })).toEqual([
-      { version: 'v2.4.1', env: 'prod', change: '当前版本', score: '0.91', gate: true, time: '—' },
+      { version: 'v2.4.1', env: 'prod', change: '当前登记版本', score: '—', gate: null, time: '—', state: 'VERSION', published: '—' },
     ])
   })
 
-  it('shows the release time and keeps the live score on the current version', () => {
+  it('keeps a candidate separate from live evaluation', () => {
     const rows = versionRows({
       version: 'v0',
       env: 'dev',
@@ -87,7 +87,7 @@ describe('agent drawer', () => {
       versions: [{ version: 'v0', env: 'dev', releasedAt: '2026-10-16T02:20:00+08:00' }],
     })
     expect(rows).toEqual([
-      { version: 'v0', env: 'dev', change: '当前版本', score: '1.00', gate: true, time: stamp('2026-10-16T02:20:00+08:00') },
+      { version: 'v0', env: 'dev', change: '待评测 / 发布', score: '—', gate: null, time: stamp('2026-10-16T02:20:00+08:00'), state: 'DRAFT', published: '—' },
     ])
     expect(rows[0].time).not.toBe('—')
   })
@@ -101,10 +101,23 @@ describe('agent drawer', () => {
         { version: 'v2.4.0', env: 'prod', gatePassed: true, scoreTotal: 0.93, releasedAt: '2026-09-25T16:02:00+08:00' },
       ],
     })
-    expect(rows.map((row) => row.change)).toEqual(['当前版本', '—'])
+    expect(rows.map((row) => row.change)).toEqual(['当前登记版本', '历史版本'])
     expect(rows[0].score).toBe('0.91')
     expect(rows[1].gate).toBe(true)
     expect(rows[0].time).toMatch(/^\d{2}-\d{2} \d{2}:\d{2}$/)
+  })
+
+  it('separates archived candidates and displays release targets independently of source', () => {
+    const rows = versionRows({ version: 'v3', env: 'dev', versions: [
+      { version: 'v3', env: 'dev', state: 'VERSION', publishedEnvs: ['prod'], scoreTotal: 1, gatePassed: true },
+      { version: 'v0', env: 'dev', state: 'ARCHIVED' },
+      { version: 'v0', env: 'test', state: 'DRAFT' },
+    ] })
+    expect(rows.map(row => row.state)).toEqual(['VERSION', 'ARCHIVED', 'DRAFT'])
+    expect(rows[0].env).toBe('dev')
+    expect(rows[0].published).toBe('prod')
+    expect(rows[1].gate).toBeNull()
+    expect(rows[2].score).toBe('—')
   })
 
   it('leaves the table empty when nothing has been released', () => {

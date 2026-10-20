@@ -2592,6 +2592,13 @@ export interface components {
             }[];
         };
         ReleaseRecord: {
+            /**
+             * @description 智能体版本列表的候选草稿、已归档草稿或正式快照；发布记录可不返回
+             * @enum {string}
+             */
+            state?: "DRAFT" | "ARCHIVED" | "VERSION";
+            /** @description 各环境最新发布或回滚记录指向此快照的环境，不代表实例健康 */
+            publishedEnvs?: components["schemas"]["EnvName"][];
             version?: string;
             env?: components["schemas"]["EnvName"];
             gatePassed?: boolean;

@@ -114,7 +114,10 @@ const sourceText = computed(() => {
   return `${layer.value === 'dev' ? 'meta-agent' : 'dev-lead'} · ${job}`
 })
 
-const rows = computed(() => (detail.value ? versionRows(detail.value) : []))
+const allVersionRows = computed(() => (detail.value ? versionRows(detail.value) : []))
+const rows = computed(() => allVersionRows.value.filter(row => row.state === 'VERSION'))
+const drafts = computed(() => allVersionRows.value.filter(row => row.state === 'DRAFT'))
+const archivedDrafts = computed(() => allVersionRows.value.filter(row => row.state === 'ARCHIVED').length)
 const elementCells = computed(() => (detail.value?.elements?.items ?? []).map((item, index) => elementCell(item, index)))
 const yaml = computed(() => (detail.value?.manifestYaml ? highlightYaml(detail.value.manifestYaml) : ''))
 
@@ -639,14 +642,22 @@ onUnmounted(() => {
           </template>
 
           <template v-else-if="detail && tab === 'ver'">
+            <p class="mut">正式版本以“智能体 + 来源环境 + 版本号”唯一；当前发布环境按最新发布或回滚记录展示，不代表实例健康。</p>
+            <template v-if="drafts.length">
+              <h4>候选草稿</h4>
+              <p v-for="draft in drafts" :key="draft.env" class="mut">{{ draft.env }} · 待评测 / 发布 · 更新于 {{ draft.time }}。草稿可更新，发布后生成正式版本。</p>
+            </template>
+            <p v-if="archivedDrafts" class="mut">已归档 {{ archivedDrafts }} 份已生成正式版本的草稿。</p>
+            <h4>正式版本</h4>
             <table class="t">
-              <thead><tr><th>版本</th><th>环境</th><th>变更</th><th>评测分</th><th>门禁</th><th>时间</th></tr></thead>
+              <thead><tr><th>版本</th><th>来源环境</th><th>状态</th><th>当前发布环境</th><th>评测分</th><th>门禁</th><th>创建时间</th></tr></thead>
               <tbody>
-                <tr v-if="!rows.length"><td colspan="6" class="empty">还没有版本</td></tr>
+                <tr v-if="!rows.length"><td colspan="7" class="empty">还没有正式版本</td></tr>
                 <tr v-for="row in rows" :key="`${row.version}-${row.env}-${row.time}`">
                   <td class="mono">{{ row.version }}</td>
                   <td>{{ row.env }}</td>
                   <td>{{ row.change }}</td>
+                  <td>{{ row.published }}</td>
                   <td class="mono">{{ row.score }}</td>
                   <td>
                     <span v-if="row.gate === true" class="pill p-ok">通过</span>

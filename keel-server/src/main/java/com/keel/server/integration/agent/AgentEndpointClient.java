@@ -49,7 +49,11 @@ public class AgentEndpointClient {
     }
 
     public Answer probe(String endpoint, String agent, String env) {
-        return invoke(endpoint, "probe", null, agent, env, null, "self-check");
+        return probe(endpoint, agent, env, null);
+    }
+
+    public Answer probe(String endpoint, String agent, String env, String bridgeToken) {
+        return invoke(endpoint, "probe", bridgeToken, agent, env, null, "self-check");
     }
 
     /** Open the agent invoke stream. The caller closes it. */
@@ -250,8 +254,15 @@ public class AgentEndpointClient {
                     .timeout(Duration.ofSeconds(5));
             if (bridgeToken != null && !bridgeToken.isBlank()) request.header("X-Keel-Bridge", bridgeToken);
             var response = http.send(request.GET().build(), HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) throw new IllegalStateException("运行清单读取失败");
-            return json.readTree(response.body()).path("manifest");
+            if (response.statusCode() == 401 || response.statusCode() == 403)
+                throw new IllegalStateException("运行清单认证失败（HTTP " + response.statusCode() + "），请检查服务身份配置");
+            if (response.statusCode() != 200) throw new IllegalStateException("运行清单读取失败（HTTP " + response.statusCode() + "）");
+            var manifest = json.readTree(response.body()).path("manifest");
+            if (!manifest.isObject() || manifest.path("metadata").path("name").asText("").isBlank())
+                throw new IllegalStateException("运行实例返回的 manifest 格式不完整");
+            return manifest;
+        } catch (IllegalStateException error) {
+            throw error;
         } catch (Exception error) {
             throw new IllegalStateException("运行清单读取失败");
         }

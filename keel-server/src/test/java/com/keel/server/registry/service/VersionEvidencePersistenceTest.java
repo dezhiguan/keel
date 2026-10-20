@@ -47,6 +47,27 @@ class VersionEvidencePersistenceTest {
                 .containsExactly("v2/prod:1.0:true", "v1/prod:0.8:false", "v0/dev:null:null");
     }
 
+    @Test @Transactional void rollbackSelectsOriginalReleaseEvidenceAndNotAnotherSourceWithTheSameNumber() {
+        jdbc.update("""
+                INSERT INTO agent(name,display_name,kind,runtime,language,owner_org,owner_user,status,liveness)
+                VALUES ('qa-version-evidence','证据','AGENT','code','python','平台','dev','ONLINE','k8s')
+                """);
+        insertVersion("v1", "dev", "ev_dev", "2026-10-18 00:00:00Z");
+        insertVersion("v1", "test", "ev_test", "2026-10-19 00:00:00Z");
+        jdbc.update("UPDATE agent_version SET image='image:dev' WHERE agent_name='qa-version-evidence' AND env='dev'");
+        jdbc.update("UPDATE agent_version SET image='image:test' WHERE agent_name='qa-version-evidence' AND env='test'");
+        jdbc.update("""
+                INSERT INTO release_record(agent_name,version,env,gate_passed,ci_run_url,image,kind,created_at)
+                VALUES ('qa-version-evidence','v1','prod',true,'ev_dev','image:dev','release','2026-10-18 01:00:00Z'),
+                       ('qa-version-evidence','v2','prod',true,'ev_v2','image:v2','release','2026-10-19 01:00:00Z'),
+                       ('qa-version-evidence','v1','prod',true,'rollback reason',null,'rollback','2026-10-20 01:00:00Z')
+                """);
+        var evidence = new VersionEvidence(jdbc,json);
+        var rows = evidence.attach("qa-version-evidence",versions.listByAgent("qa-version-evidence"));
+        assertThat(rows.stream().filter(row -> row.env().equals("dev")).findFirst().orElseThrow().publishedEnvs()).containsExactly("prod");
+        assertThat(rows.stream().filter(row -> row.env().equals("test")).findFirst().orElseThrow().publishedEnvs()).isEmpty();
+    }
+
     private void insertVersion(String version, String env, String runId, String at) {
         jdbc.update("""
                 INSERT INTO agent_version(agent_name,version,env,manifest_json,manifest_hash,gate_run_id,released_by,released_at)

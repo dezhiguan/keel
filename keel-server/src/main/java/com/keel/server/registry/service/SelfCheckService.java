@@ -23,6 +23,8 @@ public class SelfCheckService {
     private final LangfuseClient langfuse;
     @Autowired
     private SelfCheckRecords records;
+    @org.springframework.beans.factory.annotation.Value("${KEEL_META_AGENT_TOKEN:}")
+    private String metaBridgeToken;
 
     public SelfCheckService() { this(null, null); }
 
@@ -47,16 +49,18 @@ public class SelfCheckService {
         String traceId = null;
         try {
             if (!health.passed()) throw new IllegalStateException("健康检查未通过");
-            var response = http.send(HttpRequest.newBuilder(URI.create(endpoint + "/v1/manifest"))
-                    .timeout(Duration.ofSeconds(3)).GET().build(), HttpResponse.BodyHandlers.ofString());
-            var actual = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response.body()).path("manifest");
+            var bridgeToken = "meta-agent".equals(agent) ? metaBridgeToken : null;
+            var actual = endpoints.manifest(endpoint, bridgeToken);
             if (!agent.equals(actual.path("metadata").path("name").asText())
                     || !manifest.path("spec").path("runtime").path("language").asText("python")
                     .equals(actual.path("spec").path("runtime").path("language").asText("python"))) {
                 throw new IllegalStateException("运行服务的智能体名称或语言与登记配置不一致");
             }
             for (int probe = 0; probe < 5; probe++) {
-                traceId = endpoints.probe(endpoint, agent, env).traceId();
+                traceId = (bridgeToken == null || bridgeToken.isBlank()
+                        ? endpoints.probe(endpoint, agent, env)
+                        : endpoints.probe(endpoint, agent, env, bridgeToken)).traceId();
+                if (traceId == null || traceId.isBlank()) throw new IllegalStateException("自检探针未返回 trace_id");
             }
             items.add(new Item("协议", true, traceId));
         } catch (Exception e) {
@@ -77,7 +81,7 @@ public class SelfCheckService {
                 }
             }
         }
-        items.add(new Item("追踪", visible, visible ? traceId : "本次探针追踪尚未可见，请在链路追踪中复核"));
+        items.add(new Item("追踪", visible, visible ? traceId : traceId == null ? "协议自检未完成，未获得可核查的探针追踪" : "本次探针追踪尚未可见，请在链路追踪中复核"));
         boolean approval = approvalBound(manifest);
         items.add(new Item("审批绑定", approval, approval ? null : "高风险工具没有绑定审批策略"));
         var report = new Report(items.stream().allMatch(Item::passed), List.copyOf(items));

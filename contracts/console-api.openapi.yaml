@@ -3803,6 +3803,14 @@ components:
     ReleaseRecord:
       type: object
       properties:
+        state:
+          type: string
+          enum: [DRAFT, ARCHIVED, VERSION]
+          description: 智能体版本列表的候选草稿、已归档草稿或正式快照；发布记录可不返回
+        publishedEnvs:
+          type: array
+          description: 各环境最新发布或回滚记录指向此快照的环境，不代表实例健康
+          items: { $ref: "#/components/schemas/EnvName" }
         version: { type: string }
         env: { $ref: "#/components/schemas/EnvName" }
         gatePassed: { type: boolean }
