@@ -29,7 +29,7 @@ class KeyQuotaEditTest {
                 called.set(true);
             }
         };
-        var controller = new InsightController(null, null, costs, null, null, null, null);
+        var controller = new InsightController(null, null, costs, null, null, null);
         assertThatThrownBy(() -> controller.updateBudget("echo-dev", Map.of("dailyBudgetCny", 30, "rpm", 1)))
                 .isInstanceOf(KeelException.class)
                 .extracting(error -> ((KeelException) error).code()).isEqualTo(ErrorCode.AUTH_CONSOLE_FORBIDDEN);
@@ -51,7 +51,7 @@ class KeyQuotaEditTest {
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
         try {
             var costs = new CostService(new LiteLlmClient("http://127.0.0.1:" + server.getAddress().getPort(), "test-admin"));
-            var controller = new InsightController(null, null, costs, null, null, null, null);
+            var controller = new InsightController(null, null, costs, null, null, null);
             var body = new LinkedHashMap<String, Object>();
             body.put("dailyBudgetCny", 30);
             body.put("rpm", 1);

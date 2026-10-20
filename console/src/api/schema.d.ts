@@ -1446,8 +1446,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 模型网关页全部数据
+         * 模型网关页数据
          * @description 模型与花费来自薄网关（人民币），单次调用明细在链路追踪页看（来自 Langfuse）。
+         *     section 缺省 all。channels 只含模型用量、Key 和渠道，不含账单行。
+         *     keys 含 Key、渠道、逻辑路由和失败账单。routes 含路由策略、逻辑路由、Key 和渠道，不读账单。
          */
         get: operations["getModelGateway"];
         put?: never;
@@ -6332,6 +6334,7 @@ export interface operations {
             query?: {
                 env?: components["parameters"]["Env"];
                 range?: "24h" | "7d" | "30d";
+                section?: "all" | "channels" | "keys" | "routes";
             };
             header?: never;
             path?: never;

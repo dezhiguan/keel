@@ -26,6 +26,7 @@ import {
   shareLines,
   type ChannelDraft,
 } from './channelShare'
+import { mergeGateway, prefetchAfter, sectionForTab, type GatewaySection } from './gatewayLoad'
 import { billClock, billStatusLabel, limitLabel, objectiveLabel, routeReason } from './modelBill'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
@@ -53,7 +54,10 @@ const envStore = useEnvStore()
 const userStore = useUserStore()
 const data = ref<ModelGateway | null>(null)
 const tab = ref<'model' | 'key' | 'route'>('model')
-const loading = ref(false)
+const loaded = ref<Record<GatewaySection, boolean>>({ channels: false, keys: false, routes: false })
+const failed = ref<GatewaySection | null>(null)
+let ticket = 0
+const inflight = new Map<string, Promise<void>>()
 const saving = ref(false)
 const selectedAlias = ref('')
 const nextTpm = ref<number | ''>('')
@@ -242,23 +246,66 @@ function closeQuota() {
   quotaOpen.value = false
 }
 
-async function load() {
-  loading.value = true
-  try {
-    data.value = await getModelGateway({ env: envStore.env, range: '24h' })
-    clamp(modelPage, modelSize.value, usingLive.value ? visibleLive.value.length : channels.value.length)
-    clamp(keyPage, keySize.value, keys.value.length)
-    const current = keys.value.find((key) => key.alias === selectedAlias.value)
-    if (current) selectKey(current)
-    else quotaOpen.value = false
-    if (!previewAlias.value && keys.value[0]?.alias) {
-      previewAlias.value = keys.value[0].alias
-      previewModel.value = keys.value[0].models?.[0] ?? ''
+function sectionPending(section: GatewaySection) {
+  return !loaded.value[section] && failed.value !== section
+}
+
+function settlePages() {
+  clamp(modelPage, modelSize.value, usingLive.value ? visibleLive.value.length : channels.value.length)
+  clamp(keyPage, keySize.value, keys.value.length)
+}
+
+function settleSelection() {
+  settlePages()
+  const current = keys.value.find((key) => key.alias === selectedAlias.value)
+  if (current) selectKey(current)
+  else quotaOpen.value = false
+  if (!keys.value.some((key) => key.alias === previewAlias.value)) {
+    previewAlias.value = keys.value[0]?.alias ?? ''
+    previewModel.value = keys.value[0]?.models?.[0] ?? ''
+  }
+}
+
+async function fetchSection(section: GatewaySection, mine: number, resync: boolean) {
+  const key = `${mine}:${section}`
+  const existing = inflight.get(key)
+  if (existing) {
+    await existing
+    return
+  }
+  const job = (async () => {
+    if (failed.value === section) failed.value = null
+    try {
+      const part = await getModelGateway({ env: envStore.env, range: '24h', section })
+      if (mine !== ticket) return
+      data.value = mergeGateway(data.value, part)
+      loaded.value = { ...loaded.value, [section]: true }
+      if (resync) settleSelection()
+      else settlePages()
+    } catch (error) {
+      if (mine === ticket && sectionForTab(tab.value) === section) {
+        failed.value = section
+        ElMessage.error(`加载模型网关失败：${toKeelError(error).message}`)
+      }
+    } finally {
+      inflight.delete(key)
     }
-  } catch (error) {
-    ElMessage.error(`加载模型网关失败：${toKeelError(error).message}`)
-  } finally {
-    loading.value = false
+  })()
+  inflight.set(key, job)
+  await job
+}
+
+async function load() {
+  const mine = ++ticket
+  data.value = null
+  loaded.value = { channels: false, keys: false, routes: false }
+  failed.value = null
+  const first = sectionForTab(tab.value)
+  await fetchSection(first, mine, true)
+  if (mine !== ticket) return
+  for (const section of prefetchAfter(first)) {
+    if (mine !== ticket) return
+    if (!loaded.value[section]) await fetchSection(section, mine, false)
   }
 }
 
@@ -534,10 +581,14 @@ onMounted(() => {
 onUnmounted(() => window.clearInterval(clock))
 
 watch(() => envStore.env, load, { immediate: true })
+watch(tab, (value) => {
+  const section = sectionForTab(value)
+  if (!loaded.value[section]) void fetchSection(section, ticket, false)
+})
 </script>
 
 <template>
-  <div v-loading="loading" class="models">
+  <div class="models">
     <div class="vh">
       <h2>模型与成本</h2>
     </div>
@@ -547,7 +598,8 @@ watch(() => envStore.env, load, { immediate: true })
       <button type="button" :class="{ on: tab === 'route' }" @click="tab = 'route'">路由</button>
     </div>
 
-    <div v-show="tab === 'model'">
+    <div v-if="tab === 'model'" v-loading="sectionPending('channels')" class="tab-body">
+      <template v-if="loaded.channels">
       <div class="card">
         <h3>
           渠道
@@ -617,9 +669,11 @@ watch(() => envStore.env, load, { immediate: true })
         <div class="mut note">点「模拟 2 次 5xx」只熔断该渠道 60 秒，之后半开放行一次探测。同地址的其他渠道不受影响。</div>
         <Pager v-model:page="modelPage" v-model:size="modelSize" :total="usingLive ? visibleLive.length : channels.length" />
       </div>
+      </template>
     </div>
 
-    <div v-show="tab === 'key'">
+    <div v-if="tab === 'key'" v-loading="sectionPending('keys')" class="tab-body">
+      <template v-if="loaded.keys">
       <div class="card">
         <h3>Key 份额 <small>一把 Key 可允许多个渠道，每个渠道单独一份 RPM；点「配额」编辑</small></h3>
           <div class="mut legend">RPM = 每分钟请求数 · TPM = 每分钟 Token 数（输入 + 输出）· 并发 = 同时进行中的请求数</div>
@@ -682,9 +736,11 @@ watch(() => envStore.env, load, { immediate: true })
           </tbody>
         </table>
       </div>
+      </template>
     </div>
 
-    <div v-show="tab === 'route'">
+    <div v-if="tab === 'route'" v-loading="sectionPending('routes')" class="tab-body">
+      <template v-if="loaded.routes">
       <div class="card">
         <h3>
           路由表
@@ -748,6 +804,7 @@ watch(() => envStore.env, load, { immediate: true })
         </div>
         <div class="banner" :class="previewTone">{{ previewText }}</div>
       </div>
+      </template>
     </div>
 
     <Teleport to="body">
@@ -904,6 +961,7 @@ th small { font-weight: 400; }
 h3 .btn { margin-left: 8px; }
 .ops { display: flex; gap: 8px; margin-top: 8px; }
 .route-table { margin-top: 0; }
+.tab-body { min-height: 240px; }
 .banner { margin-top: 12px; }
 .btn.quota { background: var(--acc); border-color: var(--acc); color: #1d0e05; font-weight: 700; }
 .btn.quota:hover { filter: brightness(1.08); }

@@ -17,16 +17,27 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class CostService {
     private static final BigDecimal BUDGET_MIN = new BigDecimal("10");
     private static final BigDecimal BUDGET_MAX = new BigDecimal("200");
     private static final BigDecimal BUDGET_STEP = new BigDecimal("5");
+    private static final ExecutorService IO = Executors.newVirtualThreadPerTaskExecutor();
 
     private final LiteLlmClient gateway;
     private final LangfuseClient langfuse;
     private final ConfigAudit audit;
+    private final AtomicLong readGeneration = new AtomicLong();
+    private List<LiteLlmClient.Spend> spendCache = List.of();
+    private Instant spendCachedFrom = Instant.EPOCH;
+    private long spendCachedUntil;
+    private long spendCachedGeneration = -1;
 
     public CostService(LiteLlmClient gateway) {
         this(gateway, new LangfuseClient("", "", ""), (agent, env) -> { });
@@ -49,6 +60,7 @@ public class CostService {
         }
         try {
             var policy = gateway.publishRoute(objective);
+            evict();
             audit.record("keel-llm", "prod");
             return policy;
         } catch (IllegalStateException e) {
@@ -59,6 +71,7 @@ public class CostService {
     public LiteLlmClient.RoutePolicy rollbackRoute() {
         try {
             var policy = gateway.rollbackRoute();
+            evict();
             audit.record("keel-llm", "prod");
             return policy;
         } catch (IllegalStateException e) {
@@ -118,6 +131,19 @@ public class CostService {
      */
     public void probe(String model) {
         gateway.probe(model);
+        evict();
+    }
+
+    public long readGeneration() {
+        return readGeneration.get();
+    }
+
+    public void evict() {
+        readGeneration.incrementAndGet();
+        synchronized (this) {
+            spendCache = List.of();
+            spendCachedUntil = 0;
+        }
     }
 
     public List<LiteLlmClient.LogicalRoute> logicalRoutes() {
@@ -139,6 +165,7 @@ public class CostService {
     public LiteLlmClient.Channel addChannel(String name, String model, String env, int rpm) {
         try {
             var created = gateway.addChannel(name, model, env, rpm);
+            evict();
             audit.record("keel-llm", env == null || env.isBlank() ? "prod" : env);
             return created;
         } catch (IllegalStateException error) {
@@ -149,6 +176,7 @@ public class CostService {
     public LiteLlmClient.SwitchResult switchChannel(String id) {
         try {
             var moved = gateway.switchChannel(id);
+            evict();
             audit.record("keel-llm", "prod");
             return moved;
         } catch (IllegalStateException error) {
@@ -158,7 +186,9 @@ public class CostService {
 
     public LiteLlmClient.BreakerResult simulateChannel(String id) {
         try {
-            return gateway.simulateChannel(id);
+            var result = gateway.simulateChannel(id);
+            evict();
+            return result;
         } catch (IllegalStateException error) {
             throw channelFailure(error);
         }
@@ -167,6 +197,7 @@ public class CostService {
     public LiteLlmClient.BreakerResult probeChannel(String id) {
         try {
             var result = gateway.probeChannel(id);
+            evict();
             audit.record("keel-llm", "prod");
             return result;
         } catch (IllegalStateException error) {
@@ -230,6 +261,7 @@ public class CostService {
             }
             throw e;
         }
+        evict();
         audit.record(agentOf(alias), envOf(alias));
     }
 
@@ -252,9 +284,14 @@ public class CostService {
     private Result load(String env, String range) {
         var now = Instant.now();
         var since = since(range, now);
-        var rows = gateway.spendAll().stream()
+        var rowsFuture = CompletableFuture.supplyAsync(() -> spendWindow(since), IO);
+        var keysFuture = CompletableFuture.supplyAsync(gateway::keys, IO);
+        var modelsFuture = CompletableFuture.supplyAsync(gateway::models, IO);
+        var rows = await(rowsFuture).stream()
                 .filter(row -> inWindow(row.ts(), since) && inEnv(row.alias(), env))
                 .toList();
+        var gatewayKeys = await(keysFuture);
+        var catalog = await(modelsFuture);
         var byAgent = new LinkedHashMap<String, Double>();
         double total = 0;
         var byModel = new LinkedHashMap<String, Double>();
@@ -265,16 +302,59 @@ public class CostService {
                 byModel.merge(row.model(), row.costCny(), Double::sum);
             }
         }
-        var keys = gateway.keys().stream()
+        var keys = mapKeys(gatewayKeys, env);
+        var stats = stats(catalog, rows, keys, env, since, now);
+        int pending = (int) rows.stream().filter(row -> "PENDING".equals(row.status())).count();
+        return new Result(total, rows.size(), byAgent, byModel, catalog, keys, stats, rows, pending);
+    }
+
+    public List<Key> keysIn(String env) {
+        return mapKeys(gateway.keys(), env == null || env.isBlank() ? "all" : env);
+    }
+
+    public List<LiteLlmClient.Spend> billsIn(String env, String range) {
+        var scope = env == null || env.isBlank() ? "all" : env;
+        var cutoff = since(range, Instant.now());
+        return spendWindow(cutoff).stream()
+                .filter(row -> inWindow(row.ts(), cutoff) && inEnv(row.alias(), scope))
+                .toList();
+    }
+
+    private static List<Key> mapKeys(List<LiteLlmClient.VirtualKey> keys, String env) {
+        return keys.stream()
                 .filter(key -> inEnv(key.alias(), env))
                 .map(key -> new Key(key.alias(), agentOf(key.alias()), envOf(key.alias()), key.models(),
                         key.dailyBudgetCny(), key.spentCny(), key.reservedCny(), key.blocked(), key.version(),
                         key.rpm(), key.tpm(), key.concurrency(),
                         key.shares() == null ? List.of() : key.shares()))
                 .toList();
-        var stats = stats(gateway.models(), rows, keys, env, since, now);
-        int pending = (int) rows.stream().filter(row -> "PENDING".equals(row.status())).count();
-        return new Result(total, rows.size(), byAgent, byModel, gateway.models(), keys, stats, rows, pending);
+    }
+
+    /** Windowed spend, reused for 30 seconds when a later window is inside the cached one. */
+    public synchronized List<LiteLlmClient.Spend> spendWindow(Instant since) {
+        var cutoff = since == null ? Instant.EPOCH : since;
+        var now = System.currentTimeMillis();
+        var generation = readGeneration.get();
+        if (generation == spendCachedGeneration && spendCachedUntil > now && !cutoff.isBefore(spendCachedFrom)) {
+            return spendCache.stream().filter(row -> inWindow(row.ts(), cutoff)).toList();
+        }
+        var rows = gateway.spendSince(cutoff);
+        spendCache = rows;
+        spendCachedFrom = cutoff;
+        spendCachedUntil = now + 30_000;
+        spendCachedGeneration = generation;
+        return rows;
+    }
+
+    private static <T> T await(CompletableFuture<T> future) {
+        try {
+            return future.join();
+        } catch (CompletionException error) {
+            if (error.getCause() instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw error;
+        }
     }
 
     private List<ModelStat> stats(List<LiteLlmClient.Model> catalog, List<LiteLlmClient.Spend> rows, List<Key> keys,

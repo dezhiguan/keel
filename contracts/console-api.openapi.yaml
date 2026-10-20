@@ -2216,13 +2216,19 @@ paths:
     get:
       tags: [models]
       operationId: getModelGateway
-      summary: 模型网关页全部数据
-      description: 模型与花费来自薄网关（人民币），单次调用明细在链路追踪页看（来自 Langfuse）。
+      summary: 模型网关页数据
+      description: |
+        模型与花费来自薄网关（人民币），单次调用明细在链路追踪页看（来自 Langfuse）。
+        section 缺省 all。channels 只含模型用量、Key 和渠道，不含账单行。
+        keys 含 Key、渠道、逻辑路由和失败账单。routes 含路由策略、逻辑路由、Key 和渠道，不读账单。
       parameters:
         - $ref: "#/components/parameters/Env"
         - name: range
           in: query
           schema: { type: string, enum: [24h, 7d, 30d], default: 24h }
+        - name: section
+          in: query
+          schema: { type: string, enum: [all, channels, keys, routes], default: all }
       responses:
         "200":
           description: OK

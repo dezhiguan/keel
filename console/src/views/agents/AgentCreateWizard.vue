@@ -66,7 +66,7 @@ const canNext = computed(() => {
 
 async function loadLogicalRoutes() {
   try {
-    const gateway = await getModelGateway({ env: form.env, range: '24h' })
+    const gateway = await getModelGateway({ env: form.env, range: '24h', section: 'routes' })
     logicalRoutes.value = gateway.logicalRoutes ?? []
     if (!modelChoices.value.includes(form.model)) form.model = modelChoices.value[0]
     modelError.value = ''

@@ -134,6 +134,48 @@ public class LiteLlmClient {
         return rows;
     }
 
+    /**
+     * Newest-first spend rows at or after {@code since}. Stops once a page contains an older timestamp.
+     * Blank or unparseable timestamps stay in the window and do not stop the scan.
+     */
+    public List<Spend> spendSince(Instant since) {
+        var rows = new ArrayList<Spend>();
+        String cursor = null;
+        var cutoff = since == null ? Instant.EPOCH : since;
+        for (int page = 0; page < 500; page++) {
+            var path = "/admin/v1/spend?limit=100" + (cursor == null || cursor.isBlank() ? "" : "&cursor=" + java.net.URLEncoder.encode(cursor, java.nio.charset.StandardCharsets.UTF_8));
+            var body = get(path);
+            var data = body.path("data");
+            if (!data.isArray() || data.isEmpty()) {
+                if (cursor == null && !body.has("nextCursor")) {
+                    return spendByPageSince(cutoff);
+                }
+                break;
+            }
+            if (cursor == null && !body.has("nextCursor")) {
+                return spendByPageSince(cutoff);
+            }
+            var older = false;
+            for (var row : data) {
+                var spend = spend(row);
+                if (olderThan(spend.ts(), cutoff)) {
+                    older = true;
+                } else {
+                    rows.add(spend);
+                }
+            }
+            if (older) {
+                break;
+            }
+            var next = body.path("nextCursor").asText("");
+            if (next.isBlank() || next.equals(cursor)) {
+                break;
+            }
+            cursor = next;
+        }
+        return rows;
+    }
+
     /** Older gateways page with page/size and do not return nextCursor. */
     private List<Spend> spendByPage() {
         var rows = new ArrayList<Spend>();
@@ -148,6 +190,40 @@ public class LiteLlmClient {
             }
         }
         return rows;
+    }
+
+    private List<Spend> spendByPageSince(Instant since) {
+        var rows = new ArrayList<Spend>();
+        for (int page = 1; page <= 50; page++) {
+            var data = get("/admin/v1/spend?page=" + page + "&size=50").path("data");
+            if (!data.isArray() || data.isEmpty()) {
+                break;
+            }
+            var older = false;
+            for (var row : data) {
+                var spend = spend(row);
+                if (olderThan(spend.ts(), since)) {
+                    older = true;
+                } else {
+                    rows.add(spend);
+                }
+            }
+            if (older || data.size() < 50) {
+                break;
+            }
+        }
+        return rows;
+    }
+
+    private static boolean olderThan(String ts, Instant since) {
+        if (ts == null || ts.isBlank() || since == null) {
+            return false;
+        }
+        try {
+            return Instant.parse(ts).isBefore(since);
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     private static Spend spend(JsonNode row) {
