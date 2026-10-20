@@ -71,6 +71,12 @@ public class AgentEndpointClient {
     public InputStream openStream(String endpoint, String text, String bridgeToken, String agent, String env,
                                   String userId, String ragToken, String ragKbIds, String sessionId,
                                   java.util.List<java.util.Map<String, String>> history, String readContext) {
+        return openStream(endpoint,text,bridgeToken,agent,env,userId,ragToken,ragKbIds,sessionId,history,readContext,null);
+    }
+
+    public InputStream openStream(String endpoint, String text, String bridgeToken, String agent, String env,
+                                  String userId, String ragToken, String ragKbIds, String sessionId,
+                                  java.util.List<java.util.Map<String, String>> history, String readContext, String evaluationRun) {
         try {
             var payload = json.createObjectNode();
             var input=payload.putObject("input").put("text", text);
@@ -82,6 +88,7 @@ public class AgentEndpointClient {
             var builder = HttpRequest.newBuilder(URI.create(trim(endpoint) + "/v1/invoke"))
                     .timeout(Duration.ofMinutes(3)).header("Content-Type", "application/json")
                     .header("Accept", "text/event-stream").header("X-Keel-Agent", agent).header("X-Keel-Env", env);
+            if (evaluationRun != null && !evaluationRun.isBlank()) builder.header("X-Keel-Eval-Run",evaluationRun);
             if (bridgeToken != null && !bridgeToken.isBlank()) builder.header("X-Keel-Bridge", bridgeToken);
             if (ragToken != null && !ragToken.isBlank()) builder.header("X-Keel-Rag-Token", ragToken);
             if (ragKbIds != null && !ragKbIds.isBlank()) builder.header("X-Keel-Rag-Kb-Ids", ragKbIds);

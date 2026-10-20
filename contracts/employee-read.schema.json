@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "keel/v1/employee-read",
+  "description": "Controlled shared tools. Model schemas omit _authorization and _session; runtime callbacks inject them.",
+  "$defs": {
+    "listInput": {
+      "type": "object", "additionalProperties": false,
+      "required": ["env", "_authorization", "_session"],
+      "properties": {
+        "env": {"enum": ["dev", "staging"]}, "page": {"type": "integer", "minimum": 1, "maximum": 1000},
+        "size": {"type": "integer", "minimum": 1, "maximum": 20},
+        "_authorization": {"type": "string", "minLength": 1}, "_session": {"type": "string", "minLength": 1}
+      }
+    },
+    "detailInput": {
+      "type": "object", "additionalProperties": false,
+      "required": ["env", "id", "_authorization", "_session"],
+      "properties": {
+        "env": {"enum": ["dev", "staging"]}, "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,62}$"},
+        "_authorization": {"type": "string", "minLength": 1}, "_session": {"type": "string", "minLength": 1}
+      }
+    },
+    "employee": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "name", "responsibility", "env", "version", "registrationStatus", "health", "healthNote", "registeredAt"],
+      "properties": {
+        "id": {"type": "string"}, "name": {"type": "string"}, "responsibility": {"type": ["string", "null"]},
+        "env": {"enum": ["dev", "staging"]}, "version": {"type": "string"}, "registrationStatus": {"type": "string"},
+        "health": {"const": "unknown"}, "healthNote": {"type": "string"}, "registeredAt": {"type": "string"}
+      }
+    },
+    "result": {
+      "type": "object", "additionalProperties": false,
+      "required": ["items", "total", "page", "size", "complete", "hasMore", "queriedAt", "source", "targetEnv", "scopeOrg"],
+      "properties": {
+        "items": {"type": "array", "items": {"$ref": "#/$defs/employee"}}, "total": {"type": "integer", "minimum": 0},
+        "page": {"type": "integer"}, "size": {"type": "integer"}, "complete": {"type": "boolean"}, "hasMore": {"type": "boolean"},
+        "queriedAt": {"type": "string"}, "source": {"const": "Keel registered employee read API"},
+        "targetEnv": {"enum": ["dev", "staging"]}, "scopeOrg": {"type": "string"}
+      }
+    }
+  }
+}

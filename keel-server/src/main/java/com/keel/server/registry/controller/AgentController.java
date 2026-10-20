@@ -134,7 +134,10 @@ public class AgentController {
         var text = body.path("text").asText("");
         var sessionId = body.path("sessionId").asText("");
         var owner = sessions.requireOwner();
-        var remember = request.getHeader("X-Keel-Eval-Run") == null;
+        var evaluationRun=request.getHeader("X-Keel-Eval-Run");
+        if(evaluationRun!=null && !evaluationRun.matches("[A-Za-z0-9_-]{1,128}"))
+            throw new KeelException(com.keel.common.error.ErrorCode.SERVER_INVALID_PARAM,"评测运行标记无效");
+        var remember = evaluationRun == null;
         try {
             chats.prepareStream(name, text, sessionId, owner, remember);
         } catch (KeelException error) {
@@ -162,7 +165,7 @@ public class AgentController {
         response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
         return output -> {
             try {
-                chats.streamChat(name, text, sessionId, owner, remember, output, readContext);
+                chats.streamChat(name, text, sessionId, owner, remember, output, readContext, evaluationRun);
             } catch (RuntimeException error) {
                 var message = error.getMessage() == null ? "调用失败" : error.getMessage();
                 var frame = "event: error\ndata: " + json.writeValueAsString(java.util.Map.of(
