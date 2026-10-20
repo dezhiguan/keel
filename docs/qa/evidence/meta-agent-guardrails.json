@@ -1,0 +1,205 @@
+{
+  "platformChecks": [
+    {
+      "source": "user",
+      "mode": "enforce",
+      "kind": "clear",
+      "tone": "ok",
+      "hit": false,
+      "instanceId": "meta-agent-789fd6fb54-sdhjm",
+      "version": "sha256:d9960b94f191",
+      "latencyMs": 1
+    },
+    {
+      "source": "user",
+      "mode": "enforce",
+      "kind": "blocked",
+      "tone": "bad",
+      "hit": true,
+      "instanceId": "meta-agent-789fd6fb54-sdhjm",
+      "version": "sha256:d9960b94f191",
+      "latencyMs": 1
+    },
+    {
+      "source": "tool",
+      "mode": "off",
+      "kind": "off",
+      "tone": "warn",
+      "hit": true,
+      "instanceId": "meta-agent-789fd6fb54-2fnss",
+      "version": "sha256:d9960b94f191",
+      "latencyMs": 1
+    },
+    {
+      "source": "kb",
+      "mode": "off",
+      "kind": "off",
+      "tone": "warn",
+      "hit": true,
+      "instanceId": "meta-agent-789fd6fb54-sdhjm",
+      "version": "sha256:d9960b94f191",
+      "latencyMs": 0
+    }
+  ],
+  "pageModes": {
+    "input": "enforce",
+    "indirect": "off",
+    "tainted": "审批",
+    "canary": "off",
+    "pii": "off"
+  },
+  "pageVersion": "v2",
+  "blockedInvocations": [
+    {
+      "traceId": "3b89d389a705065d271d4a2cd89d3ff8",
+      "generations": 0,
+      "costCny": 0
+    },
+    {
+      "traceId": "5cb7faef3edb054f188e9aa88e32c922",
+      "generations": 0,
+      "costCny": 0
+    }
+  ],
+  "runtime": [
+    {
+      "pod": "meta-agent-789fd6fb54-2fnss",
+      "anonymousStatus": 401,
+      "guardrails": {
+        "inputInjection": "enforce"
+      },
+      "probes": [
+        {
+          "source": "user",
+          "mode": "enforce",
+          "kind": "clear",
+          "tone": "ok",
+          "hit": false,
+          "instanceId": "meta-agent-789fd6fb54-2fnss",
+          "version": "sha256:d9960b94f191",
+          "latencyMs": 1
+        },
+        {
+          "source": "user",
+          "mode": "enforce",
+          "kind": "blocked",
+          "tone": "bad",
+          "hit": true,
+          "instanceId": "meta-agent-789fd6fb54-2fnss",
+          "version": "sha256:d9960b94f191",
+          "latencyMs": 0
+        },
+        {
+          "source": "tool",
+          "mode": "off",
+          "kind": "off",
+          "tone": "warn",
+          "hit": true,
+          "instanceId": "meta-agent-789fd6fb54-2fnss",
+          "version": "sha256:d9960b94f191",
+          "latencyMs": 0
+        },
+        {
+          "source": "kb",
+          "mode": "off",
+          "kind": "off",
+          "tone": "warn",
+          "hit": true,
+          "instanceId": "meta-agent-789fd6fb54-2fnss",
+          "version": "sha256:d9960b94f191",
+          "latencyMs": 1
+        }
+      ],
+      "invokeEvents": [
+        {
+          "event": "guardrail",
+          "name": "guard.input",
+          "action": "blocked",
+          "source": "user",
+          "mode": "enforce",
+          "hit": true
+        },
+        {
+          "event": "error",
+          "code": "GUARD_INJECTION_BLOCKED",
+          "trace_id": "3b89d389a705065d271d4a2cd89d3ff8"
+        }
+      ]
+    },
+    {
+      "pod": "meta-agent-789fd6fb54-sdhjm",
+      "anonymousStatus": 401,
+      "guardrails": {
+        "inputInjection": "enforce"
+      },
+      "probes": [
+        {
+          "source": "user",
+          "mode": "enforce",
+          "kind": "clear",
+          "tone": "ok",
+          "hit": false,
+          "instanceId": "meta-agent-789fd6fb54-sdhjm",
+          "version": "sha256:d9960b94f191",
+          "latencyMs": 0
+        },
+        {
+          "source": "user",
+          "mode": "enforce",
+          "kind": "blocked",
+          "tone": "bad",
+          "hit": true,
+          "instanceId": "meta-agent-789fd6fb54-sdhjm",
+          "version": "sha256:d9960b94f191",
+          "latencyMs": 0
+        },
+        {
+          "source": "tool",
+          "mode": "off",
+          "kind": "off",
+          "tone": "warn",
+          "hit": true,
+          "instanceId": "meta-agent-789fd6fb54-sdhjm",
+          "version": "sha256:d9960b94f191",
+          "latencyMs": 0
+        },
+        {
+          "source": "kb",
+          "mode": "off",
+          "kind": "off",
+          "tone": "warn",
+          "hit": true,
+          "instanceId": "meta-agent-789fd6fb54-sdhjm",
+          "version": "sha256:d9960b94f191",
+          "latencyMs": 0
+        }
+      ],
+      "invokeEvents": [
+        {
+          "event": "guardrail",
+          "name": "guard.input",
+          "action": "blocked",
+          "source": "user",
+          "mode": "enforce",
+          "hit": true
+        },
+        {
+          "event": "error",
+          "code": "GUARD_INJECTION_BLOCKED",
+          "trace_id": "5cb7faef3edb054f188e9aa88e32c922"
+        }
+      ]
+    }
+  ],
+  "fixCommit": "92ec5a22f7a0c7f2c04b03f5ea13bede6e77818f",
+  "deploymentCommit": "c32b8ec09b2f918e50da9e36ffa08666f36ae996",
+  "ci": {
+    "url": "https://github.com/dezhiguan/keel/actions/runs/39356429146",
+    "conclusion": "success"
+  },
+  "cd": {
+    "url": "https://github.com/dezhiguan/keel/actions/runs/39356429125",
+    "conclusion": "success"
+  },
+  "scopedJavaTestsPassed": 9
+}

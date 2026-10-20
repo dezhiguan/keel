@@ -14,3 +14,5 @@
 - 页面缺省PII为off、显式mask不变。
 - 线上两个实例：不带认证401，合法认证正常输入clear、攻击输入blocked；工具/知识来源显示实际部署模式。
 - 提交推送后等待服务端CI/CD，走与控制台相同的检测API复测，不通过放开运行端鉴权处理。
+
+已验收：9项本机Java专项通过，最新CI/CD成功；控制台同源API正常/攻击及工具/知识来源检测均200，页面PII缺省off；两个实例真实攻击调用均由SDK拦截，追踪generation=0、costCny=0。详见docs/qa/2026-10-20-meta-agent-guardrails.md。
