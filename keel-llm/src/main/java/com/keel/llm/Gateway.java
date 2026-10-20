@@ -119,8 +119,10 @@ public final class Gateway {
         limit(tpm);
         limit(concurrency);
         var token = "sk-keel-" + UUID.randomUUID().toString().replace("-", "");
+        var existing = keys.byAlias(alias);
+        var shares = existing == null || existing.shares() == null ? List.<Share>of() : existing.shares();
         var key = new VirtualKey(alias, token, List.copyOf(models), List.copyOf(fallback), dailyBudgetCny, allowFallback, false, 1,
-                rpm, tpm, concurrency);
+                rpm, tpm, concurrency, shares);
         var saved = keys.rotate(key);
         return new Created(alias, token, saved.version());
     }
@@ -150,7 +152,63 @@ public final class Gateway {
                 key.allowFallback(), key.blocked(), key.version(),
                 limits.containsKey("rpm") ? limits.get("rpm") : key.rpm(),
                 limits.containsKey("tpm") ? limits.get("tpm") : key.tpm(),
-                limits.containsKey("concurrency") ? limits.get("concurrency") : key.concurrency()));
+                limits.containsKey("concurrency") ? limits.get("concurrency") : key.concurrency(),
+                key.shares() == null ? List.of() : key.shares()));
+    }
+
+    /** Replaces the concrete models this key may call with the selected same-env channels. */
+    public synchronized void updateChannels(String alias, List<Share> shares, Map<String, Integer> limits) {
+        var key = requireAlias(alias);
+        if (shares == null || shares.isEmpty()) {
+            throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "至少允许一个渠道");
+        }
+        var rows = channelRows();
+        var models = new ArrayList<String>();
+        var clean = new ArrayList<Share>();
+        var seen = new java.util.HashSet<String>();
+        for (var share : shares) {
+            if (share == null || share.id() == null || share.id().isBlank() || share.rpm() < 1) {
+                throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "渠道 RPM 须为正整数");
+            }
+            if (!seen.add(share.id())) {
+                throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "渠道不能重复");
+            }
+            var row = rows.stream().filter(item -> item.id().equals(share.id())).findFirst()
+                    .orElseThrow(() -> new GatewayException(ErrorCode.SERVER_NOT_FOUND, "渠道不存在"));
+            var env = envOf(alias);
+            var listed = java.util.Arrays.stream(row.env().split("、")).filter(item -> !item.isBlank()).toList();
+            if (!env.isEmpty() && !listed.contains(env)) {
+                throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "只能允许同环境渠道");
+            }
+            int others = 0;
+            for (var peer : keys.list()) {
+                if (peer.alias().equals(alias) || peer.shares() == null) {
+                    continue;
+                }
+                for (var existing : peer.shares()) {
+                    if (share.id().equals(existing.id())) {
+                        others += existing.rpm();
+                    }
+                }
+            }
+            if (row.rpm() != null && others + share.rpm() > row.rpm()) {
+                throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "渠道份额超出厂商上限");
+            }
+            if (row.model() != null && !row.model().isBlank() && !models.contains(row.model())) {
+                models.add(row.model());
+            }
+            clean.add(new Share(share.id(), share.rpm()));
+        }
+        if (limits != null) {
+            limits.values().forEach(Gateway::limit);
+        }
+        var fallback = key.fallback().stream().filter(models::contains).toList();
+        var kept = limits == null ? Map.<String, Integer>of() : limits;
+        keys.save(new VirtualKey(key.alias(), key.token(), List.copyOf(models), fallback, key.dailyBudgetCny(),
+                key.allowFallback(), key.blocked(), key.version(), null,
+                kept.containsKey("tpm") ? kept.get("tpm") : key.tpm(),
+                kept.containsKey("concurrency") ? kept.get("concurrency") : key.concurrency(),
+                List.copyOf(clean)));
     }
 
     public List<ListedKey> listed() {
@@ -159,7 +217,8 @@ public final class Gateway {
                     var amounts = budget.snapshot(key.alias());
                     return new ListedKey(key.alias(), key.models(), key.dailyBudgetCny(),
                             amounts.settledCny(), amounts.reservedCny(), key.blocked(), key.version(),
-                            key.rpm(), key.tpm(), key.concurrency());
+                            key.rpm(), key.tpm(), key.concurrency(),
+                            key.shares() == null ? List.of() : key.shares());
                 })
                 .toList();
     }
@@ -267,6 +326,7 @@ public final class Gateway {
                     if (i < attempts.size() - 1) continue;
                     throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "可用模型渠道已熔断");
                 }
+                countShare(key, used, requestId, traceId, route(i));
                 var forwarded = requestDefaults.apply(forwarding, key.alias(), used, path);
                 var started = System.nanoTime();
                 try {
@@ -363,6 +423,7 @@ public final class Gateway {
                     if (i < attempts.size() - 1) continue;
                     throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "可用模型渠道已熔断");
                 }
+                countShare(key, used, requestId, traceId, route(i));
                 var forwarded = requestDefaults.apply(forwarding, key.alias(), used, path);
                 var started = System.nanoTime();
                 Upstream.Stream opened;
@@ -746,6 +807,48 @@ public final class Gateway {
         routes.observe(breakerKey(key, model), failed, latencyMs);
     }
 
+    private void countShare(VirtualKey key, String model, String requestId, String traceId, String routeVersion) {
+        var share = shareFor(key, model);
+        if (share == null) {
+            return;
+        }
+        try {
+            admission.enterShare(key.alias(), share.id(), share.rpm());
+        } catch (GatewayException denied) {
+            line(key.alias(), model, 0, 0, BigDecimal.ZERO, requestId, 0, false,
+                    "FAILED", BigDecimal.ZERO, traceId, "rejected:" + denied.code().name(), 0);
+            throw denied;
+        }
+    }
+
+    private Share shareFor(VirtualKey key, String model) {
+        var shares = key.shares();
+        if (shares == null || shares.isEmpty()) {
+            return null;
+        }
+        var bound = channels.binding(key.alias(), model);
+        if (bound != null) {
+            for (var share : shares) {
+                if (bound.equals(share.id())) {
+                    return share;
+                }
+            }
+        }
+        var builtin = "m-" + model;
+        for (var share : shares) {
+            if (builtin.equals(share.id())) {
+                return share;
+            }
+        }
+        for (var share : shares) {
+            var row = channelRows().stream().filter(item -> item.id().equals(share.id())).findFirst().orElse(null);
+            if (row != null && model.equals(row.model())) {
+                return share;
+            }
+        }
+        return null;
+    }
+
     private String breakerKey(VirtualKey key, String model) {
         var bound = channels.binding(key.alias(), model);
         if (bound == null || bound.isBlank()) {
@@ -839,7 +942,14 @@ public final class Gateway {
 
     public record VirtualKey(String alias, String token, List<String> models, List<String> fallback,
                              BigDecimal dailyBudgetCny, boolean allowFallback, boolean blocked, int version,
-                             Integer rpm, Integer tpm, Integer concurrency) {
+                             Integer rpm, Integer tpm, Integer concurrency, List<Share> shares) {
+        public VirtualKey(String alias, String token, List<String> models, List<String> fallback,
+                          BigDecimal dailyBudgetCny, boolean allowFallback, boolean blocked, int version,
+                          Integer rpm, Integer tpm, Integer concurrency) {
+            this(alias, token, models, fallback, dailyBudgetCny, allowFallback, blocked, version,
+                    rpm, tpm, concurrency, List.of());
+        }
+
         public VirtualKey(String alias, String token, List<String> models, List<String> fallback,
                           BigDecimal dailyBudgetCny, boolean allowFallback, boolean blocked, int version) {
             this(alias, token, models, fallback, dailyBudgetCny, allowFallback, blocked, version, null, null, null);
@@ -847,18 +957,20 @@ public final class Gateway {
 
         public VirtualKey asBlocked() {
             return new VirtualKey(alias, token, models, fallback, dailyBudgetCny, allowFallback, true, version,
-                    rpm, tpm, concurrency);
+                    rpm, tpm, concurrency, shares == null ? List.of() : shares);
         }
 
         public VirtualKey withBudget(BigDecimal budget) {
             return new VirtualKey(alias, token, models, fallback, budget, allowFallback, blocked, version,
-                    rpm, tpm, concurrency);
+                    rpm, tpm, concurrency, shares == null ? List.of() : shares);
         }
     }
 
+    public record Share(String id, int rpm) {}
+
     public record ListedKey(String alias, List<String> models, BigDecimal dailyBudgetCny, BigDecimal spentCny,
                             BigDecimal reservedCny, boolean blocked, int version,
-                            Integer rpm, Integer tpm, Integer concurrency) {}
+                            Integer rpm, Integer tpm, Integer concurrency, List<Share> shares) {}
 
     public record Spend(String alias, String model, int inputTokens, int outputTokens, BigDecimal costCny,
                         String requestId, Instant ts, long latencyMs, boolean timedOut, String status,

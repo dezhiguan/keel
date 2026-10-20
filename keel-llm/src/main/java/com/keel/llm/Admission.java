@@ -126,6 +126,36 @@ public final class Admission {
         }
     }
 
+    public void enterShare(String alias, String channelId, int rpm) {
+        if (alias == null || channelId == null || channelId.isBlank() || rpm < 1) {
+            throw limited();
+        }
+        if (redis != null) {
+            enterShareRedis(alias, channelId, rpm);
+            return;
+        }
+        var window = local.computeIfAbsent(alias + "\n" + channelId, ignored -> new Window());
+        synchronized (window) {
+            long now = System.currentTimeMillis();
+            window.drop(now);
+            if (window.hits.size() >= rpm) {
+                throw limited();
+            }
+            window.hits.add(now);
+        }
+    }
+
+    private void enterShareRedis(String alias, String channelId, int rpm) {
+        var minute = LocalDateTime.now(BudgetCounter.SHANGHAI).format(MINUTE);
+        String rpmKey = "keel-llm:share:" + alias + ":" + channelId + ":" + minute;
+        long count = redis.incr(rpmKey);
+        redis.expire(rpmKey, 120);
+        if (count > rpm) {
+            redis.decr(rpmKey);
+            throw limited();
+        }
+    }
+
     private static boolean unlimited(Gateway.VirtualKey key) {
         return key.rpm() == null && key.tpm() == null && key.concurrency() == null;
     }

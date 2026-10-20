@@ -8,11 +8,14 @@ export function getModelGateway(query: ModelGatewayQuery) {
   return get<ModelGateway>('/insight/costs', { params: query })
 }
 
-export function updateModelBudget(alias: string, dailyBudgetCny: number, limits?: { rpm: number | null; tpm: number | null; concurrency: number | null }) {
-  return post<{ alias: string; dailyBudgetCny: number }>(`/insight/costs/keys/${encodeURIComponent(alias)}/budget`, {
-    dailyBudgetCny,
-    ...limits,
-  })
+export function updateModelBudget(alias: string, body: {
+  dailyBudgetCny?: number
+  rpm?: number | null
+  tpm?: number | null
+  concurrency?: number | null
+  channels?: { id: string; rpm: number }[]
+}) {
+  return post<{ alias: string; dailyBudgetCny?: number }>(`/insight/costs/keys/${encodeURIComponent(alias)}/budget`, body)
 }
 
 export function probeModel(name: string) {

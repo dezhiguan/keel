@@ -182,7 +182,8 @@ public class LiteLlmClient {
                 row.path("version").asInt(1),
                 optionalInt(row.path("rpm")),
                 optionalInt(row.path("tpm")),
-                optionalInt(row.path("concurrency")))));
+                optionalInt(row.path("concurrency")),
+                shares(row.path("shares")))));
         return rows;
     }
 
@@ -348,22 +349,40 @@ public class LiteLlmClient {
     }
 
     public void updateBudget(String alias, BigDecimal dailyBudgetCny, Map<String, Integer> limits) {
+        updateBudget(alias, dailyBudgetCny, limits, null);
+    }
+
+    public void updateBudget(String alias, BigDecimal dailyBudgetCny, Map<String, Integer> limits, List<Share> channels) {
         var body = new java.util.LinkedHashMap<String, Object>();
-        body.put("dailyBudgetCny", dailyBudgetCny);
-        body.putAll(limits);
+        if (dailyBudgetCny != null) {
+            body.put("dailyBudgetCny", dailyBudgetCny);
+        }
+        if (limits != null) {
+            body.putAll(limits);
+        }
+        if (channels != null) {
+            body.put("channels", channels.stream().map(share -> Map.of("id", share.id(), "rpm", share.rpm())).toList());
+        }
         send("/admin/v1/keys/" + alias + "/budget", body);
     }
 
+    public record Share(String id, int rpm) {}
+
     public record VirtualKey(String alias, List<String> models, double dailyBudgetCny, double spentCny,
                              double reservedCny, boolean blocked, int version, Integer rpm, Integer tpm,
-                             Integer concurrency) {
+                             Integer concurrency, List<Share> shares) {
         public VirtualKey(String alias, List<String> models, double dailyBudgetCny, double spentCny, boolean blocked) {
-            this(alias, models, dailyBudgetCny, spentCny, 0, blocked, 1, null, null, null);
+            this(alias, models, dailyBudgetCny, spentCny, 0, blocked, 1, null, null, null, List.of());
         }
 
         public VirtualKey(String alias, List<String> models, double dailyBudgetCny, double spentCny,
                           double reservedCny, boolean blocked, int version) {
-            this(alias, models, dailyBudgetCny, spentCny, reservedCny, blocked, version, null, null, null);
+            this(alias, models, dailyBudgetCny, spentCny, reservedCny, blocked, version, null, null, null, List.of());
+        }
+
+        public VirtualKey(String alias, List<String> models, double dailyBudgetCny, double spentCny,
+                          double reservedCny, boolean blocked, int version, Integer rpm, Integer tpm, Integer concurrency) {
+            this(alias, models, dailyBudgetCny, spentCny, reservedCny, blocked, version, rpm, tpm, concurrency, List.of());
         }
     }
 
@@ -453,6 +472,19 @@ public class LiteLlmClient {
         } catch (Exception error) {
             return "";
         }
+    }
+
+    private static List<Share> shares(JsonNode node) {
+        var shares = new ArrayList<Share>();
+        if (node != null && node.isArray()) {
+            node.forEach(item -> {
+                var id = item.path("id").asText("");
+                if (!id.isBlank() && item.path("rpm").canConvertToInt()) {
+                    shares.add(new Share(id, item.path("rpm").asInt()));
+                }
+            });
+        }
+        return List.copyOf(shares);
     }
 
     private static List<String> texts(JsonNode node) {

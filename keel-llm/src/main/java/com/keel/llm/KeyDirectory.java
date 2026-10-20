@@ -86,6 +86,14 @@ public final class KeyDirectory {
         if (key.rpm() != null) node.put("rpm", key.rpm());
         if (key.tpm() != null) node.put("tpm", key.tpm());
         if (key.concurrency() != null) node.put("concurrency", key.concurrency());
+        var shares = node.putArray("shares");
+        if (key.shares() != null) {
+            for (var share : key.shares()) {
+                var item = shares.addObject();
+                item.put("id", share.id());
+                item.put("rpm", share.rpm());
+            }
+        }
         return node.toString();
     }
 
@@ -106,10 +114,24 @@ public final class KeyDirectory {
                     node.path("version").asInt(1),
                     optionalInt(node.path("rpm")),
                     optionalInt(node.path("tpm")),
-                    optionalInt(node.path("concurrency")));
+                    optionalInt(node.path("concurrency")),
+                    shares(node.path("shares")));
         } catch (Exception e) {
             throw new IllegalStateException("虚拟 Key 无法读取", e);
         }
+    }
+
+    private static List<Gateway.Share> shares(com.fasterxml.jackson.databind.JsonNode node) {
+        var shares = new ArrayList<Gateway.Share>();
+        if (node != null && node.isArray()) {
+            for (var item : node) {
+                var id = item.path("id").asText("");
+                if (!id.isBlank() && item.path("rpm").isInt() && item.path("rpm").asInt() > 0) {
+                    shares.add(new Gateway.Share(id, item.path("rpm").asInt()));
+                }
+            }
+        }
+        return List.copyOf(shares);
     }
 
     private static Integer optionalInt(com.fasterxml.jackson.databind.JsonNode node) {
@@ -149,7 +171,8 @@ public final class KeyDirectory {
                 var next = decode(value);
                 var rotated = new Gateway.VirtualKey(next.alias(), next.token(), next.models(), next.fallback(),
                         next.dailyBudgetCny(), next.allowFallback(), next.blocked(),
-                        current == null ? 1 : current.version() + 1, next.rpm(), next.tpm(), next.concurrency());
+                        current == null ? 1 : current.version() + 1, next.rpm(), next.tpm(), next.concurrency(),
+                        next.shares() == null ? List.of() : next.shares());
                 var encoded = encode(rotated);
                 data.put(tokenKey, alias);
                 data.put(aliasKey, encoded);

@@ -70,9 +70,16 @@ public class LlmController {
             for (var field : List.of("rpm", "tpm", "concurrency")) {
                 if (body.containsKey(field)) limits.put(field, body.get(field) == null ? null : new BigDecimal(body.get(field).toString()).intValueExact());
             }
-            gateway.updateBudget(alias, raw == null ? null : new BigDecimal(raw.toString()), limits);
+            if (body.containsKey("channels")) {
+                gateway.updateChannels(alias, shares(body.get("channels")), limits);
+                if (raw != null) {
+                    gateway.updateBudget(alias, new BigDecimal(raw.toString()), Map.of());
+                }
+            } else {
+                gateway.updateBudget(alias, raw == null ? null : new BigDecimal(raw.toString()), limits);
+            }
         } catch (NumberFormatException | ArithmeticException error) {
-            throw new Gateway.GatewayException(ErrorCode.SERVER_INVALID_PARAM, "预算须为数值，RPM、TPM、并发须为正整数或 null");
+            throw new Gateway.GatewayException(ErrorCode.SERVER_INVALID_PARAM, "预算须为数值，RPM、TPM、并发和渠道份额须为正整数或 null");
         }
         return ResponseEntity.noContent().build();
     }
@@ -92,6 +99,7 @@ public class LlmController {
             view.put("rpm", key.rpm());
             view.put("tpm", key.tpm());
             view.put("concurrency", key.concurrency());
+            view.put("shares", shareView(key.shares()));
             return view;
         }).toList();
         return Map.of("data", rows);
@@ -113,6 +121,7 @@ public class LlmController {
         view.put("rpm", key.rpm());
         view.put("tpm", key.tpm());
         view.put("concurrency", key.concurrency());
+        view.put("shares", shareView(key.shares()));
         return view;
     }
 
@@ -320,6 +329,28 @@ public class LlmController {
     private static String trace(HttpServletRequest request) {
         var header = request.getHeader("X-Trace-Id");
         return header == null || header.isBlank() ? "" : header;
+    }
+
+    private static List<Map<String, Object>> shareView(List<Gateway.Share> shares) {
+        if (shares == null || shares.isEmpty()) {
+            return List.of();
+        }
+        return shares.stream().map(share -> Map.<String, Object>of("id", share.id(), "rpm", share.rpm())).toList();
+    }
+
+    private static List<Gateway.Share> shares(Object value) {
+        if (!(value instanceof List<?> list) || list.isEmpty()) {
+            throw new Gateway.GatewayException(ErrorCode.SERVER_INVALID_PARAM, "至少允许一个渠道");
+        }
+        var shares = new java.util.ArrayList<Gateway.Share>();
+        for (var item : list) {
+            if (!(item instanceof Map<?, ?> map)) {
+                throw new Gateway.GatewayException(ErrorCode.SERVER_INVALID_PARAM, "渠道份额格式不正确");
+            }
+            var rpm = map.get("rpm");
+            shares.add(new Gateway.Share(text(map.get("id")), rpm == null ? 0 : new BigDecimal(rpm.toString()).intValueExact()));
+        }
+        return shares;
     }
 
     private static Map<String, Object> channelView(Gateway.ChannelRow row) {

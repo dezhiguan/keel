@@ -165,6 +165,31 @@ class GatewayTest {
         });
     }
 
+    @Test void channelShareReplacesModelsAndRejectsTheNextCallOnThatChannel() throws Exception {
+        var server = echoServer();
+        try {
+            var gateway = gateway(server);
+            var created = gateway.create("echo-dev", List.of("qwen-plus", "chat-default"), List.of("deepseek-v3"), new BigDecimal("30"), true);
+            gateway.updateChannels("echo-dev", List.of(new Gateway.Share("m-qwen-plus", 1)), Map.of("tpm", 1000));
+            var key = gateway.requireAlias("echo-dev");
+            assertThat(key.models()).containsExactly("qwen-plus");
+            assertThat(key.rpm()).isNull();
+            assertThat(key.tpm()).isEqualTo(1000);
+            assertThat(key.shares()).containsExactly(new Gateway.Share("m-qwen-plus", 1));
+            assertThat(key.dailyBudgetCny()).isEqualByComparingTo("30");
+            gateway.complete("Bearer " + created.key(), "/v1/chat/completions", "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2));
+            assertThatThrownBy(() -> gateway.complete("Bearer " + created.key(), "/v1/chat/completions", "{\"model\":\"qwen-plus\"}", Duration.ofSeconds(2)))
+                    .isInstanceOf(Gateway.GatewayException.class)
+                    .extracting(error -> ((Gateway.GatewayException) error).code()).isEqualTo(ErrorCode.LLM_RATE_LIMITED);
+            var added = gateway.addChannel("百炼B", "qwen-plus", "dev", 10);
+            assertThatThrownBy(() -> gateway.updateChannels("echo-dev", List.of(new Gateway.Share(added.id(), 11)), Map.of()))
+                    .isInstanceOf(Gateway.GatewayException.class)
+                    .hasMessageContaining("厂商上限");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     @Test void updateBudgetKeepsTheSameKey() {
         var gateway = gateway(echoServer());
         var created = gateway.create("echo-dev", List.of("qwen-plus"), List.of(), new BigDecimal("30"), false);

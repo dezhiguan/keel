@@ -16,6 +16,16 @@ import {
   type ModelGateway,
 } from '@/api/models'
 import { breakerLabel } from './channelBreaker'
+import {
+  channelPills,
+  channelsForEnv,
+  coverageText,
+  initialDraft,
+  neededModels,
+  shareBlocked,
+  shareLines,
+  type ChannelDraft,
+} from './channelShare'
 import { billClock, billStatusLabel, limitLabel, objectiveLabel, routeReason } from './modelBill'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
@@ -46,10 +56,9 @@ const tab = ref<'model' | 'key' | 'route'>('model')
 const loading = ref(false)
 const saving = ref(false)
 const selectedAlias = ref('')
-const nextBudget = ref(30)
-const nextRpm = ref<number | ''>('')
 const nextTpm = ref<number | ''>('')
 const nextConcurrency = ref<number | ''>('')
+const channelDraft = ref<ChannelDraft>({})
 const rotating = ref<GatewayKey | null>(null)
 const rotated = ref<{ key: string; version: number } | null>(null)
 const rotationBusy = ref(false)
@@ -102,8 +111,19 @@ function uncoveredKeys(row: NonNullable<ModelGateway['logicalRoutes']>[number]) 
   const targets = routeTargets(row)
   return keys.value.filter((key) => {
     const same = row.env === 'prod' ? key.env === 'prod' : !!key.env && key.env !== 'prod'
-    return same && targets.some((model) => !(key.models ?? []).includes(model))
+    return same && targets.some((model) => !keyAllows(key, model))
   })
+}
+
+function keyAllows(key: GatewayKey, model: string) {
+  const visible = channelsForEnv(liveChannels.value, key.env)
+  const selected = selectedModelsOf(key, visible)
+  return selected.length ? selected.includes(model) : (key.models ?? []).includes(model)
+}
+
+function selectedModelsOf(key: GatewayKey, visible: ReturnType<typeof channelsForEnv>) {
+  const draft = initialDraft(key, visible)
+  return visible.filter((channel) => Object.prototype.hasOwnProperty.call(draft, channel.id) && channel.model).map((channel) => channel.model as string)
 }
 
 const channels = computed(() => models.value.map((model) => {
@@ -143,13 +163,11 @@ const switchHint = computed(() => (prodQwen.value.length < 2
   : '把允许该千问模型的 prod Key 改走目标渠道。网关热生效，不重新部署。'))
 const modelChoices = computed(() => models.value.map((model) => model.model).filter((name): name is string => !!name))
 
-const sameEnvModels = computed(() => {
-  const env = selectedKey.value?.env
-  if (!env) return models.value
-  const names = new Set(keys.value.filter((key) => key.env === env).flatMap((key) => key.models ?? []))
-  const listed = models.value.filter((model) => names.has(model.model || ''))
-  return listed.length ? listed : models.value
-})
+const quotaChannels = computed(() => channelsForEnv(liveChannels.value, selectedKey.value?.env))
+const quotaCoverage = computed(() => coverageText(selectedKey.value?.env, logicalRoutes.value, channelDraft.value, quotaChannels.value))
+const quotaShares = computed(() => shareLines(channelDraft.value, quotaChannels.value, keys.value, selectedKey.value?.alias))
+const quotaOver = computed(() => quotaShares.value.some((line) => line.over))
+const quotaSaveBlocked = computed(() => shareBlocked(channelDraft.value, quotaChannels.value, keys.value, selectedKey.value?.alias))
 
 function channelHost(provider?: string | null) {
   const name = (provider || '').toLowerCase()
@@ -183,12 +201,35 @@ function yuan(value?: number | null) {
 
 function selectKey(key: GatewayKey) {
   selectedAlias.value = key.alias ?? ''
-  const current = key.dailyBudgetCny ?? 30
-  const stepped = Math.round(current / 5) * 5
-  nextBudget.value = Math.min(200, Math.max(10, stepped || 10))
-  nextRpm.value = key.rpm ?? ''
   nextTpm.value = key.tpm ?? ''
   nextConcurrency.value = key.concurrency ?? ''
+  channelDraft.value = initialDraft(key, channelsForEnv(liveChannels.value, key.env))
+}
+
+function toggleChannel(id: string, on: boolean) {
+  const next = { ...channelDraft.value }
+  if (on) next[id] = 50
+  else delete next[id]
+  channelDraft.value = next
+}
+
+function editShare(id: string, raw: string) {
+  if (!Object.prototype.hasOwnProperty.call(channelDraft.value, id)) return
+  const next = { ...channelDraft.value }
+  next[id] = raw === '' ? '' : Number(raw)
+  channelDraft.value = next
+}
+
+function onChannelToggle(id: string, event: Event) {
+  toggleChannel(id, (event.target as HTMLInputElement).checked)
+}
+
+function onShareInput(id: string, event: Event) {
+  editShare(id, (event.target as HTMLInputElement).value)
+}
+
+function keyGap(key: GatewayKey) {
+  return neededModels(logicalRoutes.value, key.env).filter((model) => !keyAllows(key, model))
 }
 
 function openQuota(key: GatewayKey) {
@@ -237,9 +278,9 @@ async function probe(name?: string) {
   }
 }
 
-async function saveBudget() {
+async function saveQuota() {
   const key = selectedKey.value
-  if (!key?.alias || key.status === 'BLOCKED') return
+  if (!key?.alias || key.status === 'BLOCKED' || !admin.value || quotaSaveBlocked.value) return
   saving.value = true
   try {
     const limit = (value: number | '', label: string) => {
@@ -247,12 +288,20 @@ async function saveBudget() {
       if (!Number.isInteger(value) || value <= 0 || value > 2147483647) throw new Error(`${label} 须为正整数，留空表示不限制`)
       return value
     }
-    const limits = admin.value ? { rpm: limit(nextRpm.value, 'RPM'), tpm: limit(nextTpm.value, 'TPM'), concurrency: limit(nextConcurrency.value, '并发') } : undefined
-    await updateModelBudget(key.alias, nextBudget.value, limits)
-    ElMessage.success(`已更新 ${key.alias} 的预算和配额`)
+    const channels = Object.entries(channelDraft.value).map(([id, rpm]) => {
+      if (rpm === '' || !Number.isInteger(rpm) || rpm < 1) throw new Error('渠道 RPM 须为正整数')
+      return { id, rpm }
+    })
+    await updateModelBudget(key.alias, {
+      tpm: limit(nextTpm.value, 'TPM'),
+      concurrency: limit(nextConcurrency.value, '并发'),
+      channels,
+    })
+    ElMessage.success(`已更新 ${key.alias} 的渠道和份额`)
     await load()
   } catch (error) {
-    ElMessage.error(`调整配额失败：${toKeelError(error).message}`)
+    const message = error instanceof Error ? error.message : ''
+    ElMessage.error(`调整配额失败：${message.includes('须为正整数') ? message : toKeelError(error).message}`)
   } finally {
     saving.value = false
   }
@@ -572,7 +621,7 @@ watch(() => envStore.env, load, { immediate: true })
 
     <div v-show="tab === 'key'">
       <div class="card">
-        <h3>Key 份额 <small>点「配额」查看这把 Key 在网关上的配额</small></h3>
+        <h3>Key 份额 <small>一把 Key 可允许多个渠道，每个渠道单独一份 RPM；点「配额」编辑</small></h3>
           <div class="mut legend">RPM = 每分钟请求数 · TPM = 每分钟 Token 数（输入 + 输出）· 并发 = 同时进行中的请求数</div>
           <table class="t">
             <thead>
@@ -589,12 +638,12 @@ watch(() => envStore.env, load, { immediate: true })
               <tr v-for="key in keyRows" :key="key.alias">
                 <td class="mono">{{ key.alias }}</td>
                 <td>
-                  <span v-for="name in key.models ?? []" :key="name" class="pill nd p-mute share">{{ name }} · {{ limitLabel(key.rpm) }}</span>
-                  <span v-if="!(key.models ?? []).length" class="mut">—</span>
+                  <span v-for="pill in channelPills(key, liveChannels)" :key="pill" class="pill nd p-mute share">{{ pill }}</span>
+                  <span v-if="!channelPills(key, liveChannels).length" class="mut">—</span>
                 </td>
                 <td>
-                  <span v-if="key.models?.length" class="pill p-ok">已覆盖</span>
-                  <span v-else class="pill p-bad">缺模型</span>
+                  <span v-if="keyGap(key).length" class="pill p-bad">缺 {{ keyGap(key).join('、') }}</span>
+                  <span v-else class="pill p-ok">已覆盖</span>
                 </td>
                 <td class="mono">{{ key.tpm == null ? '不限制' : key.tpm.toLocaleString('zh-CN') }}</td>
                 <td class="mono">{{ limitLabel(key.concurrency) }}</td>
@@ -707,44 +756,56 @@ watch(() => envStore.env, load, { immediate: true })
         <div class="mh">分配份额 · <span class="mono">{{ selectedKey.alias }}</span></div>
         <div class="mb">
           <div class="field">
-            <label>允许的模型（同环境，授权只读）</label>
-            <div v-for="model in sameEnvModels" :key="model.model" class="ch-row">
+            <label>允许的渠道（只列同环境）</label>
+            <div v-for="channel in quotaChannels" :key="channel.id" class="ch-row">
               <label>
-                <input type="checkbox" disabled :checked="selectedKey.models?.includes(model.model || '')">
-                {{ model.provider || '渠道' }}
-                <span class="mut">{{ model.model }}</span>
+                <input
+                  type="checkbox"
+                  :disabled="!admin || selectedKey.status === 'BLOCKED'"
+                  :checked="Object.prototype.hasOwnProperty.call(channelDraft, channel.id)"
+                  @change="onChannelToggle(channel.id, $event)"
+                >
+                {{ channel.name || '渠道' }}
+                <span class="mut">{{ channel.model }}</span>
               </label>
+              <input
+                class="inp rpm"
+                type="number"
+                min="1"
+                step="1"
+                placeholder="RPM"
+                title="RPM：每分钟请求数"
+                :disabled="!admin || selectedKey.status === 'BLOCKED' || !Object.prototype.hasOwnProperty.call(channelDraft, channel.id)"
+                :value="channelDraft[channel.id] ?? ''"
+                @input="onShareInput(channel.id, $event)"
+              >
             </div>
-          </div>
-          <div class="field">
-            <label for="key-quota-rpm">Key RPM（每分钟请求数，所有渠道共用）</label>
-            <input id="key-quota-rpm" v-model.number="nextRpm" class="inp" type="number" min="1" step="1" placeholder="留空表示不限制" :disabled="!admin || selectedKey.status === 'BLOCKED'">
+            <div v-if="!quotaChannels.length" class="mut">这个环境还没有渠道</div>
           </div>
           <div class="share-grid">
             <div class="field">
               <label for="key-quota-tpm">TPM（每分钟 Token 数，输入 + 输出）</label>
               <input id="key-quota-tpm" v-model.number="nextTpm" class="inp" type="number" min="1" step="1" placeholder="留空表示不限制" :disabled="!admin || selectedKey.status === 'BLOCKED'">
-              <small>按已结算 Token 用量限制后续请求；单次和在途请求可能超过此值。</small>
             </div>
             <div class="field">
               <label for="key-quota-concurrency">并发</label>
               <input id="key-quota-concurrency" v-model.number="nextConcurrency" class="inp" type="number" min="1" step="1" placeholder="留空表示不限制" :disabled="!admin || selectedKey.status === 'BLOCKED'">
             </div>
           </div>
-          <div class="field">
-            <label>日预算：<b class="budget-now">¥{{ nextBudget }}</b> <span class="mut">当前 ¥{{ selectedKey.dailyBudgetCny }}</span></label>
-            <input v-model.number="nextBudget" class="budget-range" type="range" min="10" max="200" step="5" :disabled="selectedKey.status === 'BLOCKED'">
+          <div class="pbanner" :class="quotaCoverage.tone">
+            {{ quotaCoverage.text }}
+            <div v-if="quotaCoverage.detail" class="mut">{{ quotaCoverage.detail }}</div>
           </div>
-          <div v-if="selectedKey.models?.length" class="pbanner ok">
-            已允许的模型：{{ selectedKey.models.join('、') }}。
-            <div class="mut">今日 {{ yuan(selectedKey.spentCny) }} + {{ yuan(selectedKey.reservedCny) }} / ¥{{ selectedKey.dailyBudgetCny }}</div>
+          <div v-if="!Object.keys(channelDraft).length" class="pbanner bad">至少允许一个渠道。</div>
+          <div v-else class="pbanner" :class="quotaOver ? 'bad' : 'ok'">
+            <div v-for="line in quotaShares" :key="line.id">{{ line.text }}</div>
+            <span class="mut">{{ quotaOver ? '请降低份额、申请提额，或改用独立子业务空间。' : '超出份额的请求在网关返回 LLM_RATE_LIMITED，不打到厂商。' }}</span>
           </div>
-          <div v-else class="pbanner bad">这把 Key 没有允许的模型，请求发不出去。</div>
         </div>
         <div class="mf">
           <button class="btn" type="button" :disabled="saving" @click="closeQuota">关闭</button>
           <button v-if="admin && selectedKey.status !== 'BLOCKED'" v-write class="btn" type="button" @click="openRotation(selectedKey)">轮换</button>
-          <button v-if="selectedKey.status !== 'BLOCKED'" v-write class="btn pri" type="button" :disabled="saving" @click="saveBudget">保存</button>
+          <button v-if="admin && selectedKey.status !== 'BLOCKED'" v-write class="btn pri" type="button" :disabled="saving || quotaSaveBlocked" @click="saveQuota">保存</button>
         </div>
       </div>
       <div v-if="rotating" class="mask on over" @click="closeRotation" />
@@ -825,7 +886,8 @@ watch(() => envStore.env, load, { immediate: true })
 
 <style scoped>
 .pbanner { display: block; margin: 10px 0; }
-.modal.quota { width: min(480px, 94vw); }
+.modal.quota { width: min(560px, 94vw); }
+.modal.quota .mb { max-height: min(70vh, 640px); overflow: auto; }
 .mask.over { z-index: 70; }
 .modal.over { z-index: 80; }
 .bar { min-width: 90px; }
@@ -834,14 +896,12 @@ th small { font-weight: 400; }
 .alloc { font-size: 11.5px; }
 .share { margin: 1px 2px; }
 .ch-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px solid #172235; }
-.ch-row label { display: flex; gap: 8px; align-items: center; flex: 1; margin: 0; color: var(--text); font-size: 12.8px; }
+.ch-row label { display: flex; gap: 8px; align-items: center; flex: 1; margin: 0; color: var(--text); font-size: 12.8px; cursor: pointer; }
 .ch-row .mut { font-size: 11.5px; }
 .ch-row .rpm { width: 90px; flex: none; }
 .share-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .note { font-size: 11.5px; margin-top: 8px; }
 h3 .btn { margin-left: 8px; }
-.budget-range { accent-color: var(--acc); width: 100%; }
-.budget-now { color: var(--white); }
 .ops { display: flex; gap: 8px; margin-top: 8px; }
 .route-table { margin-top: 0; }
 .banner { margin-top: 12px; }

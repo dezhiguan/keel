@@ -200,12 +200,33 @@ public class CostService {
         if (limits.values().stream().anyMatch(value -> value != null && value <= 0)) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "RPM、TPM、并发须为正整数，空白表示不限制");
         }
+        updateBudget(alias, dailyBudgetCny, limits, null);
+    }
+
+    public void updateBudget(String alias, BigDecimal dailyBudgetCny, Map<String, Integer> limits,
+                             List<LiteLlmClient.Share> channels) {
+        if (alias == null || alias.isBlank()) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "别名不能为空");
+        }
+        if (dailyBudgetCny != null && !budgetOnSlider(dailyBudgetCny)) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "日预算须在 ¥10 到 ¥200 之间，且为 5 的倍数");
+        }
+        if (dailyBudgetCny == null && (channels == null || channels.isEmpty())) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "dailyBudgetCny 缺失");
+        }
+        if (limits != null && limits.values().stream().anyMatch(value -> value != null && value <= 0)) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "RPM、TPM、并发须为正整数，空白表示不限制");
+        }
         try {
-            gateway.updateBudget(alias, dailyBudgetCny, limits);
+            gateway.updateBudget(alias, dailyBudgetCny, limits == null ? Map.of() : limits, channels);
         } catch (IllegalStateException e) {
             var message = e.getMessage() == null ? "" : e.getMessage();
-            if (message.endsWith(" 404")) {
+            if (message.contains(" 404")) {
                 throw new KeelException(ErrorCode.SERVER_NOT_FOUND, "虚拟 Key 不存在");
+            }
+            if (message.contains(" 400")) {
+                var detail = message.substring(message.indexOf(" 400") + 4).trim();
+                throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, detail.isBlank() ? "配额没有被薄网关接受" : detail);
             }
             throw e;
         }
@@ -232,7 +253,8 @@ public class CostService {
                 .filter(key -> inEnv(key.alias(), env))
                 .map(key -> new Key(key.alias(), agentOf(key.alias()), envOf(key.alias()), key.models(),
                         key.dailyBudgetCny(), key.spentCny(), key.reservedCny(), key.blocked(), key.version(),
-                        key.rpm(), key.tpm(), key.concurrency()))
+                        key.rpm(), key.tpm(), key.concurrency(),
+                        key.shares() == null ? List.of() : key.shares()))
                 .toList();
         var stats = stats(gateway.models(), rows, keys, env, since, now);
         int pending = (int) rows.stream().filter(row -> "PENDING".equals(row.status())).count();
@@ -486,7 +508,14 @@ public class CostService {
 
     public record Key(String alias, String agent, String env, List<String> models, double dailyBudgetCny,
                       double spentCny, double reservedCny, boolean blocked, int version,
-                      Integer rpm, Integer tpm, Integer concurrency) {}
+                      Integer rpm, Integer tpm, Integer concurrency, List<LiteLlmClient.Share> shares) {
+        public Key(String alias, String agent, String env, List<String> models, double dailyBudgetCny,
+                   double spentCny, double reservedCny, boolean blocked, int version,
+                   Integer rpm, Integer tpm, Integer concurrency) {
+            this(alias, agent, env, models, dailyBudgetCny, spentCny, reservedCny, blocked, version,
+                    rpm, tpm, concurrency, List.of());
+        }
+    }
 
     public record ModelStat(String name, String provider, String role, int calls, String p95, Double timeoutRate,
                             double costCny, String status, boolean priceConfigured, String priceVersion,

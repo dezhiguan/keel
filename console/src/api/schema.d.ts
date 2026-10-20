@@ -1469,7 +1469,7 @@ export interface paths {
         put?: never;
         /**
          * 调整虚拟 Key 的人民币日预算和 Key 级配额
-         * @description 保存后写到薄网关并记 config.change 审计。日预算为 ¥10 到 ¥200，步长 ¥5。RPM、TPM、并发仅管理员可改，缺省保持原值，null 取消限制，正整数设置上限。RPM 为所有渠道共用，不轮换令牌。
+         * @description 保存后写到薄网关并记 config.change 审计。日预算为 ¥10 到 ¥200，步长 ¥5；只改渠道份额时可以不传。RPM、TPM、并发仅管理员可改，缺省保持原值，null 取消限制，正整数设置上限。未带 channels 时 RPM 为所有渠道共用，不轮换令牌。channels 出现时替换该 Key 允许的具体模型，并按渠道记录 RPM。
          */
         post: operations["updateModelBudget"];
         delete?: never;
@@ -3370,6 +3370,11 @@ export interface components {
                 tpm?: number | null;
                 /** @description 并发上限。为空表示不限制 */
                 concurrency?: number | null;
+                /** @description 这把 Key 允许的渠道和每渠道 RPM。为空表示还没按渠道分配。 */
+                shares?: {
+                    id?: string;
+                    rpm?: number;
+                }[];
             }[];
             routePolicy?: {
                 version?: number;
@@ -6320,10 +6325,15 @@ export interface operations {
             content: {
                 "application/json": {
                     /** Format: float */
-                    dailyBudgetCny: number;
+                    dailyBudgetCny?: number;
                     rpm?: number | null;
                     tpm?: number | null;
                     concurrency?: number | null;
+                    /** @description 同环境渠道份额。出现时替换允许的具体模型。 */
+                    channels?: {
+                        id: string;
+                        rpm: number;
+                    }[];
                 };
             };
         };

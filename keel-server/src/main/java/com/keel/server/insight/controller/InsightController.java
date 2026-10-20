@@ -15,7 +15,9 @@ import com.keel.server.insight.TraceQueryService;
 import com.keel.server.registry.service.AgentRegistryService;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import jakarta.validation.constraints.Min;
@@ -124,6 +126,8 @@ public class InsightController {
                     row.put("rpm", key.rpm());
                     row.put("tpm", key.tpm());
                     row.put("concurrency", key.concurrency());
+                    row.put("shares", key.shares() == null ? List.of() : key.shares().stream().map(share -> Map.of(
+                            "id", share.id(), "rpm", share.rpm())).toList());
                     return row;
                 }).toList();
         var body = new LinkedHashMap<String, Object>();
@@ -242,10 +246,10 @@ public class InsightController {
     @Audited
     public R<Map<String, Object>> updateBudget(@PathVariable String alias, @RequestBody Map<String, Object> body) {
         var raw = body.get("dailyBudgetCny");
-        if (raw == null) {
-            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "dailyBudgetCny 缺失");
+        BigDecimal budget = null;
+        if (raw != null) {
+            budget = new BigDecimal(raw.toString());
         }
-        var budget = new BigDecimal(raw.toString());
         var limits = new LinkedHashMap<String, Integer>();
         for (var field : java.util.List.of("rpm", "tpm", "concurrency")) {
             if (body.containsKey(field)) {
@@ -257,8 +261,21 @@ public class InsightController {
                 }
             }
         }
-        costs.updateBudget(alias, budget, limits);
-        return R.ok(Map.of("alias", alias, "dailyBudgetCny", budget));
+        List<LiteLlmClient.Share> channels = null;
+        if (body.containsKey("channels")) {
+            requireAdmin();
+            channels = channelShares(body.get("channels"));
+        }
+        if (budget == null && channels == null) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "dailyBudgetCny 缺失");
+        }
+        costs.updateBudget(alias, budget, limits, channels);
+        var saved = new LinkedHashMap<String, Object>();
+        saved.put("alias", alias);
+        if (budget != null) {
+            saved.put("dailyBudgetCny", budget);
+        }
+        return R.ok(saved);
     }
 
     @PostMapping("/route-policy")
@@ -337,6 +354,26 @@ public class InsightController {
         row.put("openUntil", channel.openUntil());
         row.put("bound", channel.bound());
         return row;
+    }
+
+    private static List<LiteLlmClient.Share> channelShares(Object value) {
+        if (!(value instanceof List<?> list) || list.isEmpty()) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "至少允许一个渠道");
+        }
+        var shares = new ArrayList<LiteLlmClient.Share>();
+        try {
+            for (var item : list) {
+                if (!(item instanceof Map<?, ?> map)) {
+                    throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "渠道份额格式不正确");
+                }
+                var rpm = map.get("rpm");
+                shares.add(new LiteLlmClient.Share(map.get("id") == null ? "" : map.get("id").toString(),
+                        rpm == null ? 0 : new BigDecimal(rpm.toString()).intValueExact()));
+            }
+        } catch (NumberFormatException | ArithmeticException error) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "渠道 RPM 须为正整数");
+        }
+        return shares;
     }
 
     private static String text(Object value) {
