@@ -60,6 +60,8 @@ let ticket = 0
 const inflight = new Map<string, Promise<void>>()
 const saving = ref(false)
 const selectedAlias = ref('')
+const nextBudget = ref(10)
+const originalChannels = ref('')
 const nextTpm = ref<number | ''>('')
 const nextConcurrency = ref<number | ''>('')
 const channelDraft = ref<ChannelDraft>({})
@@ -171,7 +173,8 @@ const quotaChannels = computed(() => channelsForEnv(liveChannels.value, selected
 const quotaCoverage = computed(() => coverageText(selectedKey.value?.env, logicalRoutes.value, channelDraft.value, quotaChannels.value))
 const quotaShares = computed(() => shareLines(channelDraft.value, quotaChannels.value, keys.value, selectedKey.value?.alias))
 const quotaOver = computed(() => quotaShares.value.some((line) => line.over))
-const quotaSaveBlocked = computed(() => shareBlocked(channelDraft.value, quotaChannels.value, keys.value, selectedKey.value?.alias))
+const channelsChanged = computed(() => JSON.stringify(channelDraft.value) !== originalChannels.value)
+const quotaSaveBlocked = computed(() => channelsChanged.value && shareBlocked(channelDraft.value, quotaChannels.value, keys.value, selectedKey.value?.alias))
 
 function channelHost(provider?: string | null) {
   const name = (provider || '').toLowerCase()
@@ -205,9 +208,28 @@ function yuan(value?: number | null) {
 
 function selectKey(key: GatewayKey) {
   selectedAlias.value = key.alias ?? ''
+  nextBudget.value = key.dailyBudgetCny ?? 10
   nextTpm.value = key.tpm ?? ''
   nextConcurrency.value = key.concurrency ?? ''
   channelDraft.value = initialDraft(key, channelsForEnv(liveChannels.value, key.env))
+  originalChannels.value = JSON.stringify(channelDraft.value)
+}
+
+function quotaLimits(key: GatewayKey) {
+  const rpm = key.shares?.length ? '按渠道' : key.rpm == null ? '未设限' : key.rpm.toLocaleString('zh-CN')
+  const tpm = key.tpm == null ? '未设限' : key.tpm.toLocaleString('zh-CN')
+  const concurrency = key.concurrency == null ? '未设限' : key.concurrency.toLocaleString('zh-CN')
+  return `${rpm} / ${tpm} / ${concurrency}`
+}
+
+function budgetProgress(key: GatewayKey) {
+  if (key.dailyBudgetCny == null || key.dailyBudgetCny <= 0 || key.spentCny == null || key.reservedCny == null) return null
+  return Math.max(0, ((key.spentCny + key.reservedCny) / key.dailyBudgetCny) * 100)
+}
+
+function budgetColor(key: GatewayKey) {
+  const percent = budgetProgress(key) ?? 0
+  return percent >= 100 ? 'var(--bad)' : percent >= 80 ? 'var(--warn)' : 'var(--teal)'
 }
 
 function toggleChannel(id: string, on: boolean) {
@@ -335,20 +357,23 @@ async function saveQuota() {
       if (!Number.isInteger(value) || value <= 0 || value > 2147483647) throw new Error(`${label} 须为正整数，留空表示不限制`)
       return value
     }
-    const channels = Object.entries(channelDraft.value).map(([id, rpm]) => {
+    if (!Number.isInteger(nextBudget.value) || nextBudget.value < 10 || nextBudget.value > 200 || nextBudget.value % 5 !== 0) throw new Error('日预算须在 ¥10 到 ¥200 之间，且为 5 的倍数')
+    const channels = channelsChanged.value ? Object.entries(channelDraft.value).map(([id, rpm]) => {
       if (rpm === '' || !Number.isInteger(rpm) || rpm < 1) throw new Error('渠道 RPM 须为正整数')
       return { id, rpm }
-    })
+    }) : undefined
     await updateModelBudget(key.alias, {
+      dailyBudgetCny: nextBudget.value,
       tpm: limit(nextTpm.value, 'TPM'),
       concurrency: limit(nextConcurrency.value, '并发'),
       channels,
     })
-    ElMessage.success(`已更新 ${key.alias} 的渠道和份额`)
+    ElMessage.success(`已更新 ${key.alias} 的配额和日预算`)
+    quotaOpen.value = false
     await load()
   } catch (error) {
     const message = error instanceof Error ? error.message : ''
-    ElMessage.error(`调整配额失败：${message.includes('须为正整数') ? message : toKeelError(error).message}`)
+    ElMessage.error(`调整配额失败：${message.includes('须为正整数') || message.startsWith('日预算须') ? message : toKeelError(error).message}`)
   } finally {
     saving.value = false
   }
@@ -675,22 +700,27 @@ watch(tab, (value) => {
     <div v-if="tab === 'key'" v-loading="sectionPending('keys')" class="tab-body">
       <template v-if="loaded.keys">
       <div class="card">
-        <h3>Key 份额 <small>一把 Key 可允许多个渠道，每个渠道单独一份 RPM；点「配额」编辑</small></h3>
+        <h3>Key 与配额 <small>按智能体和环境管理调用权限、限额与日预算</small></h3>
           <div class="mut legend">RPM = 每分钟请求数 · TPM = 每分钟 Token 数（输入 + 输出）· 并发 = 同时进行中的请求数</div>
-          <table class="t">
+          <div class="key-table-scroll">
+          <table class="t key-table">
             <thead>
               <tr>
-                <th>Key</th>
-                <th title="RPM：每分钟请求数">允许的渠道 · RPM（每分钟请求数）</th>
+                <th>智能体</th>
+                <th>环境</th>
+                <th>Key 别名 · 版本</th>
+                <th>允许渠道</th>
                 <th>路由覆盖</th>
-                <th title="TPM：每分钟 Token 数">TPM（每分钟 Token 数）</th>
-                <th title="同时进行中的请求数">并发</th>
+                <th title="RPM：每分钟请求数；TPM：每分钟 Token 数；并发：同时进行中的请求数">RPM / TPM / 并发</th>
+                <th>已结算 + 预留 / 日预算</th>
                 <th />
               </tr>
             </thead>
             <tbody>
               <tr v-for="key in keyRows" :key="key.alias">
-                <td class="mono">{{ key.alias }}</td>
+                <td>{{ key.agent || '—' }}</td>
+                <td><span class="pill nd p-mute">{{ key.env || '—' }}</span></td>
+                <td class="mono key-alias">{{ key.alias }} · {{ key.version == null ? '—' : `v${key.version}` }}</td>
                 <td>
                   <span v-for="pill in channelPills(key, liveChannels)" :key="pill" class="pill nd p-mute share">{{ pill }}</span>
                   <span v-if="!channelPills(key, liveChannels).length" class="mut">—</span>
@@ -699,15 +729,21 @@ watch(tab, (value) => {
                   <span v-if="keyGap(key).length" class="pill p-bad">缺 {{ keyGap(key).join('、') }}</span>
                   <span v-else class="pill p-ok">已覆盖</span>
                 </td>
-                <td class="mono">{{ key.tpm == null ? '不限制' : key.tpm.toLocaleString('zh-CN') }}</td>
-                <td class="mono">{{ limitLabel(key.concurrency) }}</td>
+                <td class="mono key-limits">{{ quotaLimits(key) }}</td>
+                <td class="key-budget">
+                  <div class="budget-amounts mono"><span>{{ yuan(key.spentCny) }} + {{ yuan(key.reservedCny) }}</span><span class="mut">{{ yuan(key.dailyBudgetCny) }}</span></div>
+                  <div v-if="budgetProgress(key) != null" class="bar" role="progressbar" aria-label="Key 日预算使用率" :aria-valuenow="Math.min(100, Math.round(budgetProgress(key)!))" :aria-valuetext="`${yuan(key.spentCny)} + ${yuan(key.reservedCny)} / ${yuan(key.dailyBudgetCny)}`" aria-valuemin="0" aria-valuemax="100">
+                    <i :style="{ width: `${Math.min(100, budgetProgress(key)!)}%`, background: budgetColor(key) }" />
+                  </div>
+                </td>
                 <td>
                   <button class="btn sm quota" type="button" @click="openQuota(key)">配额</button>
                 </td>
               </tr>
-              <tr v-if="!keyRows.length"><td colspan="6" class="empty">这个环境还没有虚拟 Key</td></tr>
+              <tr v-if="!keyRows.length"><td colspan="8" class="empty">这个环境还没有虚拟 Key</td></tr>
             </tbody>
           </table>
+          </div>
           <Pager v-model:page="keyPage" v-model:size="keySize" :total="keys.length" />
       </div>
       <div class="card">
@@ -849,6 +885,11 @@ watch(tab, (value) => {
               <input id="key-quota-concurrency" v-model.number="nextConcurrency" class="inp" type="number" min="1" step="1" placeholder="留空表示不限制" :disabled="!admin || selectedKey.status === 'BLOCKED'">
             </div>
           </div>
+          <div class="field quota-budget">
+            <label for="key-quota-budget">日预算：<b>¥{{ nextBudget }}</b>（今日已用 {{ yuan(selectedKey.spentCny) }}）</label>
+            <input id="key-quota-budget" v-model.number="nextBudget" type="range" min="10" max="200" step="5" :disabled="!admin || selectedKey.status === 'BLOCKED' || saving">
+            <p class="mut note">保存后同步更新该 Key 的日预算，并记录审计。</p>
+          </div>
           <div class="pbanner" :class="quotaCoverage.tone">
             {{ quotaCoverage.text }}
             <div v-if="quotaCoverage.detail" class="mut">{{ quotaCoverage.detail }}</div>
@@ -942,6 +983,14 @@ watch(tab, (value) => {
 </template>
 
 <style scoped>
+.key-table-scroll { overflow-x: auto; }
+.key-table { min-width: 1220px; }
+.key-table th, .key-alias, .key-limits { white-space: nowrap; }
+.key-budget { min-width: 245px; }
+.budget-amounts { display: flex; justify-content: space-between; gap: 18px; white-space: nowrap; margin-bottom: 5px; }
+.quota-budget { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 10px; }
+.quota-budget b { color: var(--text); }
+.quota-budget input[type="range"] { width: 100%; accent-color: var(--acc); }
 .pbanner { display: block; margin: 10px 0; }
 .modal.quota { width: min(560px, 94vw); }
 .modal.quota .mb { max-height: min(70vh, 640px); overflow: auto; }
