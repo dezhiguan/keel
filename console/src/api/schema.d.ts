@@ -2214,6 +2214,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agents/{name}/read-scope": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 控制台管理员批准智能体只读员工范围（服务身份禁止） */
+        put: operations["setAgentReadScope"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{name}/read-capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 管理员为已有纯聊天智能体批准固定只读工具及一个知识库 */
+        post: operations["approveReadCapabilities"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7526,6 +7560,85 @@ export interface operations {
                 };
             };
             400: components["responses"]["Error"];
+        };
+    };
+    setAgentReadScope: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    environment: "dev" | "staging";
+                    targetOrg: string;
+                    enabled: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 已记录授权及审计，不替代工具授权 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 无管理员权限或越权组织 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    approveReadCapabilities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    env: "dev" | "staging";
+                    expectedHash: string;
+                    knowledgeBases: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description 能力候选和独立只读凭证已开通，尚未发布 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 缺少工具授权、资源无效或已有配置不满足升级基线 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 非管理员或组织不匹配 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
 }

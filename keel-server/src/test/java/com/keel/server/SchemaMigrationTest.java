@@ -22,7 +22,7 @@ class SchemaMigrationTest {
     @Test
     @Transactional
     void migratesAllPlatformTablesAndRunConstraints() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("30");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("31");
 
         List<String> tables = jdbc.queryForList("""
             SELECT tablename FROM pg_tables
@@ -31,7 +31,7 @@ class SchemaMigrationTest {
             """, String.class);
         assertThat(tables).containsExactlyInAnyOrder(
             "agent", "agent_version", "agent_instance", "agent_resource",
-            "reconcile_finding", "tool", "tool_version", "agent_tool_grant",
+            "agent_employee_read_scope", "reconcile_finding", "tool", "tool_version", "agent_tool_grant",
             "approval_policy", "approval_request", "agent_run", "release_record",
             "route_snapshot", "console_audit_event", "invoke_trace", "prompt_promotion",
             "prompt_code_version", "prompt_label_snapshot", "agent_self_check", "eval_run",
@@ -41,6 +41,9 @@ class SchemaMigrationTest {
             "usage_daily", "skill", "skill_version", "agent_skill_grant",
             "user_memory", "channel", "channel_credential", "channel_usage", "channel_feedback",
             "agent_session", "session_message", "insight_snapshot", "insight_observation", "insight_trace", "insight_trace_bill");
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_employee_read_scope",Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_constraint WHERE conrelid='agent_employee_read_scope'::regclass AND contype='f'",Integer.class)).isZero();
 
         List<String> runConstraints = jdbc.queryForList("""
             SELECT conname FROM pg_constraint WHERE conrelid = 'agent_run'::regclass
