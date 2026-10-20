@@ -147,7 +147,6 @@ watch([() => envStore.env, range], () => {
         <button v-for="[value, label] in OVERVIEW_RANGES" :key="value" :class="{ on: range === value }" @click="range = value">{{ label }}</button>
       </div>
       <span class="envtag">研发任务产出只进 staging · 上生产需人批</span>
-      <button v-write class="btn pri" @click="router.push('/agents/new')">+ 新建智能体</button>
     </div>
 
     <div class="kpis">
