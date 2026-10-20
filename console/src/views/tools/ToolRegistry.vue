@@ -153,7 +153,8 @@ function selectSkill(name: string) {
 function showRegistry() {
   stopPoll()
   detail.value = null
-  const query = { ...route.query, tab: 'skill' }
+  const query = { ...route.query }
+  query.tab = 'skill'
   delete query.skill
   router.push({ query })
 }
