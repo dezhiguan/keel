@@ -845,7 +845,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - run: pip install -e ./sdk-python pytest
+      - run: pip install -e './sdk-python[eval]' pytest
       - run: PYTHONPATH="$PWD/sdk-python" pytest agents/meta-agent/tests -q
       - run: PYTHONPATH="$PWD/sdk-python" pytest sdk-python/tests/test_run_concurrency.py sdk-python/tests/test_resume_trace.py sdk-python/tests/skills sdk-python/tests/eval -q
       - run: PYTHONPATH="$PWD/services/git-ci:$PWD/sdk-python" pytest services/git-ci/tests -q
