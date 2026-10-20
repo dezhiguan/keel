@@ -163,16 +163,22 @@ class PromptFlowTest {
         assertThat(CALLS).noneMatch(call -> call.startsWith("PATCH "));
     }
 
-    @Test void promoteDevPatchesOnceAndSkipsThePromotionTable() throws Exception {
+    @Test void retiredEnvironmentCannotSaveOrPromotePrompt() throws Exception {
         save("answer", "hello");
         CALLS.clear();
-        mvc.perform(post("/api/v1/agents/prompt-agent/prompts/answer/promote")
-                        .contentType("application/json")
-                        .content("{\"env\":\"dev\",\"version\":1}"))
-                .andExpect(status().isOk());
-        assertThat(CALLS.stream().filter(call -> call.startsWith("PATCH ")).count()).isEqualTo(1);
+        for (var env : List.of("dev", "test")) {
+            mvc.perform(post("/api/v1/agents/prompt-agent/prompts/answer/promote")
+                            .contentType("application/json")
+                            .content(JSON.createObjectNode().put("env", env).put("version", 1).toString()))
+                    .andExpect(status().isBadRequest());
+            mvc.perform(post("/api/v1/agents/prompt-agent/prompts/answer/versions")
+                            .contentType("application/json")
+                            .content(JSON.createObjectNode().put("env", env).put("commitMessage", "must refuse").put("prompt", "blocked").toString()))
+                    .andExpect(status().isBadRequest());
+        }
+        assertThat(CALLS).noneMatch(call -> call.startsWith("PATCH ") || call.startsWith("POST "));
         assertThat(count("SELECT count(*) FROM prompt_promotion WHERE agent_name = 'prompt-agent'")).isZero();
-        assertThat(count("SELECT count(*) FROM console_audit_event WHERE resource = 'prompt:prompt-agent/answer' AND env = 'dev'")).isEqualTo(2);
+        assertThat(count("SELECT count(*) FROM console_audit_event WHERE resource = 'prompt:prompt-agent/answer' AND env = 'staging'")).isEqualTo(1);
     }
 
     @Test void stagingPromotionBecomesInvalidWhenTheGateVersionDiffers() throws Exception {
@@ -353,18 +359,18 @@ class PromptFlowTest {
         CALLS.clear();
         mvc.perform(get("/api/v1/prompts").param("agent", "prompt-agent"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].envs.dev.version").value(1))
-                .andExpect(jsonPath("$.data.items[0].envs.test.version").value(1))
+                .andExpect(jsonPath("$.data.items[0].envs.dev").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].envs.test").doesNotExist())
                 .andExpect(jsonPath("$.data.items[0].envs.staging.version").value(1))
                 .andExpect(jsonPath("$.data.items[0].codeVersion.version").value(2))
                 .andExpect(jsonPath("$.data.items[0].codeVersion.gitSha").value("abc999"));
-        assertThat(CALLS).anyMatch(call -> call.contains("label=dev"));
+        assertThat(CALLS).anyMatch(call -> call.contains("label=staging"));
         assertThat(CALLS).anyMatch(call -> call.contains("version=2"));
         assertThat(CALLS).noneMatch(call -> call.contains("version=1"));
         assertThat(projectLists()).isEqualTo(1);
-        mvc.perform(get("/api/v1/prompts").param("env", "dev").param("agent", "prompt-agent"))
+        mvc.perform(get("/api/v1/prompts").param("env", "staging").param("agent", "prompt-agent"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].envs.dev.version").value(1))
+                .andExpect(jsonPath("$.data.items[0].envs.dev").doesNotExist())
                 .andExpect(jsonPath("$.data.items[0].envs.test").doesNotExist());
         var request = new org.springframework.mock.web.MockHttpServletRequest();
         com.keel.server.auth.ConsolePrincipal.set(request, com.keel.server.auth.ConsolePrincipal.dev());

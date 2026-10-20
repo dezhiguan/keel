@@ -57,6 +57,10 @@ public class LifecycleService {
     }
 
     public SelfCheckService.Report register(JsonNode body) {
+        var env = body.path("env").asText("staging");
+        if (!env.equals("staging") && !env.equals("prod")) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, ErrorCode.SERVER_INVALID_PARAM.message());
+        }
         var shared = body.has("apiVersion")
                 ? wizardCatalog.sharedTools().stream().map(row -> String.valueOf(row.get("name"))).collect(Collectors.toSet())
                 : Set.<String>of();
@@ -66,10 +70,6 @@ public class LifecycleService {
         var manifest = manifest(body, selected, knowledge);
         validator.validate(manifest, java.util.Set.of());
         var name = manifest.path("metadata").path("name").asText();
-        var env = body.path("env").asText("dev");
-        if (!env.equals("dev") && !env.equals("test") && !env.equals("staging") && !env.equals("prod")) {
-            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, ErrorCode.SERVER_INVALID_PARAM.message());
-        }
         var approvedGrants = approvedDevflowGrants(name, selected, manifest, env);
         var existing = agents.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Agent>()
                 .eq(Agent::getName, name));

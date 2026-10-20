@@ -29,7 +29,7 @@ public class ReadCapabilityService {
         var user=ConsolePrincipal.current();CodeCandidateService.requireReconciliationAdmin(user);
         request.fieldNames().forEachRemaining(field->{if(!Set.of("env","expectedHash","knowledgeBases").contains(field))throw denied("未知授权参数");});
         var env=request.path("env").asText("");
-        if(!List.of("dev","staging").contains(env))throw denied("仅开放dev/staging");
+        if(!"staging".equals(env))throw denied("仅开放staging");
         if(!Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM agent WHERE name=? AND owner_org=?)",Boolean.class,agent,user.org())))throw denied("只能批准本组织智能体");
         jdbc.queryForList("SELECT name FROM agent WHERE name=? FOR UPDATE",agent);
         if(Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM eval_run WHERE agent_name=? AND state IN ('QUEUED','RUNNING'))",Boolean.class,agent)))throw denied("评测期间禁止变更能力");

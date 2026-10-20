@@ -256,7 +256,7 @@ export interface paths {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        env: "dev" | "test" | "staging";
+                        env: "staging";
                         expectedHash: string;
                         /** @default false */
                         reconcileRuntime?: boolean;
@@ -897,7 +897,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 把 dev、test 或 staging 标签挪到指定版本 */
+        /** 把 staging 标签挪到指定版本 */
         post: operations["promotePrompt"];
         delete?: never;
         options?: never;
@@ -2738,7 +2738,11 @@ export interface components {
             category?: "biz" | "dev";
             ownerOrg?: string;
             ownerUser?: string;
-            env: components["schemas"]["EnvName"];
+            /**
+             * @default staging
+             * @enum {string}
+             */
+            env: "staging" | "prod";
             /** @enum {string} */
             runtime?: "code" | "dify";
             language?: string;
@@ -5245,10 +5249,10 @@ export interface operations {
             content: {
                 "application/json": {
                     /**
-                     * @default dev
+                     * @default staging
                      * @enum {string}
                      */
-                    env?: "dev" | "test" | "staging" | "prod";
+                    env?: "staging" | "prod";
                     /** @description 为真时用 config.keel.sections 编译正文 */
                     fromSections?: boolean;
                     config?: {
@@ -6562,7 +6566,7 @@ export interface operations {
                     name: string;
                     model: string;
                     /** @enum {string} */
-                    env: "dev" | "test" | "staging" | "prod";
+                    env: "staging" | "prod";
                     /** @description 厂商每分钟请求上限 */
                     rpm: number;
                 };
@@ -7574,7 +7578,10 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    /** @enum {string} */
+                    /**
+                     * @description 新授权仅staging；dev仅允许enabled=false清理历史授权
+                     * @enum {string}
+                     */
                     environment: "dev" | "staging";
                     targetOrg: string;
                     enabled: boolean;
@@ -7611,7 +7618,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    env: "dev" | "staging";
+                    env: "staging";
                     expectedHash: string;
                     knowledgeBases: string[];
                 };

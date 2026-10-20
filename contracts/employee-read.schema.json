@@ -7,7 +7,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["env", "_authorization", "_session"],
       "properties": {
-        "env": {"enum": ["dev", "staging"]}, "page": {"type": "integer", "minimum": 1, "maximum": 1000},
+        "env": {"enum": ["staging"]}, "page": {"type": "integer", "minimum": 1, "maximum": 1000},
         "size": {"type": "integer", "minimum": 1, "maximum": 20},
         "_authorization": {"type": "string", "minLength": 1}, "_session": {"type": "string", "minLength": 1}
       }
@@ -16,7 +16,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["env", "id", "_authorization", "_session"],
       "properties": {
-        "env": {"enum": ["dev", "staging"]}, "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,62}$"},
+        "env": {"enum": ["staging"]}, "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,62}$"},
         "_authorization": {"type": "string", "minLength": 1}, "_session": {"type": "string", "minLength": 1}
       }
     },

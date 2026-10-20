@@ -83,7 +83,7 @@ const addOpen = ref(false)
 const switchOpen = ref(false)
 const addName = ref('百炼·主账号B·生产空间')
 const addModel = ref('')
-const addEnv = ref<'prod' | 'dev' | 'test' | 'staging'>('prod')
+const addEnv = ref<'prod' | 'staging'>('staging')
 const addRpm = ref(1200)
 const switchTo = ref('')
 let clock = 0
@@ -945,8 +945,6 @@ watch(tab, (value) => {
               <select v-model="addEnv" class="inp">
                 <option value="prod">prod</option>
                 <option value="staging">staging</option>
-                <option value="test">test</option>
-                <option value="dev">dev</option>
               </select>
             </div>
           </div>

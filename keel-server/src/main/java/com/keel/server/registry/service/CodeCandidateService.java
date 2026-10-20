@@ -44,7 +44,7 @@ public class CodeCandidateService {
         var actor = ConsolePrincipal.requireUsername();
         catalog.authorize(name);
         var env = body.path("env").asText();
-        if (!List.of("dev", "test", "staging").contains(env)) throw invalid("候选环境须为 dev/test/staging");
+        if (!"staging".equals(env)) throw invalid("候选环境须为 staging；dev/test 已停用");
         // Serialize candidate writes and reject stale clients rather than overwriting their edits.
         jdbc.queryForList("SELECT name FROM agent WHERE name=? FOR UPDATE", name);
         if (Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM eval_run WHERE agent_name=? AND state IN ('QUEUED','RUNNING'))", Boolean.class, name)))

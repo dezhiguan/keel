@@ -7,6 +7,8 @@ alwaysApply: true
 
 来源：技术文档第 15 节。2026-09-30 核实了 auth-gateway 与 Langfuse v4 接口；2026-10-04 改为 Langfuse Cloud 日本节点，模型网关改为自研薄网关。
 
+2026-10-21 环境策略更新：当前可选业务环境仅 staging / prod，分别映射 staging / production 标签；下文四环境说明仅作历史接入背景，dev/test不再创建或激活。保留旧标签/凭证/记录的兼容读取，不扩大权限。见 docs/specs/r1020/two-environments.md。
+
 ## Langfuse 必须按 Cloud v4 写
 
 - 主机是 `https://jp.cloud.langfuse.com`。同一对 Key 打美国或欧盟节点会 401。

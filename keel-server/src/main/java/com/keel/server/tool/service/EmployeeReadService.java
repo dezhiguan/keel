@@ -29,7 +29,7 @@ public class EmployeeReadService {
         if(actor.session()==null || !actor.session().equals(args.path("_session").asText("")))
             throw new KeelException(ErrorCode.TOOL_NOT_GRANTED,"用户会话授权不匹配");
         var env=args.path("env").asText("");
-        if(!Set.of("dev","staging").contains(env))throw invalid("需要明确 dev 或 staging 环境");
+        if(!"staging".equals(env))throw invalid("只读查询当前仅开放 staging；dev/test 已停用，prod 未授权");
         boolean detail="keel.employees.detail".equals(tool);
         var allowed=detail ? Set.of("env","id","_authorization","_session") : Set.of("env","page","size","_authorization","_session");
         args.fieldNames().forEachRemaining(k->{if(!allowed.contains(k))throw invalid("工具参数不在白名单");});

@@ -69,7 +69,7 @@ export function diffPrompt(agent: string, name: string, from: number, to: number
 export function savePromptVersion(agent: string, name: string, body: {
   prompt: string | { role: string; content: string }[]
   commitMessage: string
-  env?: 'dev' | 'test' | 'staging' | 'prod'
+  env?: 'staging' | 'prod'
   config?: PromptConfig
   fromSections?: boolean
 }) {
@@ -83,7 +83,7 @@ export function trialPrompt(agent: string, name: string, version: number, variab
   )
 }
 
-export function promotePrompt(agent: string, name: string, env: 'dev' | 'test' | 'staging', version: number) {
+export function promotePrompt(agent: string, name: string, env: 'staging', version: number) {
   return post<{ version?: number; gate?: string }>(`/agents/${encodeURIComponent(agent)}/prompts/${encodeURIComponent(name)}/promote`, { env, version })
 }
 

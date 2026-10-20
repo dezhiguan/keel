@@ -39,11 +39,15 @@ class CodeCandidatePersistenceTest {
                 """);
         var oldHash="a".repeat(64);
         jdbc.update("INSERT INTO agent(name,display_name,kind,runtime,language,owner_org,owner_user,status,liveness) VALUES ('qa-candidate-persistence','QA','AGENT','code','python','QA','dev','ONLINE','k8s')");
-        for(var version:java.util.List.of("v0","v1")) jdbc.update("INSERT INTO agent_version(agent_name,version,env,manifest_json,manifest_hash,image,gate_run_id,released_by) VALUES ('qa-candidate-persistence',?,'dev',?::jsonb,?,'registry/old:v1','ev_old','dev')",version,original.toString(),oldHash);
+        for(var version:java.util.List.of("v0","v1")) jdbc.update("INSERT INTO agent_version(agent_name,version,env,manifest_json,manifest_hash,image,gate_run_id,released_by) VALUES ('qa-candidate-persistence',?,'staging',?::jsonb,?,'registry/old:v1','ev_old','dev')",version,original.toString(),oldHash);
         ObjectNode candidate=original.deepCopy();
         candidate.withObject("/spec/models").put("default","chat-default");
-        var body=json.createObjectNode().put("env","dev").put("expectedHash",oldHash);
+        var body=json.createObjectNode().put("env","staging").put("expectedHash",oldHash);
         body.set("manifest",candidate);
+        for (var retired : java.util.List.of("dev", "test", "prod")) {
+            assertThatThrownBy(() -> service.update("qa-candidate-persistence", body.deepCopy().put("env", retired)))
+                    .isInstanceOf(com.keel.server.common.KeelException.class);
+        }
         var saved=service.update("qa-candidate-persistence",body);
         assertThat(saved.get("manifestHash")).matches("[0-9a-f]{64}");
         assertThat(jdbc.queryForObject("SELECT manifest_hash FROM agent_version WHERE agent_name='qa-candidate-persistence' AND version='v0'",String.class)).isEqualTo(saved.get("manifestHash"));

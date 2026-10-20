@@ -11,7 +11,7 @@ export interface WizardForm {
   template: string
   model: string
   dailyBudgetCny: number
-  env: 'dev' | 'test' | 'staging' | 'prod'
+  env: 'staging' | 'prod'
   tools: string[]
   knowledgeBases: string[]
   approvalPolicyId: string

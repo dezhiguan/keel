@@ -22,7 +22,7 @@ public class EmployeeReadScopeController {
         if(!"ADMIN".equals(user.platformRole()) || !user.org().equals(org))throw new KeelException(ErrorCode.AUTH_CONSOLE_FORBIDDEN,"只能授权当前管理员所属组织");
         var fields=Set.of("environment","targetOrg","enabled");
         body.fieldNames().forEachRemaining(k->{if(!fields.contains(k))throw new KeelException(ErrorCode.SERVER_INVALID_PARAM,"未知授权参数");});
-        if(!Set.of("dev","staging").contains(env) || !body.path("enabled").isBoolean()
+        if((!"staging".equals(env) && !("dev".equals(env) && !body.path("enabled").asBoolean(true))) || !body.path("enabled").isBoolean()
                 || !Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM agent WHERE name=? AND kind='AGENT' AND owner_org=?)",Boolean.class,name,user.org())))
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM,"授权范围无效");
         jdbc.update("""

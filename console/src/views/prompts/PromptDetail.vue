@@ -190,7 +190,7 @@ async function save() {
     const saved = await savePromptVersion(agent.value, name.value, {
       prompt,
       commitMessage: commitMessage.value.trim(),
-      env: envStore.env === 'all' ? 'dev' : envStore.env,
+      env: envStore.env === 'all' ? 'staging' : envStore.env,
       config: parsed.config,
     })
     editing.value = false
@@ -204,13 +204,11 @@ async function save() {
   }
 }
 
-async function promote(env: EnvName) {
-  if (selected.value == null || env === 'prod') return
+async function promote(env: 'staging') {
+  if (selected.value == null) return
   try {
     await promotePrompt(agent.value, name.value, env, selected.value)
-    ElMessage.info(env === 'staging'
-      ? `staging 标签已挪到 v${selected.value}，60 秒内生效；请手动运行 keel gate`
-      : `${env} 标签已挪到 v${selected.value}，60 秒内生效；不跑门禁`)
+    ElMessage.info(`staging 标签已挪到 v${selected.value}，60 秒内生效；请运行评测并检查门禁`)
     await load(selected.value)
   } catch (error) {
     ElMessage.error(toKeelError(error).message)
@@ -284,7 +282,7 @@ async function saveStructure() {
     const saved = await savePromptVersion(agent.value, name.value, {
       prompt: body.value?.prompt ?? (promptType.value === 'chat' ? [] : ''),
       commitMessage: commitMessage.value.trim(),
-      env: envStore.env === 'all' ? 'dev' : envStore.env,
+      env: envStore.env === 'all' ? 'staging' : envStore.env,
       config: parsed.config,
       fromSections: true,
     })
@@ -340,7 +338,7 @@ async function saveSchema() {
     const saved = await savePromptVersion(agent.value, name.value, {
       prompt: body.value.prompt,
       commitMessage: commitMessage.value.trim(),
-      env: envStore.env === 'all' ? 'dev' : envStore.env,
+      env: envStore.env === 'all' ? 'staging' : envStore.env,
       config: parsed.config,
     })
     schemaEditing.value = false
@@ -551,7 +549,7 @@ watch(() => envStore.env, () => {
           <label>提交说明（必填）</label>
           <input v-model="commitMessage" class="inp" :class="{ err: messageInvalid }" placeholder="改了什么、为什么改" />
         </div>
-        <p class="mut" style="font-size: 12px">类型是 {{ promptType }}，建出版本后不能改。保存后在 Langfuse 新建一个版本，哪个环境都不会变。在版本上点“在 dev / test 生效”先试，“在 staging 生效”会记一笔待回归。</p>
+        <p class="mut" style="font-size: 12px">类型是 {{ promptType }}，建出版本后不能改。保存后在 Langfuse 新建一个版本，哪个环境都不会变。在版本上点“在 staging 生效”进行测试并记一笔待回归，通过评测后发布到 prod。</p>
       </div>
       <div class="mf">
         <button class="btn" type="button" @click="editing = false">取消</button>
@@ -626,7 +624,7 @@ watch(() => envStore.env, () => {
     <div v-if="rolling" class="modal on" role="dialog" aria-label="回滚提示词">
       <div class="mh">回滚 prod · <span class="mono">{{ agent }}/{{ name }}</span></div>
       <div class="mb">
-        <p>把 <code>production</code> 标签挪到 <b>v{{ selected }}</b>。只能回滚到发布过的版本，不重跑门禁。线上 60 秒内生效，写发布记录和审计。dev、test、staging 不受影响。</p>
+        <p>把 <code>production</code> 标签挪到 <b>v{{ selected }}</b>。只能回滚到发布过的版本，不重跑门禁。线上 60 秒内生效，写发布记录和审计。staging 不受影响。</p>
         <div class="field"><label>原因</label><input v-model="reason" class="inp" placeholder="如：上线后点踩率升高" /></div>
       </div>
       <div class="mf">

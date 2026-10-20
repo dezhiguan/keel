@@ -32,8 +32,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class PromptService {
-    private static final Set<String> ENV_LABELS = Set.of("dev", "test", "staging", "production");
-    private static final List<String> LABEL_ORDER = List.of("dev", "test", "staging", "production");
+    private static final Set<String> ENV_LABELS = Set.of("staging", "production");
+    private static final List<String> LABEL_ORDER = List.of("staging", "production");
     private static final Duration SNAPSHOT_TTL = Duration.ofSeconds(60);
     private static final int SNAPSHOT_LOCK = 716202016;
     private static final java.util.concurrent.ExecutorService VERSION_READS = Executors.newVirtualThreadPerTaskExecutor();
@@ -179,8 +179,8 @@ public class PromptService {
         var item = catalog.require(agent, name);
         requireLangfuse();
         var message = body.path("commitMessage").asText("").trim();
-        var editEnv = body.path("env").asText("dev");
-        if (!Set.of("dev", "test", "staging", "prod").contains(editEnv)) {
+        var editEnv = body.path("env").asText("staging");
+        if (!Set.of("staging", "prod").contains(editEnv)) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "编辑环境无效");
         }
         if (message.isBlank()) {
@@ -227,8 +227,8 @@ public class PromptService {
         if ("prod".equals(env)) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "production 标签只经 keel release 或回滚挪动");
         }
-        if (!Set.of("dev", "test", "staging").contains(env)) {
-            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "env 只能是 dev、test 或 staging");
+        if (!"staging".equals(env)) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "env 只能是 staging；dev/test 已停用");
         }
         if (!body.path("version").canConvertToInt()) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "version 必须是整数");
@@ -297,7 +297,7 @@ public class PromptService {
             }
             var message = "from git " + gitSha;
             JsonNode stored = existing.isEmpty()
-                    ? langfuse.createPrompt(item.fullName(), type, prompt, json.createObjectNode(), message, List.of("dev", "test", "staging"))
+                    ? langfuse.createPrompt(item.fullName(), type, prompt, json.createObjectNode(), message, List.of("staging"))
                     : langfuse.createPrompt(item.fullName(), type, prompt, json.createObjectNode(), message, List.of());
             var version = stored.path("version").asInt();
             jdbc.update("""
@@ -388,7 +388,7 @@ public class PromptService {
         body.put("drift", drift);
         body.put("codeVersion", code == null ? null : Map.of("version", code.version(), "gitSha", code.gitSha()));
         var envs = new LinkedHashMap<String, Object>();
-        for (var env : List.of("dev", "test", "staging", "prod")) {
+        for (var env : List.of("staging", "prod")) {
             if (!selectedEnv.equals("all") && !selectedEnv.equals(env)) {
                 continue;
             }
@@ -477,9 +477,6 @@ public class PromptService {
             states.add(state("code", "代码里有新版本", "p-warn"));
         }
         int staging = labs.getOrDefault("staging", 0);
-        if (labs.getOrDefault("dev", 0) > staging || labs.getOrDefault("test", 0) > staging) {
-            states.add(state("trying", "dev / test 在试新版本", "p-soft"));
-        }
         var prod = labs.get("prod");
         if (prod == null) {
             states.add(state("unreleased", "未发布", "p-soft"));

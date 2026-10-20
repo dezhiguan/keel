@@ -38,7 +38,7 @@ const form = reactive<WizardForm>({
   template: 'echo',
   model: 'chat-default',
   dailyBudgetCny: 30,
-  env: envStore.env === 'all' ? 'dev' : envStore.env,
+  env: envStore.env === 'all' ? 'staging' : envStore.env,
   tools: [],
   knowledgeBases: [],
   approvalPolicyId: '',

@@ -11,7 +11,7 @@ const form: WizardForm = {
   template: 'echo',
   model: 'qwen-plus',
   dailyBudgetCny: 30,
-  env: 'dev',
+  env: 'staging',
   tools: ['git.branch.push'],
   knowledgeBases: ['demo'],
   approvalPolicyId: '',
@@ -73,7 +73,7 @@ describe('wizard', () => {
     expect(registerBody(form)).toMatchObject({
       name: 'echo',
       template: 'echo',
-      env: 'dev',
+      env: 'staging',
       models: { default: 'qwen-plus', dailyBudgetCny: 30 },
       tools: ['git.branch.push'],
       knowledgeBases: ['demo'],

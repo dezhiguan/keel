@@ -127,7 +127,7 @@ const sourceText = computed(() => {
 
 const allVersionRows = computed(() => (detail.value ? versionRows(detail.value) : []))
 const rows = computed(() => allVersionRows.value.filter(row => row.state === 'VERSION'))
-const drafts = computed(() => allVersionRows.value.filter(row => row.state === 'DRAFT'))
+const drafts = computed(() => allVersionRows.value.filter(row => row.state === 'DRAFT' && ['staging', 'prod'].includes(row.env)))
 const archivedDrafts = computed(() => allVersionRows.value.filter(row => row.state === 'ARCHIVED').length)
 const elementCells = computed(() => (detail.value?.elements?.items ?? []).map((item, index) => elementCell(item, index,
   elementsLoading.value ? 'loading' : unavailableElements.value.includes(item.name) ? 'unavailable' : 'idle')))

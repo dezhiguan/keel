@@ -195,7 +195,11 @@ public class InsightController {
         } catch (NumberFormatException error) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "厂商上限 RPM 必须大于 0");
         }
-        var created = costs.addChannel(text(body.get("name")), text(body.get("model")), text(body.get("env")), rpm);
+        var env = text(body.get("env"));
+        if (!java.util.Set.of("staging", "prod").contains(env)) {
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "渠道环境只能是 staging 或 prod");
+        }
+        var created = costs.addChannel(text(body.get("name")), text(body.get("model")), env, rpm);
         return R.ok(channelBody(created));
     }
 

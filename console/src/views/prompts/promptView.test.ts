@@ -26,8 +26,11 @@ describe('prompt page rules', () => {
     expect(canRollback('prod', 12, detail.labs, detail.releases)).toBe(false)
     expect(canRollback('prod', 13, detail.labs, detail.releases)).toBe(false)
     expect(canEdit('staging')).toBe(true)
+    expect(canEdit('dev')).toBe(false)
+    expect(canEdit('test')).toBe(false)
+    expect(promotableEnvs('all', 12, detail.labs)).toEqual(['staging'])
     expect(promotableEnvs('all', 13, detail.labs)).toEqual([])
-    expect(promotableEnvs('dev', 12, detail.labs)).toEqual(['dev'])
+    expect(promotableEnvs('dev', 12, detail.labs)).toEqual([])
   })
 
   it('filters regression failure together with an invalidated run', () => {

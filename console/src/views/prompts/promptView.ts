@@ -1,7 +1,7 @@
 export type EnvName = 'dev' | 'test' | 'staging' | 'prod'
 export type EnvFilter = 'all' | EnvName
 
-export const PR_ENVS: EnvName[] = ['dev', 'test', 'staging', 'prod']
+export const PR_ENVS: EnvName[] = ['staging', 'prod']
 export const PR_LABEL: Record<EnvName, string> = {
   dev: 'dev',
   test: 'test',
@@ -15,7 +15,6 @@ export const STATUS_FILTERS: [string, string][] = [
   ['pending', '回归中'],
   ['failed', '回归未过'],
   ['code', '代码里有新版本'],
-  ['trying', 'dev / test 在试'],
   ['drift', '漂移'],
   ['same', '一致'],
   ['unreleased', '未发布'],
@@ -124,12 +123,12 @@ export function matchesStatus(states: PromptState[] | undefined, filter: string)
 }
 
 export function canEdit(env: EnvFilter, declared = true) {
-  return declared && env !== 'prod'
+  return declared && (env === 'all' || env === 'staging')
 }
 
-export function promotableEnvs(env: EnvFilter, version: number | null, labs: Partial<Record<string, number>> | undefined) {
+export function promotableEnvs(env: EnvFilter, version: number | null, labs: Partial<Record<string, number>> | undefined): 'staging'[] {
   if (version == null) return []
-  const candidates: EnvName[] = env === 'all' ? ['dev', 'test', 'staging'] : ['dev', 'test', 'staging'].includes(env) ? [env] : []
+  const candidates: 'staging'[] = env === 'all' || env === 'staging' ? ['staging'] : []
   return candidates.filter((name) => labs?.[name] !== version)
 }
 
@@ -225,7 +224,7 @@ export function banners(detail: PromptDetailModel, env: EnvFilter): Banner[] {
     out.push({
       tone: 'warn',
       title: '代码里有新版本',
-      text: `v${code.version} 是 ${code.createdBy || 'CI'} 从 prompts/ 带上来的（${code.commitMessage || `from git ${code.gitSha || ''}`}），还没在任何环境生效。先在 dev 或 test 试，再在 staging 生效。`,
+      text: `v${code.version} 是 ${code.createdBy || 'CI'} 从 prompts/ 带上来的（${code.commitMessage || `from git ${code.gitSha || ''}`}），还没在任何环境生效。先在 staging 验证，再通过评测发布到 prod。`,
       action: { kind: 'pick', version: code.version, label: `看 v${code.version}` },
     })
   }
