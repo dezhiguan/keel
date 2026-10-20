@@ -116,4 +116,4 @@
 
 - R1020 元智能体护栏检测：运行端受BridgeAuth保护，检测转发补齐仅meta-agent使用的既有内部认证；401/403提示准确区分认证失败。未声明PII时页面按SDK实际缺省显示off，显式mask保留；不新增交互或改写v2清单。9项Java专项及最新CI/CD通过；控制台同源API四种输入均200，实际clear/blocked/off与模式一致，两个实例真实攻击均拦截且模型调用及费用为0。见r1020/meta-agent-guard-probe.md及对应QA证据。
 
-- R1020 元智能体护栏开启：用户guandezhi正常登录后，在既有页面为未发布候选开启间接注入和canary的enforce并保存，PII维持off；原v2快照与55条题集保留。待配置部署、真实页面/双实例与完整回归门禁验收。见r1020/meta-agent-guard-enable.md。
+- R1020 元智能体护栏开启：用户guandezhi正常登录后，在既有页面为未发布候选开启间接注入和canary的enforce并保存，PII维持off；原v2快照与55条题集保留。167项专项及最终CI/CD通过；页面工具/知识攻击stripped、正常clear；两个实例受控canary跨token/final均拦截，真实generation确认注入；最终55条及19维度1.00、回归0，已发布prod/v3。见r1020/meta-agent-guard-enable.md及对应QA。
