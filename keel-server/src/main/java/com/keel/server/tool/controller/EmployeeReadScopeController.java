@@ -14,6 +14,7 @@ import java.util.*;
 public class EmployeeReadScopeController {
     private final JdbcTemplate jdbc;private final AuditStore audit;
     public EmployeeReadScopeController(JdbcTemplate jdbc,AuditStore audit){this.jdbc=jdbc;this.audit=audit;}
+    @org.springframework.transaction.annotation.Transactional
     @PutMapping("/api/v1/agents/{name}/read-scope")
     public R<Map<String,Object>> set(@PathVariable String name,@RequestBody JsonNode body){
         var user=ToolGrantPolicy.requireConsoleWriter(ConsolePrincipal.current());
@@ -28,7 +29,7 @@ public class EmployeeReadScopeController {
           INSERT INTO agent_employee_read_scope(agent_name,environment,target_org,enabled,granted_by) VALUES (?,?,?,?,?)
           ON CONFLICT(agent_name,environment,target_org) DO UPDATE SET enabled=excluded.enabled,granted_by=excluded.granted_by,updated_at=now()
           """,name,env,org,body.path("enabled").asBoolean(),user.username());
-        audit.append(name,env,"tool.grant","low","allowed","employee.read.scope",null,user.username(),Map.of());
+        audit.append(name,env,"tool.grant","high","allowed","employee.read.scope",null,user.username(),Map.of());
         return R.ok(Map.of("agent",name,"environment",env,"targetOrg",org,"enabled",body.path("enabled").asBoolean()));
     }
 }

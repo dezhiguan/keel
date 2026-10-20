@@ -61,14 +61,16 @@ public class ReadCapabilityService {
         try{hash=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)));}
         catch(Exception error){throw new IllegalStateException(error);}
         // Dedicated provisioning preserves model keys, budget and existing Secret configuration.
-        if(!kbs.isEmpty())secrets.upgradeKnowledge(agent,env,kbs);
+
         jdbc.update("""
           INSERT INTO agent_version(agent_name,version,env,manifest_json,manifest_hash,released_by,released_at)
           VALUES (?,'v0',?,?::jsonb,?,?,clock_timestamp())
           ON CONFLICT(agent_name,env,version) DO UPDATE SET manifest_json=excluded.manifest_json,manifest_hash=excluded.manifest_hash,
             released_by=excluded.released_by,released_at=excluded.released_at,image=NULL,gate_run_id=NULL
           """,agent,env,text,hash,user.username());
-        audit.append(agent,env,"config.change","mid","allowed","readonly.capabilities",null,user.username(),Map.of());
+        audit.append(agent,env,"config.change","high","allowed","readonly.capabilities",null,user.username(),Map.of());
+        // Audit must succeed before any external credential is issued.
+        if(!kbs.isEmpty())secrets.upgradeKnowledge(agent,env,kbs);
         return Map.of("agent",agent,"env",env,"manifestHash",hash);
     }
     private static KeelException denied(String message){return new KeelException(ErrorCode.SERVER_INVALID_PARAM,message);}

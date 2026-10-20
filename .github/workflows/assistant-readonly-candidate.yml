@@ -7,6 +7,10 @@ permissions:
   contents: read
 jobs:
   verify-and-build:
+    env:
+      ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,9 +21,19 @@ jobs:
           cache: maven
       - name: Verify authorization, persisted resource scope and existing protocol boundaries
         run: mvn -pl :keel-server -am -Dtest=UserReadContextTest,ReadContextPayloadTest,DebugSseRelayTest,DebugBridgeAuthenticationTest,AgentEndpointClientTest,EmployeeReadServiceTest,EmployeeReadPersistenceTest,ServiceAssertionTest,ServiceIdentityFilterTest,AgentChatServiceTest,CodeCandidateServiceTest,ToolGrantPolicyTest -Dsurefire.failIfNoSpecifiedTests=false test
+      - id: registry
+        run: bash deploy/ci/resolve-image.sh keel-server
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.registry.outputs.server }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
       - name: Build isolated platform candidate artifact
         run: |
           docker build -f deploy/docker/service.Dockerfile --build-arg MODULE=keel-server --build-arg SOURCE_REV=${{ github.sha }} --build-arg RAM_PERCENTAGE=70 -t keel-server-readonly:${{ github.sha }} .
+          docker tag keel-server-readonly:${{ github.sha }} ${{ steps.registry.outputs.push_image }}
+          docker push ${{ steps.registry.outputs.push_image }}
+          echo '${{ steps.registry.outputs.pull_image }}' > pull-image.txt
           docker save keel-server-readonly:${{ github.sha }} | gzip > keel-server-readonly-image.tar.gz
           sha256sum keel-server-readonly-image.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v4
@@ -28,5 +42,6 @@ jobs:
           path: |
             keel-server-readonly-image.tar.gz
             SHA256SUMS
+            pull-image.txt
             keel-server/target/surefire-reports/*.xml
           retention-days: 30

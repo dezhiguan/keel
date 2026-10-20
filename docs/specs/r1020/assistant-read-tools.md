@@ -21,3 +21,5 @@ SDK1.0.2平台单轮worker仅传input.text，不携带可信用户授权；不�
 双实例故障验收还要求流中断可辨认。核实DebugSseRelay在无final/suspend/error时收到EOF原先静默返回null；修复为IOException，由既有控制台适配输出规范error。已有SDK error帧原样透传，不重复伪造final。单元覆盖token后断流以及已有error/suspend终止。
 
 知识授权待确认期间允许分阶段推进：read-capabilities显式knowledgeBases=[]只批准固定只读工具，不创建KB凭证；后续仅对相同固定read/low工具集合、原无知识库的候选增加单一已授权库。不能替换已有知识权限或夹带其他工具。缺少KB时知识调用明确拒绝，不发布完整0.2。
+
+授权写入按高风险同步审计处理。组织/环境授权和审计同一事务；能力审批在外部KB凭证发放之前成功写入审计，失败拒绝。候选镜像复用现有ACR的构建/推送及集群拉取方式，生成独立提交标签，不修改注册表凭证或共享路由；保留前一镜像作平台回退。
