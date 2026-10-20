@@ -23,6 +23,7 @@ public final class DebugSseRelay {
         var data = new StringBuilder();
         Final seen = null;
         boolean tainted = false;
+        boolean failed = false;
         try {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -39,6 +40,7 @@ public final class DebugSseRelay {
                             tainted = true;
                         }
                     }
+                    if ("error".equals(event)) failed = true;
                     if ("final".equals(event)) seen = parseReply(data.toString(), "answer", !tainted);
                     if ("suspend".equals(event)) seen = parseReply(data.toString(), "prompt", false);
                     event = "";
@@ -54,6 +56,7 @@ public final class DebugSseRelay {
         } catch (IOException error) {
             if (seen == null) throw error;
         }
+        if (seen == null && !failed) throw new IOException("智能体流式连接中断，未返回终止事件");
         return seen;
     }
 

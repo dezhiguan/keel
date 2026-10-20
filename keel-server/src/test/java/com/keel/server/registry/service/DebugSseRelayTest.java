@@ -44,6 +44,13 @@ class DebugSseRelayTest {
         assertThat(out.toString(StandardCharsets.UTF_8)).contains("event: suspend").doesNotContain("event: final");
     }
 
+    @Test void interruptedStreamCannotLookLikeSuccessfulCompletion() {
+        var raw="event: token\ndata: {\"text\":\"尚未完成\"}\n\n";
+        org.assertj.core.api.Assertions.assertThatThrownBy(()->DebugSseRelay.copy(
+            new ByteArrayInputStream(raw.getBytes(StandardCharsets.UTF_8)),new ByteArrayOutputStream()))
+            .isInstanceOf(java.io.IOException.class).hasMessageContaining("终止事件");
+    }
+
     @Test void returnsNullWhenTheStreamEndsWithoutFinal() throws Exception {
         var raw = "event: error\ndata: {\"message\":\"失败\"}\n\n";
         var fin = DebugSseRelay.copy(new ByteArrayInputStream(raw.getBytes(StandardCharsets.UTF_8)), new ByteArrayOutputStream());

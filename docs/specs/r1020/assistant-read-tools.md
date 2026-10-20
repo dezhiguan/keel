@@ -17,3 +17,5 @@ Console认证链路为每次聊天生成短期RS256只读上下文（独立aud/i
 核实CodeCandidateService禁止通过普通候选编辑改变知识/工具边界，LifecycleService也拒绝重复注册已有ACTIVE资源。因此新增显式管理员POST read-capabilities：只适用原纯聊天基线，固定六个只读工具（包含本地封装）、最多一个目录知识库，先验证已有共享工具批准。复用RagForgeAccess既有KB_LIST/READ发放，只更新本智能体Secret知识字段，保留LLM及私钥；不通过候选manifest绕过授权。原候选接口限制保持。scope与capabilities均须独立明确console操作后才生效。
 
 SDK1.0.2平台单轮worker仅传input.text，不携带可信用户授权；不得用服务身份冒充触发者。保留SDK版本，正式聊天门禁继续平台worker执行；新只读能力通过认证控制台集成评测逐条签发用户上下文。控制台X-Keel-Eval-Run透传到agent SDK，PG和SDK都不写普通会话。新能力报告独立运行号/数据集/工具实参/返回/来源支持，不能与聊天均分混算。
+
+双实例故障验收还要求流中断可辨认。核实DebugSseRelay在无final/suspend/error时收到EOF原先静默返回null；修复为IOException，由既有控制台适配输出规范error。已有SDK error帧原样透传，不重复伪造final。单元覆盖token后断流以及已有error/suspend终止。
