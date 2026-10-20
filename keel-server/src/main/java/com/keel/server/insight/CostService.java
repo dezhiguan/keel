@@ -233,6 +233,22 @@ public class CostService {
         audit.record(agentOf(alias), envOf(alias));
     }
 
+    public record Ledger(List<LiteLlmClient.Spend> bills, List<LiteLlmClient.VirtualKey> keys,
+                         List<LiteLlmClient.Model> models, List<LiteLlmClient.AlertRule> rules) {}
+    public Ledger ledger() { return new Ledger(gateway.spendAll(),gateway.keys(),gateway.models(),gateway.alertRules()); }
+    /** Overview does not need the model page's Langfuse generation/latency sampling. */
+    public Result summarize(Ledger ledger,String env,String range) {
+        var rows=ledger.bills().stream().filter(row->inWindow(row.ts(),since(range,Instant.now())) && inEnv(row.alias(),env)).toList();
+        var byAgent=new LinkedHashMap<String,Double>(); var byModel=new LinkedHashMap<String,Double>();
+        double total=0;
+        for(var row:rows) if("SETTLED".equals(row.status()) && row.costCny()!=null) {
+            total+=row.costCny();byAgent.merge(agentOf(row.alias()),row.costCny(),Double::sum);byModel.merge(row.model(),row.costCny(),Double::sum);
+        }
+        var keys=ledger.keys().stream().filter(key->inEnv(key.alias(),env)).map(key->new Key(key.alias(),agentOf(key.alias()),envOf(key.alias()),
+                key.models(),key.dailyBudgetCny(),key.spentCny(),key.reservedCny(),key.blocked(),key.version(),key.rpm(),key.tpm(),key.concurrency(),key.shares())).toList();
+        return new Result(total,rows.size(),byAgent,byModel,ledger.models(),keys,List.of(),rows,(int)rows.stream().filter(row->"PENDING".equals(row.status())).count());
+    }
+
     private Result load(String env, String range) {
         var now = Instant.now();
         var since = since(range, now);

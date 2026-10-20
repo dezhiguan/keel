@@ -23,7 +23,12 @@ public class OverviewService {
     public static final double GATE = 0.85;
 
     public record Overview(Kpi kpi, List<AgentSummary> agents, List<Alert> alerts, List<Map<String, Object>> costByAgent,
-                           Cumulative cumulative, List<Metric> metrics, LayerValue.Layers layers) {}
+                           Cumulative cumulative, List<Metric> metrics, LayerValue.Layers layers, Map<String,Object> dataStatus) {
+        public Overview(Kpi kpi,List<AgentSummary> agents,List<Alert> alerts,List<Map<String,Object>> costByAgent,Cumulative cumulative,List<Metric> metrics,LayerValue.Layers layers) {
+            this(kpi,agents,alerts,costByAgent,cumulative,metrics,layers,null);
+        }
+        public Overview withStatus(Map<String,Object> status) {return new Overview(kpi,agents,alerts,costByAgent,cumulative,metrics,layers,status);}
+    }
 
     public record Cumulative(Integer agents, Long calls, Long tokens, Double costCny, Long users, String since) {}
 
@@ -44,6 +49,7 @@ public class OverviewService {
     private final MeteringService metering;
     @Autowired(required = false)
     private LayerValueService layerValue;
+    @Autowired(required=false) private OverviewLedger overviewLedger;
 
     @Autowired
     public OverviewService(AgentRegistryService agentRegistryService, AgentUsageService usage, QualityService quality,
@@ -69,6 +75,15 @@ public class OverviewService {
                 quality, pendingApprovals, new FindingBook(null), costs, null);
     }
 
+    public Overview local(String env) {
+        var agents=agentRegistryService.listNewestFirst().stream().filter(a->a.status()!=AgentStatus.RETIRED)
+                .filter(a->"all".equals(env)||env.equals(a.env())).toList();
+        var kpi=new Kpi((int)agents.stream().filter(a->a.status()==AgentStatus.ONLINE).count(),agents.size(),
+                (int)agents.stream().filter(a->"biz".equals(a.category())).count(),(int)agents.stream().filter(a->"dev".equals(a.category())).count(),
+                null,null,null,null,GATE,pendingApprovals.apply(env),null);
+        return new Overview(kpi,agents,List.of(),List.of(),new Cumulative(agents.size(),null,null,null,null,null),List.of(),LayerValue.empty());
+    }
+
     public Overview overview(String env, String range) {
         var scope = env == null || env.isBlank() ? "all" : env;
         var listed = agentRegistryService.listNewestFirst().stream()
@@ -79,11 +94,12 @@ public class OverviewService {
         var window = "today".equals(range) || "all".equals(range) ? "24h" : range;
         var snap = usage.snapshotOf(scope, window);
         var daily = "24h".equals(range) ? snap : usage.snapshotOf(scope);
-        var bills = costs.cost(scope, range);
+        var sharedLedger=overviewLedger==null?null:overviewLedger.get();
+        var bills = sharedLedger==null?costs.cost(scope, range):costs.summarize(sharedLedger,scope,range);
         UsageMath.Slice ledger = null;
         UsageMath.Slice todayLedger = null;
         if (metering != null) {
-            ledger = metering.rollup(scope, costs.cost(scope, "today"), Instant.now());
+            ledger = metering.rollup(scope, (sharedLedger==null?costs.cost(scope,"today"):costs.summarize(sharedLedger,scope,"today")), Instant.now());
             todayLedger = metering.today(scope, Instant.now());
         }
         var online = (int) agents.stream().filter(agent -> agent.status() == AgentStatus.ONLINE).count();
@@ -105,7 +121,7 @@ public class OverviewService {
         } else if (!snap.scores().isEmpty()) {
             avg = Math.round(snap.scores().values().stream().mapToDouble(Double::doubleValue).average().orElseThrow() * 100.0) / 100.0;
         } else {
-            avg = quality.average();
+            avg = null;
         }
         var kpi = new Kpi(online, agents.size(), biz, dev, calls, snap.trendPct(), cost, avg, GATE,
                 pendingApprovals.apply(scope), bills.pendingCount());
@@ -141,11 +157,11 @@ public class OverviewService {
                 new Metric("cumulativeUsers", "agent_run 中去重的 actor_user", cumulative.users() == null ? "未接入" : "agent_run", cumulative.users() != null),
                 new Metric("agents", "注册中心中的智能体，含已下线，不含已删除", "registry", true));
         var layers = layerValue == null ? LayerValue.empty() : layerValue.compute(scope, names(agents, true), names(agents, false));
-        return new Overview(kpi, agents, alerts(scope, agents, daily, bills), costByAgent, cumulative, metrics, layers);
+        return new Overview(kpi, agents, alerts(scope, agents, daily, bills,sharedLedger==null?costs.alertRules():sharedLedger.rules()), costByAgent, cumulative, metrics, layers);
     }
 
     private List<Alert> alerts(String env, List<AgentSummary> agents, AgentUsageService.Snapshot snap,
-                               CostService.Result bills) {
+                               CostService.Result bills,List<com.keel.server.integration.litellm.LiteLlmClient.AlertRule> rules) {
         var rows = new ArrayList<Alert>();
         var missingByAgent = new LinkedHashMap<String, Integer>();
         var latestByAgent = new LinkedHashMap<String, String>();
@@ -157,7 +173,7 @@ public class OverviewService {
         }
         missingByAgent.forEach((agent, count) -> rows.add(new Alert(latestByAgent.get(agent), "WARN", agent,
                 "LLM_USAGE_MISSING", agent + " 有 " + count + " 条调用 usage 缺失，进入待计费", "/models")));
-        for (var hit : GatewayAlertRules.evaluate(costs.alertRules(), bills.bills(), bills.keys())) {
+        for (var hit : GatewayAlertRules.evaluate(rules, bills.bills(), bills.keys())) {
             rows.add(new Alert(Instant.now().toString(), "WARN", hit.agent(), hit.kind(), hit.text(), "/models"));
         }
         for (var finding : findings.openFindings()) {

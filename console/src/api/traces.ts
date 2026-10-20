@@ -9,10 +9,10 @@ export type TraceNode = components['schemas']['TraceNode'] & {
   promptFallback?: boolean
 }
 export type ListTracesQuery = NonNullable<operations['listTraces']['parameters']['query']>
-export type TracePage = components['schemas']['PageMeta'] & { items?: TraceSummary[]; langfuseUrl?: string }
+export type TracePage = components['schemas']['PageMeta'] & { items?: TraceSummary[]; langfuseUrl?: string; dataStatus?: components['schemas']['InsightDataStatus'] }
 
-export function listTraces(query: ListTracesQuery) {
-  return get<TracePage>('/insight/traces', { params: query })
+export function listTraces(query: ListTracesQuery, signal?: AbortSignal) {
+  return get<TracePage>('/insight/traces', { params: query, signal, timeout: 10000 })
 }
 
 export function getTrace(traceId: string) {

@@ -37,6 +37,8 @@ public class TraceQueryService {
     private final LiteLlmClient pricesSource;
     private final SavedTraces saved;
     private final ConsoleUsers users;
+    @Autowired(required=false) private com.keel.server.readmodel.TraceIndexStore index;
+    @Autowired(required=false) private TraceIndexSync indexSync;
     private final Map<String, CachedRoots> listCache = new ConcurrentHashMap<>();
     private final Map<String, CompletableFuture<List<JsonNode>>> listInflight = new ConcurrentHashMap<>();
     private record CachedRoots(List<JsonNode> rows, Instant at) {}
@@ -127,6 +129,14 @@ public class TraceQueryService {
 
     public Map<String, Object> list(int page, int size, String agent, String env, String status,
                                     Instant from, Instant to, boolean multiOnly, Integer minDurationMs, String jobId) {
+        if (index != null) {
+            if (page < 1 || !java.util.Set.of(10,20,50,100).contains(size))
+                throw new KeelException(ErrorCode.SERVER_INVALID_PARAM,"分页参数无效");
+            var result=index.list(page,size,agent,env,status,from,to,multiOnly,minDurationMs,jobId);
+            result.put("dataStatus",indexSync.status(from,to));
+            if(!host.isBlank() && !projectId.isBlank()) result.put("langfuseUrl",host+"/project/"+projectId+"/traces");
+            return present(result);
+        }
         try {
             var rows = rootObservations(from);
             var byTrace = new LinkedHashMap<String, List<JsonNode>>();

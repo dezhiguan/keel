@@ -55,7 +55,10 @@ public class DevflowService {
     }
 
     public synchronized DevflowTypes.JobList list(String layer, String status, String stage, String batch, boolean mine, String actor) {
-        var jobs = ledger.jobs();
+        return list(layer,status,stage,batch,mine,actor,false);
+    }
+    public synchronized DevflowTypes.JobList list(String layer,String status,String stage,String batch,boolean mine,String actor,boolean compact) {
+        var jobs = compact ? ledger.compactJobs() : ledger.jobs();
         var settings = ledger.settings();
         List<DevflowTypes.Job> items = jobs.stream()
                 .filter(job -> layer == null || layer.isBlank() || layer.equals(job.layer()))

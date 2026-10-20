@@ -1242,7 +1242,7 @@ function traceList(v){
     <div class="chipsel">${chip('range','1h','近 1 小时')}${chip('range','24h','近 24 小时')}${chip('range','7d','近 7 天')}</div>
     <div class="chipsel"><button data-act="trF" data-k="multi" data-v="${!TRF.multi}" class="${TRF.multi?'on':''}">只看多智能体</button></div>
   </div>
-  <div class="card"><h3>调用记录<small>一行是一次用户调用（一个 trace），点击查看链路详情</small></h3>
+  <div class="card"><h3>调用记录<small>一行是一次用户调用（一个 trace），点击查看链路详情</small></h3><div class="mut" style="font-size:12px">更新于 15:23:32 · 历史同步中时，数量为已同步记录；外部更新延迟时保留上次结果，可重试</div>
   <table class="t"><thead><tr><th>问题</th><th>智能体</th><th>来源</th><th>环境</th><th>开始</th><th>耗时</th><th>tokens</th><th>成本</th><th>状态</th></tr></thead><tbody>
   ${pageOf('tr',rows).map(r=>{const s=trState(r);return `<tr class="click" data-act="trOpen" data-id="${r.id}">
     <td class="nm" style="max-width:420px"><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.q}</b><small class="mono">${r.id} · ${r.user}</small></td>
@@ -2475,7 +2475,7 @@ VIEWS.overview=v=>{
     <div class="card"><h3>业务智能体</h3><div class="kv"><span>解决率</span><b>82%</b><span>转人工率</span><b>12%</b><span>点踩率</span><b>6.4%</b><span>无依据回答率</span><b>2.9%</b></div></div>
     <div class="card"><h3>研发智能体</h3><div class="kv"><span>首次门禁通过率</span><b>54%</b><span>3 轮内通过率</span><b>83%</b><span>平均交付周期</span><b>2.6 天</b><span>人工接管率</span><b>18%</b></div></div>
     <div class="card"><h3>元智能体</h3><div class="kv"><span>生产 / 升级研发员工</span><b>7 / 1</b><span>研发员工门禁均分</span><b>0.85</b><span>人工补写 PR 占比</span><b>31%</b></div></div></div>`;
-  v.innerHTML=`<div class="vh"><h2>运行总览</h2><span class="sub">${S.env==='all'?'全部环境':S.env} · ${mul==null?'累计（自 2026-10-20 起）':'近 '+wl}</span>
+  v.innerHTML=`<div class="vh"><h2>运行总览</h2><span class="sub" title="本地状态先显示，统计与研发任务独立更新；同步失败保留上次成功结果">更新于 15:23:32</span><span class="sub">${S.env==='all'?'全部环境':S.env} · ${mul==null?'累计（自 2026-10-20 起）':'近 '+wl}</span>
     <div class="chipsel">${Object.entries(WIN).map(([k,[n]])=>`<button data-ovwin="${k}" class="${ovWin===k?'on':''}">${n}</button>`).join('')}</div>${P()}<span class="sp"></span><button class="btn pri" data-act="goCreate">+ 新建智能体</button></div>
   <div class="kpis">
     <div class="kpi" ${tip('注册中心里非下线的智能体，在线 = 正常 / 降级 / 门禁未过','注册中心 + K8s 探测')}><div class="l">在线智能体</div><div class="v">${online}<span class="mut" style="font-size:14px"> / ${as.length}</span></div><div class="d">业务 ${as.filter(a=>a.cat==='biz').length} · 研发 ${as.filter(a=>a.cat==='dev').length} · 元 ${as.filter(a=>a.cat==='meta').length}</div></div>

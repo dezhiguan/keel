@@ -36,6 +36,18 @@ public class JdbcDevflowLedger implements DevflowLedger {
     }
 
     @Override
+    public List<DevflowTypes.Job> compactJobs() {
+        return jdbc.query("""
+                SELECT job_id,title,layer,kind,mode,status,stage,target_agent,producer_agent,template,
+                  spent_cny,budget_cny,fix_rounds,max_fix_rounds,batch_id,need_review,human_dev_user,
+                  watch_day,requester,owner_org,'' AS goal,'[]' AS tools_json,'[]' AS knowledge_json,
+                  '{"human":0,"agent":0,"holdout":0}' AS seed_json,
+                  CASE WHEN jsonb_array_length(events_json)>0 THEN jsonb_build_array(events_json->-1)::text ELSE '[]' END AS events_json
+                FROM devflow_job ORDER BY created_at DESC,job_id DESC
+                """,this::job);
+    }
+
+    @Override
     public void insert(DevflowTypes.Job job) {
         jdbc.update("""
                 INSERT INTO devflow_job (

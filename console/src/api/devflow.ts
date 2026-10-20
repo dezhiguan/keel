@@ -12,7 +12,7 @@ export type DevflowSeedCase = components['schemas']['DevflowSeedCase']
 
 // Devflow execution is backed by the server ledger.
 
-export function listDevflowJobs(query?: { targetAgent: string; cursor?: string; limit?: number }, signal?: AbortSignal) {
+export function listDevflowJobs(query?: { targetAgent?: string; cursor?: string; limit?: number; view?: 'full' | 'compact' }, signal?: AbortSignal) {
   return get<DevflowJobList>('/devflow/jobs', { params: query, signal })
 }
 

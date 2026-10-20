@@ -2315,7 +2315,20 @@ export interface components {
             mode?: "USER" | "PREVIEW";
             readOnly?: boolean;
         };
+        InsightDataStatus: {
+            /** @enum {string} */
+            state?: "loading" | "ready" | "stale" | "unavailable";
+            /** Format: date-time */
+            updatedAt?: string | null;
+            /** @description 所声明时间范围已完成完整同步；false时total仅为已索引数量 */
+            complete?: boolean;
+            /** Format: date-time */
+            from?: string | null;
+            /** Format: date-time */
+            to?: string | null;
+        };
         Overview: {
+            dataStatus?: components["schemas"]["InsightDataStatus"];
             kpi?: components["schemas"]["OverviewKpi"];
             agents?: components["schemas"]["AgentSummary"][];
             alerts?: components["schemas"]["Alert"][];
@@ -4844,6 +4857,7 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Envelope"] & {
                         data?: components["schemas"]["PageMeta"] & {
+                            dataStatus?: components["schemas"]["InsightDataStatus"];
                             /** @description Langfuse 项目的 Traces 页。项目未配置时省略 */
                             langfuseUrl?: string;
                             items?: components["schemas"]["TraceSummary"][];
@@ -6662,6 +6676,8 @@ export interface operations {
     listDevflowJobs: {
         parameters: {
             query?: {
+                /** @description compact 仅取首页/筛选所需字段，省略需求正文、工具、知识与历史事件（保留最后事件时间）；默认完整看板 */
+                view?: "full" | "compact";
                 targetAgent?: string;
                 cursor?: string;
                 limit?: number;

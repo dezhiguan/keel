@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import InsightSyncStatus from '@/components/InsightSyncStatus.vue'
 import AgentName from '@/components/AgentName.vue'
 import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
@@ -49,6 +50,10 @@ const filter = reactive<{
 
 const failed = ref(false)
 let loadSeq = 0
+let controller: AbortController | undefined
+let jobsController: AbortController | undefined
+let poll: ReturnType<typeof setTimeout> | undefined
+let disposed = false
 const rows = computed(() => {
   const items = result.value?.items ?? []
   if (!filter.jobId) return items
@@ -71,20 +76,26 @@ async function loadAgents() {
 
 async function loadJobs() {
   try {
-    const page = await listDevflowJobs()
+    jobsController?.abort()
+    jobsController = new AbortController()
+    const page = await listDevflowJobs({ view: 'compact' }, jobsController.signal)
     const items = (page.items ?? []).filter((job) => !!job.jobId).map((job) => ({ jobId: job.jobId!, title: job.title }))
     if (items.length) {
       jobs.value = items
       return
     }
   } catch {
-    // 研发任务接口还没接上时，筛选项用原型里的任务号。
+    // A failed options request must not introduce synthetic production tasks.
   }
-  jobs.value = [{ jobId: 'DF-0019', title: '发布说明生成' }]
+  if (!disposed) jobs.value = []
 }
 
 async function load() {
   const seq = ++loadSeq
+  clearTimeout(poll)
+  controller?.abort()
+  const current = new AbortController()
+  controller = current
   loading.value = true
   failed.value = false
   try {
@@ -99,15 +110,18 @@ async function load() {
       to: window.to,
       page: filter.page,
       size: filter.size,
-    })
+    }, current.signal)
     if (seq !== loadSeq) return
     result.value = next
   } catch (error) {
-    if (seq !== loadSeq) return
+    if (seq !== loadSeq || current.signal.aborted) return
     failed.value = true
     ElMessage.error(toKeelError(error).message || '链路暂时拉不到，请稍后再试')
   } finally {
-    if (seq === loadSeq) loading.value = false
+    if (seq === loadSeq && !disposed) {
+      loading.value = false
+      poll = setTimeout(load, result.value?.dataStatus?.state === 'loading' ? 5000 : 30000)
+    }
   }
 }
 
@@ -131,7 +145,8 @@ function clearJob() {
   search()
 }
 
-watch(() => envStore.env, () => { loadAgents(); loadJobs(); search() })
+watch(() => envStore.env, () => { result.value = null; loadAgents(); search() })
+onBeforeUnmount(() => { disposed = true; ++loadSeq; clearTimeout(poll); controller?.abort(); jobsController?.abort() })
 watch(() => [filter.page, filter.size], load, { immediate: true })
 loadAgents()
 loadJobs()
@@ -169,8 +184,9 @@ loadJobs()
       </div>
     </div>
 
-    <div v-loading="loading" class="card">
+    <div class="card">
       <h3>调用记录<small>一行是一次用户调用（一个 trace），点击查看链路详情</small></h3>
+      <InsightSyncStatus :status="result?.dataStatus" :loading="loading" :failed="failed" subject="链路" />
       <p v-if="failed" class="empty" style="padding: 12px 0">
         链路暂时拉不到，请重试
         <button type="button" class="btn sm" style="margin-left: 8px" @click="load">重试</button>
@@ -199,7 +215,7 @@ loadJobs()
               <div v-if="t.humanWaitMs" class="mut" style="font-size: 11px">+ 人工 {{ humanWait(t.humanWaitMs) }}</div>
             </td>
             <td class="mono">{{ showTokens(t.tokens) }}</td>
-            <td class="mono">{{ fmtCny(t.costCny) }}</td>
+            <td class="mono">{{ fmtCny(t.costCny) }}<small v-if="t.pendingBillCount" class="mut"> · 待计费 {{ t.pendingBillCount }} 条</small></td>
             <td>
               <span v-if="t.blocked" class="pill p-bad">已拦截</span>
               <template v-else-if="t.pendingReason">
@@ -225,12 +241,12 @@ loadJobs()
             <td class="mono">{{ row.cost }}</td>
             <td><span class="pill nd p-soft">占位</span></td>
           </tr>
-          <tr v-if="!rows.length && !placeholders.length && !loading && !failed"><td colspan="9" class="empty">没有符合条件的链路</td></tr>
+          <tr v-if="!rows.length && !placeholders.length && !loading && !failed"><td colspan="9" class="empty">{{ result?.dataStatus?.complete === false ? '正在同步链路，稍后自动更新' : '没有符合条件的链路' }}</td></tr>
         </tbody>
       </table>
       <Pager v-model:page="filter.page" v-model:size="filter.size" :total="filter.jobId && !rows.length ? 0 : (result?.total ?? 0)" />
       <div class="mut" style="font-size: 11.5px; margin-top: 8px">按 <span class="mono">keel.devflow.job_id</span> 过滤，详情页沿用现有三视图。</div>
-      <div class="srcnote">列表由 keel-server 读 Langfuse Observations API v2 的根节点摘要，用量来自生成节点的 usage，不拉全文。智能体、状态、时间筛选和分页都在服务端完成；每行只带摘要，不带节点。点开一行才请求一次详情。</div>
+      <div class="srcnote">链路摘要自动同步；筛选和分页在服务端完成。用量来自生成节点，成本为网关已结算金额，未结算单独显示待计费。点击记录查看完整链路。</div>
     </div>
   </div>
 </template>

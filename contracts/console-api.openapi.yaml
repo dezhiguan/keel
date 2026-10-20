@@ -913,6 +913,7 @@ paths:
                           - $ref: "#/components/schemas/PageMeta"
                           - type: object
                             properties:
+                              dataStatus: { $ref: "#/components/schemas/InsightDataStatus" }
                               langfuseUrl:
                                 type: string
                                 description: Langfuse 项目的 Traces 页。项目未配置时省略
@@ -2549,6 +2550,10 @@ paths:
       summary: 研发任务看板
       description: summary 是顶部数字，不受筛选影响。items 受 query 筛选。首次门禁通过率在 DF-9d 之前可以是样本值。
       parameters:
+        - name: view
+          in: query
+          description: compact 仅取首页/筛选所需字段，省略需求正文、工具、知识与历史事件（保留最后事件时间）；默认完整看板
+          schema: { type: string, enum: [full, compact], default: full }
         - name: targetAgent
           in: query
           schema: { type: string }
@@ -3532,9 +3537,19 @@ components:
         readOnly: { type: boolean }
 
     # ------------------------------------------------------------ 总览
+    InsightDataStatus:
+      type: object
+      properties:
+        state: { type: string, enum: [loading, ready, stale, unavailable] }
+        updatedAt: { type: string, format: date-time, nullable: true }
+        complete: { type: boolean, description: 所声明时间范围已完成完整同步；false时total仅为已索引数量 }
+        from: { type: string, format: date-time, nullable: true }
+        to: { type: string, format: date-time, nullable: true }
+
     Overview:
       type: object
       properties:
+        dataStatus: { $ref: "#/components/schemas/InsightDataStatus" }
         kpi: { $ref: "#/components/schemas/OverviewKpi" }
         agents:
           type: array

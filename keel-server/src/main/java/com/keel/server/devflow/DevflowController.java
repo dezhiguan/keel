@@ -40,8 +40,9 @@ public class DevflowController {
                                         @RequestParam(defaultValue = "false") boolean mine,
                                         @RequestParam(required = false) String targetAgent,
                                         @RequestParam(required = false) String cursor,
-                                        @RequestParam(required = false) Integer limit) {
-        return R.ok(DevflowJobPages.page(devflow.list(layer, status, stage, batch, mine, actor()), targetAgent, cursor, limit));
+                                        @RequestParam(required = false) Integer limit,
+                                        @RequestParam(defaultValue="full") @jakarta.validation.constraints.Pattern(regexp="full|compact") String view) {
+        return R.ok(DevflowJobPages.page(devflow.list(layer, status, stage, batch, mine, actor(),"compact".equals(view)), targetAgent, cursor, limit));
     }
 
     @PostMapping("/jobs")

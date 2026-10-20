@@ -40,6 +40,7 @@ public class AgentUsageService {
     private final QualityService quality;
     private final EvalQueryService evaluations;
     private final SavedTraces saved;
+    @Autowired(required=false) private com.keel.server.readmodel.TraceIndexStore traceIndex;
     private final Clock clock;
     private final ExecutorService parallel;
     private final Executor refresh;
@@ -174,7 +175,7 @@ public class AgentUsageService {
         };
         var since = now.minus(window);
         var prevFrom = since.minus(window);
-        var rootsF = parallel.submit(() -> langfuse.roots(since, now));
+        var rootsF = parallel.submit(() -> indexedRoots(since, now, env));
         var keysF = parallel.submit(this::loadKeys);
         var freshScores = scoresFresh(now);
         var qualityF = freshScores ? null : parallel.submit(this::qualityScores);
@@ -283,6 +284,14 @@ public class AgentUsageService {
         experimentRows.forEach(scoreMap::put);
         return new Snapshot(callsKnown, calls, prevKnown, localCalls, previous, totalsKnown, totals, p95,
                 cost != null, cost == null ? Map.of() : cost, budgets, scoreMap);
+    }
+
+    private LangfuseClient.RootPage indexedRoots(Instant from,Instant to,String env) {
+        if(traceIndex==null) return langfuse.roots(from,to);
+        var rows=traceIndex.usage(from,to,env).stream()
+                .map(row->new LangfuseClient.RootCall(String.valueOf(row.getOrDefault("traceId","")),String.valueOf(row.getOrDefault("rootAgent","")),
+                        row.get("rootAgent")+"-"+row.getOrDefault("env",""),row.get("durationMs") instanceof Number n ? n.doubleValue()/1000.0 : null)).toList();
+        return new LangfuseClient.RootPage(rows,true);
     }
 
     private static Map<String, Long> countHits(List<SavedTraces.TraceHit> hits) {

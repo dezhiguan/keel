@@ -35,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/insight")
 public class InsightController {
+    @org.springframework.beans.factory.annotation.Autowired private com.keel.server.insight.OverviewReadModel overviewReadModel;
     private final OverviewService overviewService;
     private final TraceQueryService traces;
     private final CostService costs;
@@ -59,7 +60,7 @@ public class InsightController {
     public R<OverviewService.Overview> overview(
             @RequestParam(defaultValue = "all") @Pattern(regexp = "all|dev|test|staging|prod") String env,
             @RequestParam(defaultValue = "24h") @Pattern(regexp = "today|24h|7d|30d|all") String range) {
-        return R.ok(overviewService.overview(env, range));
+        return R.ok(overviewReadModel.read(env, range));
     }
 
     @GetMapping("/agent-usage")

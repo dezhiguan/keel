@@ -94,6 +94,12 @@ public final class TraceAssembly {
         return detail;
     }
 
+    public static Map<String, Object> listSummary(String traceId, List<JsonNode> rows) {
+        var summary=summary(traceId, rows, Map.of());
+        if(summary!=null && rows.stream().anyMatch(row->!meta(row).getOrDefault("keel.eval_run","").isBlank())) summary.put("_evaluation",true);
+        return summary;
+    }
+
     static Map<String, Object> summary(String traceId, List<JsonNode> rows, Map<String, double[]> prices) {
         var built = detail(traceId, rows, "", prices);
         if (built == null) {

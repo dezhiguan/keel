@@ -404,6 +404,16 @@ public class LangfuseClient {
         return send("GET", path, null, false, false, Duration.ofSeconds(6));
     }
 
+    /** One checkpointable page for the shared background reader; never follow a cursor in a web request. */
+    public JsonNode observationIndexPage(Instant from, Instant to, boolean rootsOnly, String cursor) {
+        var filter = "[{\"type\":\"stringOptions\",\"column\":\"type\",\"operator\":\"any of\","
+                + "\"value\":[\"AGENT\",\"GENERATION\",\"TOOL\",\"RETRIEVER\",\"GUARDRAIL\",\"CHAIN\",\"EMBEDDING\",\"EVALUATOR\"]}]";
+        var fields = rootsOnly ? "core,basic,io,metadata,model,usage" : "core,basic,metadata,model,usage";
+        var path = windowPath(fields, URLEncoder.encode(filter, StandardCharsets.UTF_8), rootsOnly, from, to);
+        if (cursor != null && !cursor.isBlank()) path += "&cursor=" + URLEncoder.encode(cursor, StandardCharsets.UTF_8);
+        return send("GET", path, null, false, false, Duration.ofSeconds(20));
+    }
+
     public JsonNode observationsForList(Instant from, Instant to) {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");

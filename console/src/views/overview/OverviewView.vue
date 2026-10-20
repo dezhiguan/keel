@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import InsightSyncStatus from '@/components/InsightSyncStatus.vue'
 import AgentName from '@/components/AgentName.vue'
 import Pager from '@/components/Pager.vue'
 import StatusPill from '@/components/StatusPill.vue'
@@ -29,6 +30,11 @@ const panel = ref<'agents' | 'alerts' | 'cost' | 'value'>('agents')
 const page = ref(1)
 const size = ref<10 | 20 | 50 | 100>(10)
 let loadSequence = 0
+let controller: AbortController | undefined
+let jobsController: AbortController | undefined
+let poll: ReturnType<typeof setTimeout> | undefined
+let disposed = false
+const failed = ref(false)
 
 const envLabel = computed(() => (envStore.env === 'all' ? '全部环境' : envStore.env))
 const kpi = computed(() => overview.value?.kpi)
@@ -58,20 +64,38 @@ const bars = computed(() =>
 
 async function load() {
   const sequence = ++loadSequence
+  clearTimeout(poll)
+  controller?.abort()
+  const current = new AbortController()
+  controller = current
   loading.value = true
-  const [overviewResult, jobsResult] = await Promise.allSettled([
-    getOverview({ env: envStore.env, range: range.value }),
-    listDevflowJobs(),
-  ])
-  if (sequence !== loadSequence) return
-  if (overviewResult.status === 'fulfilled') {
-    overview.value = overviewResult.value
-  } else {
-    ElMessage.error(`加载总览失败：${toKeelError(overviewResult.reason).message}`)
+  failed.value = false
+  try {
+    const value = await getOverview({ env: envStore.env, range: range.value }, current.signal)
+    if (sequence === loadSequence) overview.value = value
+  } catch (error) {
+    if (sequence !== loadSequence || current.signal.aborted) return
+    failed.value = true
+    ElMessage.error(`加载总览失败：${toKeelError(error).message}`)
+  } finally {
+    if (sequence === loadSequence && !disposed) {
+      loading.value = false
+      poll = setTimeout(load, overview.value?.dataStatus?.state === 'loading' ? 5000 : 30000)
+    }
   }
-  pipeline.value = pipelineCards(jobsResult.status === 'fulfilled' ? jobsResult.value : null)
-  loading.value = false
 }
+
+async function loadPipeline() {
+  jobsController?.abort()
+  const current = new AbortController()
+  jobsController = current
+  try {
+    const jobs = await listDevflowJobs({ view: 'compact' }, current.signal)
+    if (!current.signal.aborted && !disposed) pipeline.value = pipelineCards(jobs)
+  } catch { /* The independent pipeline cards stay unknown when unavailable. */ }
+}
+loadPipeline()
+onBeforeUnmount(() => { disposed = true; ++loadSequence; clearTimeout(poll); controller?.abort(); jobsController?.abort() })
 
 function open(name?: string) {
   if (!name) return
@@ -102,15 +126,19 @@ function barColor(cost?: number, budget?: number) {
 
 watch([() => envStore.env, range], () => {
   page.value = 1
+  overview.value = null
   load()
 }, { immediate: true })
 </script>
 
 <template>
-  <div v-loading="loading">
+  <div>
     <div class="vh">
       <h2>运行总览</h2>
       <span class="sub">{{ envLabel }} · {{ overviewRangeLabel(range) }}</span>
+      <InsightSyncStatus :status="overview?.dataStatus" :loading="loading" :failed="failed" subject="统计">
+        <button v-if="failed || overview?.dataStatus?.state === 'unavailable' || overview?.dataStatus?.state === 'stale'" class="btn sm" @click="load">重试</button>
+      </InsightSyncStatus>
       <span class="sp" />
       <div class="chipsel" aria-label="总览时间窗">
         <button v-for="[value, label] in OVERVIEW_RANGES" :key="value" :class="{ on: range === value }" @click="range = value">{{ label }}</button>

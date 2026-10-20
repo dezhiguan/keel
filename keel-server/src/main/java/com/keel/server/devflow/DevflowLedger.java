@@ -5,6 +5,7 @@ import java.util.List;
 /** Job ledger. The state rules do not live here. */
 public interface DevflowLedger {
     List<DevflowTypes.Job> jobs();
+    default List<DevflowTypes.Job> compactJobs() { return jobs(); }
 
     void insert(DevflowTypes.Job job);
 
