@@ -24,6 +24,21 @@ class ElementObservationsTest {
         assertThat(proof.session()).isTrue(); // Two different traces belonging to qa/dev.
         assertThat(ElementObservations.read(body,"qa","prod").session()).isFalse();
     }
+    @Test void childGenerationsInheritOnlyTheirOwnUnambiguousAgentTraceEnvironment() {
+        var body=json.createObjectNode();var rows=body.putArray("data");
+        rows.add(row("qa","dev","trace","root","agent.run","AGENT"));
+        var generation=json.createObjectNode().put("traceId","trace").put("type","GENERATION").put("environment","default");
+        generation.putObject("metadata").put("attributes.keel.agent","qa")
+                .put("attributes.langfuse.observation.prompt.name","qa/role")
+                .put("attributes.langfuse.observation.prompt.version",1);
+        rows.add(generation);
+        assertThat(ElementObservations.read(body,"qa","dev").prompt()).isTrue();
+        assertThat(ElementObservations.read(body,"qa","prod").prompt()).isFalse();
+        assertThat(ElementObservations.read(body,"other","dev").prompt()).isFalse();
+        rows.add(row("qa","prod","trace","other-env-root","agent.run","AGENT"));
+        assertThat(ElementObservations.read(body,"qa","dev").prompt()).isFalse();
+    }
+
     @Test void nestedMetadataAndFlatAttributesAreSupportedWithoutCountingDuplicateObservationsTwice() {
         var body=json.createObjectNode();var rows=body.putArray("data");
         var first=row("qa","dev","trace","1","agent.loop.step","AGENT");
