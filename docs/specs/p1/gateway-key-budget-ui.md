@@ -23,4 +23,5 @@
 - `npm run build`、完整 `npm test`（26 文件 / 196 测试）、`bash ci/frontend-gate.sh`、`git diff --check` 通过。
 - [部署流水线](https://github.com/dezhiguan/keel/actions/runs/39471858912) 完成成功，控制台部署及冒烟通过；集群控制台镜像为 `c8596e0e9684`，2 个副本就绪。
 - 部署后 `/models` 返回 200，入口引用本次构建的 `index-BjfInZPd.js`。
-- 页面点击、滑块和保存持久化验证尚未完成：当前 Chrome 关闭了“允许 Apple 事件中的 JavaScript”，环境内独立 Chrome 自动化进程启动失败；已请求用户开启。未更改线上 Key 配额或预算。
+- 03:02 使用独立 Playwright 会话完成线上页面验收：`echo-dev` 滑块从 ¥30 调到 ¥35，保存返回 200；刷新并重新打开弹窗仍为 ¥35，再经页面恢复为 ¥30。只提交 dailyBudgetCny、tpm、concurrency，未提交 channels；模型授权、渠道份额与 Key 版本不变。
+- 首次保存后立即读取另一个副本的成本查询仍可能短暂返回旧预算，页面刷新后读到新值；本次未改动后端缓存机制。测试证据：本地 `/tmp/key-budget-save-evidence.json`。
