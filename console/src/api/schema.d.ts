@@ -291,6 +291,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agents/{name}/elements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 异步读取近期运行要素证据，不阻塞基础详情 */
+        get: operations["getAgentElementEvidence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agents/{name}/self-check": {
         parameters: {
             query?: never;
@@ -2570,6 +2587,13 @@ export interface components {
             /** @description 对账发现的问题 */
             findings?: components["schemas"]["Alert"][];
         };
+        AgentElementEvidence: {
+            elements?: components["schemas"]["AgentElements"];
+            manifestHash?: string | null;
+            /** Format: date-time */
+            checkedAt?: string;
+            unavailable?: string[];
+        };
         AgentElements: {
             /** @enum {string} */
             kind: "agent" | "workflow";
@@ -3516,6 +3540,7 @@ export interface components {
             spentCny: number;
         };
         DevflowJobList: {
+            nextCursor?: string | null;
             summary: components["schemas"]["DevflowBoardSummary"];
             items: components["schemas"]["DevflowJob"][];
         };
@@ -4308,6 +4333,30 @@ export interface operations {
             404: components["responses"]["Error"];
             /** @description 还没下线（AGENT_NOT_RETIRED） */
             409: components["responses"]["Error"];
+        };
+    };
+    getAgentElementEvidence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 近期样本证据；不可用不同于能力缺失 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["AgentElementEvidence"];
+                    };
+                };
+            };
         };
     };
     recheckAgent: {
@@ -6613,6 +6662,9 @@ export interface operations {
     listDevflowJobs: {
         parameters: {
             query?: {
+                targetAgent?: string;
+                cursor?: string;
+                limit?: number;
                 layer?: components["schemas"]["DevflowLayer"];
                 status?: components["schemas"]["DevflowStatus"];
                 stage?: components["schemas"]["DevflowStage"];

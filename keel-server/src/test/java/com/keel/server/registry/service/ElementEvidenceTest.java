@@ -1,59 +1,74 @@
 package com.keel.server.registry.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.keel.server.insight.TraceQueryService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.keel.server.integration.langfuse.LangfuseClient;
+import com.keel.server.integration.langfuse.LangfuseRateLimit;
 import com.keel.server.registry.model.dto.AgentDetail;
 import com.keel.server.registry.model.entity.Agent;
 import com.keel.server.registry.model.entity.AgentVersion;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
-
 import java.util.List;
-import java.util.Map;
-
+import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ElementEvidenceTest {
-    @Test void onlyARealGenerationVersionAndRetrieverProveTheDeclaredElements() throws Exception {
-        var jdbc = new JdbcTemplate() {
-            @Override public <T> T queryForObject(String sql, Class<T> requiredType, Object... args) {
-                return requiredType.cast(0);
+    private final ObjectMapper json = new ObjectMapper();
+    private final JdbcTemplate jdbc = new JdbcTemplate() {
+        @Override public <T> T queryForObject(String sql, Class<T> type, Object... args) { return type.cast(0); }
+    };
+    @Test void cachesOneBoundedSampleButInvalidatesOnManifestOrRegisteredVersionChange() throws Exception {
+        var calls = new AtomicInteger();
+        var client = new LangfuseClient("", "", "") {
+            @Override public JsonNode elementObservations(java.time.Instant from) {
+                calls.incrementAndGet();
+                return json.createObjectNode().set("data", json.createArrayNode().add(json.createObjectNode()
+                        .put("traceId","t1").put("type","GENERATION").set("metadata",json.createObjectNode()
+                                .put("attributes.keel.agent","qa").put("attributes.keel.env","dev")
+                                .put("attributes.langfuse.observation.prompt.name","qa/role")
+                                .put("attributes.langfuse.observation.prompt.version",3))));
             }
         };
-        var traces = new TraceQueryService(null, "", "", Map.of()) {
-            @Override public Map<String, Object> list(int page, int size, String agent, String env) {
-                assertThat(agent).isEqualTo("qa-lifecycle-1016");
-                assertThat(env).isEqualTo("dev");
-                return Map.of("items", List.of(
-                        Map.of("traceId", "trace-1", "sessionId", "session-1"),
-                        Map.of("traceId", "trace-2", "sessionId", "session-1")));
-            }
+        var service = new ElementEvidence(jdbc,client);
+        var first = service.report(detail("hash1","v1",true));
+        assertThat(first.elements().items().get(3).passed()).isTrue();
+        assertThat(first.unavailable()).isEmpty();
+        service.report(detail("hash1","v1",true));
+        assertThat(calls.get()).isEqualTo(1);
+        service.report(detail("hash2","v1",true));
+        service.report(detail("hash2","v2",true));
+        assertThat(calls.get()).isEqualTo(3);
+    }
 
-            @Override public Map<String, Object> detail(String traceId) {
-                return Map.of("nodes", List.of(
-                        Map.of("type", "generation", "promptName", "qa-lifecycle-1016/answer", "promptVersion", 3),
-                        Map.of("type", "retriever", "name", "knowledge.search"),
-                        Map.of("type", "agent", "name", "agent.loop.step"),
-                        Map.of("type", "tool", "name", "shift.policy"),
-                        Map.of("type", "agent", "name", "agent.loop.step")));
+    @Test void rateLimitsRemainUnavailableInsteadOfFalseAndAreBrieflyCached() throws Exception {
+        var calls = new AtomicInteger();
+        var client = new LangfuseClient("", "", "") {
+            @Override public JsonNode elementObservations(java.time.Instant from) {
+                calls.incrementAndGet(); throw new LangfuseRateLimit(60);
             }
         };
-        var agent = new Agent();
-        agent.setName("qa-lifecycle-1016");
-        var version = new AgentVersion();
-        version.setEnv("dev");
-        var manifest = new ObjectMapper().readTree("""
-                {"spec":{"kind":"agent","capabilities":{"toolCalling":true,"loop":true,"memory":true},
-                         "tools":[{"name":"shift.policy"}],
-                         "prompts":{"source":"langfuse","items":[{"name":"answer"}]},
-                         "knowledge":[{"kb":"平台基准库·v1"}]}}
-                """);
-        var detail = AgentDetail.of(agent, version, null, List.of(), manifest, List.of());
-        var proved = new ElementEvidence(jdbc, traces).apply(detail);
-        assertThat(proved.elements().items().get(3).passed()).isTrue();
-        assertThat(proved.elements().items().get(5).passed()).isTrue();
-        assertThat(proved.elements().items().get(0).passed()).isTrue();
-        assertThat(proved.elements().items().get(1).passed()).isTrue();
-        assertThat(proved.elements().items().get(2).passed()).isTrue();
+        var service = new ElementEvidence(jdbc,client);
+        var detail = detail("hash","v1",true);
+        var result = service.report(detail);
+        assertThat(result.unavailable()).contains("有版本的提示词");
+        assertThat(result.elements().items().get(3).passed()).isNull();
+        assertThat(result.elements().items().get(0).passed()).isFalse();
+        service.report(detail);
+        assertThat(calls.get()).isEqualTo(1);
+    }
+
+    @Test void undeclaredElementsDoNotCauseAnExternalRead() throws Exception {
+        var client = new LangfuseClient("", "", "") {
+            @Override public JsonNode elementObservations(java.time.Instant from) { throw new AssertionError("unexpected external query"); }
+        };
+        assertThat(new ElementEvidence(jdbc,client).report(detail("hash","v1",false)).unavailable()).isEmpty();
+    }
+
+    private AgentDetail detail(String hash, String number, boolean prompts) throws Exception {
+        var agent = new Agent(); agent.setName("qa");
+        var version = new AgentVersion(); version.setEnv("dev"); version.setVersion(number); version.setManifestHash(hash);
+        var manifest = json.readTree(prompts ? "{\"spec\":{\"prompts\":{\"source\":\"langfuse\",\"items\":[{\"name\":\"role\"}]}}}" : "{\"spec\":{}}");
+        return AgentDetail.of(agent,version,null,List.of(),manifest,List.of());
     }
 }

@@ -89,6 +89,11 @@ public class AgentController {
                 ? agentRegistryService.detail(name) : agentRegistryService.registeredDetail(name)));
     }
 
+    @GetMapping("/{name}/elements")
+    public R<com.keel.server.registry.service.ElementEvidence.Report> elements(@PathVariable String name) {
+        return R.ok(agentRegistryService.elements(name));
+    }
+
     @PostMapping("/{name}/chat")
     public R<java.util.Map<String, Object>> chat(@PathVariable String name, @RequestBody JsonNode body) {
         return R.ok(chats.chat(name, body.path("text").asText(""),

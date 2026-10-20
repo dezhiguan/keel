@@ -571,6 +571,8 @@ textarea.inp{resize:vertical;min-height:72px;line-height:1.6}
 .elem i{font-style:normal;font-weight:700;width:12px}
 .elem .ok i{color:var(--ok)}.elem .no i{color:var(--bad)}.elem .mid i{color:var(--warn)}
 .elem small{margin-left:auto;color:var(--mute);font-size:11px}
+.elem .evidence-spinner{display:inline-block;width:11px;height:11px;border:2px solid var(--line2);border-top-color:var(--soft);border-radius:50%;animation:evidence-spin .8s linear infinite}
+@keyframes evidence-spin{to{transform:rotate(360deg)}}
 body.appmode .side,body.appmode .top,body.appmode .pvbar{display:none!important}
 body.appmode .app{grid-template-columns:1fr}
 .apptop{display:flex;align-items:center;gap:12px;padding:12px 18px;border:1px solid var(--line);border-radius:12px;background:var(--panel);margin-bottom:14px}
@@ -2516,6 +2518,14 @@ function loopInfo(a){
   if(a.tpl==='supervisor')return ['委派编排','图：并行委派后汇总'];
   return ['按代码顺序执行','ctx.loop'];
 }
+// R1020：基础详情立即展示；需要近期运行证据的要素独立加载，尾部显示状态。
+// evidenceLoading / evidenceUnavailable 仅表达观测请求状态，未声明能力保留既有展示。
+function evidenceTail(a,n,v){
+  if(v===false||v==='未声明'||v==='—')return v===false?'':`<small>${v}</small>`;
+  if((a.evidenceUnavailable||[]).includes(n))return '<small>暂无法验证</small>';
+  if((a.evidenceLoading||[]).includes(n))return '<small aria-label="正在验证运行证据"><b class="evidence-spinner"></b></small>';
+  return v!==true?`<small>${v}</small>`:'';
+}
 function elements(a){
   const hasPrompt=PROMPTS.some(p=>p.ag===a.id)&&!(a.src||'').startsWith('meta')&&!(a.src||'').startsWith('dev-lead');
   const high=a.tools.some(t=>(toolOf(t)||{}).risk==='高');
@@ -2538,7 +2548,7 @@ agentBody=function(a){
     const kind=miss.length?'工作流型':'智能体';
     h+=`<h4 style="margin:16px 0 8px;color:var(--white);font-size:13px">运行方式 ${P()}</h4><div class="kv"><span>现在</span><b>${now}</b><span>目标</span><b>${next}</b><span>约束</span><b>maxSteps 6 · 预算向下传 · 高风险工具挂起审批 · 原地打转检测</b></div>
     <h4 style="margin:16px 0 8px;color:var(--white);font-size:13px">要素检查 ${P()} <span class="pill ${kind==='智能体'?'p-ok':'p-warn'}" style="margin-left:6px">${kind}</span>${miss.length?`<small class="mut" style="font-weight:400;margin-left:8px">缺：${miss.map(e=>e[0]).join('、')}</small>`:''}</h4>
-    <div class="elem">${el.map(([n,v,c],i)=>`<span class="${v===true?'ok':v===false?'no':'mid'}${c?' core':''}"><i>${v===true?'✓':v===false?'✗':'·'}</i>${i+1}. ${n}${v!==true&&v!==false?`<small>${v}</small>`:''}</span>`).join('')}</div>`;
+    <div class="elem">${el.map(([n,v,c],i)=>`<span class="${v===true?'ok':v===false?'no':'mid'}${c?' core':''}"><i>${v===true?'✓':v===false?'✗':'·'}</i>${i+1}. ${n}${evidenceTail(a,n,v)}</span>`).join('')}</div>`;
   }
   if(dTab==='skill'){const mine=SKILLS.filter(s=>s.users.includes(a.id));h+=`<table class="t"><thead><tr><th>技能</th><th>版本</th><th>依赖工具</th><th>风险</th><th>状态</th></tr></thead><tbody>${mine.map(s=>`<tr><td class="nm"><b class="mono">${s.id}</b><small>${s.desc}</small></td><td class="mono">v${s.v}</td><td>${s.tools.map(t=>`<span class="chip">${t}</span>`).join(' ')}</td><td>${riskPill(riskOf(s))}</td><td><span class="pill p-ok">已授权</span></td></tr>`).join('')||'<tr><td colspan="5" class="empty">还没有技能</td></tr>'}</tbody></table>
     <div style="display:flex;gap:8px;margin-top:12px"><button class="btn" data-ptoast="选择技能后生成改造任务；依赖工具逐个走授权，技能用例并入回归，过门禁后生效">+ 添加技能</button><a class="btn ghost" href="#/tools" data-ptools="skill">技能注册表 →</a></div>`}

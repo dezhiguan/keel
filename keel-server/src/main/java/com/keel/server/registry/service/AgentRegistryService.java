@@ -157,7 +157,11 @@ public class AgentRegistryService {
             detail = detail.withMemory(AgentDetail.memoryStatus(agent, manifest, counts.user(), counts.task(), counts.experience()));
         }
         if (evidence && elementEvidence != null) detail = elementEvidence.apply(detail);
-        return !evidence || selfCheckRecords == null ? detail : selfCheckRecords.apply(detail);
+        return selfCheckRecords == null ? detail : selfCheckRecords.apply(detail);
+    }
+
+    public ElementEvidence.Report elements(String name) {
+        return elementEvidence.report(registeredDetail(name));
     }
 
     private List<AgentDetail.VersionRow> versionRows(String name, List<AgentVersion> versions) {

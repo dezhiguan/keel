@@ -65,15 +65,21 @@ export function memoryTone(value: string) {
 
 const CORE_ELEMENTS = new Set(['模型自己调工具', 'agent loop', '记忆', '有版本的提示词', '评测'])
 
+export function needsElementEvidence(item: { name: string; passed?: boolean | null; detail?: string | null }) {
+  return new Set(['模型自己调工具', 'agent loop', '记忆', '有版本的提示词', '知识检索', '评测']).has(item.name)
+    && item.passed == null && !item.detail?.includes('未声明')
+}
+
 /** 原型要素格：通过打勾、缺失打叉、没有运行证据的显示短注。 */
-export function elementCell(item: { name: string; passed?: boolean | null; detail?: string | null }, index: number) {
+export function elementCell(item: { name: string; passed?: boolean | null; detail?: string | null }, index: number, phase: 'idle' | 'loading' | 'unavailable' = 'idle') {
   const state = item.passed === true ? 'ok' : item.passed === false ? 'no' : 'mid'
   const mark = item.passed === true ? '✓' : item.passed === false ? '✗' : '·'
   return {
     label: `${index + 1}. ${item.name}`,
     cls: CORE_ELEMENTS.has(item.name) ? `${state} core` : state,
     mark,
-    note: item.passed == null ? elementNote(item.detail) : '',
+    loading: needsElementEvidence(item) && phase === 'loading',
+    note: needsElementEvidence(item) && phase === 'unavailable' ? '暂无法验证' : item.passed == null ? elementNote(item.detail) : '',
   }
 }
 

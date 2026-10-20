@@ -26,6 +26,15 @@ describe('agent drawer', () => {
     expect(elementCell({ name: '人在回路', passed: null, detail: '无高风险工具' }, 8).note).toBe('—')
     expect(elementCell({ name: '人在回路', passed: null, detail: '高风险工具已声明审批；挂起恢复待实测' }, 8).note).toBe('有，未实测')
   })
+  it('puts pending or unavailable evidence at the tail without changing the left marker', () => {
+    const prompt = { name: '有版本的提示词', passed: null, detail: 'manifest 已声明；运行行为待验证' }
+    expect(elementCell(prompt, 3, 'loading')).toMatchObject({ mark: '·', label: '4. 有版本的提示词', loading: true })
+    expect(elementCell(prompt, 3, 'unavailable')).toMatchObject({ mark: '·', loading: false, note: '暂无法验证' })
+    expect(elementCell({ name: '记忆', passed: false }, 2, 'loading')).toMatchObject({ mark: '✗', loading: false, note: '' })
+    expect(elementCell({ name: '知识检索', detail: '未声明（可选）' }, 5, 'loading')).toMatchObject({ loading: false, note: '未声明' })
+    expect(elementCell({ ...prompt, passed: true }, 3, 'unavailable')).toMatchObject({ mark: '✓', loading: false, note: '' })
+  })
+
   it('colors memory status and names channel columns', () => {
     expect(memoryTone('未接入')).toBe('p-mute')
     expect(memoryTone('候选 3 条待人审')).toBe('p-warn')

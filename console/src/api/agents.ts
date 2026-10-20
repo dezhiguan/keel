@@ -36,6 +36,10 @@ export function getAgent(name: string, includeRuntimeEvidence?: boolean) {
   return get<AgentDetail>(`/agents/${encodeURIComponent(name)}`, { params: { includeRuntimeEvidence } })
 }
 
+export function getAgentElements(name: string, signal?: AbortSignal) {
+  return get<components['schemas']['AgentElementEvidence']>(`/agents/${encodeURIComponent(name)}/elements`, { signal, timeout: 10_000 })
+}
+
 export function recheckAgent(name: string) {
   return post<components['schemas']['SelfCheckReport']>(`/agents/${encodeURIComponent(name)}/self-check`, undefined, { timeout: 360_000 })
 }

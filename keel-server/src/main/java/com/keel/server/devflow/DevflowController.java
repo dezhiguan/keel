@@ -33,12 +33,15 @@ public class DevflowController {
     }
 
     @GetMapping("/jobs")
-    public R<DevflowTypes.JobList> jobs(@RequestParam(required = false) String layer,
+    public R<java.util.Map<String,Object>> jobs(@RequestParam(required = false) String layer,
                                         @RequestParam(required = false) String status,
                                         @RequestParam(required = false) String stage,
                                         @RequestParam(required = false) String batch,
-                                        @RequestParam(defaultValue = "false") boolean mine) {
-        return R.ok(devflow.list(layer, status, stage, batch, mine, actor()));
+                                        @RequestParam(defaultValue = "false") boolean mine,
+                                        @RequestParam(required = false) String targetAgent,
+                                        @RequestParam(required = false) String cursor,
+                                        @RequestParam(required = false) Integer limit) {
+        return R.ok(DevflowJobPages.page(devflow.list(layer, status, stage, batch, mine, actor()), targetAgent, cursor, limit));
     }
 
     @PostMapping("/jobs")

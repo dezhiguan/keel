@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import StatusPill from '@/components/StatusPill.vue'
-import { deleteAgent, getAgent, getAgentUsage, mergeUsage, retireAgent, recheckAgent, type AgentDetail } from '@/api/agents'
+import { deleteAgent, getAgent, getAgentElements, getAgentUsage, mergeUsage, retireAgent, recheckAgent, type AgentDetail } from '@/api/agents'
 import { listDevflowJobs, type DevflowJob } from '@/api/devflow'
 import { grantSkill, listAgentSkills, listSkills, type SkillGrant, type SkillSummary } from '@/api/skills'
 import { deleteMemory, listMemories, type UserMemory } from '@/api/memories'
@@ -17,6 +17,7 @@ import {
   channelIdentity as identityLabel,
   channelMethod,
   elementCell,
+  needsElementEvidence,
   highlightYaml,
   kindLine,
   memoryTone,
@@ -55,6 +56,16 @@ const envStore = useEnvStore()
 const detail = ref<AgentDetail | null>(null)
 const jobs = ref<DevflowJob[]>([])
 const loading = ref(false)
+const elementsLoading = ref(false)
+const unavailableElements = ref<string[]>([])
+const evidenceCheckedAt = ref('')
+let evidenceAbort: AbortController | null = null
+let evidenceRequest = 0
+let jobsAbort: AbortController | null = null
+const jobsLoading = ref(false)
+const jobsError = ref(false)
+const jobsLoaded = ref(false)
+const jobsNextCursor = ref<string | null>(null)
 const tab = ref<Tab>('ov')
 const shown = ref(false)
 const retiring = ref(false)
@@ -118,7 +129,8 @@ const allVersionRows = computed(() => (detail.value ? versionRows(detail.value) 
 const rows = computed(() => allVersionRows.value.filter(row => row.state === 'VERSION'))
 const drafts = computed(() => allVersionRows.value.filter(row => row.state === 'DRAFT'))
 const archivedDrafts = computed(() => allVersionRows.value.filter(row => row.state === 'ARCHIVED').length)
-const elementCells = computed(() => (detail.value?.elements?.items ?? []).map((item, index) => elementCell(item, index)))
+const elementCells = computed(() => (detail.value?.elements?.items ?? []).map((item, index) => elementCell(item, index,
+  elementsLoading.value ? 'loading' : unavailableElements.value.includes(item.name) ? 'unavailable' : 'idle')))
 const yaml = computed(() => (detail.value?.manifestYaml ? highlightYaml(detail.value.manifestYaml) : ''))
 
 const owner = computed(() => {
@@ -136,40 +148,83 @@ function yuan(value?: number | null, digits = 2) {
 }
 
 let ticket = 0
+async function loadEvidence(agent: string, current = ticket) {
+  const request = ++evidenceRequest
+  evidenceAbort?.abort()
+  evidenceAbort = new AbortController()
+  elementsLoading.value = true
+  unavailableElements.value = []
+  try {
+    const result = await getAgentElements(agent, evidenceAbort.signal)
+    if (current !== ticket || request !== evidenceRequest || !detail.value) return
+    if (result.manifestHash !== detail.value.manifestHash) {
+      unavailableElements.value = (detail.value.elements?.items ?? []).filter(needsElementEvidence).map(i => i.name)
+      return
+    }
+    if (result.elements) detail.value = { ...detail.value, elements: result.elements }
+    unavailableElements.value = result.unavailable ?? []
+    evidenceCheckedAt.value = result.checkedAt ?? ''
+  } catch {
+    if (current === ticket && request === evidenceRequest) unavailableElements.value = (detail.value?.elements?.items ?? []).filter(needsElementEvidence).map(i => i.name)
+  } finally {
+    if (current === ticket && request === evidenceRequest) elementsLoading.value = false
+  }
+}
+
+async function loadJobs(more = false) {
+  const agent = name.value
+  const current = ticket
+  if (!agent || jobsLoading.value || (!more && jobsLoaded.value)) return
+  jobsAbort?.abort()
+  jobsAbort = new AbortController()
+  jobsLoading.value = true
+  jobsError.value = false
+  try {
+    const board = await listDevflowJobs({ targetAgent: agent, cursor: more ? jobsNextCursor.value ?? undefined : undefined, limit: 10 }, jobsAbort.signal)
+    if (current !== ticket) return
+    jobs.value = more ? [...jobs.value, ...(board.items ?? [])] : board.items ?? []
+    jobsNextCursor.value = board.nextCursor ?? null
+    jobsLoaded.value = true
+  } catch {
+    if (current === ticket) jobsError.value = true
+  } finally {
+    if (current === ticket) jobsLoading.value = false
+  }
+}
+
 async function load(agent: string, quiet = false) {
   const current = ++ticket
   const env = envStore.env
-  if (!quiet) {
-    loading.value = true
-    detail.value = null
-  }
+  evidenceAbort?.abort()
+  jobsAbort?.abort()
+  elementsLoading.value = false
+  unavailableElements.value = []
+  evidenceCheckedAt.value = ''
+  jobs.value = []
+  jobsLoaded.value = false
+  jobsLoading.value = false
+  jobsError.value = false
+  jobsNextCursor.value = null
+  if (!quiet) { loading.value = true; detail.value = null }
   try {
-    const result = await getAgent(agent)
+    const result = await getAgent(agent, false)
     if (current !== ticket) return
     detail.value = result
   } catch (error) {
-    if (current !== ticket) return
-    ElMessage.error(`加载智能体失败：${toKeelError(error).message}`)
+    if (current === ticket) ElMessage.error(`加载智能体失败：${toKeelError(error).message}`)
     return
   } finally {
     if (current === ticket) loading.value = false
   }
-  try {
-    const usage = await getAgentUsage(env)
+  if ((detail.value?.elements?.items ?? []).some(needsElementEvidence)) void loadEvidence(agent, current)
+  if (tab.value === 'dev') void loadJobs()
+  void getAgentUsage(env).then(usage => {
     if (current !== ticket || !detail.value) return
-    const row = (usage.items ?? []).find((item) => item.name === agent)
+    const row = (usage.items ?? []).find(item => item.name === agent)
     detail.value = withEvalGate(mergeUsage(detail.value, row))
-  } catch (error) {
-    if (current !== ticket) return
-    ElMessage.error(`加载用量失败：${toKeelError(error).message}`)
-  }
-  try {
-    const board = await listDevflowJobs()
-    if (current !== ticket) return
-    jobs.value = (board.items ?? []).filter((job) => job.targetAgent === agent)
-  } catch {
-    if (current === ticket) jobs.value = []
-  }
+  }).catch(error => {
+    if (current === ticket) ElMessage.error(`加载用量失败：${toKeelError(error).message}`)
+  })
 }
 
 function close() {
@@ -361,6 +416,7 @@ function onKey(event: KeyboardEvent) {
 
 watch(tab, () => {
   if (!name.value) return
+  if (tab.value === 'dev') void loadJobs()
   if (tab.value === 'skill') loadSkills(name.value)
   if (tab.value === 'mem') loadUserMemories(name.value)
   if (tab.value === 'ch') loadChannels(name.value)
@@ -374,6 +430,9 @@ watch(name, async (agent) => {
   deleteInput.value = ''
   shown.value = false
   if (!agent) {
+    ++ticket
+    evidenceAbort?.abort()
+    jobsAbort?.abort()
     detail.value = null
     jobs.value = []
     agentSkills.value = []
@@ -394,6 +453,9 @@ watch(name, async (agent) => {
 
 onMounted(() => window.addEventListener('keydown', onKey))
 onUnmounted(() => {
+  ++ticket
+  evidenceAbort?.abort()
+  jobsAbort?.abort()
   window.removeEventListener('keydown', onKey)
   document.body.style.overflow = ''
 })
@@ -481,14 +543,17 @@ onUnmounted(() => {
               <h4>
                 要素检查
                 <span class="pill" :class="detail.elements.kind === 'agent' ? 'p-ok' : 'p-warn'">{{ detail.elements.kind === 'agent' ? '智能体' : '工作流型' }}</span>
+                <button v-if="unavailableElements.length && !elementsLoading" class="btn ghost" type="button" @click="load(name, true)">重试验证</button>
                 <small v-if="detail.elements.missing.length" class="mut">缺：{{ detail.elements.missing.join('、') }}</small>
               </h4>
               <div class="elem">
                 <span v-for="cell in elementCells" :key="cell.label" :class="cell.cls">
                   <i>{{ cell.mark }}</i>{{ cell.label }}
-                  <small v-if="cell.note">{{ cell.note }}</small>
+                  <small v-if="cell.loading" class="element-evidence-loading" role="status" aria-label="正在验证运行证据"><b class="element-evidence-spinner" /></small>
+                  <small v-else-if="cell.note">{{ cell.note }}</small>
                 </span>
               </div>
+              <p v-if="evidenceCheckedAt" class="mut">近期运行证据更新于 {{ new Date(evidenceCheckedAt).toLocaleString() }}；不代替本次发布门禁。</p>
             </template>
           </template>
 
@@ -629,7 +694,10 @@ onUnmounted(() => {
                 </tr>
               </tbody>
             </table>
-            <p v-else class="mut">人工编写，没有研发任务记录</p>
+            <p v-if="jobsLoading" class="mut" role="status">正在加载研发记录…</p>
+            <p v-else-if="jobsError" class="mut">研发记录暂时无法加载 <button class="btn ghost" @click="loadJobs(!!jobs.length)">重试</button></p>
+            <p v-else-if="!jobs.length" class="mut">没有研发任务记录</p>
+            <button v-if="jobsNextCursor && !jobsLoading && !jobsError" class="btn ghost" @click="loadJobs(true)">加载更多</button>
             <h4>不能做的事</h4>
             <ul class="forbid">
               <li>修改自己或上级（{{ cannotChange(layer) }}）</li>

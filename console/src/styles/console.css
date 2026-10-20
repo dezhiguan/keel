@@ -376,3 +376,9 @@ a.jc { display: block; color: inherit; text-decoration: none; }
 .app.preview [data-ro] { opacity: 0.38; cursor: not-allowed; }
 @media (max-width: 1060px) { .lh-cols { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 860px) { .lwrap { grid-template-columns: 1fr; } .lhero { display: none; } .lside { border-left: none; min-height: 100vh; } }
+
+/* Evidence loads at the trailing edge without moving the existing mark or label. */
+.elem .element-evidence-loading { display: inline-flex; align-items: center; }
+.element-evidence-spinner { display: inline-block; width: 11px; height: 11px; border: 2px solid var(--line2); border-top-color: var(--soft); border-radius: 50%; animation: element-evidence-spin .8s linear infinite; }
+@keyframes element-evidence-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .element-evidence-spinner { animation-duration: 2s; } }

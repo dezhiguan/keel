@@ -393,6 +393,17 @@ public class LangfuseClient {
      * v2 accepts {@code limit=1000}. Hobby allows 30 general reads a minute, so a window stays
      * on one page instead of a page per hundred rows.
      */
+    /** A bounded evidence sample: no trace fan-out, user content, billing, or cursor paging. */
+    public JsonNode elementObservations(Instant from) {
+        if (baseUrl.isBlank() || authorization.isBlank()) throw new IllegalStateException("Langfuse 未配置");
+        var filter = "[{\"type\":\"stringOptions\",\"column\":\"type\",\"operator\":\"any of\","
+                + "\"value\":[\"AGENT\",\"GENERATION\",\"TOOL\",\"RETRIEVER\",\"CHAIN\"]}]";
+        var path = "/api/public/v2/observations?limit=1000&fields=core,basic,metadata&filter="
+                + URLEncoder.encode(filter, StandardCharsets.UTF_8)
+                + "&fromStartTime=" + URLEncoder.encode(from.toString(), StandardCharsets.UTF_8);
+        return send("GET", path, null, false, false, Duration.ofSeconds(6));
+    }
+
     public JsonNode observationsForList(Instant from, Instant to) {
         if (baseUrl.isBlank() || authorization.isBlank()) {
             throw new IllegalStateException("Langfuse 地址或项目 Key 未配置");
@@ -801,6 +812,11 @@ public class LangfuseClient {
     }
 
     private JsonNode send(String method, String path, JsonNode body, boolean ignoreConflict, boolean allowNotFound) {
+        return send(method, path, body, ignoreConflict, allowNotFound, Duration.ofSeconds(60));
+    }
+
+    private JsonNode send(String method, String path, JsonNode body, boolean ignoreConflict, boolean allowNotFound,
+                          Duration timeout) {
         var observation = path.startsWith("/api/public/v2/observations");
         if (observation) {
             var until = observationsBlockedUntilMs;
@@ -811,7 +827,7 @@ public class LangfuseClient {
         }
         try {
             var builder = HttpRequest.newBuilder(URI.create(baseUrl + path))
-                    .timeout(Duration.ofSeconds(60))
+                    .timeout(timeout)
                     .header("Authorization", authorization);
             if (body == null) {
                 builder.method(method, HttpRequest.BodyPublishers.noBody());

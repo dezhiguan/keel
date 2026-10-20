@@ -424,6 +424,25 @@ paths:
                     properties:
                       env: {type: string}
                       manifestHash: {type: string}
+  /agents/{name}/elements:
+    get:
+      tags: [agents]
+      operationId: getAgentElementEvidence
+      summary: 异步读取近期运行要素证据，不阻塞基础详情
+      parameters:
+        - $ref: "#/components/parameters/AgentName"
+      responses:
+        "200":
+          description: 近期样本证据；不可用不同于能力缺失
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/AgentElementEvidence" }
+
   /agents/{name}/self-check:
     parameters:
       - $ref: "#/components/parameters/AgentName"
@@ -2530,6 +2549,15 @@ paths:
       summary: 研发任务看板
       description: summary 是顶部数字，不受筛选影响。items 受 query 筛选。首次门禁通过率在 DF-9d 之前可以是样本值。
       parameters:
+        - name: targetAgent
+          in: query
+          schema: { type: string }
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50 }
         - name: layer
           in: query
           schema: { $ref: "#/components/schemas/DevflowLayer" }
@@ -3774,6 +3802,16 @@ components:
               description: 对账发现的问题
               items: { $ref: "#/components/schemas/Alert" }
 
+    AgentElementEvidence:
+      type: object
+      properties:
+        elements: { $ref: "#/components/schemas/AgentElements" }
+        manifestHash: { type: string, nullable: true }
+        checkedAt: { type: string, format: date-time }
+        unavailable:
+          type: array
+          items: { type: string }
+
     AgentElements:
       type: object
       required: [kind, items, missing]
@@ -4757,6 +4795,7 @@ components:
       type: object
       required: [summary, items]
       properties:
+        nextCursor: { type: string, nullable: true }
         summary: { $ref: "#/components/schemas/DevflowBoardSummary" }
         items:
           type: array

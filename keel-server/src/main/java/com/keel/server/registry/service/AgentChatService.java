@@ -26,6 +26,8 @@ public class AgentChatService {
     private final AuditStore audits;
     private final EchoCredentialWriter credentials;
     private final String careerMateToken;
+    @Value("${KEEL_META_AGENT_TOKEN:}")
+    private String metaAgentToken;
     private final SavedTraces saved;
     private final SecretWriter secrets;
     private final DebugSessionService sessions;
@@ -85,7 +87,7 @@ public class AgentChatService {
         try {
             var userId = callerLabel();
             var rag = secrets == null ? null : secrets.knowledgeCredential(name);
-            var bridge = "careermate".equals(name) ? careerMateToken : null;
+            var bridge = bridgeToken(name);
             if (sessionId != null) {
                 answer = endpoints.invoke(endpoint, text, bridge, name, env, userId,
                         rag == null ? null : rag.token(), rag == null ? null : rag.kbIds(), scopedSessionId(sessionId));
@@ -126,7 +128,7 @@ public class AgentChatService {
         var endpoint = registry.invokeEndpoint(name);
         var userId = callerLabel();
         var rag = secrets == null ? null : secrets.knowledgeCredential(name);
-        var bridge = "careermate".equals(name) ? careerMateToken : null;
+        var bridge = bridgeToken(name);
         var history = remember ? sessions.history(name, owner, sessionId) : List.<Map<String, String>>of();
         // Other runtimes may not yet consume structured history. Preserve their
         // existing transcript behavior until their SDK advertises support.
@@ -162,6 +164,14 @@ public class AgentChatService {
         }
     }
 
+    private String bridgeToken(String name) {
+        return switch (name) {
+            case "meta-agent" -> metaAgentToken;
+            case "careermate" -> careerMateToken;
+            default -> null;
+        };
+    }
+
     private AgentDetail ready(String name, String text) {
         if (text == null || text.isBlank()) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, ErrorCode.SERVER_INVALID_PARAM.message());
@@ -194,7 +204,7 @@ public class AgentChatService {
         if (!"echo".equals(name) && endpoint.contains("//echo-agent.")) {
             throw new KeelException(ErrorCode.GW_AGENT_OFFLINE, "智能体没有独立运行服务");
         }
-        var bridge = "careermate".equals(name) ? careerMateToken : null;
+        var bridge = bridgeToken(name);
         var rag = secrets == null ? null : secrets.knowledgeCredential(name);
         try {
             endpoints.stream(endpoint, text, bridge, name, detail.summary().env(), channel, userId,
