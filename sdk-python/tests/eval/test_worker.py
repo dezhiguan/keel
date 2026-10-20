@@ -4,6 +4,53 @@ from keel.eval.worker import summarize
 from keel.eval.run import load_scorers
 
 
+def test_concurrency_defaults_to_existing_four_slots(monkeypatch):
+    from keel.eval.worker import evaluation_concurrency
+    monkeypatch.delenv("KEEL_EVAL_CONCURRENCY", raising=False)
+    assert evaluation_concurrency() == 4
+
+
+@pytest.mark.parametrize("value", ["1", "2", "3", "4"])
+def test_concurrency_can_be_reduced_for_a_low_budget_agent(monkeypatch, value):
+    from keel.eval.worker import evaluation_concurrency
+    monkeypatch.setenv("KEEL_EVAL_CONCURRENCY", value)
+    assert evaluation_concurrency() == int(value)
+
+
+@pytest.mark.parametrize("value", ["0", "5", "-1", "1.5", "", "many"])
+def test_invalid_concurrency_is_rejected(monkeypatch, value):
+    from keel.eval.worker import evaluation_concurrency
+    monkeypatch.setenv("KEEL_EVAL_CONCURRENCY", value)
+    with pytest.raises(ValueError):
+        evaluation_concurrency()
+
+
+def test_worker_passes_agent_concurrency_to_langfuse_without_skipping_cases(monkeypatch, tmp_path):
+    from keel.eval import worker
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "agent.yaml").write_text("metadata: {name: qa-agent}\nspec: {}\n")
+    for key, value in {"KEEL_EVAL_CONCURRENCY": "1", "KEEL_EVAL_ENV": "staging",
+                       "KEEL_EVAL_DATASET": "qa/smoke", "KEEL_EVAL_RUN_ID": "ev_test",
+                       "KEEL_EVAL_ENDPOINT": "http://fixture"}.items():
+        monkeypatch.setenv(key, value)
+    measured = item(1)
+    measured.output = {"answer": "unit fixture", "meta": {"prompt_versions": {"answer": 1}}}
+
+    class Dataset:
+        items = [SimpleNamespace(id="case-1", status="ACTIVE")]
+
+        def run_experiment(self, **kwargs):
+            assert kwargs["max_concurrency"] == 1
+            return SimpleNamespace(item_results=[measured], dataset_run_url="http://fixture/run")
+
+    client = SimpleNamespace(get_dataset=lambda name: Dataset(), flush=lambda: None, shutdown=lambda: None)
+    monkeypatch.setattr("langfuse.Langfuse", lambda **kwargs: client)
+    monkeypatch.setattr(worker, "load_scorers", lambda path: [])
+    result = worker.run_experiment()
+    assert result["complete"] is True and result["caseCount"] == 1
+    assert result["promptVersions"] == {"answer": 1}
+
+
 def test_structured_skill_input_survives_langfuse_json_decoding():
     import json
     from keel.eval.worker import case_text

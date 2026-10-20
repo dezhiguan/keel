@@ -96,6 +96,13 @@ def case_text(payload):
     return str(payload)
 
 
+def evaluation_concurrency():
+    value = int(os.environ.get("KEEL_EVAL_CONCURRENCY", "4"))
+    if not 1 <= value <= 4:
+        raise ValueError("KEEL_EVAL_CONCURRENCY 必须是 1 到 4 的整数")
+    return value
+
+
 def run_experiment():
     from langfuse import Langfuse, Evaluation
     from opentelemetry import trace
@@ -107,6 +114,7 @@ def run_experiment():
     dataset_name = os.environ["KEEL_EVAL_DATASET"]
     run_id = os.environ["KEEL_EVAL_RUN_ID"]
     endpoint = os.environ["KEEL_EVAL_ENDPOINT"]
+    concurrency = evaluation_concurrency()
     scorers = load_scorers("evals/scorers.py")
     config = spec.get("eval", {}).get("gate", {})
     gate = {"minScore": float(config.get("minScore", .85)),
@@ -138,7 +146,7 @@ def run_experiment():
 
     try:
         result = dataset.run_experiment(name=agent, run_name=run_id, task=task,
-                                        evaluators=[evaluate], max_concurrency=4,
+                                        evaluators=[evaluate], max_concurrency=concurrency,
                                         metadata={"agent": agent, "env": env, "keel.eval_run": run_id})
         require_complete(active_ids, result.item_results)
         versions = prompt_evidence(result.item_results)
