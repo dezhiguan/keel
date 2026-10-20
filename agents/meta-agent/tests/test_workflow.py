@@ -151,7 +151,8 @@ def test_workflow_drafts_and_revises_without_an_sdk_resume_token(gateway):
     revised = {**work(), "draft": draft, "feedback": "增加失败场景", "version": 2}
     gateway.replies.append(reply(tools=[]))
     assert terminal(invoke(json.dumps(revised)))[0] == "final"
-    assert "增加失败场景" in gateway.requests[-1]["messages"][0]["content"]
+    assert any("增加失败场景" in message["content"]
+               for message in gateway.requests[-1]["messages"])
 
 
 def test_workflow_delivery_preserves_edits_and_does_not_repeat_git_writes(gateway, monkeypatch, tmp_path):

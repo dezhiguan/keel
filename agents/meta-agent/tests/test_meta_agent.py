@@ -107,7 +107,8 @@ def test_feedback_produces_next_version_with_previous_draft(gateway):
     state = state_of(suspended["run_id"])
     assert state["version"] == 2
     assert state["revisions"] == 1
-    sent = gateway.requests[1]["messages"][0]["content"]
+    sent = next(message["content"] for message in gateway.requests[1]["messages"]
+                if "预算改成每天 10 元" in message["content"])
     assert "预算改成每天 10 元" in sent
     assert "需求分析师" in sent
 
@@ -182,7 +183,11 @@ def test_plain_text_requirement_is_accepted(gateway):
     gateway.replies.append(reply())
     kind, _ = terminal(invoke("帮我做一个把需求表单变成需求单的研发智能体，叫 spec-agent"))
     assert kind == "suspend"
-    assert "把需求表单变成需求单" in gateway.requests[0]["messages"][0]["content"]
+    messages = gateway.requests[0]["messages"]
+    assert any("把需求表单变成需求单" in message["content"]
+               for message in messages)
+    assert any(message["role"] == "system" and message["content"].startswith("内部防泄露标记")
+               for message in messages)
 
 
 def test_gate_loads_only_the_workflow_contract_scorer():
