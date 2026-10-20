@@ -18,7 +18,7 @@ public class UserReadContext {
     private final ConsoleUsers users;
     public UserReadContext(ConsoleSigningKey key, ConsoleUsers users) {this.key=key;this.users=users;}
     public String issue(ConsolePrincipal user,String agent,String env,String session) {
-        if(user==null || !"USER".equals(user.mode()) || user.userId()==null || user.userId().isBlank()
+        if(user==null || user.readOnly() || !"USER".equals(user.mode()) || user.userId()==null || user.userId().isBlank()
                 || !"ADMIN".equals(user.platformRole()) || !java.util.Set.of("dev","staging").contains(env)) return null;
         try {
             var now=Instant.now();

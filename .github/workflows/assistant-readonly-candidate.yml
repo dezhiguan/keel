@@ -16,7 +16,7 @@ jobs:
           java-version: '21'
           cache: maven
       - name: Verify authorization, persisted resource scope and existing protocol boundaries
-        run: mvn -pl :keel-server -am -Dtest=UserReadContextTest,EmployeeReadServiceTest,EmployeeReadPersistenceTest,ServiceAssertionTest,ServiceIdentityFilterTest,AgentChatServiceTest,CodeCandidateServiceTest,ToolGrantPolicyTest -Dsurefire.failIfNoSpecifiedTests=false test
+        run: mvn -pl :keel-server -am -Dtest=UserReadContextTest,ReadContextPayloadTest,EmployeeReadServiceTest,EmployeeReadPersistenceTest,ServiceAssertionTest,ServiceIdentityFilterTest,AgentChatServiceTest,CodeCandidateServiceTest,ToolGrantPolicyTest -Dsurefire.failIfNoSpecifiedTests=false test
       - name: Build isolated platform candidate artifact
         run: |
           docker build -f deploy/docker/service.Dockerfile --build-arg MODULE=keel-server --build-arg SOURCE_REV=${{ github.sha }} --build-arg RAM_PERCENTAGE=70 -t keel-server-readonly:${{ github.sha }} .
