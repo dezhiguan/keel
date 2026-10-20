@@ -36,7 +36,7 @@ def run(coro):
     return asyncio.run(coro)
 
 
-def test_dev_encodes_the_name_and_reads_the_label(tmp_path):
+def test_dev_encodes_the_name_and_reads_the_label(tmp_path, monkeypatch):
     seen = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -78,10 +78,9 @@ def test_dev_encodes_the_name_and_reads_the_label(tmp_path):
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        import os
-        os.environ["LANGFUSE_HOST"] = f"http://127.0.0.1:{server.server_address[1]}"
-        os.environ["LANGFUSE_PUBLIC_KEY"] = "pk"
-        os.environ["LANGFUSE_SECRET_KEY"] = "sk"
+        monkeypatch.setenv("LANGFUSE_HOST", f"http://127.0.0.1:{server.server_address[1]}")
+        monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
+        monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")
         prompt = run(PromptClient(Manifest(Prompts([Item("answer", "text")])), "dev", tmp_path)
                      .get("prompt-lab", "answer", "trace-1"))
         assert seen["path"].startswith("/api/public/v2/prompts/prompt-lab%2Fanswer?label=dev")
@@ -153,9 +152,8 @@ def test_dev_404_uses_the_local_copy_and_staging_does_not(tmp_path, monkeypatch)
         server.shutdown()
 
 
-def test_keel_namespace_is_not_a_model_parameter(tmp_path):
+def test_keel_namespace_is_not_a_model_parameter(tmp_path, monkeypatch):
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-    import os
     import threading
 
     class Handler(BaseHTTPRequestHandler):
@@ -178,9 +176,9 @@ def test_keel_namespace_is_not_a_model_parameter(tmp_path):
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    os.environ["LANGFUSE_HOST"] = f"http://127.0.0.1:{server.server_address[1]}"
-    os.environ["LANGFUSE_PUBLIC_KEY"] = "pk"
-    os.environ["LANGFUSE_SECRET_KEY"] = "sk"
+    monkeypatch.setenv("LANGFUSE_HOST", f"http://127.0.0.1:{server.server_address[1]}")
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")
     try:
         prompt = run(PromptClient(Manifest(Prompts([Item("answer", "text")])), "dev", tmp_path)
                      .get("prompt-lab", "answer", "trace-1"))

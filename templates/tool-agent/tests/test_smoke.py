@@ -74,7 +74,7 @@ def test_high_risk_call_suspends_for_approval():
 
 
 def _payload(response):
-    data_line = next(line for line in response.text.splitlines() if line.startswith("data: "))
+    data_line = next(line for line in reversed(response.text.splitlines()) if line.startswith("data: "))
     return json.loads(data_line.removeprefix("data: "))
 
 

@@ -86,14 +86,18 @@ def test_standalone_loop_agent_audits_locally_and_skips_the_gateway(tmp_path, mo
                                         "function": {"name": "echo", "arguments": '{"text":"hello"}'}}]}
                        if len(bodies) == 1 else
                        {"role": "assistant", "content": "hello"})
-            payload = json.dumps({
-                "id": "chatcmpl-standalone", "object": "chat.completion", "created": 1,
-                "model": "qwen-plus", "choices": [{"index": 0, "message": message,
+            if message.get("tool_calls"):
+                message["tool_calls"][0]["index"] = 0
+            chunk = {
+                "id": "chatcmpl-standalone", "object": "chat.completion.chunk", "created": 1,
+                "model": "qwen-plus", "choices": [{"index": 0, "delta": message,
                                                    "finish_reason": "stop"}],
                 "usage": {"prompt_tokens": 2, "completion_tokens": 2, "total_tokens": 4},
-            }).encode()
+            }
+            assert body["stream"] is True
+            payload = ("data: " + json.dumps(chunk) + "\n\ndata: [DONE]\n\n").encode()
             self.send_response(200)
-            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Type", "text/event-stream")
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
             self.wfile.write(payload)

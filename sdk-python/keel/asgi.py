@@ -11,6 +11,7 @@ import socket
 import time
 import uuid
 from contextlib import asynccontextmanager
+from importlib.metadata import version as distribution_version
 from types import SimpleNamespace
 
 import jsonschema
@@ -217,7 +218,7 @@ def create_app(agent) -> Starlette:
 
     async def manifest(request: Request):
         return JSONResponse({"manifest": agent.manifest.model_dump(mode="json"),
-                             "version": agent.manifest.apiVersion.value, "sdkVersion": "0.1.0"})
+                             "version": agent.manifest.apiVersion.value, "sdkVersion": distribution_version("keel-sdk")})
 
     async def feedback(request: Request):
         try:

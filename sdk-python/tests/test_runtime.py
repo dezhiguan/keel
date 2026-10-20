@@ -61,7 +61,10 @@ def test_invoke_protocol_health_manifest_and_feedback(tmp_path):
     assert frames(response)[-1]["data"]["run_id"]
     assert asyncio.run(call(app, "GET", "/v1/health")).json() == {
         "status": "ok", "agent": "hello-agent"}
-    manifest = asyncio.run(call(app, "GET", "/v1/manifest")).json()["manifest"]
+    published = asyncio.run(call(app, "GET", "/v1/manifest")).json()
+    from importlib.metadata import version
+    assert published["sdkVersion"] == version("keel-sdk")
+    manifest = published["manifest"]
     jsonschema.validate(manifest, json.loads((ROOT / "contracts/manifest.schema.json").read_text()))
     assert asyncio.run(call(app, "POST", "/v1/feedback",
                             json={"trace_id": "trace-1", "value": 1})).status_code == 204
@@ -107,13 +110,22 @@ def test_loop_step_limit_is_sent_as_sse_error(tmp_path, monkeypatch):
         def __init__(self, *args, **kwargs):
             pass
 
-        async def chat(self, messages, tools):
+        async def chat(self, messages, tools, prompt=None):
             return ChatResult("", (ToolCall("call-1", "lookup", {}),))
 
         async def aclose(self):
             pass
 
     monkeypatch.setattr("keel.context.LlmClient", FakeLlm)
+
+    class FakeAudit:
+        async def record(self, *args, **kwargs):
+            pass
+
+        async def aclose(self):
+            pass
+
+    monkeypatch.setattr("keel.context.AuditReporter", lambda *args, **kwargs: FakeAudit())
 
     @agent.tool(name="lookup")
     async def lookup():
@@ -126,8 +138,8 @@ def test_loop_step_limit_is_sent_as_sse_error(tmp_path, monkeypatch):
                               max_steps=1)
 
     response = asyncio.run(call(agent.asgi(), "POST", "/v1/invoke", json={"input": {"text": "go"}}))
-    assert [frame["event"] for frame in frames(response)] == ["error"]
-    assert frames(response)[0]["data"]["code"] == ErrorCode.AGENT_MAX_STEPS_EXCEEDED.value
+    assert [frame["event"] for frame in frames(response)] == ["step", "tool", "error"]
+    assert frames(response)[-1]["data"]["code"] == ErrorCode.AGENT_MAX_STEPS_EXCEEDED.value
 
 
 def test_loop_approval_resume_keeps_run_and_prior_tool_results(tmp_path, monkeypatch):
@@ -147,7 +159,7 @@ def test_loop_approval_resume_keeps_run_and_prior_tool_results(tmp_path, monkeyp
         def __init__(self, *args, **kwargs):
             pass
 
-        async def chat(self, messages, tools):
+        async def chat(self, messages, tools, prompt=None):
             if len(responses) == 1:
                 assert messages[-1]["role"] == "tool"
             return responses.pop(0)
