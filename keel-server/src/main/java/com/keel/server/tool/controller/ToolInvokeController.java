@@ -20,6 +20,8 @@ import java.time.Duration;
 /** Only explicitly granted, declared low-risk read tools may use this service identity route. */
 @RestController
 public class ToolInvokeController {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.keel.server.tool.service.EmployeeReadService employeeReads;
     private final JdbcTemplate jdbc;
     private final AgentRegistryService registry;
     private final AuditStore audit;
@@ -61,6 +63,18 @@ public class ToolInvokeController {
         if(!declared || !granted(agent, name, "git.pr.diff".equals(name) || "ci.log.fetch".equals(name))) {
             audit.append(agent,env,"tool.call","low","denied",name,validTrace(traceId),agent,java.util.Map.of());
             throw denied();
+        }
+        if("keel.employees.list".equals(name) || "keel.employees.detail".equals(name) || "keel.knowledge.authorize".equals(name)) {
+            try {
+                var result="keel.knowledge.authorize".equals(name) ? employeeReads.authorizeKnowledge(agent,env,body) : employeeReads.read(name,agent,env,body);
+                var actor=String.valueOf(result.remove("_actor"));
+                audit.append(agent,env,"tool.call","low","allowed",name,validTrace(traceId),actor,
+                        java.util.Map.of("count",result.get("items") instanceof java.util.List<?> items ? items.size() : 0));
+                return R.ok(json.valueToTree(result));
+            } catch (KeelException error) {
+                audit.append(agent,env,"tool.call","low","denied",name,validTrace(traceId),agent,java.util.Map.of());
+                throw error;
+            }
         }
         if("shift.policy".equals(name)) {
             if(!ShiftPolicy.known(body.path("category").asText("").trim())) {

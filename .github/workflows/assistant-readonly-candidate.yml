@@ -1,0 +1,32 @@
+name: Assistant readonly platform candidate
+on:
+  push:
+    branches: [feat/assistant-readonly-v02]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Verify authorization, persisted resource scope and existing protocol boundaries
+        run: mvn -pl :keel-server -am -Dtest=UserReadContextTest,EmployeeReadServiceTest,EmployeeReadPersistenceTest,ServiceAssertionTest,ServiceIdentityFilterTest,AgentChatServiceTest,CodeCandidateServiceTest,ToolGrantPolicyTest -Dsurefire.failIfNoSpecifiedTests=false test
+      - name: Build isolated platform candidate artifact
+        run: |
+          docker build -f deploy/docker/service.Dockerfile --build-arg MODULE=keel-server --build-arg SOURCE_REV=${{ github.sha }} --build-arg RAM_PERCENTAGE=70 -t keel-server-readonly:${{ github.sha }} .
+          docker save keel-server-readonly:${{ github.sha }} | gzip > keel-server-readonly-image.tar.gz
+          sha256sum keel-server-readonly-image.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: readonly-platform-${{ github.sha }}
+          path: |
+            keel-server-readonly-image.tar.gz
+            SHA256SUMS
+            keel-server/target/surefire-reports/*.xml
+          retention-days: 30

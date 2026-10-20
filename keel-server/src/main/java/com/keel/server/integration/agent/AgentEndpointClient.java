@@ -65,9 +65,16 @@ public class AgentEndpointClient {
     public InputStream openStream(String endpoint, String text, String bridgeToken, String agent, String env,
                                   String userId, String ragToken, String ragKbIds, String sessionId,
                                   java.util.List<java.util.Map<String, String>> history) {
+        return openStream(endpoint,text,bridgeToken,agent,env,userId,ragToken,ragKbIds,sessionId,history,null);
+    }
+
+    public InputStream openStream(String endpoint, String text, String bridgeToken, String agent, String env,
+                                  String userId, String ragToken, String ragKbIds, String sessionId,
+                                  java.util.List<java.util.Map<String, String>> history, String readContext) {
         try {
             var payload = json.createObjectNode();
-            payload.putObject("input").put("text", text);
+            var input=payload.putObject("input").put("text", text);
+            if (readContext != null) input.put("_keel_read_context",readContext);
             if (sessionId != null && !sessionId.isBlank()) payload.put("session_id", sessionId);
             var context = payload.putObject("context");
             if (userId != null && !userId.isBlank()) context.put("user_id", userId);

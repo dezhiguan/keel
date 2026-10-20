@@ -121,6 +121,10 @@ public class AgentChatService {
 
     /** Copy the agent SSE stream. A finished final is stored for this console user. */
     public void streamChat(String name, String text, String sessionId, String owner, boolean remember, OutputStream output) {
+        streamChat(name,text,sessionId,owner,remember,output,null);
+    }
+
+    public void streamChat(String name, String text, String sessionId, String owner, boolean remember, OutputStream output, String readContext) {
         var detail = ready(name, text);
         var env = detail.summary().env();
         if (remember) sessions.require(name, env, owner, sessionId);
@@ -143,7 +147,7 @@ public class AgentChatService {
         long started = System.nanoTime();
         try (var input = endpoints.openStream(endpoint, inputText, bridge, name, env, userId,
                 rag == null ? null : rag.token(), rag == null ? null : rag.kbIds(),
-                scopedSessionId(owner, sessionId), structured ? history : null)) {
+                scopedSessionId(owner, sessionId), structured ? history : null, readContext)) {
             var fin = DebugSseRelay.copy(input, output);
             var traceId = fin == null ? null : fin.traceId();
             audits.append(name, env, "invoke", "low", fin == null ? "error" : "allowed", name, traceId);

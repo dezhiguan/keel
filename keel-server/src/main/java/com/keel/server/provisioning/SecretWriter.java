@@ -151,6 +151,23 @@ public class SecretWriter implements ProvisionStep {
         pendingRag.put(agent, ragForge.issue(agent, env, names));
     }
 
+    /** Explicitly approved knowledge upgrade; preserve all existing model and service credentials. */
+    public void upgradeKnowledge(String agent,String env,List<String> names) {
+        var secret=client.secrets().inNamespace(NAMESPACE).withName("keel-"+agent).get();
+        if(secret==null || !encode(env).equals(secret.getData().get("KEEL_ENV")))
+            throw new IllegalStateException("智能体Secret环境不一致");
+        if(secret.getData().containsKey("KEEL_RAGFORGE_KEY_ID"))
+            throw new IllegalStateException("已有知识库凭证，须单独审查升级");
+        var issued=ragForge.issue(agent,env,names);
+        try {
+            var data=new LinkedHashMap<>(secret.getData());
+            data.put("KEEL_RAGFORGE_URL",encode(issued.url()));data.put("KEEL_RAGFORGE_TOKEN",encode(issued.token()));
+            data.put("KEEL_RAGFORGE_KEY_ID",encode(Long.toString(issued.id())));data.put("KEEL_RAGFORGE_KB_IDS",encode(issued.kbIds()));
+            data.put("KEEL_ASSISTANT_KB_ID",encode(issued.kbIds()));
+            secret.setData(data);client.secrets().inNamespace(NAMESPACE).resource(secret).update();
+        }catch(RuntimeException error){ragForge.revoke(issued.id());throw error;}
+    }
+
     /** Drops a key that was issued but never written, for example when a later check refuses registration. */
     public void discardKnowledgeKey(String agent) {
         var issued = pendingRag.remove(agent);

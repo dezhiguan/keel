@@ -33,6 +33,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @RestController
 @RequestMapping("/api/v1/agents")
 public class AgentController {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.keel.server.auth.UserReadContext readContexts;
     private final AgentRegistryService agentRegistryService;
     private final LifecycleService lifecycleService;
     private final AgentChatService chats;
@@ -152,12 +154,15 @@ public class AgentController {
                 output.flush();
             };
         }
+        var detail=agentRegistryService.registeredDetail(name);
+        // Capture trusted identity on the authenticated servlet thread, before async streaming.
+        var readContext=readContexts.issue(com.keel.server.auth.ConsolePrincipal.current(),name,detail.summary().env(),sessionId);
         response.setHeader("Cache-Control", "no-cache");
         response.setHeader("X-Accel-Buffering", "no");
         response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
         return output -> {
             try {
-                chats.streamChat(name, text, sessionId, owner, remember, output);
+                chats.streamChat(name, text, sessionId, owner, remember, output, readContext);
             } catch (RuntimeException error) {
                 var message = error.getMessage() == null ? "调用失败" : error.getMessage();
                 var frame = "event: error\ndata: " + json.writeValueAsString(java.util.Map.of(

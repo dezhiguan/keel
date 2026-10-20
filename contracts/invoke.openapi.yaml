@@ -249,6 +249,9 @@ components:
           required: [text]
           properties:
             text: { type: string }
+            _keel_read_context:
+              type: string
+              description: 平台签发的短期只读用户上下文。不得进入模型消息、追踪原文或日志；服务端验证后才授权工具，不能以 user_id 代替。
         context:
           type: object
           properties:
