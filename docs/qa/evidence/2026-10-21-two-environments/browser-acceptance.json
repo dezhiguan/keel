@@ -1,0 +1,295 @@
+{
+  "testedAt": "2026-10-20T19:39:53.263Z",
+  "checks": [
+    {
+      "name": "register",
+      "env": "dev",
+      "status": 400,
+      "body": {
+        "code": "SERVER_INVALID_PARAM",
+        "message": "请求参数不合法",
+        "traceId": "c78bc0dc0e2d4f30aa896f01f93de3e1",
+        "retryable": false
+      }
+    },
+    {
+      "name": "candidate",
+      "env": "dev",
+      "status": 400,
+      "body": {
+        "code": "SERVER_INVALID_PARAM",
+        "message": "候选环境须为 staging；dev/test 已停用",
+        "traceId": "44def45148764fb294e0fe1c2b96459c",
+        "retryable": false
+      }
+    },
+    {
+      "name": "prompt-save",
+      "env": "dev",
+      "status": 400,
+      "body": {
+        "code": "SERVER_INVALID_PARAM",
+        "message": "编辑环境无效",
+        "traceId": "c83700fe44154477aa14865125e1f618",
+        "retryable": false
+      }
+    },
+    {
+      "name": "prompt-promote",
+      "env": "dev",
+      "status": 400,
+      "body": {
+        "code": "SERVER_INVALID_PARAM",
+        "message": "env 只能是 staging；dev/test 已停用",
+        "traceId": "3c831c43374e45348b3cc0695b6e8d78",
+        "retryable": false
+      }
+    },
+    {
+      "name": "channel",
+      "env": "dev",
+      "status": 400,
+      "body": {
+        "code": "SERVER_INVALID_PARAM",
+        "message": "渠道环境只能是 staging 或 prod",
+        "traceId": "38cbac3d3f0e405a8795eec5602c0e40",
+        "retryable": false
+      }
+    },
+    {
+      "name": "register",
+      "env": "test",
+      "status": 400,
+      "body": {
+        "code": "SERVER_INVALID_PARAM",
+        "message": "请求参数不合法",
+        "traceId": "fbd97d72f59049889eb9f7d4178ef347",
+        "retryable": false
+      }
+    },
+    {
+      "name": "candidate",
+      "env": "test",
+      "status": 400,
+      "body": {
+        "code": "SERVER_INVALID_PARAM",
+        "message": "候选环境须为 staging；dev/test 已停用",
+        "traceId": "18f06ff917b74b76bbbea97c2aaa393b",
+        "retryable": false
+      }
+    },
+    {
+      "name": "prompt-save",
+      "env": "test",
+      "status": 400,
+      "body": {
+        "code": "SERVER_INVALID_PARAM",
+        "message": "编辑环境无效",
+        "traceId": "6086f27297d64d4987da388768774720",
+        "retryable": false
+      }
+    },
+    {
+      "name": "prompt-promote",
+      "env": "test",
+      "status": 400,
+      "body": {
+        "code": "SERVER_INVALID_PARAM",
+        "message": "env 只能是 staging；dev/test 已停用",
+        "traceId": "1fa8f9ba72d449299b90d2f5a0c38b69",
+        "retryable": false
+      }
+    },
+    {
+      "name": "channel",
+      "env": "test",
+      "status": 400,
+      "body": {
+        "code": "SERVER_INVALID_PARAM",
+        "message": "渠道环境只能是 staging 或 prod",
+        "traceId": "9a459bdc23e845f9bcde536c5d835ee7",
+        "retryable": false
+      }
+    }
+  ],
+  "environmentSwitches": [
+    {
+      "env": "staging",
+      "status": 200,
+      "total": 3,
+      "selected": "staging"
+    },
+    {
+      "env": "prod",
+      "status": 200,
+      "total": 5,
+      "selected": "prod"
+    }
+  ],
+  "selector": [
+    "全部环境",
+    "prod",
+    "staging"
+  ],
+  "creationModelRequests": [
+    "https://keel.ragforge.net/api/v1/insight/costs?env=staging&range=24h&section=routes"
+  ],
+  "prompt": {
+    "status": 200,
+    "body": {
+      "code": "OK",
+      "message": null,
+      "traceId": "b9e97255f0a94e0ab04bbb47bf54c5a2",
+      "data": {
+        "agent": "keel-assistant",
+        "name": "answer",
+        "type": "chat",
+        "declared": true,
+        "config": {
+          "temperature": 0.3,
+          "max_tokens": 1600
+        },
+        "gate": "pending",
+        "gateNote": "请手动运行 keel gate",
+        "langfuseUrl": "https://jp.cloud.langfuse.com/project/cmutztp4u0113ad0dmcu73du3/prompts",
+        "metricsUrl": "https://jp.cloud.langfuse.com/project/cmutztp4u0113ad0dmcu73du3/prompts/keel-assistant%2Fanswer",
+        "drift": [],
+        "codeVersion": null,
+        "labs": {
+          "staging": 2
+        },
+        "states": [
+          {
+            "id": "pending",
+            "label": "回归中",
+            "tone": "p-warn"
+          },
+          {
+            "id": "unreleased",
+            "label": "未发布",
+            "tone": "p-soft"
+          }
+        ],
+        "releases": [],
+        "versions": [
+          {
+            "version": 1,
+            "labels": [],
+            "commitMessage": "MVP 0.1：中文文字助理、会话理解和能力边界；不接知识库、数字员工、执行工具或永久记忆",
+            "source": "console",
+            "createdAt": "2026-10-20T15:26:33.646Z",
+            "createdBy": "API",
+            "sha256": "sha256:e8f6958bbf21529f72ce6081ec302cf66f77ac9a4ae6d5496795d9e62bdcce1b"
+          },
+          {
+            "version": 2,
+            "labels": [
+              "dev",
+              "staging",
+              "latest"
+            ],
+            "commitMessage": "MVP 0.2 readonly candidate: authorized knowledge and employee tools; untrusted evidence and operation boundaries",
+            "source": "console",
+            "createdAt": "2026-10-20T17:23:40.265Z",
+            "createdBy": "API",
+            "sha256": "sha256:45ecbaa98efb2990227a234a96b5c2b13dd29f9a0a3e145bf384b73d9d996023"
+          }
+        ]
+      }
+    }
+  },
+  "obsoleteActivationButtons": 0,
+  "historical": {
+    "dev": {
+      "status": 200,
+      "total": 13
+    },
+    "test": {
+      "status": 200,
+      "total": 0
+    }
+  },
+  "candidate": {
+    "status": 200,
+    "env": "staging",
+    "version": "v0",
+    "manifestHash": "54bf1fd354c3dbe858e18e67870347b06e0a1eb7beb7b0e0621cec5d7d6226f4"
+  },
+  "retiredEditableDrafts": 0,
+  "originalSessionsStatus": 200,
+  "employeeQuery": {
+    "status": 200,
+    "wire": "event: guardrail\ndata: {\"name\":\"guard.input\",\"source\":\"user\",\"mode\":\"enforce\",\"hit\":false,\"action\":\"pass\"}\n\n\nevent: step\ndata: {\"name\":\"agent.loop.step.1\",\"status\":\"ok\"}\n\n\nevent: guardrail\ndata: {\"name\":\"guard.indirect.tool\",\"source\":\"tool\",\"mode\":\"enforce\",\"hit\":false,\"action\":\"pass\"}\n\n\nevent: tool\ndata: {\"name\":\"keel.employees.list\",\"status\":\"ok\"}\n\n\nevent: guardrail\ndata: {\"name\":\"guard.indirect.tool\",\"source\":\"tool\",\"mode\":\"enforce\",\"hit\":false,\"action\":\"pass\"}\n\n\nevent: tool\ndata: {\"name\":\"assistant.employees.list\",\"status\":\"ok\"}\n\n\nevent: step\ndata: {\"name\":\"agent.loop.step.2\",\"status\":\"ok\"}\n\n\nevent: token\ndata: {\"text\":\"stag\"}\n\n\nevent: token\ndata: {\"text\":\"ing 环境\"}\n\n\nevent: token\ndata: {\"text\":\"当前登记了 *\"}\n\n\nevent: token\ndata: {\"text\":\"*3 个数字员\"}\n\n\nevent: token\ndata: {\"text\":\"工**：\\n\\n|\"}\n\n\nevent: token\ndata: {\"text\":\" \"}\n\n\nevent: token\ndata: {\"text\":\"ID | 名称\"}\n\n\nevent: token\ndata: {\"text\":\" | 版本 | \"}\n\n\nevent: token\ndata: {\"text\":\"登记状态 | 健\"}\n\n\nevent: token\ndata: {\"text\":\"康 | 登记时间\"}\n\n\nevent: token\ndata: {\"text\":\"（UTC） \"}\n\n\nevent: token\ndata: {\"text\":\"|\\n|---|---|---\"}\n\n\nevent: token\ndata: {\"text\":\"|---|--\"}\n\n\nevent: token\ndata: {\"text\":\"-|---|\\n\"}\n\n\nevent: token\ndata: {\"text\":\"| keel-assis\"}\n\n\nevent: token\ndata: {\"text\":\"tant \"}\n\n\nevent: token\ndata: {\"text\":\"| 个\"}\n\n\nevent: token\ndata: {\"text\":\"人智能助\"}\n\n\nevent: token\ndata: {\"text\":\"理 | \"}\n\n\nevent: token\ndata: {\"text\":\"v0\"}\n\n\nevent: token\ndata: {\"text\":\" | O\"}\n\n\nevent: token\ndata: {\"text\":\"NLINE |\"}\n\n\nevent: token\ndata: {\"text\":\" 未知 | 2026\"}\n\n\nevent: token\ndata: {\"text\":\"-10-\"}\n\n\nevent: token\ndata: {\"text\":\"20 17:43:\"}\n\n\nevent: token\ndata: {\"text\":\"4\"}\n\n\nevent: token\ndata: {\"text\":\"3 |\\n| q\"}\n\n\nevent: token\ndata: {\"text\":\"a-ci-au\"}\n\n\nevent: token\ndata: {\"text\":\"dit-1018 | C\"}\n\n\nevent: token\ndata: {\"text\":\"I证\"}\n\n\nevent: token\ndata: {\"text\":\"据审计员\"}\n\n\nevent: token\ndata: {\"text\":\"·新版底\"}\n\n\nevent: token\ndata: {\"text\":\"座验证 \"}\n\n\nevent: token\ndata: {\"text\":\"|\"}\n\n\nevent: token\ndata: {\"text\":\" v0 \"}\n\n\nevent: token\ndata: {\"text\":\"| \"}\n\n\nevent: token\ndata: {\"text\":\"ONLIN\"}\n\n\nevent: token\ndata: {\"text\":\"E | 未知 | 2\"}\n\n\nevent: token\ndata: {\"text\":\"026-10-\"}\n\n\nevent: token\ndata: {\"text\":\"17 20\"}\n\n\nevent: token\ndata: {\"text\":\":18\"}\n\n\nevent: token\ndata: {\"text\":\":25 |\\n\"}\n\n\nevent: token\ndata: {\"text\":\"| qa\"}\n\n\nevent: token\ndata: {\"text\":\"-ci-a\"}\n\n\nevent: token\ndata: {\"text\":\"uditor-\"}\n\n\nevent: token\ndata: {\"text\":\"1017b | CI 与\"}\n\n\nevent: token\ndata: {\"text\":\" PR 证\"}\n\n\nevent: token\ndata: {\"text\":\"据审计员\"}\n\n\nevent: token\ndata: {\"text\":\"（重建）\"}\n\n\nevent: token\ndata: {\"text\":\" | v\"}\n\n\nevent: token\ndata: {\"text\":\"0\"}\n\n\nevent: token\ndata: {\"text\":\" | O\"}\n\n\nevent: token\ndata: {\"text\":\"NLIN\"}\n\n\nevent: token\ndata: {\"text\":\"E | 未\"}\n\n\nevent: token\ndata: {\"text\":\"知 \"}\n\n\nevent: token\ndata: {\"text\":\"| 2026-1\"}\n\n\nevent: token\ndata: {\"text\":\"0-17 16\"}\n\n\nevent: token\ndata: {\"text\":\":0\"}\n\n\nevent: token\ndata: {\"text\":\"1:37 |\\n\\n说明：\"}\n\n\nevent: token\ndata: {\"text\":\"\\n- 三者的*\"}\n\n\nevent: token\ndata: {\"text\":\"*职责字段均\"}\n\n\nevent: token\ndata: {\"text\":\"未返回*\"}\n\n\nevent: token\ndata: {\"text\":\"*（未知）。\\n-\"}\n\n\nevent: token\ndata: {\"text\":\" ONLINE\"}\n\n\nevent: token\ndata: {\"text\":\" 只是\"}\n\n\nevent: token\ndata: {\"text\":\"登记状态，\"}\n\n\nevent: token\ndata: {\"text\":\"接口未执\"}\n\n\nevent: token\ndata: {\"text\":\"行健康探\"}\n\n\nevent: token\ndata: {\"text\":\"针，**\"}\n\n\nevent: token\ndata: {\"text\":\"不代表实\"}\n\n\nevent: token\ndata: {\"text\":\"际健康**。\\n- 查\"}\n\n\nevent: token\ndata: {\"text\":\"询时间\"}\n\n\nevent: token\ndata: {\"text\":\"：2026-\"}\n\n\nevent: token\ndata: {\"text\":\"10-20 19\"}\n\n\nevent: token\ndata: {\"text\":\":40:02\"}\n\n\nevent: token\ndata: {\"text\":\" UTC；数\"}\n\n\nevent: token\ndata: {\"text\":\"据来源：\"}\n\n\nevent: token\ndata: {\"text\":\"Ke\"}\n\n\nevent: token\ndata: {\"text\":\"el 已\"}\n\n\nevent: token\ndata: {\"text\":\"登记员工\"}\n\n\nevent: token\ndata: {\"text\":\"只读 API\"}\n\n\nevent: token\ndata: {\"text\":\"；组织\"}\n\n\nevent: token\ndata: {\"text\":\"范围：平台组\"}\n\n\nevent: token\ndata: {\"text\":\"；分页：第 1 \"}\n\n\nevent: token\ndata: {\"text\":\"页，共 3 条，已\"}\n\n\nevent: token\ndata: {\"text\":\"完\"}\n\n\nevent: token\ndata: {\"text\":\"整返回，无更多页。\\n\\n需要看某个员工的详情，告诉我 ID 即可。\"}\n\n\nevent: final\ndata: {\"answer\":\"staging 环境当前登记了 **3 个数字员工**：\\n\\n| ID | 名称 | 版本 | 登记状态 | 健康 | 登记时间（UTC） |\\n|---|---|---|---|---|---|\\n| keel-assistant | 个人智能助理 | v0 | ONLINE | 未知 | 2026-10-20 17:43:43 |\\n| qa-ci-audit-1018 | CI证据审计员·新版底座验证 | v0 | ONLINE | 未知 | 2026-10-17 20:18:25 |\\n| qa-ci-auditor-1017b | CI 与 PR 证据审计员（重建） | v0 | ONLINE | 未知 | 2026-10-17 16:01:37 |\\n\\n说明：\\n- 三者的**职责字段均未返回**（未知）。\\n- ONLINE 只是登记状态，接口未执行健康探针，**不代表实际健康**。\\n- 查询时间：2026-10-20 19:40:02 UTC；数据来源：Keel 已登记员工只读 API；组织范围：平台组；分页：第 1 页，共 3 条，已完整返回，无更多页。\\n\\n需要看某个员工的详情，告诉我 ID 即可。\",\"citations\":[],\"meta\":{\"prompt_versions\":{\"answer\":2},\"prompt_fallback\":false,\"read_evidence\":[{\"tool\":\"keel.employees.list\",\"parameters\":{\"env\":\"staging\",\"page\":1,\"size\":20},\"result\":{\"items\":[{\"id\":\"keel-assistant\",\"name\":\"个人智能助理\",\"responsibility\":null,\"env\":\"staging\",\"version\":\"v0\",\"registrationStatus\":\"ONLINE\",\"health\":\"unknown\",\"healthNote\":\"未执行健康探针，ONLINE仅为登记状态\",\"registeredAt\":\"2026-10-20T17:43:43.012379Z\"},{\"id\":\"qa-ci-audit-1018\",\"name\":\"CI证据审计员·新版底座验证\",\"responsibility\":null,\"env\":\"staging\",\"version\":\"v0\",\"registrationStatus\":\"ONLINE\",\"health\":\"unknown\",\"healthNote\":\"未执行健康探针，ONLINE仅为登记状态\",\"registeredAt\":\"2026-10-17T20:18:25.093459Z\"},{\"id\":\"qa-ci-auditor-1017b\",\"name\":\"CI 与 PR 证据审计员（重建）\",\"responsibility\":null,\"env\":\"staging\",\"version\":\"v0\",\"registrationStatus\":\"ONLINE\",\"health\":\"unknown\",\"healthNote\":\"未执行健康探针，ONLINE仅为登记状态\",\"registeredAt\":\"2026-10-17T16:01:37.773657Z\"}],\"total\":3,\"page\":1,\"size\":20,\"complete\":true,\"hasMore\":false,\"queriedAt\":\"2026-10-20T19:40:02.919381100Z\",\"source\":\"Keel registered employee read API\",\"targetEnv\":\"staging\",\"scopeOrg\":\"平台组\"}}],\"application_version\":\"0.2.0\"},\"trace_id\":\"55313196fe927850516f5786cd94f5c7\",\"run_id\":\"d24f17a0a36947fbbd2ac5d926b4a4c0\"}\n\n\n"
+  },
+  "final": {
+    "answer": "staging 环境当前登记了 **3 个数字员工**：\n\n| ID | 名称 | 版本 | 登记状态 | 健康 | 登记时间（UTC） |\n|---|---|---|---|---|---|\n| keel-assistant | 个人智能助理 | v0 | ONLINE | 未知 | 2026-10-20 17:43:43 |\n| qa-ci-audit-1018 | CI证据审计员·新版底座验证 | v0 | ONLINE | 未知 | 2026-10-17 20:18:25 |\n| qa-ci-auditor-1017b | CI 与 PR 证据审计员（重建） | v0 | ONLINE | 未知 | 2026-10-17 16:01:37 |\n\n说明：\n- 三者的**职责字段均未返回**（未知）。\n- ONLINE 只是登记状态，接口未执行健康探针，**不代表实际健康**。\n- 查询时间：2026-10-20 19:40:02 UTC；数据来源：Keel 已登记员工只读 API；组织范围：平台组；分页：第 1 页，共 3 条，已完整返回，无更多页。\n\n需要看某个员工的详情，告诉我 ID 即可。",
+    "citations": [],
+    "meta": {
+      "prompt_versions": {
+        "answer": 2
+      },
+      "prompt_fallback": false,
+      "read_evidence": [
+        {
+          "tool": "keel.employees.list",
+          "parameters": {
+            "env": "staging",
+            "page": 1,
+            "size": 20
+          },
+          "result": {
+            "items": [
+              {
+                "id": "keel-assistant",
+                "name": "个人智能助理",
+                "responsibility": null,
+                "env": "staging",
+                "version": "v0",
+                "registrationStatus": "ONLINE",
+                "health": "unknown",
+                "healthNote": "未执行健康探针，ONLINE仅为登记状态",
+                "registeredAt": "2026-10-20T17:43:43.012379Z"
+              },
+              {
+                "id": "qa-ci-audit-1018",
+                "name": "CI证据审计员·新版底座验证",
+                "responsibility": null,
+                "env": "staging",
+                "version": "v0",
+                "registrationStatus": "ONLINE",
+                "health": "unknown",
+                "healthNote": "未执行健康探针，ONLINE仅为登记状态",
+                "registeredAt": "2026-10-17T20:18:25.093459Z"
+              },
+              {
+                "id": "qa-ci-auditor-1017b",
+                "name": "CI 与 PR 证据审计员（重建）",
+                "responsibility": null,
+                "env": "staging",
+                "version": "v0",
+                "registrationStatus": "ONLINE",
+                "health": "unknown",
+                "healthNote": "未执行健康探针，ONLINE仅为登记状态",
+                "registeredAt": "2026-10-17T16:01:37.773657Z"
+              }
+            ],
+            "total": 3,
+            "page": 1,
+            "size": 20,
+            "complete": true,
+            "hasMore": false,
+            "queriedAt": "2026-10-20T19:40:02.919381100Z",
+            "source": "Keel registered employee read API",
+            "targetEnv": "staging",
+            "scopeOrg": "平台组"
+          }
+        }
+      ],
+      "application_version": "0.2.0"
+    },
+    "trace_id": "55313196fe927850516f5786cd94f5c7",
+    "run_id": "d24f17a0a36947fbbd2ac5d926b4a4c0"
+  },
+  "sessionsUnchanged": true,
+  "passed": true
+}

@@ -1,0 +1,44 @@
+{
+  "at": "2026-10-20T19:39:36.545934+00:00",
+  "deployments": [
+    {
+      "namespace": "keel-system",
+      "name": "keel-server",
+      "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-server:f2e7d6886ca6",
+      "desired": 2,
+      "ready": 2,
+      "available": 2,
+      "updated": 2
+    },
+    {
+      "namespace": "keel-system",
+      "name": "keel-console",
+      "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-console:f2e7d6886ca6",
+      "desired": 2,
+      "ready": 2,
+      "available": 2,
+      "updated": 2
+    }
+  ],
+  "assistantInstances": [
+    {
+      "namespace": "agents",
+      "name": "keel-assistant-b7b8c486f-jb2pp",
+      "env": "staging",
+      "ip": "10.42.0.169",
+      "ready": true,
+      "image": "keel-assistant:70773443dca0a8cc99b41a5209e93b23d343333b",
+      "imageID": "sha256:ca6c8d31eae19db84d9d2561aa4e075011c212ebce832d76fbf2a07c547199b0"
+    },
+    {
+      "namespace": "agents",
+      "name": "keel-assistant-b7b8c486f-wqkh5",
+      "env": "staging",
+      "ip": "10.42.0.170",
+      "ready": true,
+      "image": "keel-assistant:70773443dca0a8cc99b41a5209e93b23d343333b",
+      "imageID": "sha256:ca6c8d31eae19db84d9d2561aa4e075011c212ebce832d76fbf2a07c547199b0"
+    }
+  ],
+  "passed": true
+}

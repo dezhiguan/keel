@@ -1,0 +1,10 @@
+{
+  "observedAt": "2026-10-20T19:44:58.233Z",
+  "url": "https://keel.ragforge.net/agents/keel-assistant/debug",
+  "options": [
+    "全部环境",
+    "prod",
+    "staging"
+  ],
+  "afterSuccessfulDeployment": 39483909859
+}

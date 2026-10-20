@@ -1,0 +1,2682 @@
+{
+  "conclusion": "success",
+  "headSha": "f2e7d6886ca6a80ab7a4a6dc8b94d9ae0a2e2313",
+  "jobs": [
+    {
+      "completedAt": "2026-10-20T19:30:45Z",
+      "conclusion": "success",
+      "databaseId": 118839796398,
+      "name": "变更范围",
+      "startedAt": "2026-10-20T19:30:40Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:30:41Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:30:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:43Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:30:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:43Z",
+          "conclusion": "success",
+          "name": "读取最后一次完整部署快照",
+          "number": 3,
+          "startedAt": "2026-10-20T19:30:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:43Z",
+          "conclusion": "success",
+          "name": "Run bash ci/changed-services.sh",
+          "number": 4,
+          "startedAt": "2026-10-20T19:30:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:43Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "startedAt": "2026-10-20T19:30:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:44Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-20T19:30:43Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118839796398"
+    },
+    {
+      "completedAt": "2026-10-20T19:31:19Z",
+      "conclusion": "success",
+      "databaseId": 118839852985,
+      "name": "测试 keel-llm",
+      "startedAt": "2026-10-20T19:30:47Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:30:49Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:30:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:30:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:51Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-java@v4",
+          "number": 3,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:17Z",
+          "conclusion": "success",
+          "name": "Run mvn -pl :keel-llm -am test",
+          "number": 4,
+          "startedAt": "2026-10-20T19:30:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:17Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-java@v4",
+          "number": 7,
+          "startedAt": "2026-10-20T19:31:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:17Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "startedAt": "2026-10-20T19:31:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:17Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-20T19:31:17Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118839852985"
+    },
+    {
+      "completedAt": "2026-10-20T19:31:14Z",
+      "conclusion": "success",
+      "databaseId": 118839853035,
+      "name": "测试五个主流程智能体",
+      "startedAt": "2026-10-20T19:30:47Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:30:48Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:30:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:49Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:30:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v5",
+          "number": 3,
+          "startedAt": "2026-10-20T19:30:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:10Z",
+          "conclusion": "success",
+          "name": "Run pip install -e ./sdk-python 'langfuse==4.17.0' pytest",
+          "number": 4,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:12Z",
+          "conclusion": "success",
+          "name": "Run PYTHONPATH=\"$PWD/sdk-python\" pytest agents/qa-mainflow/tests -q",
+          "number": 5,
+          "startedAt": "2026-10-20T19:31:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:13Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v5",
+          "number": 9,
+          "startedAt": "2026-10-20T19:31:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:13Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 10,
+          "startedAt": "2026-10-20T19:31:13Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:13Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-10-20T19:31:13Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118839853035"
+    },
+    {
+      "completedAt": "2026-10-20T19:31:07Z",
+      "conclusion": "success",
+      "databaseId": 118839853046,
+      "name": "测试研发沙箱",
+      "startedAt": "2026-10-20T19:30:47Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:30:48Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:30:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:30:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v5",
+          "number": 3,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:03Z",
+          "conclusion": "success",
+          "name": "Run pip install -e ./sdk-python pytest",
+          "number": 4,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:05Z",
+          "conclusion": "success",
+          "name": "Run PYTHONPATH=\"$PWD/services/sandbox-sidecar\" pytest services/sandbox-sidecar/test_sidecar.py -q",
+          "number": 5,
+          "startedAt": "2026-10-20T19:31:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:05Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v5",
+          "number": 9,
+          "startedAt": "2026-10-20T19:31:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:05Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 10,
+          "startedAt": "2026-10-20T19:31:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:06Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-10-20T19:31:05Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118839853046"
+    },
+    {
+      "completedAt": "2026-10-20T19:34:37Z",
+      "conclusion": "success",
+      "databaseId": 118839853072,
+      "name": "测试 keel-server",
+      "startedAt": "2026-10-20T19:30:47Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:30:48Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:30:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:30:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:51Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-java@v4",
+          "number": 3,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:34:36Z",
+          "conclusion": "success",
+          "name": "Run mvn -pl :keel-server -am test",
+          "number": 4,
+          "startedAt": "2026-10-20T19:30:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:34:36Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-java@v4",
+          "number": 7,
+          "startedAt": "2026-10-20T19:34:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:34:36Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "startedAt": "2026-10-20T19:34:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:34:36Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-20T19:34:36Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118839853072"
+    },
+    {
+      "completedAt": "2026-10-20T19:30:51Z",
+      "conclusion": "success",
+      "databaseId": 118839853101,
+      "name": "前端门禁",
+      "startedAt": "2026-10-20T19:30:47Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:30:48Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:30:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:49Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:30:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:49Z",
+          "conclusion": "success",
+          "name": "Run bash ci/frontend-gate.sh",
+          "number": 3,
+          "startedAt": "2026-10-20T19:30:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 6,
+          "startedAt": "2026-10-20T19:30:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 7,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118839853101"
+    },
+    {
+      "completedAt": "2026-10-20T19:30:52Z",
+      "conclusion": "success",
+      "databaseId": 118839853118,
+      "name": "后端门禁",
+      "startedAt": "2026-10-20T19:30:47Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:30:49Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:30:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:30:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Run bash ci/backend-gate.sh",
+          "number": 3,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 6,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 7,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118839853118"
+    },
+    {
+      "completedAt": "2026-10-20T19:31:04Z",
+      "conclusion": "success",
+      "databaseId": 118839853120,
+      "name": "测试生命周期验收智能体",
+      "startedAt": "2026-10-20T19:30:47Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:30:48Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:30:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:30:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v5",
+          "number": 3,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:00Z",
+          "conclusion": "success",
+          "name": "Run pip install -e ./sdk-python 'langfuse==4.17.0' pytest",
+          "number": 4,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:02Z",
+          "conclusion": "success",
+          "name": "Run PYTHONPATH=\"$PWD/sdk-python\" pytest agents/qa-lifecycle-1016/tests -q",
+          "number": 5,
+          "startedAt": "2026-10-20T19:31:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:02Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v5",
+          "number": 9,
+          "startedAt": "2026-10-20T19:31:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:02Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 10,
+          "startedAt": "2026-10-20T19:31:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:02Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-10-20T19:31:02Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118839853120"
+    },
+    {
+      "completedAt": "2026-10-20T19:31:27Z",
+      "conclusion": "success",
+      "databaseId": 118839853128,
+      "name": "测试 keel-audit",
+      "startedAt": "2026-10-20T19:30:47Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:30:49Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:30:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:30:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:51Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-java@v4",
+          "number": 3,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:25Z",
+          "conclusion": "success",
+          "name": "Run mvn -pl :keel-audit -am test",
+          "number": 4,
+          "startedAt": "2026-10-20T19:30:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:25Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-java@v4",
+          "number": 7,
+          "startedAt": "2026-10-20T19:31:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:25Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "startedAt": "2026-10-20T19:31:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:26Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-20T19:31:25Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118839853128"
+    },
+    {
+      "completedAt": "2026-10-20T19:31:35Z",
+      "conclusion": "success",
+      "databaseId": 118839853132,
+      "name": "测试元智能体闭环",
+      "startedAt": "2026-10-20T19:30:47Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:30:49Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:30:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:30:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v5",
+          "number": 3,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:03Z",
+          "conclusion": "success",
+          "name": "Run pip install -e './sdk-python[eval]' pytest",
+          "number": 4,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:15Z",
+          "conclusion": "success",
+          "name": "Run PYTHONPATH=\"$PWD/sdk-python\" pytest agents/meta-agent/tests -q",
+          "number": 5,
+          "startedAt": "2026-10-20T19:31:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:26Z",
+          "conclusion": "success",
+          "name": "Run PYTHONPATH=\"$PWD/sdk-python\" pytest sdk-python/tests/test_run_concurrency.py sdk-python/tests/test_resume_trace.py sdk-python/tests/skills sdk-python/tests/eval -q",
+          "number": 6,
+          "startedAt": "2026-10-20T19:31:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:29Z",
+          "conclusion": "success",
+          "name": "Run PYTHONPATH=\"$PWD/services/git-ci:$PWD/sdk-python\" pytest services/git-ci/tests -q",
+          "number": 7,
+          "startedAt": "2026-10-20T19:31:26Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:33Z",
+          "conclusion": "success",
+          "name": "Run PYTHONPATH=\"$PWD/sdk-python\" pytest sdk-python/tests/cli/test_ledger.py sdk-python/tests/cli/test_repo.py -q",
+          "number": 8,
+          "startedAt": "2026-10-20T19:31:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:33Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v5",
+          "number": 15,
+          "startedAt": "2026-10-20T19:31:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:33Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 16,
+          "startedAt": "2026-10-20T19:31:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:33Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 17,
+          "startedAt": "2026-10-20T19:31:33Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118839853132"
+    },
+    {
+      "completedAt": "2026-10-20T19:31:33Z",
+      "conclusion": "success",
+      "databaseId": 118839853137,
+      "name": "构建 git-ci",
+      "startedAt": "2026-10-20T19:30:47Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:30:51Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:30:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:52Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:30:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:52Z",
+          "conclusion": "success",
+          "name": "Run bash deploy/ci/resolve-image.sh git-ci",
+          "number": 3,
+          "startedAt": "2026-10-20T19:30:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:59Z",
+          "conclusion": "success",
+          "name": "Run docker/setup-buildx-action@v3",
+          "number": 4,
+          "startedAt": "2026-10-20T19:30:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:03Z",
+          "conclusion": "success",
+          "name": "Run docker/login-action@v3",
+          "number": 5,
+          "startedAt": "2026-10-20T19:30:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:28Z",
+          "conclusion": "success",
+          "name": "Run docker/build-push-action@v6",
+          "number": 6,
+          "startedAt": "2026-10-20T19:31:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:30Z",
+          "conclusion": "success",
+          "name": "Post Run docker/build-push-action@v6",
+          "number": 9,
+          "startedAt": "2026-10-20T19:31:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:30Z",
+          "conclusion": "success",
+          "name": "Post Run docker/login-action@v3",
+          "number": 10,
+          "startedAt": "2026-10-20T19:31:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:32Z",
+          "conclusion": "success",
+          "name": "Post Run docker/setup-buildx-action@v3",
+          "number": 11,
+          "startedAt": "2026-10-20T19:31:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:32Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 12,
+          "startedAt": "2026-10-20T19:31:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:32Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 13,
+          "startedAt": "2026-10-20T19:31:32Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118839853137"
+    },
+    {
+      "completedAt": "2026-10-20T19:31:14Z",
+      "conclusion": "success",
+      "databaseId": 118839853192,
+      "name": "测试 keel-gateway",
+      "startedAt": "2026-10-20T19:30:48Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:30:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:51Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:53Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-java@v4",
+          "number": 3,
+          "startedAt": "2026-10-20T19:30:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:11Z",
+          "conclusion": "success",
+          "name": "Run mvn -pl :keel-gateway -am test",
+          "number": 4,
+          "startedAt": "2026-10-20T19:30:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:11Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-java@v4",
+          "number": 7,
+          "startedAt": "2026-10-20T19:31:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:11Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "startedAt": "2026-10-20T19:31:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:12Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-20T19:31:11Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118839853192"
+    },
+    {
+      "completedAt": "2026-10-20T19:31:35Z",
+      "conclusion": "success",
+      "databaseId": 118839853193,
+      "name": "构建 echo-agent",
+      "startedAt": "2026-10-20T19:30:47Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:30:49Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:30:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:30:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Run bash deploy/ci/resolve-image.sh echo-agent",
+          "number": 3,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:56Z",
+          "conclusion": "success",
+          "name": "Run docker/setup-buildx-action@v3",
+          "number": 4,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:00Z",
+          "conclusion": "success",
+          "name": "Run docker/login-action@v3",
+          "number": 5,
+          "startedAt": "2026-10-20T19:30:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:30Z",
+          "conclusion": "success",
+          "name": "Run docker/build-push-action@v6",
+          "number": 6,
+          "startedAt": "2026-10-20T19:31:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:31Z",
+          "conclusion": "success",
+          "name": "Post Run docker/build-push-action@v6",
+          "number": 9,
+          "startedAt": "2026-10-20T19:31:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:31Z",
+          "conclusion": "success",
+          "name": "Post Run docker/login-action@v3",
+          "number": 10,
+          "startedAt": "2026-10-20T19:31:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:33Z",
+          "conclusion": "success",
+          "name": "Post Run docker/setup-buildx-action@v3",
+          "number": 11,
+          "startedAt": "2026-10-20T19:31:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:33Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 12,
+          "startedAt": "2026-10-20T19:31:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:33Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 13,
+          "startedAt": "2026-10-20T19:31:33Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118839853193"
+    },
+    {
+      "completedAt": "2026-10-20T19:31:05Z",
+      "conclusion": "success",
+      "databaseId": 118839853196,
+      "name": "前端测试",
+      "startedAt": "2026-10-20T19:30:47Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:30:49Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:30:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:30:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:51Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-node@v4",
+          "number": 3,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:03Z",
+          "conclusion": "success",
+          "name": "安装并跑 vitest",
+          "number": 4,
+          "startedAt": "2026-10-20T19:30:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:03Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-node@v4",
+          "number": 7,
+          "startedAt": "2026-10-20T19:31:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:03Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "startedAt": "2026-10-20T19:31:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:03Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-20T19:31:03Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118839853196"
+    },
+    {
+      "completedAt": "2026-10-20T19:31:07Z",
+      "conclusion": "success",
+      "databaseId": 118839853241,
+      "name": "前端类型检查",
+      "startedAt": "2026-10-20T19:30:47Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:30:49Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:30:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:50Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:30:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:30:51Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-node@v4",
+          "number": 3,
+          "startedAt": "2026-10-20T19:30:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:05Z",
+          "conclusion": "success",
+          "name": "安装并做类型检查",
+          "number": 4,
+          "startedAt": "2026-10-20T19:30:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:05Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-node@v4",
+          "number": 7,
+          "startedAt": "2026-10-20T19:31:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:05Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "startedAt": "2026-10-20T19:31:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:05Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-20T19:31:05Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118839853241"
+    },
+    {
+      "completedAt": "2026-10-20T19:31:55Z",
+      "conclusion": "success",
+      "databaseId": 118840012307,
+      "name": "构建生命周期验收智能体",
+      "startedAt": "2026-10-20T19:31:06Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:31:09Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:31:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:10Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:31:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:10Z",
+          "conclusion": "success",
+          "name": "Run bash deploy/ci/resolve-image.sh qa-lifecycle-1016",
+          "number": 3,
+          "startedAt": "2026-10-20T19:31:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:10Z",
+          "conclusion": "success",
+          "name": "Stage SDK wheel",
+          "number": 4,
+          "startedAt": "2026-10-20T19:31:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:20Z",
+          "conclusion": "success",
+          "name": "Run docker/setup-buildx-action@v3",
+          "number": 5,
+          "startedAt": "2026-10-20T19:31:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:24Z",
+          "conclusion": "success",
+          "name": "Run docker/login-action@v3",
+          "number": 6,
+          "startedAt": "2026-10-20T19:31:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:48Z",
+          "conclusion": "success",
+          "name": "Run docker/build-push-action@v6",
+          "number": 7,
+          "startedAt": "2026-10-20T19:31:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:49Z",
+          "conclusion": "success",
+          "name": "Post Run docker/build-push-action@v6",
+          "number": 11,
+          "startedAt": "2026-10-20T19:31:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:49Z",
+          "conclusion": "success",
+          "name": "Post Run docker/login-action@v3",
+          "number": 12,
+          "startedAt": "2026-10-20T19:31:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:53Z",
+          "conclusion": "success",
+          "name": "Post Run docker/setup-buildx-action@v3",
+          "number": 13,
+          "startedAt": "2026-10-20T19:31:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:54Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 14,
+          "startedAt": "2026-10-20T19:31:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:54Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 15,
+          "startedAt": "2026-10-20T19:31:54Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118840012307"
+    },
+    {
+      "completedAt": "2026-10-20T19:31:55Z",
+      "conclusion": "success",
+      "databaseId": 118840034561,
+      "name": "构建研发沙箱",
+      "startedAt": "2026-10-20T19:31:09Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:31:11Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:31:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:12Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:31:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:13Z",
+          "conclusion": "success",
+          "name": "Run bash deploy/ci/resolve-image.sh keel-sandbox",
+          "number": 3,
+          "startedAt": "2026-10-20T19:31:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:21Z",
+          "conclusion": "success",
+          "name": "Run docker/setup-buildx-action@v3",
+          "number": 4,
+          "startedAt": "2026-10-20T19:31:13Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:25Z",
+          "conclusion": "success",
+          "name": "Run docker/login-action@v3",
+          "number": 5,
+          "startedAt": "2026-10-20T19:31:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:50Z",
+          "conclusion": "success",
+          "name": "Run docker/build-push-action@v6",
+          "number": 6,
+          "startedAt": "2026-10-20T19:31:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:52Z",
+          "conclusion": "success",
+          "name": "Post Run docker/build-push-action@v6",
+          "number": 9,
+          "startedAt": "2026-10-20T19:31:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:52Z",
+          "conclusion": "success",
+          "name": "Post Run docker/login-action@v3",
+          "number": 10,
+          "startedAt": "2026-10-20T19:31:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:54Z",
+          "conclusion": "success",
+          "name": "Post Run docker/setup-buildx-action@v3",
+          "number": 11,
+          "startedAt": "2026-10-20T19:31:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:54Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 12,
+          "startedAt": "2026-10-20T19:31:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:54Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 13,
+          "startedAt": "2026-10-20T19:31:54Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118840034561"
+    },
+    {
+      "completedAt": "2026-10-20T19:31:37Z",
+      "conclusion": "success",
+      "databaseId": 118840040434,
+      "name": "前端构建",
+      "startedAt": "2026-10-20T19:31:10Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:31:11Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:31:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:12Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:31:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:14Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-node@v4",
+          "number": 3,
+          "startedAt": "2026-10-20T19:31:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:35Z",
+          "conclusion": "success",
+          "name": "生产构建",
+          "number": 4,
+          "startedAt": "2026-10-20T19:31:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:35Z",
+          "conclusion": "success",
+          "name": "产物里要有页面和静态资源",
+          "number": 5,
+          "startedAt": "2026-10-20T19:31:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:35Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-node@v4",
+          "number": 9,
+          "startedAt": "2026-10-20T19:31:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:35Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 10,
+          "startedAt": "2026-10-20T19:31:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:35Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-10-20T19:31:35Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118840040434"
+    },
+    {
+      "completedAt": "2026-10-20T19:32:18Z",
+      "conclusion": "success",
+      "databaseId": 118840096299,
+      "name": "构建 keel-gateway",
+      "startedAt": "2026-10-20T19:31:16Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:31:17Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:31:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:18Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:31:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:11Z",
+          "conclusion": "success",
+          "name": "Run ./.github/actions/build-java",
+          "number": 3,
+          "startedAt": "2026-10-20T19:31:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:16Z",
+          "conclusion": "success",
+          "name": "Post Run ./.github/actions/build-java",
+          "number": 5,
+          "startedAt": "2026-10-20T19:32:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:16Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 6,
+          "startedAt": "2026-10-20T19:32:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:16Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 7,
+          "startedAt": "2026-10-20T19:32:16Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118840096299"
+    },
+    {
+      "completedAt": "2026-10-20T19:32:01Z",
+      "conclusion": "success",
+      "databaseId": 118840098733,
+      "name": "构建五个主流程智能体镜像",
+      "startedAt": "2026-10-20T19:31:17Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:31:20Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:31:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:21Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:31:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:21Z",
+          "conclusion": "success",
+          "name": "Run bash deploy/ci/resolve-image.sh qa-mainflow",
+          "number": 3,
+          "startedAt": "2026-10-20T19:31:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:21Z",
+          "conclusion": "success",
+          "name": "Stage SDK wheel",
+          "number": 4,
+          "startedAt": "2026-10-20T19:31:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:28Z",
+          "conclusion": "success",
+          "name": "Run docker/setup-buildx-action@v3",
+          "number": 5,
+          "startedAt": "2026-10-20T19:31:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:31Z",
+          "conclusion": "success",
+          "name": "Run docker/login-action@v3",
+          "number": 6,
+          "startedAt": "2026-10-20T19:31:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:56Z",
+          "conclusion": "success",
+          "name": "Run docker/build-push-action@v6",
+          "number": 7,
+          "startedAt": "2026-10-20T19:31:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:57Z",
+          "conclusion": "success",
+          "name": "Post Run docker/build-push-action@v6",
+          "number": 11,
+          "startedAt": "2026-10-20T19:31:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:58Z",
+          "conclusion": "success",
+          "name": "Post Run docker/login-action@v3",
+          "number": 12,
+          "startedAt": "2026-10-20T19:31:57Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:59Z",
+          "conclusion": "success",
+          "name": "Post Run docker/setup-buildx-action@v3",
+          "number": 13,
+          "startedAt": "2026-10-20T19:31:58Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:00Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 14,
+          "startedAt": "2026-10-20T19:31:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:00Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 15,
+          "startedAt": "2026-10-20T19:32:00Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118840098733"
+    },
+    {
+      "completedAt": "2026-10-20T19:32:39Z",
+      "conclusion": "success",
+      "databaseId": 118840136321,
+      "name": "构建 keel-llm",
+      "startedAt": "2026-10-20T19:31:21Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:31:22Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:31:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:23Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:31:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:32Z",
+          "conclusion": "success",
+          "name": "Run ./.github/actions/build-java",
+          "number": 3,
+          "startedAt": "2026-10-20T19:31:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:37Z",
+          "conclusion": "success",
+          "name": "Post Run ./.github/actions/build-java",
+          "number": 5,
+          "startedAt": "2026-10-20T19:32:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:37Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 6,
+          "startedAt": "2026-10-20T19:32:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:37Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 7,
+          "startedAt": "2026-10-20T19:32:37Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118840136321"
+    },
+    {
+      "completedAt": "2026-10-20T19:32:36Z",
+      "conclusion": "success",
+      "databaseId": 118840202551,
+      "name": "构建 keel-audit",
+      "startedAt": "2026-10-20T19:31:29Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:31:30Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:31:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:31Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:31:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:30Z",
+          "conclusion": "success",
+          "name": "Run ./.github/actions/build-java",
+          "number": 3,
+          "startedAt": "2026-10-20T19:31:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:34Z",
+          "conclusion": "success",
+          "name": "Post Run ./.github/actions/build-java",
+          "number": 5,
+          "startedAt": "2026-10-20T19:32:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:34Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 6,
+          "startedAt": "2026-10-20T19:32:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:34Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 7,
+          "startedAt": "2026-10-20T19:32:34Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118840202551"
+    },
+    {
+      "completedAt": "2026-10-20T19:32:27Z",
+      "conclusion": "success",
+      "databaseId": 118840264884,
+      "name": "构建 meta-agent",
+      "startedAt": "2026-10-20T19:31:38Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:31:41Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:31:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:42Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:31:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:42Z",
+          "conclusion": "success",
+          "name": "Run bash deploy/ci/resolve-image.sh meta-agent",
+          "number": 3,
+          "startedAt": "2026-10-20T19:31:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:42Z",
+          "conclusion": "success",
+          "name": "Stage the SDK wheel into the agent build context",
+          "number": 4,
+          "startedAt": "2026-10-20T19:31:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:49Z",
+          "conclusion": "success",
+          "name": "Run docker/setup-buildx-action@v3",
+          "number": 5,
+          "startedAt": "2026-10-20T19:31:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:52Z",
+          "conclusion": "success",
+          "name": "Run docker/login-action@v3",
+          "number": 6,
+          "startedAt": "2026-10-20T19:31:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:21Z",
+          "conclusion": "success",
+          "name": "Run docker/build-push-action@v6",
+          "number": 7,
+          "startedAt": "2026-10-20T19:31:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:23Z",
+          "conclusion": "success",
+          "name": "Post Run docker/build-push-action@v6",
+          "number": 11,
+          "startedAt": "2026-10-20T19:32:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:23Z",
+          "conclusion": "success",
+          "name": "Post Run docker/login-action@v3",
+          "number": 12,
+          "startedAt": "2026-10-20T19:32:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:25Z",
+          "conclusion": "success",
+          "name": "Post Run docker/setup-buildx-action@v3",
+          "number": 13,
+          "startedAt": "2026-10-20T19:32:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:25Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 14,
+          "startedAt": "2026-10-20T19:32:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:25Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 15,
+          "startedAt": "2026-10-20T19:32:25Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118840264884"
+    },
+    {
+      "completedAt": "2026-10-20T19:32:08Z",
+      "conclusion": "success",
+      "databaseId": 118840277937,
+      "name": "构建控制台",
+      "startedAt": "2026-10-20T19:31:39Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:31:43Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:31:40Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:45Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:31:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:45Z",
+          "conclusion": "success",
+          "name": "Run bash deploy/ci/resolve-image.sh keel-console",
+          "number": 3,
+          "startedAt": "2026-10-20T19:31:45Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:53Z",
+          "conclusion": "success",
+          "name": "Run docker/setup-buildx-action@v3",
+          "number": 4,
+          "startedAt": "2026-10-20T19:31:45Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:31:57Z",
+          "conclusion": "success",
+          "name": "Run docker/login-action@v3",
+          "number": 5,
+          "startedAt": "2026-10-20T19:31:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:03Z",
+          "conclusion": "success",
+          "name": "Run docker/build-push-action@v6",
+          "number": 6,
+          "startedAt": "2026-10-20T19:31:57Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:05Z",
+          "conclusion": "success",
+          "name": "Post Run docker/build-push-action@v6",
+          "number": 9,
+          "startedAt": "2026-10-20T19:32:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:05Z",
+          "conclusion": "success",
+          "name": "Post Run docker/login-action@v3",
+          "number": 10,
+          "startedAt": "2026-10-20T19:32:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:05Z",
+          "conclusion": "success",
+          "name": "Post Run docker/setup-buildx-action@v3",
+          "number": 11,
+          "startedAt": "2026-10-20T19:32:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:06Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 12,
+          "startedAt": "2026-10-20T19:32:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:06Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 13,
+          "startedAt": "2026-10-20T19:32:06Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118840277937"
+    },
+    {
+      "completedAt": "2026-10-20T19:33:27Z",
+      "conclusion": "success",
+      "databaseId": 118840608871,
+      "name": "部署 keel-gateway",
+      "startedAt": "2026-10-20T19:32:20Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:32:21Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:32:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:22Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:32:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:25Z",
+          "conclusion": "success",
+          "name": "配置 SSH",
+          "number": 3,
+          "startedAt": "2026-10-20T19:32:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:33:26Z",
+          "conclusion": "success",
+          "name": "发布 keel-gateway",
+          "number": 4,
+          "startedAt": "2026-10-20T19:32:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:33:26Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "startedAt": "2026-10-20T19:33:26Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:33:26Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-20T19:33:26Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118840608871"
+    },
+    {
+      "completedAt": "2026-10-20T19:33:43Z",
+      "conclusion": "success",
+      "databaseId": 118840753109,
+      "name": "部署 keel-audit",
+      "startedAt": "2026-10-20T19:32:38Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:32:39Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:32:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:41Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:32:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:43Z",
+          "conclusion": "success",
+          "name": "配置 SSH",
+          "number": 3,
+          "startedAt": "2026-10-20T19:32:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:33:41Z",
+          "conclusion": "success",
+          "name": "发布 keel-audit",
+          "number": 4,
+          "startedAt": "2026-10-20T19:32:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:33:41Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "startedAt": "2026-10-20T19:33:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:33:41Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-20T19:33:41Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118840753109"
+    },
+    {
+      "completedAt": "2026-10-20T19:33:51Z",
+      "conclusion": "success",
+      "databaseId": 118840779735,
+      "name": "部署 keel-llm",
+      "startedAt": "2026-10-20T19:32:41Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:32:42Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:32:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:44Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:32:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:32:47Z",
+          "conclusion": "success",
+          "name": "配置 SSH",
+          "number": 3,
+          "startedAt": "2026-10-20T19:32:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:33:48Z",
+          "conclusion": "success",
+          "name": "发布 keel-llm",
+          "number": 4,
+          "startedAt": "2026-10-20T19:32:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:33:49Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "startedAt": "2026-10-20T19:33:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:33:49Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-20T19:33:49Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118840779735"
+    },
+    {
+      "completedAt": "2026-10-20T19:36:17Z",
+      "conclusion": "success",
+      "databaseId": 118841741070,
+      "name": "构建 keel-server",
+      "startedAt": "2026-10-20T19:34:40Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:34:41Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:34:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:34:43Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:34:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:36:10Z",
+          "conclusion": "success",
+          "name": "Run ./.github/actions/build-java",
+          "number": 3,
+          "startedAt": "2026-10-20T19:34:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:36:15Z",
+          "conclusion": "success",
+          "name": "Post Run ./.github/actions/build-java",
+          "number": 5,
+          "startedAt": "2026-10-20T19:36:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:36:15Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 6,
+          "startedAt": "2026-10-20T19:36:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:36:15Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 7,
+          "startedAt": "2026-10-20T19:36:15Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118841741070"
+    },
+    {
+      "completedAt": "2026-10-20T19:37:37Z",
+      "conclusion": "success",
+      "databaseId": 118842557554,
+      "name": "部署 keel-server",
+      "startedAt": "2026-10-20T19:36:20Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:36:21Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:36:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:36:23Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:36:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:36:25Z",
+          "conclusion": "success",
+          "name": "配置 SSH",
+          "number": 3,
+          "startedAt": "2026-10-20T19:36:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:37:34Z",
+          "conclusion": "success",
+          "name": "发布 keel-server",
+          "number": 4,
+          "startedAt": "2026-10-20T19:36:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:37:34Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "startedAt": "2026-10-20T19:37:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:37:34Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-20T19:37:34Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118842557554"
+    },
+    {
+      "completedAt": "2026-10-20T19:38:03Z",
+      "conclusion": "success",
+      "databaseId": 118843192209,
+      "name": "部署控制台",
+      "startedAt": "2026-10-20T19:37:39Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:37:41Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:37:40Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:37:42Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:37:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:37:44Z",
+          "conclusion": "success",
+          "name": "配置 SSH",
+          "number": 3,
+          "startedAt": "2026-10-20T19:37:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:01Z",
+          "conclusion": "success",
+          "name": "发布控制台",
+          "number": 4,
+          "startedAt": "2026-10-20T19:37:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:01Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "startedAt": "2026-10-20T19:38:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:01Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-20T19:38:01Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118843192209"
+    },
+    {
+      "completedAt": "2026-10-20T19:38:09Z",
+      "conclusion": "success",
+      "databaseId": 118843192214,
+      "name": "部署 git-ci",
+      "startedAt": "2026-10-20T19:37:39Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:37:41Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:37:40Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:37:42Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:37:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:37:43Z",
+          "conclusion": "success",
+          "name": "配置 SSH",
+          "number": 3,
+          "startedAt": "2026-10-20T19:37:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:07Z",
+          "conclusion": "success",
+          "name": "发布 git-ci",
+          "number": 4,
+          "startedAt": "2026-10-20T19:37:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:07Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "startedAt": "2026-10-20T19:38:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:07Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-20T19:38:07Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118843192214"
+    },
+    {
+      "completedAt": "2026-10-20T19:43:09Z",
+      "conclusion": "success",
+      "databaseId": 118843192242,
+      "name": "部署主流程验收智能体",
+      "startedAt": "2026-10-20T19:37:39Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:37:40Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:37:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:37:41Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:37:40Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:37:44Z",
+          "conclusion": "success",
+          "name": "配置 SSH",
+          "number": 3,
+          "startedAt": "2026-10-20T19:37:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:43:07Z",
+          "conclusion": "success",
+          "name": "发布五个服务",
+          "number": 4,
+          "startedAt": "2026-10-20T19:37:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:43:08Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "startedAt": "2026-10-20T19:43:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:43:08Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-20T19:43:08Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118843192242"
+    },
+    {
+      "completedAt": "2026-10-20T19:38:13Z",
+      "conclusion": "success",
+      "databaseId": 118843192256,
+      "name": "部署生命周期验收智能体",
+      "startedAt": "2026-10-20T19:37:39Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:37:40Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:37:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:37:41Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:37:40Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:37:44Z",
+          "conclusion": "success",
+          "name": "配置 SSH",
+          "number": 3,
+          "startedAt": "2026-10-20T19:37:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:12Z",
+          "conclusion": "success",
+          "name": "发布独立镜像",
+          "number": 4,
+          "startedAt": "2026-10-20T19:37:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:12Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "startedAt": "2026-10-20T19:38:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:12Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-20T19:38:12Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118843192256"
+    },
+    {
+      "completedAt": "2026-10-20T19:38:15Z",
+      "conclusion": "success",
+      "databaseId": 118843192303,
+      "name": "部署 echo-agent",
+      "startedAt": "2026-10-20T19:37:39Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:37:41Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:37:40Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:37:42Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:37:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:37:44Z",
+          "conclusion": "success",
+          "name": "配置 SSH",
+          "number": 3,
+          "startedAt": "2026-10-20T19:37:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:13Z",
+          "conclusion": "success",
+          "name": "发布 echo-agent",
+          "number": 4,
+          "startedAt": "2026-10-20T19:37:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:13Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "startedAt": "2026-10-20T19:38:13Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:13Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-20T19:38:13Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118843192303"
+    },
+    {
+      "completedAt": "2026-10-20T19:38:21Z",
+      "conclusion": "success",
+      "databaseId": 118843192523,
+      "name": "部署 meta-agent",
+      "startedAt": "2026-10-20T19:37:39Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:37:41Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:37:40Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:37:42Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:37:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:37:44Z",
+          "conclusion": "success",
+          "name": "配置 SSH",
+          "number": 3,
+          "startedAt": "2026-10-20T19:37:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:37:56Z",
+          "conclusion": "success",
+          "name": "准备元智能体逻辑网关与服务身份",
+          "number": 4,
+          "startedAt": "2026-10-20T19:37:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:19Z",
+          "conclusion": "success",
+          "name": "发布 meta-agent",
+          "number": 5,
+          "startedAt": "2026-10-20T19:37:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:19Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 10,
+          "startedAt": "2026-10-20T19:38:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:19Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-10-20T19:38:19Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118843192523"
+    },
+    {
+      "completedAt": "2026-10-20T19:38:55Z",
+      "conclusion": "success",
+      "databaseId": 118843407959,
+      "name": "冒烟",
+      "startedAt": "2026-10-20T19:38:05Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:38:06Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:38:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:07Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:38:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:10Z",
+          "conclusion": "success",
+          "name": "配置 SSH",
+          "number": 3,
+          "startedAt": "2026-10-20T19:38:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:53Z",
+          "conclusion": "success",
+          "name": "只检查本次部署的服务",
+          "number": 4,
+          "startedAt": "2026-10-20T19:38:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:53Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "startedAt": "2026-10-20T19:38:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:53Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-20T19:38:53Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118843407959"
+    },
+    {
+      "completedAt": "2026-10-20T19:38:51Z",
+      "conclusion": "success",
+      "databaseId": 118843515752,
+      "name": "部署 chat-demo",
+      "startedAt": "2026-10-20T19:38:18Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:38:19Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:38:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:20Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-10-20T19:38:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:23Z",
+          "conclusion": "success",
+          "name": "配置 SSH",
+          "number": 3,
+          "startedAt": "2026-10-20T19:38:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:50Z",
+          "conclusion": "success",
+          "name": "用同一份 echo-agent 镜像发布 chat-demo",
+          "number": 4,
+          "startedAt": "2026-10-20T19:38:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:50Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "startedAt": "2026-10-20T19:38:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:38:50Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-20T19:38:50Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118843515752"
+    },
+    {
+      "completedAt": "2026-10-20T19:43:16Z",
+      "conclusion": "success",
+      "databaseId": 118845866853,
+      "name": "记录完整部署快照",
+      "startedAt": "2026-10-20T19:43:11Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-20T19:43:13Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-20T19:43:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:43:13Z",
+          "conclusion": "success",
+          "name": "写入部署版本",
+          "number": 2,
+          "startedAt": "2026-10-20T19:43:13Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:43:14Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v4",
+          "number": 3,
+          "startedAt": "2026-10-20T19:43:13Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-20T19:43:14Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 4,
+          "startedAt": "2026-10-20T19:43:14Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859/job/118845866853"
+    }
+  ],
+  "status": "completed",
+  "url": "https://github.com/dezhiguan/keel/actions/runs/39483909859"
+}

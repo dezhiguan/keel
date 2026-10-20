@@ -1,0 +1,4 @@
+2026-10-20T19:27:12.9866848Z E   ModuleNotFoundError: No module named 'langfuse'
+2026-10-20T19:27:12.9867216Z <frozen importlib._bootstrap>:1333: ModuleNotFoundError
+2026-10-20T19:27:12.9868423Z FAILED sdk-python/tests/eval/test_worker.py::test_worker_passes_agent_concurrency_to_langfuse_without_skipping_cases - ModuleNotFoundError: No module named 'langfuse'
+2026-10-20T19:27:12.9869151Z 1 failed, 43 passed in 9.60s

@@ -1,0 +1,29 @@
+{
+  "implementationCommit": "9ae060615f09e4946c908af2e1baf0f04a0f8869",
+  "ciDependencyFix": "f2e7d6886ca6a80ab7a4a6dc8b94d9ae0a2e2313",
+  "activeEnvironments": [
+    "staging",
+    "prod"
+  ],
+  "historicalEnvironmentsPreserved": [
+    "dev",
+    "test"
+  ],
+  "frontendTests": {
+    "passed": 196,
+    "files": 26
+  },
+  "targetedWriteBoundaryTests": {
+    "passed": 5
+  },
+  "pgIntegrationLocal": "not run: no Docker; complete GitHub CI passed with PostgreSQL",
+  "deploymentRun": 39483909859,
+  "deploymentStatus": "success",
+  "browserStatus": "passed",
+  "runtimeStatus": "server 2/2, console 2/2, assistant 2/2",
+  "deniedRetiredWrites": 10,
+  "realEmployeeQueryTrace": "55313196fe927850516f5786cd94f5c7",
+  "managedPromptVersion": 2,
+  "fallback": false,
+  "normalSessionsUnchanged": true
+}

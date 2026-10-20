@@ -1,0 +1,5 @@
+{
+  "passed": false,
+  "error": "Error: Creation did not default to staging",
+  "stack": "Error: Creation did not default to staging\n    at attempt (file:///private/tmp/keel-two-env-acceptance.mjs?v=1:22:56)\n    at async Module.run (file:///private/tmp/keel-two-env-acceptance.mjs?v=1:58:44)\n    at async /private/tmp/keel-browser-qa.cjs:25:22"
+}
