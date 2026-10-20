@@ -74,7 +74,7 @@ class InsightReadModelPersistenceTest {
         assertThat(index.list(1,10,"a","all",null,Instant.parse("2026-10-20T00:00:05Z"),Instant.parse("2026-10-20T00:00:07Z"),false,null,null).get("total")).isEqualTo(2L);
     }
     @Test void suspendedLocalRunsAreDeduplicatedAndResumeImmediatelyWithoutWaitingForLangfuse() throws Exception {
-        jdbc.update("INSERT INTO agent(name,display_name,kind,runtime,owner_org,owner_user,status) VALUES ('a','a','AGENT','code','org','u','REGISTERED') ON CONFLICT DO NOTHING");
+        jdbc.update("INSERT INTO agent(name,display_name,kind,runtime,owner_org,owner_user,status,liveness) VALUES ('a','a','AGENT','code','org','u','REGISTERED','NONE') ON CONFLICT DO NOTHING");
         jdbc.update("INSERT INTO agent_run(run_id,agent_name,env,trace_id,status,suspend_reason,actor_user) VALUES ('qa-run','a','prod','tr-a','SUSPENDED','input_required','54')");
         assertThat(index.list(1,10,"a","prod","pending",null,null,false,null,null).get("total")).isEqualTo(1L);
         write(List.of(node("root","tr-a","",0,"prod","a","j1",false)));
