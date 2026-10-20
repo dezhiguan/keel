@@ -2750,6 +2750,7 @@ export interface components {
             }[];
         };
         SharedServices: {
+            dataStatus?: components["schemas"]["InsightDataStatus"];
             services?: {
                 /** @example rag-forge */
                 name?: string;

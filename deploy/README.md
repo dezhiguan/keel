@@ -37,7 +37,7 @@ CREATE DATABASE keel OWNER keel;
 SQL
 ```
 
-Redis 用数据机上那套，库号 `3`（askdb 占用 `2`）。两个薄网关副本必须共用这一条地址，日预算才是同一份。
+Redis 用数据机上那套，库号 `3`（askdb 占用 `2`）。两个薄网关副本必须共用这一条地址，日预算才是同一份。keel-server 通过 `KEEL_REDIS_URL` 复用此 Secret 的 `redis-url`，平台与能力服务页面使用独立的 `keel:server:services:v1:` 前缀缓存；不写入网关预算、Key 或账单键。服务页新鲜期30秒、保留5分钟，支持共享刷新锁及续租；未配置Redis时保留本地有界缓存。
 
 在 Server 3 上建 Secret。密钥不进 Git 和 GitHub。
 

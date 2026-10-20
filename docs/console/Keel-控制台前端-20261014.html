@@ -2577,7 +2577,7 @@ VIEWS.services=v=>{
     ${CAPS.map(r=>`<tr><td class="nm"><b>${r[0]}</b></td><td><span class="pill nd p-soft">${r[1]}</span></td><td style="font-size:12.5px">${r[2]}</td><td class="mut" style="font-size:12px">${r[3]}</td><td class="mono" style="font-size:12px">${r[4]}</td><td style="font-size:12.5px">${r[5]}</td><td>${pill(r[6])}</td></tr>`).join('')}</tbody></table></div>`;
   if(PT.services==='rag')body=rag;
   if(PT.services==='sandbox')body=DF.servicesBlock();
-  v.innerHTML=`<div class="vh"><h2>平台与能力服务</h2><span class="sub">平台组件每次调用都会经过；能力服务在 manifest 声明、授权后使用</span><span class="sp"></span><button class="btn" data-act="ext" data-n="rag-forge 控制台">rag-forge 控制台 ↗</button></div>
+  v.innerHTML=`<div class="vh"><h2>平台与能力服务</h2><span class="sub" title="共享缓存30秒新鲜期；延迟时保留最多5分钟的上次结果并显示更新时间">更新于 18:50:14</span><span class="sub">平台组件每次调用都会经过；能力服务在 manifest 声明、授权后使用</span><span class="sp"></span><button class="btn" data-act="ext" data-n="rag-forge 控制台">rag-forge 控制台 ↗</button></div>
   ${tabs('services',[['platform','平台组件 · '+plat.length],['caps','能力服务 · '+CAPS.length,1],['rag','rag-forge 知识检索 · '+KB_ROWS.length+' 个知识库'],['sandbox','研发沙箱']])}${body}`;
 };
 

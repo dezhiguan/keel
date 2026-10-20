@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import InsightSyncStatus from '@/components/InsightSyncStatus.vue'
 import { ElMessage } from 'element-plus'
 import AgentName from '@/components/AgentName.vue'
 import Pager from '@/components/Pager.vue'
@@ -30,6 +31,7 @@ const envStore = useEnvStore()
 const data = ref<SharedServices | null>(null)
 const tab = ref<'platform' | 'caps' | 'rag' | 'sandbox'>('platform')
 const loading = ref(false)
+const failed = ref(false)
 const healthPage = ref(1)
 const healthSize = ref<PageSize>(10)
 const kbPage = ref(1)
@@ -78,20 +80,41 @@ function recallText(value: number | null | undefined) {
   return value == null || Number.isNaN(value) ? '—' : String(value)
 }
 
-async function load() {
-  loading.value = true
+let loadSequence = 0
+let controller: AbortController | undefined
+let poll: ReturnType<typeof setTimeout> | undefined
+let disposed = false
+async function load(background = false) {
+  const sequence = ++loadSequence
+  clearTimeout(poll)
+  controller?.abort()
+  const current = new AbortController()
+  controller = current
+  if (!background) loading.value = true
+  failed.value = false
   try {
-    data.value = await getSharedServices(envStore.env)
-    healthPage.value = 1
-    kbPage.value = 1
+    const next = await getSharedServices(envStore.env, current.signal)
+    if (sequence !== loadSequence) return
+    data.value = next
+    if (!background) { healthPage.value = 1; kbPage.value = 1 }
   } catch (error) {
-    ElMessage.error(`加载共享服务失败：${toKeelError(error).message}`)
+    if (sequence !== loadSequence || current.signal.aborted) return
+    failed.value = true
+    const collectedAt = Date.parse(data.value?.dataStatus?.updatedAt ?? '')
+    if (!Number.isFinite(collectedAt) || Date.now() - collectedAt >= 300000) data.value = null
+    else if (data.value) data.value = { ...data.value, dataStatus: { ...data.value.dataStatus, state: 'stale' } }
+    if (!background) ElMessage.error(`加载共享服务失败：${toKeelError(error).message}`)
   } finally {
-    loading.value = false
+    if (sequence === loadSequence && !disposed) {
+      loading.value = false
+      poll = setTimeout(() => load(true), 30000)
+    }
   }
 }
 
-watch(() => envStore.env, load, { immediate: true })
+watch(() => envStore.env, () => { data.value = null; load() }, { immediate: true })
+onBeforeUnmount(() => { disposed = true; ++loadSequence; clearTimeout(poll); controller?.abort() })
+
 </script>
 
 <template>
@@ -99,6 +122,9 @@ watch(() => envStore.env, load, { immediate: true })
     <div class="vh">
       <h2>平台与能力服务</h2>
       <span class="sub">平台组件每次调用都会经过；能力服务在 manifest 声明、授权后使用</span>
+      <InsightSyncStatus :status="data?.dataStatus" :loading="loading" :failed="failed" subject="服务状态">
+        <button v-if="failed || data?.dataStatus?.state === 'stale'" class="btn sm" @click="load()">重试</button>
+      </InsightSyncStatus>
       <span class="sp"></span>
       <a class="btn" :href="consoleUrl" target="_blank" rel="noopener">rag-forge 控制台 ↗</a>
     </div>

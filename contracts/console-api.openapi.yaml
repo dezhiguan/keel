@@ -4025,6 +4025,7 @@ components:
     SharedServices:
       type: object
       properties:
+        dataStatus: { $ref: "#/components/schemas/InsightDataStatus" }
         services:
           type: array
           items:

@@ -100,6 +100,11 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            - name: KEEL_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: keel-llm
+                  key: redis-url
             - name: KEEL_SERVER_URL
               value: http://keel-server.keel-system.svc.cluster.local:8080
             - name: KEEL_SERVICE_AUDIENCE

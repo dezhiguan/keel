@@ -25,7 +25,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -36,7 +35,7 @@ import java.util.function.Supplier;
 public class SharedServiceMonitor {
     private static final ExecutorService PROBES = Executors.newVirtualThreadPerTaskExecutor();
     private static final Duration RETRIEVAL_TTL = Duration.ofMinutes(3);
-    private static final Duration SERVICES_TTL = Duration.ofSeconds(30);
+
     private static final Duration RECALL_TTL = Duration.ofMinutes(3);
 
     private final RagForgeInsightClient ragforge;
@@ -49,13 +48,11 @@ public class SharedServiceMonitor {
     private final AtomicBoolean retrievalRefresh = new AtomicBoolean();
     private List<LangfuseClient.Retrieval> retrievalCache;
     private Instant retrievalCachedAt;
-    private final Map<String, CachedServices> servicesCache = new ConcurrentHashMap<>();
-    private final Map<String, CompletableFuture<CachedServices>> servicesInFlight = new ConcurrentHashMap<>();
-    private final Set<String> refreshingServices = ConcurrentHashMap.newKeySet();
+    @Autowired
+    private SharedServicesCache serviceSnapshots = new SharedServicesCache(null,new com.fasterxml.jackson.databind.ObjectMapper());
     private final Map<String, CachedRecall> recallCache = new ConcurrentHashMap<>();
     private final AtomicBoolean recallRefresh = new AtomicBoolean();
 
-    private record CachedServices(Map<String, Object> value, Instant at) {}
     private record CachedRecall(JsonNode value, Instant at) {}
 
     public SharedServiceMonitor(RagForgeInsightClient ragforge, LiteLlmClient gateway) {
@@ -100,37 +97,16 @@ public class SharedServiceMonitor {
 
     public Map<String, Object> services(String env) {
         var scope = env == null || env.isBlank() ? "all" : env;
-        var cached = servicesCache.get(scope);
-        if (cached != null) {
-            if (cached.at().plus(SERVICES_TTL).isBefore(Instant.now()) && refreshingServices.add(scope)) {
-                PROBES.execute(() -> {
-                    try {
-                        servicesCache.put(scope, new CachedServices(loadServices(scope), Instant.now()));
-                    } catch (RuntimeException ignored) {
-                        // Keep the last measured snapshot while an upstream is unavailable.
-                    } finally {
-                        refreshingServices.remove(scope);
-                    }
-                });
-            }
-            return cached.value();
-        }
-        var created = new CompletableFuture<CachedServices>();
-        var existing = servicesInFlight.putIfAbsent(scope, created);
-        if (existing != null) {
-            return existing.join().value();
-        }
-        try {
-            var result = new CachedServices(loadServices(scope), Instant.now());
-            servicesCache.put(scope, result);
-            created.complete(result);
-            return result.value();
-        } catch (RuntimeException e) {
-            created.completeExceptionally(e);
-            throw e;
-        } finally {
-            servicesInFlight.remove(scope, created);
-        }
+        return serviceSnapshots.get(scope,() -> loadServices(scope));
+    }
+
+    @org.springframework.scheduling.annotation.Scheduled(initialDelay=3000,fixedDelay=30000)
+    public void warmServices() {
+        if (!serviceSnapshots.sharedConfigured()) return;
+        PROBES.execute(() -> {
+            try { services("all"); }
+            catch (RuntimeException ignored) { /* A failed warmup never blocks startup or other platform functions. */ }
+        });
     }
 
     private Map<String, Object> loadServices(String scope) {
