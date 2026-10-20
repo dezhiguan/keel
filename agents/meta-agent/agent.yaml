@@ -3,7 +3,7 @@ kind: Agent
 metadata:
   name: meta-agent
   displayName: 元智能体
-  owner: 研发效能组 / amy
+  owner: 研发效能组 / 官德志
 spec:
   kind: workflow
   skills:
