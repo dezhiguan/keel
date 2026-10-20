@@ -41,6 +41,8 @@ public class AgentRegistryService {
     private ElementEvidence elementEvidence;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private MemoryService memories;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private VersionEvidence versionEvidence;
 
     public AgentRegistryService(AgentMapper agentMapper, AgentVersionMapper versionMapper,
                                 AgentInstanceMapper instanceMapper, ResourceLedger ledger, ObjectMapper json,
@@ -149,13 +151,18 @@ public class AgentRegistryService {
                     .toList();
         }
         var detail = AgentDetail.of(agent, latest, instanceLabel, instances, manifest, resources)
-                .withVersions(versions.stream().map(AgentDetail.VersionRow::of).toList());
+                .withVersions(versionRows(name, versions));
         if (evidence && memories != null && manifest != null) {
             var counts = memories.counts(name);
             detail = detail.withMemory(AgentDetail.memoryStatus(agent, manifest, counts.user(), counts.task(), counts.experience()));
         }
         if (evidence && elementEvidence != null) detail = elementEvidence.apply(detail);
         return !evidence || selfCheckRecords == null ? detail : selfCheckRecords.apply(detail);
+    }
+
+    private List<AgentDetail.VersionRow> versionRows(String name, List<AgentVersion> versions) {
+        if (versionEvidence == null) return versions.stream().map(AgentDetail.VersionRow::of).toList();
+        return versionEvidence.attach(name, versions);
     }
 
     public Map<String, Object> nameCheck(String name) {

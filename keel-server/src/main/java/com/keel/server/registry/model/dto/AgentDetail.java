@@ -282,12 +282,18 @@ public record AgentDetail(
 
     public record ResourceRow(String type, String externalId, String status) {}
 
-    /** 版本页一行。评测分不在 agent_version 上，当前版本由控制台用智能体评分补上。 */
+    /** 版本页一行。评测分和门禁由 VersionEvidence 按该版本的评测或发布记录补上。 */
     public record VersionRow(String version, String env, Boolean gatePassed, Double scoreTotal,
                              String image, String ciRunUrl, String releasedBy, String releasedAt) {
         public static VersionRow of(AgentVersion row) {
             return new VersionRow(row.getVersion(), row.getEnv(), null, null, row.getImage(), null,
                     row.getReleasedBy(), row.getReleasedAt() == null ? null : row.getReleasedAt().toString());
+        }
+
+        public VersionRow withEvaluation(Boolean gate, Double score) {
+            if (gate == null && score == null) return this;
+            return new VersionRow(version, env, gate != null ? gate : gatePassed, score != null ? score : scoreTotal,
+                    image, ciRunUrl, releasedBy, releasedAt);
         }
     }
 
