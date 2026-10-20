@@ -170,17 +170,18 @@ export function describeLiveFrame(event: string, data: string): LiveFrame | null
     const summary = body.action ? `${text('name')} · ${text('mode')} · ${actions[text('action')] || text('action')}` : ''
     return { kind: 'guardrail', text: text('message') || text('text') || summary || data, hit: body.hit === true || data.includes('命中') }
   }
-  if (event === 'suspend') return { kind: 'step', text: text('prompt') || '等待继续' }
+  if (event === 'suspend') return { kind: 'step', text: text('prompt') || '等待继续', answer: text('prompt') || '等待继续', traceId: text('trace_id') || null }
   return null
 }
 
-export type SseState = 'idle' | 'streaming' | 'done' | 'stopped' | 'blocked' | 'failed'
+export type SseState = 'idle' | 'streaming' | 'done' | 'stopped' | 'blocked' | 'failed' | 'suspended'
 
 export const SSE_LABEL: Record<SseState, { text: string; cls: string }> = {
   idle: { text: '空闲', cls: 'p-mute' },
   streaming: { text: '流式中', cls: 'p-ok' },
   done: { text: '已完成', cls: 'p-mute' },
   stopped: { text: '已停止', cls: 'p-warn' },
+  suspended: { text: '等待人工处理', cls: 'p-warn' },
   blocked: { text: '已拦截', cls: 'p-bad' },
   failed: { text: '失败', cls: 'p-bad' },
 }

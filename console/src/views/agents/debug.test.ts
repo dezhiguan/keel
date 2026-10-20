@@ -89,6 +89,7 @@ describe('agent debug', () => {
     expect(first.rest).toBe('event: fin')
     const done = takeSseFrames(`${first.rest}al\ndata: {"answer":"你好","trace_id":"tr_1","run_id":"r"}\n\n`)
     expect(describeLiveFrame(done.frames[0].event, done.frames[0].data)).toMatchObject({ kind: 'final', answer: '你好', traceId: 'tr_1' })
+    expect(describeLiveFrame('suspend', '{"prompt":"请确认需求","trace_id":"tr_wait"}')).toMatchObject({ kind: 'step', answer: '请确认需求', traceId: 'tr_wait' })
     expect(describeLiveFrame('token', '{"text":"你"}')?.token).toBe('你')
     expect(describeLiveFrame('error', '{"code":"GUARD_INJECTION_BLOCKED","message":"拦截"}')?.blocked).toBe(true)
     expect(describeLiveFrame('guardrail', '{"message":"输入注入 · 命中"}')?.hit).toBe(true)

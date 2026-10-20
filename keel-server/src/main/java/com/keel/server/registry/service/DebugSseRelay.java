@@ -9,7 +9,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
-/** Copy an agent SSE stream to the console and keep the final answer. */
+/** Copy an agent SSE stream to the console and keep the final or suspended reply. */
 public final class DebugSseRelay {
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -39,7 +39,8 @@ public final class DebugSseRelay {
                             tainted = true;
                         }
                     }
-                    if ("final".equals(event)) seen = parseFinal(data.toString(), !tainted);
+                    if ("final".equals(event)) seen = parseReply(data.toString(), "answer", !tainted);
+                    if ("suspend".equals(event)) seen = parseReply(data.toString(), "prompt", false);
                     event = "";
                     data.setLength(0);
                     continue;
@@ -56,12 +57,12 @@ public final class DebugSseRelay {
         return seen;
     }
 
-    private static Final parseFinal(String body, boolean rememberable) {
+    private static Final parseReply(String body, String field, boolean rememberable) {
         try {
             var node = JSON.readTree(body);
             var trace = node.path("trace_id").asText("");
-            if (!node.path("answer").isTextual() || trace.isBlank()) return null;
-            return new Final(node.path("answer").asText(), trace, rememberable);
+            if (!node.path(field).isTextual() || trace.isBlank()) return null;
+            return new Final(node.path(field).asText(), trace, rememberable);
         } catch (IOException error) {
             return null;
         }

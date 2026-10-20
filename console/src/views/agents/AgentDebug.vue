@@ -252,6 +252,7 @@ async function sendChat() {
   let traceId: string | null = null
   let failed = ''
   let blockedCall = false
+  let suspended = false
   try {
     await streamAgentChat(name.value, text, session.id, abort.signal, (frame) => {
       const live = describeLiveFrame(frame.event, frame.data)
@@ -260,6 +261,7 @@ async function sendChat() {
         liveText.value = `${liveText.value ?? ''}${live.token}`
         scrollEnd(threadEl.value)
       }
+      if (frame.event === 'suspend') suspended = true
       if (live.answer) answer = live.answer
       if (live.traceId) traceId = live.traceId
       if (live.kind === 'error') {
@@ -274,6 +276,9 @@ async function sendChat() {
     if (failed) {
       session.messages.push({ role: 'agent', text: failed, error: true, meta: blockedCall ? '护栏已拦截' : undefined })
       sse.value = blockedCall ? 'blocked' : 'failed'
+    } else if (suspended) {
+      session.messages.push({ role: 'agent', text: answer || '等待继续', traceId, meta: '等待人工处理' })
+      sse.value = 'suspended'
     } else if (answer || traceId) {
       const textAnswer = answer.trim() || liveText.value || '（空回复）'
       session.messages.push({ role: 'agent', text: textAnswer, traceId, meta: fmtMs(ms) })

@@ -34,6 +34,16 @@ class DebugSseRelayTest {
         assertThat(out.toString(StandardCharsets.UTF_8)).contains("event: token").contains("你好");
     }
 
+    @Test void suspendedRepliesAreValidTerminalsWithoutInventingFinalOrPersistingResumeCredentials() throws Exception {
+        var raw = "event: suspend\ndata: {\"prompt\":\"请确认需求\",\"trace_id\":\"tr_wait\",\"resume_token\":\"test-resume-token\"}\n\n";
+        var out = new ByteArrayOutputStream();
+        var reply = DebugSseRelay.copy(new ByteArrayInputStream(raw.getBytes(StandardCharsets.UTF_8)),out);
+        assertThat(reply.answer()).isEqualTo("请确认需求");
+        assertThat(reply.traceId()).isEqualTo("tr_wait");
+        assertThat(reply.rememberable()).isFalse();
+        assertThat(out.toString(StandardCharsets.UTF_8)).contains("event: suspend").doesNotContain("event: final");
+    }
+
     @Test void returnsNullWhenTheStreamEndsWithoutFinal() throws Exception {
         var raw = "event: error\ndata: {\"message\":\"失败\"}\n\n";
         var fin = DebugSseRelay.copy(new ByteArrayInputStream(raw.getBytes(StandardCharsets.UTF_8)), new ByteArrayOutputStream());
