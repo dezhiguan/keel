@@ -59,6 +59,13 @@ class GuardrailPageTest {
         var checks = (List<?>) page.get("checks");
         assertNull(((java.util.Map<?, ?>) checks.get(0)).get("hits"));
         assertEquals("shadow", ((java.util.Map<?, ?>) checks.get(0)).get("mode"));
+        assertEquals("off", ((java.util.Map<?, ?>) checks.get(4)).get("mode"));
+    }
+
+    @Test
+    void missingPiiInARegisteredManifestDoesNotPretendMaskingIsEnabled() throws Exception {
+        var manifest = json.readTree("{\"spec\":{\"guardrails\":{\"inputInjection\":\"enforce\"}}}");
+        assertEquals("off", GuardrailPage.readModes(manifest).get("pii"));
     }
 
     @Test

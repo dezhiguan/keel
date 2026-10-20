@@ -8,6 +8,7 @@ import com.keel.server.common.KeelException;
 import com.keel.server.integration.langfuse.LangfuseClient;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.nio.charset.StandardCharsets;
 import java.net.URI;
@@ -28,11 +29,14 @@ public class GuardrailService {
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
     private final LangfuseClient langfuse;
+    private final String metaBridgeToken;
 
-    public GuardrailService(JdbcTemplate jdbc, ObjectMapper json, LangfuseClient langfuse) {
+    public GuardrailService(JdbcTemplate jdbc, ObjectMapper json, LangfuseClient langfuse,
+                            @Value("${KEEL_META_AGENT_TOKEN:}") String metaBridgeToken) {
         this.jdbc = jdbc;
         this.json = json;
         this.langfuse = langfuse;
+        this.metaBridgeToken = metaBridgeToken;
     }
 
     public java.util.Map<String, Object> page(String name) {
@@ -52,18 +56,31 @@ public class GuardrailService {
         if (endpoint.isBlank()) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "智能体尚未配置运行服务，无法验证护栏");
         }
-        return probe(json, endpoint, source, text == null ? "" : text);
+        return probe(json, endpoint, source, text == null ? "" : text, name, metaBridgeToken);
     }
 
     static java.util.Map<String, Object> probe(ObjectMapper json, String endpoint, String source, String text) {
+        return probe(json, endpoint, source, text, null, null);
+    }
+
+    static java.util.Map<String, Object> probe(ObjectMapper json, String endpoint, String source, String text,
+                                              String agent, String metaBridgeToken) {
         if (!List.of("user", "tool", "kb").contains(source) || text.length() > 20000) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "检测来源无效或内容超过 20000 字符");
         }
         try {
             var body = json.createObjectNode().put("source", source).put("text", text);
-            var response = HTTP.send(HttpRequest.newBuilder(URI.create(endpoint.replaceAll("/+$", "") + "/v1/guard/check"))
-                    .timeout(Duration.ofSeconds(8)).header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(body.toString())).build(), HttpResponse.BodyHandlers.ofString());
+            var request = HttpRequest.newBuilder(URI.create(endpoint.replaceAll("/+$", "") + "/v1/guard/check"))
+                    .timeout(Duration.ofSeconds(8)).header("Content-Type", "application/json");
+            if ("meta-agent".equals(agent) && metaBridgeToken != null && !metaBridgeToken.isBlank()) {
+                request.header("X-Keel-Bridge", metaBridgeToken);
+            }
+            var response = HTTP.send(request.POST(HttpRequest.BodyPublishers.ofString(body.toString())).build(),
+                    HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 401 || response.statusCode() == 403) {
+                throw new KeelException(ErrorCode.SERVER_INTERNAL_ERROR,
+                        "运行实例护栏检测认证失败（HTTP " + response.statusCode() + "），请检查平台与运行实例的内部认证配置");
+            }
             if (response.statusCode() != 200) {
                 throw new KeelException(ErrorCode.SERVER_INTERNAL_ERROR,
                         "运行实例护栏检测失败（HTTP " + response.statusCode() + "），请确认 SDK 已支持护栏并重新部署");

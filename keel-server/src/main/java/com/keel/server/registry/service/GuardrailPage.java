@@ -19,7 +19,7 @@ public final class GuardrailPage {
             new Check("indirect", "工具 / 知识库内容注入", "间接注入", List.of("off", "shadow", "enforce"), "indirectInjection", "off"),
             new Check("tainted", "不可信内容后调高风险工具", "污点规则", List.of("审批", "拦截"), "taintedTool", "审批"),
             new Check("canary", "系统提示词泄露", "canary 标记", List.of("off", "enforce"), "canary", "off"),
-            new Check("pii", "PII", "输出中的大陆手机号、身份证号", List.of("off", "mask"), "pii", "mask"));
+            new Check("pii", "PII", "输出中的大陆手机号、身份证号", List.of("off", "mask"), "pii", "off"));
 
     private GuardrailPage() {}
 

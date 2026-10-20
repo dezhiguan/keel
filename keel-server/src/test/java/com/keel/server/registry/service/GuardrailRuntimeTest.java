@@ -13,6 +13,50 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class GuardrailRuntimeTest {
     private final ObjectMapper json = new ObjectMapper();
 
+    @Test void authenticatesMetaAgentWithoutLeakingItsCredentialToOtherAgents() throws Exception {
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        var received = new java.util.ArrayList<String>();
+        server.createContext("/v1/guard/check", exchange -> {
+            received.add(exchange.getRequestHeaders().getFirst("X-Keel-Bridge"));
+            var body = """
+                    {"source":"user","mode":"enforce","kind":"clear","tone":"ok","hit":false,
+                     "instanceId":"protected-pod","version":"v2","latencyMs":1}
+                    """.getBytes(StandardCharsets.UTF_8);
+            if (received.size() == 1 && !"test-internal-bridge".equals(received.getFirst())) {
+                exchange.sendResponseHeaders(401, -1);
+            } else {
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            }
+            exchange.close();
+        });
+        server.start();
+        try {
+            var endpoint = "http://127.0.0.1:" + server.getAddress().getPort();
+            assertThat(GuardrailService.probe(json, endpoint, "user", "正常需求", "meta-agent", "test-internal-bridge"))
+                    .containsEntry("instanceId", "protected-pod");
+            GuardrailService.probe(json, endpoint, "user", "正常需求", "other-agent", "test-internal-bridge");
+            assertThat(received).containsExactly("test-internal-bridge", null);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test void authenticationFailureIsNotReportedAsAnUnsupportedSdk() throws Exception {
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/v1/guard/check", exchange -> {
+            exchange.sendResponseHeaders(401, -1);
+            exchange.close();
+        });
+        server.start();
+        try {
+            assertThatThrownBy(() -> GuardrailService.probe(json, "http://127.0.0.1:" + server.getAddress().getPort(), "user", "正常需求"))
+                    .hasMessageContaining("认证失败").hasMessageContaining("HTTP 401");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     @Test void reportsTheDeployedModeAndIdentityWithoutSimulatingARegisteredRule() throws Exception {
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/v1/guard/check", exchange -> {
