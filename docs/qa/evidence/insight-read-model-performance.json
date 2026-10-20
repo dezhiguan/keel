@@ -1,0 +1,498 @@
+{
+  "date": "2026-10-20",
+  "account": {
+    "displayName": "官德志",
+    "userId": "54"
+  },
+  "sourceCommits": [
+    "90761d4cbc146d14e2ee1bb130cd6f0ab4daf83b",
+    "c00d383969c45144689d912a03c2ba98269bb3fa",
+    "18c5c627f7cd23b68682af35548ba34e2dbb746a",
+    "dbb7619e19a319695d324c1ecf0ba3516ca4fae9"
+  ],
+  "deployed": {
+    "server": "dbb7619e19a3",
+    "console": "dbb7619e19a3",
+    "replicas": {
+      "server": "2/2",
+      "console": "2/2",
+      "metaAgent": "2/2"
+    },
+    "metaAgentImage": "81e225616a68",
+    "migration": 30
+  },
+  "workflows": {
+    "ci": {
+      "id": 39409035052,
+      "conclusion": "success"
+    },
+    "cd": {
+      "id": 39409034968,
+      "conclusion": "success"
+    },
+    "serverTest": {
+      "job": 118582004808,
+      "tests": 382,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "baseline": {
+    "overview": {
+      "status": 200,
+      "ms": 3910
+    },
+    "traces": {
+      "status": 429,
+      "ms": 3569
+    }
+  },
+  "firstDeployment": {
+    "overview": {
+      "ms": 348,
+      "status": 200,
+      "bytes": 11813,
+      "costCny": 3.2922650000000035,
+      "pendingModelBills": 6,
+      "calls": 55,
+      "sync": "loading"
+    },
+    "traces": {
+      "ms": 552,
+      "status": 200,
+      "bytes": 5111,
+      "total": 1688,
+      "items": 10,
+      "sync": "loading"
+    },
+    "compactJobs": {
+      "ms": 302,
+      "status": 200,
+      "bytes": 10709,
+      "items": 17
+    }
+  },
+  "filters": [
+    {
+      "env": "all",
+      "status": 200,
+      "ms": 74,
+      "total": 3311,
+      "valid": true,
+      "sync": {
+        "state": "stale",
+        "complete": true,
+        "updatedAt": "2026-10-20T10:27:51.037447Z",
+        "from": "2026-09-20T10:24:07.856049400Z",
+        "to": "2026-10-20T10:24:07.856049400Z"
+      }
+    },
+    {
+      "env": "prod",
+      "status": 200,
+      "ms": 73,
+      "total": 519,
+      "valid": true,
+      "sync": {
+        "state": "stale",
+        "complete": true,
+        "updatedAt": "2026-10-20T10:27:51.037447Z",
+        "from": "2026-09-20T10:24:07.856049400Z",
+        "to": "2026-10-20T10:24:07.856049400Z"
+      }
+    },
+    {
+      "env": "staging",
+      "status": 200,
+      "ms": 89,
+      "total": 118,
+      "valid": true,
+      "sync": {
+        "state": "stale",
+        "complete": true,
+        "updatedAt": "2026-10-20T10:27:51.037447Z",
+        "from": "2026-09-20T10:24:07.856049400Z",
+        "to": "2026-10-20T10:24:07.856049400Z"
+      }
+    },
+    {
+      "env": "test",
+      "status": 200,
+      "ms": 98,
+      "total": 0,
+      "valid": true,
+      "sync": {
+        "state": "stale",
+        "complete": true,
+        "updatedAt": "2026-10-20T10:27:51.037447Z",
+        "from": "2026-09-20T10:24:07.856049400Z",
+        "to": "2026-10-20T10:24:07.856049400Z"
+      }
+    },
+    {
+      "env": "dev",
+      "status": 200,
+      "ms": 81,
+      "total": 2673,
+      "valid": true,
+      "sync": {
+        "state": "stale",
+        "complete": true,
+        "updatedAt": "2026-10-20T10:27:51.037447Z",
+        "from": "2026-09-20T10:24:07.856049400Z",
+        "to": "2026-10-20T10:24:07.856049400Z"
+      }
+    },
+    {
+      "jobId": "QA-DEBUG-1020",
+      "total": 2,
+      "valid": true,
+      "cost": 0.00457,
+      "tokens": 2532
+    }
+  ],
+  "failureUi": {
+    "fault": {
+      "mode": "error",
+      "sent": 2,
+      "aborted": 0
+    },
+    "sync": "统计暂无法更新，请重试更新于 18:30:02重试",
+    "overlay": false,
+    "spinner": false,
+    "rows": 10,
+    "keptKnownCost": true,
+    "retry": true
+  },
+  "independentLoading": {
+    "atMs": 800,
+    "requests": {
+      "sent": 2,
+      "pending": 1,
+      "completed": 0,
+      "aborted": 1
+    },
+    "overlay": false,
+    "knownCost": true,
+    "rows": 10,
+    "title": "运行总览",
+    "after": {
+      "sent": 2,
+      "pending": 0,
+      "completed": 1,
+      "aborted": 1
+    }
+  },
+  "cancellation": {
+    "whileLoading": {
+      "overlay": false,
+      "spinner": true,
+      "header": "调用链路"
+    },
+    "sent": 1,
+    "aborted": 1,
+    "pending": 0,
+    "cancelledAll": true
+  },
+  "restarted": {
+    "at": "2026-10-20T10:43:55.198Z",
+    "results": [
+      {
+        "kind": "traces",
+        "status": 200,
+        "ms": 105,
+        "total": 3311,
+        "sync": {
+          "state": "ready",
+          "complete": true,
+          "updatedAt": "2026-10-20T10:42:37.732392Z",
+          "from": "2026-09-20T10:24:07.856049400Z",
+          "to": "2026-10-20T10:43:10.564975381Z"
+        }
+      },
+      {
+        "kind": "overview",
+        "status": 200,
+        "ms": 140,
+        "sync": {
+          "state": "ready",
+          "complete": true,
+          "updatedAt": "2026-10-20T10:42:39.130084Z",
+          "from": null,
+          "to": null
+        },
+        "kpi": {
+          "onlineAgents": 15,
+          "totalAgents": 15,
+          "bizCount": 2,
+          "devCount": 10,
+          "calls": 52,
+          "callsTrendPct": 50,
+          "modelCostCny": 3.0772240000000046,
+          "avgScore": 0.98,
+          "gateThreshold": 0.85,
+          "pendingApprovals": 0,
+          "pendingModelBills": 5
+        },
+        "cumulative": {
+          "agents": 15,
+          "calls": 2738,
+          "tokens": 10245482,
+          "costCny": 11.474001,
+          "users": 1,
+          "since": "2026-10-15"
+        }
+      }
+    ]
+  },
+  "final": {
+    "at": "2026-10-20T10:44:40.101Z",
+    "runs": [
+      {
+        "kind": "traces",
+        "status": 200,
+        "ms": 72,
+        "total": 3311,
+        "sync": "ready",
+        "complete": true
+      },
+      {
+        "kind": "overview",
+        "status": 200,
+        "ms": 33,
+        "sync": "ready",
+        "complete": true
+      },
+      {
+        "kind": "traces",
+        "status": 200,
+        "ms": 59,
+        "total": 3311,
+        "sync": "ready",
+        "complete": true
+      },
+      {
+        "kind": "overview",
+        "status": 200,
+        "ms": 27,
+        "sync": "ready",
+        "complete": true
+      },
+      {
+        "kind": "traces",
+        "status": 200,
+        "ms": 61,
+        "total": 3311,
+        "sync": "ready",
+        "complete": true
+      },
+      {
+        "kind": "overview",
+        "status": 200,
+        "ms": 37,
+        "sync": "ready",
+        "complete": true
+      },
+      {
+        "kind": "traces",
+        "status": 200,
+        "ms": 57,
+        "total": 3311,
+        "sync": "ready",
+        "complete": true
+      },
+      {
+        "kind": "overview",
+        "status": 200,
+        "ms": 29,
+        "sync": "ready",
+        "complete": true
+      },
+      {
+        "kind": "traces",
+        "status": 200,
+        "ms": 77,
+        "total": 3311,
+        "sync": "ready",
+        "complete": true
+      },
+      {
+        "kind": "overview",
+        "status": 200,
+        "ms": 30,
+        "sync": "ready",
+        "complete": true
+      },
+      {
+        "kind": "traces",
+        "status": 200,
+        "ms": 63,
+        "total": 3311,
+        "sync": "ready",
+        "complete": true
+      },
+      {
+        "kind": "overview",
+        "status": 200,
+        "ms": 29,
+        "sync": "ready",
+        "complete": true
+      },
+      {
+        "kind": "traces",
+        "status": 200,
+        "ms": 70,
+        "total": 3311,
+        "sync": "ready",
+        "complete": true
+      },
+      {
+        "kind": "overview",
+        "status": 200,
+        "ms": 27,
+        "sync": "ready",
+        "complete": true
+      },
+      {
+        "kind": "traces",
+        "status": 200,
+        "ms": 58,
+        "total": 3311,
+        "sync": "ready",
+        "complete": true
+      },
+      {
+        "kind": "overview",
+        "status": 200,
+        "ms": 28,
+        "sync": "ready",
+        "complete": true
+      }
+    ],
+    "dom": {
+      "url": "/overview",
+      "overlay": false,
+      "rows": 10,
+      "sync": "更新于 18:44:02",
+      "patchRemaining": false
+    },
+    "resources": [
+      {
+        "path": "/api/v1/devflow/jobs",
+        "ms": 75
+      },
+      {
+        "path": "/api/v1/insight/overview",
+        "ms": 145
+      }
+    ]
+  },
+  "finalWindowUi": [
+    {
+      "label": "今日",
+      "selected": true,
+      "overlay": false,
+      "rows": 10,
+      "cost": "¥1.45",
+      "sync": "更新于 18:45:10"
+    },
+    {
+      "label": "7 天",
+      "selected": true,
+      "overlay": false,
+      "rows": 10,
+      "cost": "¥11.51",
+      "sync": "更新于 18:45:10"
+    },
+    {
+      "label": "30 天",
+      "selected": true,
+      "overlay": false,
+      "rows": 10,
+      "cost": "¥11.65",
+      "sync": "更新于 18:45:10"
+    },
+    {
+      "label": "累计",
+      "selected": true,
+      "overlay": false,
+      "rows": 10,
+      "cost": "¥11.47",
+      "sync": "更新于 18:45:10"
+    },
+    {
+      "label": "24 小时",
+      "selected": true,
+      "overlay": false,
+      "rows": 10,
+      "cost": "¥3.08",
+      "sync": "更新于 18:45:08"
+    }
+  ],
+  "finalWindowsAndPipelinePolling": {
+    "windows": [
+      {
+        "range": "today",
+        "status": 200,
+        "state": "ready",
+        "complete": true,
+        "cost": 1.45368
+      },
+      {
+        "range": "24h",
+        "status": 200,
+        "state": "ready",
+        "complete": true,
+        "cost": 3.0772240000000046
+      },
+      {
+        "range": "7d",
+        "status": 200,
+        "state": "ready",
+        "complete": true,
+        "cost": 11.50910899999996
+      },
+      {
+        "range": "30d",
+        "status": 200,
+        "state": "ready",
+        "complete": true,
+        "cost": 11.651076999999933
+      },
+      {
+        "range": "all",
+        "status": 200,
+        "state": "ready",
+        "complete": true,
+        "cost": 11.474001
+      }
+    ],
+    "pipelineRequests": [
+      {
+        "ms": 75,
+        "startMs": 1131
+      },
+      {
+        "ms": 687,
+        "startMs": 31335
+      },
+      {
+        "ms": 502,
+        "startMs": 62025
+      },
+      {
+        "ms": 27,
+        "startMs": 92535
+      }
+    ],
+    "patched": false
+  },
+  "browserInterceptionsRestored": true,
+  "scopeNotes": [
+    "Measured browser fetch includes network and JSON parsing, not whole-page paint.",
+    "Trace totals are distinct indexed traces plus local calls; cumulative KPI retains existing settled-request daily-ledger semantics.",
+    "24-hour values change as the window moves; the first-deployment settled amount matched the pre-change sample.",
+    "Raw user prompts, credentials, cookies and request headers are excluded from this evidence."
+  ]
+}
