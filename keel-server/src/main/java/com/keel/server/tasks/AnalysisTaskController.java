@@ -25,8 +25,8 @@ public class AnalysisTaskController {
     public R<Map<String,Object>> execution(@RequestBody JsonNode body,@RequestHeader("X-Keel-Env") String env,
         @RequestHeader(value="X-Keel-Trace-Id",defaultValue="") String trace){
         requireService(env,"keel.tasks.execution","read");
-        body.fieldNames().forEachRemaining(k->{if(!Set.of("_authorization","run_id").contains(k))throw TaskContext.denied();});
-        return R.ok(tasks.execution(body.path("_authorization").asText(""),trace,body.path("run_id").asText("")));
+        body.fieldNames().forEachRemaining(k->{if(!Set.of("_authorization","run_id","phase").contains(k))throw TaskContext.denied();});
+        return R.ok(tasks.execution(body.path("_authorization").asText(""),trace,body.path("run_id").asText(""),body.path("phase").asText("load")));
     }
     private void requireService(String env,String tool,String access){
         var actor=ConsolePrincipal.current();

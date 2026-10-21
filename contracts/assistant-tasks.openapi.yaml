@@ -13,7 +13,7 @@ paths:
               additionalProperties: false
               required: [operation, _authorization, _session, _text]
               properties:
-                operation: {enum: [create, get, list, cancel, retry]}
+                operation: {enum: [create, prepare, supply, get, list, cancel, retry]}
                 _authorization: {type: string, description: Short-lived task context; never a read ticket}
                 _session: {type: string}
                 _text: {type: string, maxLength: 20000}
@@ -50,6 +50,7 @@ paths:
               properties:
                 _authorization: {type: string}
                 run_id: {type: string, pattern: '^[a-f0-9]{32}$'}
+                phase: {enum: [load, begin_model], default: load}
       responses:
         '200': {description: Minimum authorized task goal and material, never credentials}
   /api/v1/agents/{name}/task-scope:
@@ -76,7 +77,15 @@ components:
       required: [task_id, state]
       properties:
         task_id: {type: string}
-        state: {type: string}
+        state: {enum: [waiting_input, queued, running, waiting_authorization, validating, succeeded, failed, cancel_requested, cancelled, unknown]}
+        revisions:
+          type: array
+          items:
+            type: object
+            properties:
+              operation: {type: string}
+              trace_id: {type: [string, 'null']}
+              created_at: {type: string}
         cancellation_note: {type: [string, 'null']}
         attempts:
           type: array

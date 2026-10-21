@@ -65,7 +65,7 @@ class CodeCandidateServiceTest {
 
     private ObjectNode analysisCandidate(ObjectNode prior){
         var next=prior.deepCopy();
-        for(var name:java.util.List.of("assistant.tasks.create","assistant.tasks.get","assistant.tasks.list","assistant.tasks.cancel","assistant.tasks.retry","keel.tasks.command","keel.tasks.execution"))
+        for(var name:java.util.List.of("assistant.tasks.create","assistant.tasks.prepare","assistant.tasks.supply","assistant.tasks.get","assistant.tasks.list","assistant.tasks.cancel","assistant.tasks.retry","keel.tasks.command","keel.tasks.execution"))
             next.withObject("/spec").withArray("tools").addObject().put("name",name)
                 .put("access",java.util.Set.of("assistant.tasks.get","assistant.tasks.list","keel.tasks.execution").contains(name)?"read":"write").put("risk","low").put("approval","none");
         return next;

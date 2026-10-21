@@ -241,7 +241,7 @@ export interface paths {
         get?: never;
         /**
          * 更新代码智能体的未发布候选配置
-         * @description 仅更新候选v0，不修改已发布快照。身份、运行地址、预算和护栏保持原样；技能须已授权。keel-assistant/staging仅在真实USER已明确启用同组织task scope及两项1.0.0远程grant后，可加入固定七项资料分析工具声明，原工具权限不变。reconcileRuntime仅供管理员核对已登记运行端的历史清单漂移，允许对齐已有本地工具、审计字段及不降低的门禁，不授予共享工具权限。评测进行中拒绝更新，发布仍走完整评测门禁。
+         * @description 仅更新候选v0，不修改已发布快照。身份、运行地址、预算和护栏保持原样；技能须已授权。keel-assistant/staging仅在真实USER已明确启用同组织task scope及两项1.0.0远程grant后，可加入固定九项资料分析工具声明，原工具权限不变。reconcileRuntime仅供管理员核对已登记运行端的历史清单漂移，允许对齐已有本地工具、审计字段及不降低的门禁，不授予共享工具权限。评测进行中拒绝更新，发布仍走完整评测门禁。
          */
         put: {
             parameters: {

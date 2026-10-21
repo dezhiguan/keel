@@ -112,6 +112,7 @@ public class CodeCandidateService {
 
     private static final Map<String,String> ANALYSIS_TOOLS=Map.of(
         "assistant.tasks.create","write","assistant.tasks.get","read","assistant.tasks.list","read",
+        "assistant.tasks.prepare","write","assistant.tasks.supply","write",
         "assistant.tasks.cancel","write","assistant.tasks.retry","write",
         "keel.tasks.command","write","keel.tasks.execution","read");
 
@@ -142,7 +143,7 @@ public class CodeCandidateService {
         for(var tool:prior.path("spec").path("tools")){
             if(!tool.equals(proposed.remove(tool.path("name").asText())))throw invalid("已有工具权限不可变化");
         }
-        if(!proposed.keySet().equals(ANALYSIS_TOOLS.keySet()))throw invalid("只允许完整加入本版固定七项任务工具");
+        if(!proposed.keySet().equals(ANALYSIS_TOOLS.keySet()))throw invalid("只允许完整加入本版固定九项任务工具");
         for(var entry:proposed.entrySet()){
             var tool=entry.getValue();
             if(tool.size()!=4||!ANALYSIS_TOOLS.get(entry.getKey()).equals(tool.path("access").asText())

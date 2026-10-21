@@ -23,13 +23,14 @@ class AnalysisTasksPersistenceTest {
     @BeforeEach void setup()throws Exception{
         db=new JdbcTemplate(new DriverManagerDataSource(System.getenv("KEEL_TASK_PG_URL"),System.getenv().getOrDefault("KEEL_TASK_PG_USER","amy"),System.getenv().getOrDefault("KEEL_TASK_PG_PASSWORD","")));
         assertThat(db.queryForObject("SELECT current_database()",String.class)).isEqualTo("keel_assistant_platform_task_test");
-        db.execute("DROP TABLE IF EXISTS assistant_analysis_attempt,assistant_analysis_task,assistant_analysis_scope,tool_version,tool,agent_tool_grant,agent");
+        db.execute("DROP TABLE IF EXISTS assistant_analysis_command,assistant_analysis_attempt,assistant_analysis_task,assistant_analysis_scope,tool_version,tool,agent_tool_grant,agent");
         db.execute("CREATE TABLE agent(name text PRIMARY KEY,owner_org text,status text)");
         db.execute("INSERT INTO agent VALUES ('keel-assistant','平台组','ONLINE')");
         db.execute("CREATE TABLE agent_tool_grant(agent_name text,tool_name text,version_range text,granted_by text,status text,UNIQUE(agent_name,tool_name,version_range))");
         db.execute("CREATE TABLE tool(name text PRIMARY KEY,scope text,owner_org text,provider text,status text CHECK(status IN ('ONLINE','REGISTERED','RETIRED')))");
         db.execute("CREATE TABLE tool_version(tool_name text,version text,schema_json jsonb,description text,access text,risk text,breaking boolean,UNIQUE(tool_name,version))");
         db.execute(Files.readString(Path.of("src/main/resources/db/migration/V33__assistant_analysis_tasks.sql")));
+        db.execute(Files.readString(Path.of("src/main/resources/db/migration/V34__assistant_task_commands_and_pending_input.sql")));
         db.update("INSERT INTO assistant_analysis_scope VALUES ('keel-assistant','staging','平台组',true,'fixture',now())");
         contexts=new TaskContext(new ConsoleSigningKey(),new ConsoleUsers("fixture-user"));tasks=new AnalysisTasks(db,json,contexts);
     }
@@ -55,6 +56,29 @@ class AnalysisTasksPersistenceTest {
         assertThat(db.queryForObject("SELECT material FROM assistant_analysis_task",String.class)).isEqualTo(material);
         assertThatThrownBy(()->tasks.command(args("create",text+"补充目标","r1","user").put("material",material),"t")).isInstanceOf(RuntimeException.class);
     }
+    @Test void pendingGoalSurvivesRestartAndMaterialSupplyDoesNotNeedChatHistory(){
+        var goal="请生成分析报告，总结主要内容并列出三个风险、依据和建议。";
+        var pending=tasks.command(args("prepare",goal,"draft1","user"),"draft-trace");var id=(String)pending.get("task_id");
+        assertThat(pending.get("state")).isEqualTo("waiting_input");assertThat(tasks.claim("worker")).isNull();
+        var restarted=new AnalysisTasks(db,json,contexts);
+        var supplied=args("supply",material,"supply1","user").put("task_id",id).put("material",material);
+        var queued=restarted.command(supplied,"supply-trace");assertThat(queued.get("state")).isEqualTo("queued");
+        assertThat(queued.get("original_goal")).isEqualTo(goal);assertThat(queued.get("revision")).isEqualTo(2);
+        assertThat(restarted.command(supplied,"supply-trace").get("revision")).isEqualTo(2);
+        assertThat(db.queryForObject("SELECT count(*) FROM assistant_analysis_command",Integer.class)).isEqualTo(2);
+        assertThat(restarted.start(restarted.claim("worker")).get("material")).isEqualTo(material);
+    }
+    @Test void duplicateRetryCannotStartAnAdditionalAttemptAfterFirstResultFails(){
+        var id=(String)create().get("task_id");db.update("UPDATE assistant_analysis_task SET authorized_until=now()-interval '1 second'");tasks.claim("a");
+        var retry=args("retry","确认可能重复计算和费用，重试 "+id,"retry1","user").put("task_id",id).put("acknowledge_duplicate_cost",true);
+        tasks.command(retry,"retry-trace");tasks.finish(tasks.start(tasks.claim("a")),"bad artifact",1,null);
+        var repeated=tasks.command(retry,"retry-trace");assertThat(repeated.get("state")).isEqualTo("failed");
+        assertThat(repeated.get("attempt")).isEqualTo(1);assertThat(tasks.claim("b")).isNull();
+    }
+    @Test void missingAuthenticatedAuthorizationReferenceCannotExecute(){
+        create();db.update("DELETE FROM assistant_analysis_command");assertThat(tasks.claim("a")).isNull();
+        assertThat(db.queryForObject("SELECT state FROM assistant_analysis_task",String.class)).isEqualTo("waiting_authorization");
+    }
     @Test void rejectsDiscussionFakeIdentityMismatchedSessionAndFabricatedMaterial(){
         assertThatThrownBy(()->tasks.command(args("create","我们讨论如何生成分析报告，材料："+material,"r1","user").put("material",material),"t")).isInstanceOf(RuntimeException.class);
         assertThatThrownBy(()->tasks.command(args("create",text,"r1","user").put("user_id","other").put("material",material),"t")).isInstanceOf(RuntimeException.class);
@@ -67,7 +91,7 @@ class AnalysisTasksPersistenceTest {
         var id=(String)create().get("task_id");
         assertThatThrownBy(()->tasks.command(args("get","查询任务","r2","acceptance:qa").put("task_id",id),"t")).isInstanceOf(RuntimeException.class);
         var other=new ConsolePrincipal("USER","fixture-b","fixture-user","fixture","平台组","ADMIN",List.of(),false);
-        var request=get(id).put("_authorization",contexts.issueUser(other,"keel-assistant","staging","s","查询任务","r2",false,"user")).put("_session",TaskContext.hash("fixture-b:s"));
+        var request=get(id).put("_authorization",contexts.issueUser(other,"keel-assistant","staging","s","查询任务 "+id,"r2",false,"user")).put("_session",TaskContext.hash("fixture-b:s"));
         assertThatThrownBy(()->tasks.command(request,"t")).isInstanceOf(RuntimeException.class);
         tasks.command(args("create",text,"r1","acceptance:qa").put("material",material),"t");
         assertThat((List<?>)tasks.command(args("list","查询任务","list1","user"),"t").get("items")).hasSize(1);
@@ -130,6 +154,22 @@ class AnalysisTasksPersistenceTest {
         assertThat(tasks.execution(ticket,"a".repeat(32),"b".repeat(32)).get("material")).isEqualTo(material);
         assertThatThrownBy(()->tasks.execution(ticket,"a".repeat(32),"c".repeat(32))).isInstanceOf(RuntimeException.class);
         assertThatThrownBy(()->contexts.verify(ticket,"user")).isInstanceOf(RuntimeException.class);
+    }
+    @Test void modelPermitIsBoundToRunAndCanOnlyBeginOnce(){
+        create();var task=tasks.start(tasks.claim("worker"));var ticket=contexts.issueExecution(task);
+        tasks.execution(ticket,"a".repeat(32),"b".repeat(32));
+        assertThatThrownBy(()->tasks.execution(ticket,"a".repeat(32),"c".repeat(32),"begin_model")).isInstanceOf(RuntimeException.class);
+        assertThat(tasks.execution(ticket,"a".repeat(32),"b".repeat(32),"begin_model").get("allowed")).isEqualTo(true);
+        assertThatThrownBy(()->tasks.execution(ticket,"a".repeat(32),"b".repeat(32),"begin_model")).isInstanceOf(RuntimeException.class);
+        db.update("UPDATE assistant_analysis_task SET lease_until=now()-interval '1 second'");tasks.claim("replacement");
+        assertThat(db.queryForObject("SELECT state FROM assistant_analysis_attempt",String.class)).isEqualTo("unknown");
+    }
+    @Test void cancelledPreparationCannotBeginModel(){
+        var id=(String)create().get("task_id");var task=tasks.start(tasks.claim("worker"));var ticket=contexts.issueExecution(task);
+        tasks.execution(ticket,"a".repeat(32),"b".repeat(32));
+        tasks.command(args("cancel","取消任务 "+id,"c1","user").put("task_id",id),"t");
+        assertThatThrownBy(()->tasks.execution(ticket,"a".repeat(32),"b".repeat(32),"begin_model")).isInstanceOf(RuntimeException.class);
+        assertThat(db.queryForObject("SELECT state FROM assistant_analysis_attempt",String.class)).isEqualTo("running");
     }
     @Test void retryRequiresExplicitCostConsentAndPreservesPreviousAttemptArtifacts()throws Exception{
         var id=(String)create().get("task_id");var first=tasks.start(tasks.claim("a"));tasks.finish(first,"invalid first report",1,null);
