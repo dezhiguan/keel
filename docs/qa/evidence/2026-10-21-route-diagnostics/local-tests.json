@@ -1,0 +1,49 @@
+{
+  "java": [
+    {
+      "name": "com.keel.server.archunit.ArchitectureTest",
+      "tests": "2",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "com.keel.server.registry.service.RoutingDefaultTest",
+      "tests": "1",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "com.keel.server.insight.RouteDiagnosisTest",
+      "tests": "1",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "com.keel.server.registry.service.CodeCandidateServiceTest",
+      "tests": "4",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "com.keel.server.insight.CostServiceTest",
+      "tests": "8",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "com.keel.llm.DynamicRoutingTest",
+      "tests": "8",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0"
+    }
+  ],
+  "consoleTests": 196,
+  "consoleBuild": true,
+  "browser": "local-ui.json"
+}

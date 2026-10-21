@@ -1,0 +1,20 @@
+[
+  {
+    "name": "keel-server",
+    "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-server:975c35df61da",
+    "readyReplicas": 2,
+    "updatedReplicas": 2
+  },
+  {
+    "name": "keel-llm",
+    "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-llm:975c35df61da",
+    "readyReplicas": 2,
+    "updatedReplicas": 2
+  },
+  {
+    "name": "keel-console",
+    "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-console:73c9e89f261e",
+    "readyReplicas": 2,
+    "updatedReplicas": 2
+  }
+]

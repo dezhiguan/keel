@@ -1,0 +1,225 @@
+{
+  "passed": true,
+  "layout": {
+    "display": "grid",
+    "columns": "691.5px 691.5px"
+  },
+  "errors": [],
+  "records": [
+    {
+      "request": {
+        "alias": "keel-assistant-staging"
+      },
+      "status": 200,
+      "response": {
+        "code": "OK",
+        "message": null,
+        "traceId": "09a92d9640d4b8826477ac63998984ac",
+        "data": {
+          "alias": "keel-assistant-staging",
+          "env": "staging",
+          "requestedModel": "chat-default",
+          "kind": "logical",
+          "version": 8,
+          "objective": "cost",
+          "blocked": false,
+          "fallback": "none",
+          "minInputTokens": 0,
+          "targets": [
+            {
+              "model": "qwen3.8-flash",
+              "weight": 100,
+              "authorized": true,
+              "breakerOpen": false,
+              "attempts": [
+                "qwen3.8-flash"
+              ],
+              "warning": ""
+            }
+          ],
+          "warnings": [],
+          "agent": "keel-assistant",
+          "defaultModel": "chat-default",
+          "modelSource": "manifest"
+        }
+      }
+    },
+    {
+      "request": {
+        "alias": "keel-assistant-staging"
+      },
+      "status": 200,
+      "response": {
+        "code": "OK",
+        "message": null,
+        "traceId": "4cb27fc768483c36c556cf1d608607d4",
+        "data": {
+          "alias": "keel-assistant-staging",
+          "env": "staging",
+          "requestedModel": "chat-default",
+          "kind": "logical",
+          "version": 8,
+          "objective": "cost",
+          "blocked": false,
+          "fallback": "none",
+          "minInputTokens": 0,
+          "targets": [
+            {
+              "model": "qwen3.8-flash",
+              "weight": 100,
+              "authorized": true,
+              "breakerOpen": false,
+              "attempts": [
+                "qwen3.8-flash"
+              ],
+              "warning": ""
+            }
+          ],
+          "warnings": [],
+          "agent": "keel-assistant",
+          "defaultModel": "chat-default",
+          "modelSource": "manifest"
+        }
+      }
+    },
+    {
+      "request": {
+        "alias": "qa-guard-1019-prod",
+        "model": "chat-default"
+      },
+      "status": 200,
+      "response": {
+        "code": "OK",
+        "message": null,
+        "traceId": "43e4a3a43d8c50c8a49f58876c9c1101",
+        "data": {
+          "alias": "qa-guard-1019-prod",
+          "env": "prod",
+          "requestedModel": "chat-default",
+          "kind": "logical",
+          "version": 8,
+          "objective": "cost",
+          "blocked": false,
+          "fallback": "deepseek-flash",
+          "minInputTokens": 0,
+          "targets": [
+            {
+              "model": "qwen3.8-flash",
+              "weight": 80,
+              "authorized": true,
+              "breakerOpen": false,
+              "attempts": [
+                "qwen3.8-flash",
+                "deepseek-flash"
+              ],
+              "warning": ""
+            },
+            {
+              "model": "deepseek-flash",
+              "weight": 20,
+              "authorized": true,
+              "breakerOpen": false,
+              "attempts": [
+                "deepseek-flash"
+              ],
+              "warning": ""
+            }
+          ],
+          "warnings": [],
+          "agent": "qa-guard-1019",
+          "defaultModel": "chat-default",
+          "modelSource": "override"
+        }
+      }
+    },
+    {
+      "request": {
+        "alias": "qa-guard-1019-prod",
+        "model": "qwen-plus"
+      },
+      "status": 200,
+      "response": {
+        "code": "OK",
+        "message": null,
+        "traceId": "96dc2656e9b3ad1050b21c7f7548dd37",
+        "data": {
+          "alias": "qa-guard-1019-prod",
+          "env": "prod",
+          "requestedModel": "qwen-plus",
+          "kind": "concrete",
+          "version": 2,
+          "objective": "cost",
+          "blocked": false,
+          "fallback": "qwen3.8-flash → deepseek-flash",
+          "minInputTokens": 0,
+          "targets": [
+            {
+              "model": "qwen3.8-flash",
+              "weight": 100,
+              "authorized": true,
+              "breakerOpen": false,
+              "attempts": [
+                "qwen3.8-flash",
+                "deepseek-flash"
+              ],
+              "warning": ""
+            },
+            {
+              "model": "deepseek-flash",
+              "weight": 0,
+              "authorized": true,
+              "breakerOpen": false,
+              "attempts": [],
+              "warning": ""
+            }
+          ],
+          "warnings": [
+            "兼容模型别名映射: qwen-plus → qwen3.8-flash",
+            "真实模型请求不参与逻辑模型分流，降级使用该 Key 的配置"
+          ],
+          "agent": "qa-guard-1019",
+          "defaultModel": "chat-default",
+          "modelSource": "override"
+        }
+      }
+    },
+    {
+      "request": {
+        "alias": "keel-assistant-staging"
+      },
+      "status": 200,
+      "response": {
+        "code": "OK",
+        "message": null,
+        "traceId": "9854c381780e50e0ef57c04bdacbd8f4",
+        "data": {
+          "alias": "keel-assistant-staging",
+          "env": "staging",
+          "requestedModel": "chat-default",
+          "kind": "logical",
+          "version": 8,
+          "objective": "cost",
+          "blocked": false,
+          "fallback": "none",
+          "minInputTokens": 0,
+          "targets": [
+            {
+              "model": "qwen3.8-flash",
+              "weight": 100,
+              "authorized": true,
+              "breakerOpen": false,
+              "attempts": [
+                "qwen3.8-flash"
+              ],
+              "warning": ""
+            }
+          ],
+          "warnings": [],
+          "agent": "keel-assistant",
+          "defaultModel": "chat-default",
+          "modelSource": "manifest"
+        }
+      }
+    }
+  ]
+}
