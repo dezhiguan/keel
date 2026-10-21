@@ -1,0 +1,63 @@
+
+> keel-console@0.1.0 build
+> vue-tsc --noEmit && vite build
+
+vite v5.4.21 building for production...
+transforming...
+✓ 2151 modules transformed.
+rendering chunks...
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) /Users/amy/CursorProject/keel-assistant-platform-v03/console/src/router/index.ts is dynamically imported by /Users/amy/CursorProject/keel-assistant-platform-v03/console/src/api/http.ts but also statically imported by /Users/amy/CursorProject/keel-assistant-platform-v03/console/src/main.ts, dynamic import will not move module into another chunk.
+
+computing gzip size...
+dist/index.html                                                           0.41 kB │ gzip:   0.29 kB
+dist/assets/AgentList-mmwE3PGK.css                                        0.08 kB │ gzip:   0.08 kB
+dist/assets/EvalView-DfRgsRyf.css                                         0.08 kB │ gzip:   0.10 kB
+dist/assets/AgentCreateWizard-Dl_mDb34.css                                0.17 kB │ gzip:   0.16 kB
+dist/assets/GateReview-CZNINnlW.css                                       0.21 kB │ gzip:   0.15 kB
+dist/assets/InsightSyncStatus-CebmJw3S.css                                0.39 kB │ gzip:   0.26 kB
+dist/assets/OverviewView-TkuxkX9Z.css                                     0.48 kB │ gzip:   0.26 kB
+dist/assets/LoginView-BEtGucOd.css                                        0.65 kB │ gzip:   0.31 kB
+dist/assets/Pager-CpQReoea.css                                            1.45 kB │ gzip:   0.56 kB
+dist/assets/AgentGuard-DpkJnIxw.css                                       2.51 kB │ gzip:   0.84 kB
+dist/assets/ModelGateway-sbie71hw.css                                     3.92 kB │ gzip:   1.16 kB
+dist/assets/TraceDetail-D2olb557.css                                      7.59 kB │ gzip:   1.93 kB
+dist/assets/AgentDebug-ZgOyvAAf.css                                       7.90 kB │ gzip:   1.87 kB
+dist/assets/index-D0IAgpmI.css                                           83.17 kB │ gzip:  15.26 kB
+dist/assets/traces-B6mShWzn.js                                            0.21 kB │ gzip:   0.18 kB
+dist/assets/JobStatus.vue_vue_type_script_setup_true_lang-CD274ypk.js     0.30 kB │ gzip:   0.24 kB
+dist/assets/StageStrip.vue_vue_type_script_setup_true_lang-C0IX37Hw.js    0.39 kB │ gzip:   0.29 kB
+dist/assets/AgentName.vue_vue_type_script_setup_true_lang-Bsek05iZ.js     0.45 kB │ gzip:   0.33 kB
+dist/assets/agentCatalog-Wrw7dDXi.js                                      0.47 kB │ gzip:   0.33 kB
+dist/assets/JobTabs.vue_vue_type_script_setup_true_lang-CZnr9gFp.js       0.54 kB │ gzip:   0.40 kB
+dist/assets/models-BOh24kjN.js                                            0.97 kB │ gzip:   0.38 kB
+dist/assets/InsightSyncStatus-C0H8WGRp.js                                 1.12 kB │ gzip:   0.78 kB
+dist/assets/Pager-B-S2ZjUh.js                                             1.63 kB │ gzip:   0.95 kB
+dist/assets/approvalGroups-DBBm_PxC.js                                    1.93 kB │ gzip:   1.00 kB
+dist/assets/overviewFormat-CTqDOj83.js                                    2.87 kB │ gzip:   1.46 kB
+dist/assets/traceView-jakFy268.js                                         3.70 kB │ gzip:   1.91 kB
+dist/assets/JobBatches-0-SNeSCo.js                                        4.00 kB │ gzip:   2.01 kB
+dist/assets/JobRules-BdZn0g1x.js                                          4.17 kB │ gzip:   1.92 kB
+dist/assets/PromptList-1X19cU6M.js                                        4.57 kB │ gzip:   2.52 kB
+dist/assets/JobBoard-BVRZDFU3.js                                          5.12 kB │ gzip:   2.41 kB
+dist/assets/ApprovalInbox-gt1Qm87K.js                                     5.47 kB │ gzip:   2.75 kB
+dist/assets/jobs-BRFf8t-T.js                                              6.68 kB │ gzip:   3.33 kB
+dist/assets/promptView-Da8nor99.js                                        6.80 kB │ gzip:   3.44 kB
+dist/assets/AgentList-B0CYZlPu.js                                         7.53 kB │ gzip:   3.78 kB
+dist/assets/AgentGuard-DBa0fxyx.js                                        8.15 kB │ gzip:   4.11 kB
+dist/assets/TraceList-BCsAyx-g.js                                         8.45 kB │ gzip:   4.13 kB
+dist/assets/AuditView-DLpN5eKz.js                                         8.85 kB │ gzip:   4.25 kB
+dist/assets/LoginView-tRs95pTT.js                                         9.40 kB │ gzip:   3.72 kB
+dist/assets/SharedServices-DYv43SG3.js                                   12.11 kB │ gzip:   5.01 kB
+dist/assets/OverviewView-Brfu9rCG.js                                     15.31 kB │ gzip:   6.32 kB
+dist/assets/GateReview-Bf3Cd3Qi.js                                       15.48 kB │ gzip:   6.45 kB
+dist/assets/EvalView-B1d7Yusi.js                                         16.07 kB │ gzip:   7.16 kB
+dist/assets/TraceDetail-hJ6eyNaS.js                                      21.03 kB │ gzip:   8.14 kB
+dist/assets/AgentCreateWizard-C4XYciYV.js                                24.53 kB │ gzip:  10.39 kB
+dist/assets/PromptDetail-CbYdKPhm.js                                     24.72 kB │ gzip:   8.64 kB
+dist/assets/JobDetail-D8r0NziO.js                                        29.39 kB │ gzip:  10.57 kB
+dist/assets/ToolRegistry-DB7d5Jj8.js                                     35.10 kB │ gzip:  12.45 kB
+dist/assets/ModelGateway-Dk-r1EJ6.js                                     44.80 kB │ gzip:  16.89 kB
+dist/assets/AgentDebug-Dyrh6WHW.js                                      111.20 kB │ gzip:  54.03 kB
+dist/assets/index-DmZKol49.js                                           477.31 kB │ gzip: 173.63 kB
+✓ built in 16.61s
