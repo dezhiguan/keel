@@ -745,6 +745,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/eval/runs/{runId}/context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 本次Job私钥断言和capability共同认证的独立评测context，不授予控制台权限 */
+        post: operations["evaluationWorkerContext"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/eval/runs/{runId}/turns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 本次Job私钥断言和capability共同认证的独立评测turns，不授予控制台权限 */
+        post: operations["evaluationWorkerTurns"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/eval/runs/{runId}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 本次Job私钥断言和capability共同认证的独立评测progress，不授予控制台权限 */
+        post: operations["evaluationWorkerProgress"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/prompts": {
         parameters: {
             query?: never;
@@ -3156,6 +3213,26 @@ export interface components {
             promptFallback?: boolean;
         };
         EvalResult: {
+            /** @enum {string} */
+            runner?: "sdk" | "acceptance-v1";
+            datasetHash?: string;
+            coverage?: {
+                total?: number;
+                executed?: number;
+                passed?: number;
+                failed?: number;
+                blocked?: number;
+                reviewRequired?: number;
+            };
+            cases?: {
+                caseId?: string;
+                category?: string;
+                /** @enum {string} */
+                status?: "PASS" | "FAIL" | "BLOCKED" | "REVIEW_REQUIRED" | "NOT_RUN";
+                reason?: string;
+                traceId?: string;
+                critical?: boolean;
+            }[];
             /** @description 全部有效用例均有且只有一个执行结果；旧结果缺省不作为完整发布证据 */
             complete?: boolean;
             /** @description 实际调用所用提示词版本，同名版本冲突或fallback时评测失败 */
@@ -5259,6 +5336,108 @@ export interface operations {
                              */
                             progress?: number;
                             result?: components["schemas"]["EvalResult"] | null;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    evaluationWorkerContext: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Keel-Eval-Capability": string;
+            };
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description 已验证并处理；context短期票据仅内存使用，不记录日志 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    evaluationWorkerTurns: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Keel-Eval-Capability": string;
+            };
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description 已验证并处理；context短期票据仅内存使用，不记录日志 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    evaluationWorkerProgress: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Keel-Eval-Capability": string;
+            };
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description 已验证并处理；context短期票据仅内存使用，不记录日志 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            [key: string]: unknown;
                         };
                     };
                 };

@@ -22,7 +22,7 @@ class SchemaMigrationTest {
     @Test
     @Transactional
     void migratesAllPlatformTablesAndRunConstraints() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("31");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("32");
 
         List<String> tables = jdbc.queryForList("""
             SELECT tablename FROM pg_tables

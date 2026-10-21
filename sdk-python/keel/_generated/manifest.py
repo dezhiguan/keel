@@ -119,6 +119,11 @@ class AgentManifestSpecPromptsSourceValue(str, Enum):
     LOCAL = 'local'
 
 
+class AgentManifestSpecEvalRunnerValue(str, Enum):
+    SDK = 'sdk'
+    ACCEPTANCE_V1 = 'acceptance-v1'
+
+
 class AgentManifestSpecInteractionModeValue(str, Enum):
     CHAT = 'chat'
     TASK = 'task'
@@ -233,6 +238,7 @@ class AgentManifestSpecModels(KeelModel):
 
 class AgentManifestSpecEval(KeelModel):
     dataset: Optional[str] = None
+    runner: Optional[AgentManifestSpecEvalRunnerValue] = None
     evaluators: Optional[list[str]] = None
     gate: Optional[AgentManifestSpecEvalGate] = None
 

@@ -146,7 +146,7 @@ public class CodeCandidateService {
         ObjectNode copy = manifest.deepCopy();
         ObjectNode spec = copy.withObject("/spec");
         spec.remove(List.of("prompts", "skills"));
-        spec.withObject("/eval").remove("dataset");
+        spec.withObject("/eval").remove(List.of("dataset", "runner"));
         // Adding the explicit default does not turn a workflow into an autonomous agent.
         if (!spec.has("kind")) spec.put("kind", "workflow");
         spec.withObject("/models").remove("default");

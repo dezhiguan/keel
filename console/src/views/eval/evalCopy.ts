@@ -46,3 +46,10 @@ export function expectedSubject(agent: string, result: EvalResult | null): strin
   const text = hit?.tag && hit.deltaPt != null ? `${hit.tag} ${hit.deltaPt}pt 标记为预期` : `${agent} 标记为预期`
   return text.slice(0, 128)
 }
+
+/** Keep total definitions distinct from executed cases and blocking states. */
+export function coverageText(result: EvalResult): string {
+  const c = result.coverage
+  if (!c) return `已执行 ${result.caseCount ?? '—'} 条用例${result.complete ? ' · 全部有效用例已完成' : ''}`
+  return `数据集 ${result.dataset ?? '—'} · 共 ${c.total ?? 0} 条 · 已执行 ${c.executed ?? 0} 条 · 通过 ${c.passed ?? 0} · 失败 ${c.failed ?? 0} · 阻塞 ${c.blocked ?? 0} · 待复核 ${c.reviewRequired ?? 0}`
+}

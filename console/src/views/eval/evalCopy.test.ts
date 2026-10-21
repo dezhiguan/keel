@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { EvalResult } from '@/api/eval'
-import { deltaText, expectedSubject, formatScore, gateRule, holdoutGap, holdoutGapAlarm, holdoutGapText } from './evalCopy'
+import { coverageText, deltaText, expectedSubject, formatScore, gateRule, holdoutGap, holdoutGapAlarm, holdoutGapText } from './evalCopy'
 
 const failed: EvalResult = {
   agent: 'offshore-wind',
@@ -34,5 +34,17 @@ describe('eval copy', () => {
     expect(holdoutGapAlarm(0.1)).toBe(false)
     expect(holdoutGap(0.84, undefined)).toBeNull()
     expect(holdoutGapText(null)).toBe('—')
+  })
+})
+
+
+describe('acceptance coverage', () => {
+  it('does not label all definitions as executed or hide blockers', () => {
+    expect(coverageText({ dataset: 'assistant/100', caseCount: 100, complete: false,
+      coverage: { total: 100, executed: 8, passed: 2, failed: 1, blocked: 1, reviewRequired: 5 } }))
+      .toBe('数据集 assistant/100 · 共 100 条 · 已执行 8 条 · 通过 2 · 失败 1 · 阻塞 1 · 待复核 5')
+  })
+  it('preserves the legacy single-turn result text', () => {
+    expect(coverageText({ caseCount: 10, complete: true })).toBe('已执行 10 条用例 · 全部有效用例已完成')
   })
 })

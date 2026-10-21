@@ -34,6 +34,10 @@ public class EvalJobs {
         this.jdbc=jdbc; this.json=json; this.cluster=cluster; this.registry=registry; this.catalog=catalog;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private EvaluationWorkerBridge acceptance;
+
+    @org.springframework.transaction.annotation.Transactional
     public String start(String agent) {
         catalog.authorize(agent);
         var detail = registry.registeredDetail(agent);
@@ -63,6 +67,11 @@ public class EvalJobs {
         } catch (DuplicateKeyException e) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM,"该智能体已有评测正在执行，请等待完成");
         }
+        if("acceptance-v1".equals(manifest.path("spec").path("eval").path("runner").asText())) {
+            if(!"staging".equals(detail.summary().env())) {fail(id,"证据评测目前仅支持staging");throw new KeelException(ErrorCode.SERVER_INVALID_PARAM,"证据评测目前仅支持staging");}
+            try {acceptance.initialize(id,pod.getMetadata().getNamespace(),ConsolePrincipal.current());}
+            catch(RuntimeException failure){fail(id,"评测授权初始化失败");throw failure;}
+        }
         return id;
     }
 
@@ -80,12 +89,15 @@ public class EvalJobs {
     }
 
     public Map<String,Object> run(String id) {
-        var rows=jdbc.query("SELECT state,result::text,error,agent_name,image FROM eval_run WHERE run_id=?",(rs,n)-> {
+        var rows=jdbc.query("SELECT state,COALESCE(progress_result,result)::text,error,agent_name,image FROM eval_run WHERE run_id=?",(rs,n)-> {
             var body=new LinkedHashMap<String,Object>();
             body.put("runId",id); body.put("state",rs.getString(1));
             body.put("agent",rs.getString(4)); body.put("image",rs.getString(5));
             body.put("progress",Set.of("DONE","FAILED").contains(rs.getString(1))?1:0);
-            body.put("result",decode(rs.getString(2))); body.put("error",rs.getString(3));
+            var measured=decode(rs.getString(2));
+            if(measured!=null && measured.get("coverage") instanceof Map<?,?> coverage && coverage.get("executed") instanceof Number done && coverage.get("total") instanceof Number total && total.doubleValue()>0)
+                body.put("progress",done.doubleValue()/total.doubleValue());
+            body.put("result",measured); body.put("error",rs.getString(3));
             return body;
         },id);
         if(rows.isEmpty()) throw new KeelException(ErrorCode.SERVER_NOT_FOUND,ErrorCode.SERVER_NOT_FOUND.message());
@@ -181,6 +193,12 @@ public class EvalJobs {
                     .addNewEnv().withName("KEEL_EVAL_ENDPOINT").withValue(row.endpoint).endEnv()
                     .addNewEnv().withName("KEEL_EVAL_DATASET").withValue(row.dataset).endEnv()
                     .addNewEnv().withName("KEEL_EVAL_BASELINE").withValue(comparison).endEnv().build();
+            var runner=jdbc.queryForObject("SELECT runner FROM eval_run WHERE run_id=?",String.class,row.id);
+            if("acceptance-v1".equals(runner)) {
+                container.setCommand(List.of("python","-m","evals.acceptance_worker"));
+                container.getEnv().add(new EnvVarBuilder().withName("KEEL_EVAL_CAPABILITY").withNewValueFrom()
+                        .withNewSecretKeyRef().withName(EvaluationWorkerBridge.secretName(row.id)).withKey("capability").endSecretKeyRef().endValueFrom().build());
+            }
             var spec=new PodSpecBuilder().withRestartPolicy("Never").withAutomountServiceAccountToken(false)
                     .withEnableServiceLinks(false).withContainers(container).withVolumes(pod.getSpec().getVolumes())
                     .withHostAliases(pod.getSpec().getHostAliases()).withImagePullSecrets(pod.getSpec().getImagePullSecrets()).build();
@@ -207,6 +225,11 @@ public class EvalJobs {
         var result=decode(line.substring("KEEL_EVAL_RESULT ".length()));
         if(!row.agent.equals(result.get("agent")) || !row.id.equals(result.get("candidateVersion")) || !row.dataset.equals(result.get("dataset"))) {
             fail(row.id,"评测结果身份不匹配");return;
+        }
+        var finalRunner=jdbc.queryForObject("SELECT runner FROM eval_run WHERE run_id=?",String.class,row.id);
+        if("acceptance-v1".equals(finalRunner)) {
+            var persisted=jdbc.queryForObject("SELECT progress_result::text FROM eval_run WHERE run_id=?",String.class,row.id);
+            if(persisted==null || !parse(persisted).equals(parse(line.substring("KEEL_EVAL_RESULT ".length())))) {fail(row.id,"评测结果与持久化证据不一致");return;}
         }
         jdbc.update("UPDATE eval_run SET state='DONE',result=?::jsonb,updated_at=now() WHERE run_id=? AND state IN ('QUEUED','RUNNING')",
                 line.substring("KEEL_EVAL_RESULT ".length()),row.id);

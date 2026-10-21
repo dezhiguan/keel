@@ -14,7 +14,7 @@ import { useEnvStore } from '@/stores/env'
 import { useUserStore } from '@/stores/user'
 import type { StatusTone } from '@/utils/format'
 import { reviewPath } from '@/views/tools/approvalGroups'
-import { deltaText, expectedSubject, formatScore, gateRule, holdoutGap, holdoutGapAlarm, holdoutGapText } from './evalCopy'
+import { coverageText, deltaText, expectedSubject, formatScore, gateRule, holdoutGap, holdoutGapAlarm, holdoutGapText } from './evalCopy'
 
 const VERDICT: Record<string, { label: string; tone: StatusTone }> = {
   IMPROVED: { label: '提升', tone: 'ok' },
@@ -36,6 +36,10 @@ const dimensionPage = ref(1)
 const dimensionSize = ref<10 | 20 | 50 | 100>(10)
 const dimensions = computed(() => result.value?.dimensions ?? [])
 const dimensionRows = computed(() => dimensions.value.slice((dimensionPage.value - 1) * dimensionSize.value, dimensionPage.value * dimensionSize.value))
+const casePage = ref(1)
+const caseSize = ref<10 | 20 | 50 | 100>(20)
+const caseRows = computed(() => (result.value?.cases ?? []).slice((casePage.value - 1) * caseSize.value, casePage.value * caseSize.value))
+const caseLabels: Record<string,string> = { PASS: "通过", FAIL: "失败", BLOCKED: "阻塞", REVIEW_REQUIRED: "待复核", NOT_RUN: "未运行" }
 const gates = ref<EvalGateRow[]>([])
 const pending = ref<{ jobId: string; agent: string }[]>([])
 const gap = computed(() => holdoutGap(result.value?.scoreTotal, result.value?.holdout?.score))
@@ -90,7 +94,10 @@ function pollRun(runId: string, seq: number) {
       const r = await getEvalRun(runId)
       if (seq !== loadSeq) return
       progress.value = r.progress ?? 0
-      if (r.state === 'RUNNING' || r.state === 'QUEUED') return
+      if (r.state === 'RUNNING' || r.state === 'QUEUED') {
+        if (r.result?.coverage) { ++resultRevision; result.value = r.result }
+        return
+      }
       clearInterval(timer)
       progress.value = null
       if (r.result) { ++resultRevision; dimensionPage.value = 1; result.value = r.result }
@@ -139,7 +146,7 @@ async function run() {
   try {
     const { runId } = await runEval(name)
     if (seq !== loadSeq) return
-    if (runId) pollRun(runId, seq)
+    if (runId) { result.value = null; casePage.value = 1; pollRun(runId, seq) }
     else progress.value = null
   } catch (error) {
     if (seq !== loadSeq) return
@@ -328,7 +335,7 @@ watch(agent, () => {
     </div>
 
     <template v-if="evalTab === 'cmp' && result && !runError">
-      <p v-if="!result.complete" role="alert">这份历史结果未包含全部有效用例的完整性证据，不能用于页面发布，请重新运行。</p>
+      <p v-if="!result.complete" role="alert">{{ result.coverage ? "本轮尚有未完成、阻塞或待复核的用例，发布门禁未通过。" : "这份历史结果未包含全部有效用例的完整性证据，不能用于页面发布，请重新运行。" }}</p>
       <div class="gate" :class="{ pass: result.passed }">
         <div class="big">{{ formatScore(result.scoreTotal) }}</div>
         <div>
@@ -350,7 +357,13 @@ watch(agent, () => {
         <button v-if="!result.passed" class="btn" type="button" @click="markExpected">标记为预期变化</button>
       </div>
       <p v-if="published" role="status">已发布 {{ published }} · <RouterLink :to="{ path: '/agents', query: { drawer: agent } }">查看智能体版本</RouterLink></p>
-      <p v-if="result.caseCount != null" class="mut">已执行 {{ result.caseCount }} 条用例<span v-if="result.complete"> · 全部有效用例已完成</span></p>
+      <p v-if="result.coverage || result.caseCount != null" class="mut" role="status">{{ coverageText(result) }}</p>
+      <div v-if="result.cases?.length" class="card">
+        <h3>本轮用例结果<small>阻塞、缺少证据和安全关键失败都会阻止发布</small></h3>
+        <table class="t"><thead><tr><th>用例 ID / 分类</th><th>状态</th><th>说明</th><th>调用链路</th></tr></thead>
+          <tbody><tr v-for="item in caseRows" :key="item.caseId"><td>{{ item.caseId }}<small>{{ item.category }}{{ item.critical ? ' · 关键' : '' }}</small></td><td>{{ caseLabels[item.status || 'NOT_RUN'] }}</td><td>{{ item.reason }}</td><td><RouterLink v-if="item.traceId" :to="`/traces/${item.traceId}`">查看链路</RouterLink><span v-else>—</span></td></tr></tbody>
+        </table><Pager v-model:page="casePage" v-model:size="caseSize" :total="result.cases.length" />
+      </div>
       <div v-if="progress !== null" class="prog"><i :style="{ width: `${progress * 100}%` }" /></div>
 
       <div v-if="evalTab === 'cmp'" class="card">
