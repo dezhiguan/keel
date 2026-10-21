@@ -15,3 +15,5 @@ SDK1.0.2输入护栏在入口前检查整个input JSON，正常中文引述被�
 0.3.2真实运行ev_760e7a606e174169b073a321de89ebae的knowledge-pagination在预检索成功后仍返回TOOL_NOT_GRANTED（Trace01735d92fdaea1556c3393f0f9077350）。核实1.0.4传tool_choice=none但不带tools，和r1019/bounded-tool-refinement.md“保留工具schema”的要求不一致。Qwen官方文档2026-10-22核实示例同时传tools与tool_choice=none：https://help.aliyun.com/zh/model-studio/qwen-function-calling 。
 
 仅在工具轮次耗尽的收尾请求保留原schema并发送none，SDK运行时active_tools/allowed_names仍为空，不执行任何返回tool_call，即使供应商违反none也返回标准TOOL_NOT_GRANTED而非final。普通空工具聊天、默认无限制轮次、审批恢复、manifest授权保持原边界。更新真实SDK wire测试断言schema与none同时存在，保留恶意返回不得执行测试；流式/命名工具映射继续验证。完整SDK测试通过后正式sdk-v1.0.5发布，业务仅从正式wheel锁版本及哈希，不复制源码。无契约/控制台API字段变化。
+
+本机全量SDK首次为277通过、2个12进程/双进程spawn测试在20秒启动等待超时；当时负载50.95/72.80，测试结束后独立挂起记录12/12均在，非丢失记录证据。保留原失败日志，不改等待阈值、不跳过并发用例。SDK CI补充独立Linux完整测试job，测试全部runtime/guard/loop（既有CI只测生成契约），在该job通过后才发布1.0.5。
