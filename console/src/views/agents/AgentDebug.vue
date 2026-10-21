@@ -296,8 +296,9 @@ async function sendChat() {
     if (!alive) return
     const stopped = abort?.signal.aborted
     if (stopped) {
-      session.messages.push({ role: 'agent', text: '（已停止）', meta: '已停止' })
-      session.events = appendEvents(session.events, [...pendingEvents.value, { kind: 'error', text: '已停止，这次调用已取消' }])
+      const taskAwareStop = name.value === 'keel-assistant' && detail.value?.env === 'staging'
+      session.messages.push({ role: 'agent', text: taskAwareStop ? '已停止接收本次回复；后台执行未确认停止。' : '（已停止）', meta: taskAwareStop ? '接收已停止' : '已停止' })
+      session.events = appendEvents(session.events, [...pendingEvents.value, { kind: 'error', text: taskAwareStop ? '已停止接收。若已创建任务，请通过对话查询或取消。' : '已停止，这次调用已取消' }])
       sse.value = 'stopped'
     } else {
       const message = toKeelError(error).message
