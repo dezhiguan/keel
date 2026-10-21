@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "at": "2026-10-21T04:14:49.283Z",
+  "baselineVersion": 1,
+  "publishedVersion": 2,
+  "finalVersion": 3,
+  "revision": 4,
+  "checks": [
+    "add",
+    "edit",
+    "draft isolation",
+    "replay",
+    "publish",
+    "full snapshot rollback"
+  ],
+  "pageErrors": []
+}

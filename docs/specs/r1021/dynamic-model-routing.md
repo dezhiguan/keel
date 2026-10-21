@@ -18,4 +18,8 @@
 
 ## 本地结果
 
-网关全量71项，70通过、1项PG容器测试因本机无Docker跳过；独立Redis跨实例测试通过。服务端代理/费用/架构11项通过。模型页与导航12项通过，TypeScript和生产构建通过。真实Chromium使用本地接口夹具验证新增、再次编辑、保存和回放，无页面异常，截图见 docs/qa/evidence/2026-10-21-dynamic-routing/local-ui.png。部署及真实请求验收待完成。
+网关全量71项，70通过、1项PG容器测试因本机无Docker跳过；独立Redis跨实例测试通过。服务端代理/费用/架构11项通过。模型页与导航12项通过，TypeScript和生产构建通过。真实Chromium使用本地接口夹具验证新增、再次编辑、保存和回放，无页面异常，截图见 docs/qa/evidence/2026-10-21-dynamic-routing/local-ui.png。部署及真实请求验收结果见下节。
+
+## 部署验收结果
+
+4a525ad已推送main，CI39542031460和CD39542031794均成功。真实账号页面全流程、独立staging Key缺授权阻断与补授权、空fallback且allowFallback=false下普通/SSE实际千问→DeepSeek降级、历史回放账单数不变、引用删除阻断及整表回滚均通过。QA Key已阻断，临时规则和渠道已清理；server/llm/console新镜像各2/2，两个网关副本v8/revision15一致。详见 docs/qa/2026-10-21-dynamic-model-routing.md。
