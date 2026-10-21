@@ -53,7 +53,7 @@ def test_namespaced_tool_round_trip_preserves_grants_history_and_final_choice(mo
             return httpx.Response(200, json=response(calls=[{'id': 'c1', 'type': 'function',
                                   'function': {'name': alias, 'arguments': '{"query":"qa"}'}}]))
         alias = requests[0]['tools'][0]['function']['name']
-        assert 'tools' not in body
+        assert body['tools'] == requests[0]['tools']
         assert body['tool_choice'] == 'none'
         assert body['messages'][-2]['tool_calls'][0]['function']['name'] == alias
         assert json.loads(body['messages'][-1]['content']) == {'query': 'qa'}
