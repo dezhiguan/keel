@@ -50,6 +50,9 @@ class AnalysisTasksPersistenceTest {
     @Test void duplicateRequestDeduplicatesAndDifferentContentConflicts(){
         var a=create();var b=create();assertThat(a.get("task_id")).isEqualTo(b.get("task_id"));
         assertThat(db.queryForObject("SELECT count(*) FROM assistant_analysis_task",Integer.class)).isEqualTo(1);
+        var changedProposal=tasks.command(args("create",text,"r1","user").put("material","审批依赖一个人。"),"t");
+        assertThat(changedProposal.get("task_id")).isEqualTo(a.get("task_id"));
+        assertThat(db.queryForObject("SELECT material FROM assistant_analysis_task",String.class)).isEqualTo(material);
         assertThatThrownBy(()->tasks.command(args("create",text+"补充目标","r1","user").put("material",material),"t")).isInstanceOf(RuntimeException.class);
     }
     @Test void rejectsDiscussionFakeIdentityMismatchedSessionAndFabricatedMaterial(){

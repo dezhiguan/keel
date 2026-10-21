@@ -68,6 +68,12 @@ public class AnalysisTasks {
         }catch(java.text.ParseException e){throw TaskContext.denied();}
     }
     private Map<String,Object> create(com.nimbusds.jwt.JWTClaimsSet c,JsonNode args,String text,String org,String trace){
+        String requestId=(String)c.getClaim("request_id");String fingerprint=TaskContext.hash(text);
+        var existing=db.queryForList("SELECT * FROM assistant_analysis_task WHERE agent_name='keel-assistant' AND environment='staging' AND owner_user=? AND namespace=? AND request_id=?",c.getSubject(),c.getClaim("namespace"),requestId);
+        if(!existing.isEmpty()){
+            if(!fingerprint.equals(existing.getFirst().get("input_digest")))throw TaskContext.invalid("相同请求标识携带不同任务内容，拒绝冲突");
+            return snapshot(existing.getFirst());
+        }
         var material=args.path("material").asText("").strip();
         if(material.isEmpty() || material.length()>12000 || !text.contains(material))throw TaskContext.invalid("请直接提供不超过12000字的完整文字材料");
         if(material.matches("(?s)(链接[:：]\\s*)?https?://\\S+"))throw TaskContext.invalid("本版不读取链接，请直接粘贴要分析的文字材料");
@@ -77,7 +83,6 @@ public class AnalysisTasks {
             throw TaskContext.invalid("需要明确的资料分析任务目标");
         if(objective.matches("(?s).*(如何|怎么|是什么|什么是|是否支持|能否支持|讨论|假设|如果).*"))
             throw TaskContext.invalid("当前是在讨论方案，请明确是否现在生成材料分析报告");
-        String requestId=(String)c.getClaim("request_id");String fingerprint=TaskContext.hash(text+"\0"+material);
         String id="task_"+UUID.randomUUID().toString().replace("-","");
         var inserted=db.queryForList("""
             INSERT INTO assistant_analysis_task(task_id,agent_name,environment,owner_user,owner_username,owner_org,

@@ -12,6 +12,8 @@ task context由真实USER认证线程签发，独立issuer/audience，绑定用�
 
 command支持create/get/list/cancel/retry。创建材料必须为绑定真实消息的子串，且消息明确要求执行；原目标/输入及hash持久化。稳定请求ID唯一，不同内容冲突，用户隔离按真实subject。任务授权仅保存随机引用、用户/组织、有效期、次数/时间限制；不保存JWT或Cookie。Worker前检查scope/当前账号/授权期限。execution使用绑定task/fence的短期票据，只返回该任务最小资料，标记run/trace关联，不扩大工具或KB权限。
 
+入站去重以绑定当前真实用户的完整原消息摘要为内容依据，不把模型每次提议的材料切片混入入站摘要。相同requestId与相同原消息直接回查首个持久化任务，保留其原规范化材料/目标；模型在重复请求里选择不同切片不改变任务。相同requestId但原消息不同拒绝冲突。并发创建仍以唯一约束收敛到首个任务。
+
 ## PG和Worker
 
 新增V33迁移（V32由主工作区独立评测工作占用，部署前须确认迁移顺序与已提交平台基线，不覆盖该工作）。assistant_analysis_task/attempt无外键，独立索引，30天终态保留，unknown不自动清除。task状态queued/running/waiting_authorization/validating/succeeded/failed/cancel_requested/cancelled/unknown；材料缺失时在聊天澄清，不建待补充任务。
