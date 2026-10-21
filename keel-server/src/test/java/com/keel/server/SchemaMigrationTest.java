@@ -22,7 +22,7 @@ class SchemaMigrationTest {
     @Test
     @Transactional
     void migratesAllPlatformTablesAndRunConstraints() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("32");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("33");
 
         List<String> tables = jdbc.queryForList("""
             SELECT tablename FROM pg_tables
@@ -31,7 +31,7 @@ class SchemaMigrationTest {
             """, String.class);
         assertThat(tables).containsExactlyInAnyOrder(
             "agent", "agent_version", "agent_instance", "agent_resource",
-            "agent_employee_read_scope", "reconcile_finding", "tool", "tool_version", "agent_tool_grant",
+            "agent_employee_read_scope", "assistant_analysis_scope", "assistant_analysis_task", "assistant_analysis_attempt", "reconcile_finding", "tool", "tool_version", "agent_tool_grant",
             "approval_policy", "approval_request", "agent_run", "release_record",
             "route_snapshot", "console_audit_event", "invoke_trace", "prompt_promotion",
             "prompt_code_version", "prompt_label_snapshot", "agent_self_check", "eval_run", "eval_turn",
@@ -44,6 +44,10 @@ class SchemaMigrationTest {
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_employee_read_scope",Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_constraint WHERE conrelid='agent_employee_read_scope'::regclass AND contype='f'",Integer.class)).isZero();
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM assistant_analysis_scope", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_grant WHERE tool_name IN ('keel.tasks.command','keel.tasks.execution')", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_constraint WHERE conrelid IN ('assistant_analysis_scope'::regclass,'assistant_analysis_task'::regclass,'assistant_analysis_attempt'::regclass) AND contype='f'", Integer.class)).isZero();
 
         List<String> runConstraints = jdbc.queryForList("""
             SELECT conname FROM pg_constraint WHERE conrelid = 'agent_run'::regclass

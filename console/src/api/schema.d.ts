@@ -4923,6 +4923,8 @@ export interface operations {
                 "application/json": {
                     text: string;
                     sessionId: string;
+                    /** @description 可选稳定请求标识；同标识不同任务内容拒绝冲突 */
+                    requestId?: string;
                 };
             };
         };
