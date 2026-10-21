@@ -224,6 +224,7 @@ public class EvalJobs {
                 var launched=cluster.batch().v1().jobs().inNamespace(row.namespace).withName(name).get();
                 var auth=cluster.secrets().inNamespace(row.namespace).withName(EvaluationWorkerBridge.secretName(row.id)).get();
                 if(launched!=null && auth!=null) {
+                    auth.getMetadata().setManagedFields(null);
                     auth.getMetadata().setOwnerReferences(List.of(new OwnerReferenceBuilder().withApiVersion("batch/v1").withKind("Job")
                             .withName(name).withUid(launched.getMetadata().getUid()).withBlockOwnerDeletion(false).build()));
                     cluster.secrets().inNamespace(row.namespace).resource(auth).update();
@@ -232,6 +233,7 @@ public class EvalJobs {
             jdbc.update("UPDATE eval_run SET state='RUNNING',updated_at=now() WHERE run_id=? AND state='QUEUED'",row.id);
             return;
         }
+        if("QUEUED".equals(row.state)) jdbc.update("UPDATE eval_run SET state='RUNNING',updated_at=now() WHERE run_id=? AND state='QUEUED'",row.id);
         var status=job.getStatus();
         if(status==null)return;
         boolean success=status.getSucceeded()!=null && status.getSucceeded()>0;

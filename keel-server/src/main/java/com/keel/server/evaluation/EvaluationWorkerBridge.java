@@ -102,7 +102,7 @@ public class EvaluationWorkerBridge {
         var frozen=snapshot(id,run.dataset);
         validateProgress(result,id,run.agent,run.dataset,frozen);
         if(!hash(encode(frozen)).equals(result.path("datasetHash").asText()))throw denied();
-        jdbc.update("UPDATE eval_run SET progress_result=?::jsonb,updated_at=now() WHERE run_id=? AND state IN ('QUEUED','RUNNING')",encode(result),id);
+        jdbc.update("UPDATE eval_run SET state='RUNNING',progress_result=?::jsonb,updated_at=now() WHERE run_id=? AND state IN ('QUEUED','RUNNING')",encode(result),id);
     }
     static void validateProgress(JsonNode result,String id,String agent,String dataset,List<JsonNode> frozen) {
         var expected=new HashSet<String>();frozen.forEach(r->expected.add(r.path("metadata").path("caseId").asText()));

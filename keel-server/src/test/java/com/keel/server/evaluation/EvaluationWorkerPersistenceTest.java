@@ -45,4 +45,14 @@ class EvaluationWorkerPersistenceTest {
         jdbc.update("UPDATE eval_run SET state='DONE' WHERE run_id=?",id);
         assertThatThrownBy(()->bridge.context(id,cap,body)).isInstanceOf(KeelException.class);
     }
+    @Test @Transactional void authenticatedProgressMarksActualWorkerRunning() throws Exception {
+        var snapshot=bridge.context(id,cap,json.readTree("{\"bootstrap\":true}"));
+        var result=json.createObjectNode().put("agent","assistant").put("candidateVersion",id).put("dataset","suite")
+                .put("runner","acceptance-v1").put("datasetHash",(String)snapshot.get("datasetHash"))
+                .put("caseCount",1).put("scoreTotal",0).put("passed",false).put("complete",false);
+        result.putArray("cases").addObject().put("caseId","case-a").put("status","NOT_RUN").put("executed",false);
+        result.putObject("coverage").put("total",1).put("executed",0).put("passed",0).put("failed",0).put("blocked",0).put("reviewRequired",0);
+        bridge.progress(id,cap,result);
+        assertThat(jdbc.queryForObject("SELECT state FROM eval_run WHERE run_id=?",String.class,id)).isEqualTo("RUNNING");
+    }
 }
