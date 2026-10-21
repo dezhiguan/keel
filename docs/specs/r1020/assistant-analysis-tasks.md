@@ -47,3 +47,7 @@ get在同一owner/namespace校验后返回最多两次的attempts记录（序号
 prepare只在当前真实用户明确下达分析报告目标、材料缺失时创建waiting_input，原目标保存该认证消息；没有执行许可，不领取、不调用模型。supply只接受该owner/namespace的waiting_input任务，材料必须是当前认证消息的原文子串、最多12000字符且不是URL；不覆盖原目标。当前消息仅补充材料即可使用已保存目标；讨论、暂不执行、修改目标等指令不能触发入队。补充成功记录revision+1、新授权引用及15分钟期限后queued。取消waiting_input为cancelled且无调用；30天未补充的草稿可按保留期清除。
 
 V34新增assistant_analysis_command，无外键，保存owner/namespace/requestId、operation、原消息摘要、taskId、trace和非凭证授权引用。所有写命令create/prepare/supply/cancel/retry在同一事务通过请求级advisory lock与唯一约束去重；同key同消息同操作只返回原任务新快照，不重复修订/入队，相同key不同消息或操作拒绝冲突。模型改变材料切片不会重写原任务。读取不占写命令标识。每次可启动执行的create/supply/retry授权引用可回查到对应真实认证命令，Worker核验引用、用户、期限和当前scope；不保存JWT/Cookie。命令记录随对应30天终态/过期草稿保留策略删除，unknown不删。
+
+### 真实重复提交失败后的回执补充（2026-10-22）
+
+真实任务已完成但重复HTTP请求的模型选择了未提供工具，未进入数据库命令去重便错误答复未创建。新增内部receipt只读动作：可信USER线程先按签名上下文中的owner/namespace/request_id查询命令账本并验证原文摘要；冲突直接拒绝。已存在同内容记录时重新签发带request_replay=true提示的同范围上下文，其余授权不扩大。应用通过已发布SDK执行receipt，平台重新验证用户、scope、原文/会话和账本，返回当前持久化detail与replayed_operation。该路由不调用模型、不重放业务动作、不接纳模型提供身份；普通聊天无重复记录时不调用任务工具。SDK版本和存储迁移不变，保留首次失败。

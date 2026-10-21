@@ -37,6 +37,8 @@ public class AgentController {
     private com.keel.server.auth.UserReadContext readContexts;
     @org.springframework.beans.factory.annotation.Autowired
     private com.keel.server.tasks.TaskContext taskContexts;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.keel.server.tasks.AnalysisTasks analysisTasks;
     private final AgentRegistryService agentRegistryService;
     private final LifecycleService lifecycleService;
     private final AgentChatService chats;
@@ -167,6 +169,8 @@ public class AgentController {
         var readContext=readContexts.issue(com.keel.server.auth.ConsolePrincipal.current(),name,detail.summary().env(),sessionId);
         var taskContext=taskContexts.issueUser(com.keel.server.auth.ConsolePrincipal.current(),name,detail.summary().env(),sessionId,text,
             body.path("requestId").asText(""),evaluationRun!=null && taskAcceptance==null,taskAcceptance==null?"user":"acceptance:"+taskAcceptance);
+        if(taskContext!=null && analysisTasks.hasReceipt(taskContext,text))taskContext=taskContexts.forRequestReplay(taskContext);
+        var forwardedTaskContext=taskContext;
         var relayTrace=com.keel.server.common.TraceIds.current();
         if(relayTrace==null || relayTrace.isBlank())relayTrace=java.util.UUID.randomUUID().toString().replace("-","");
         var errorTrace=relayTrace;
@@ -176,7 +180,7 @@ public class AgentController {
         response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
         return output -> {
             try {
-                chats.streamChat(name, text, sessionId, owner, remember, output, readContext, forwardedEvaluation, taskContext);
+                chats.streamChat(name, text, sessionId, owner, remember, output, readContext, forwardedEvaluation, forwardedTaskContext);
             } catch (RuntimeException error) {
                 org.slf4j.LoggerFactory.getLogger(AgentController.class).warn(
                         "trace_id={} agent={} stream relay interrupted run_id={}",errorTrace,name,relayRun);

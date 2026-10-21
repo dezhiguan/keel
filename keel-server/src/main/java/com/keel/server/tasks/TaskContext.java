@@ -30,6 +30,13 @@ public class TaskContext {
         return sign("user",actor.userId(),Map.of("username",actor.username(),"session",hash(actor.userId()+":"+session),
             "text_hash",hash(text),"request_id",id,"namespace",namespace),300);
     }
+    public String forRequestReplay(String token){
+        var c=verify(token,"user");
+        try{return sign("user",c.getSubject(),Map.of("username",c.getStringClaim("username"),
+            "session",c.getStringClaim("session"),"text_hash",c.getStringClaim("text_hash"),
+            "request_id",c.getStringClaim("request_id"),"namespace",c.getStringClaim("namespace"),"request_replay",true),300);
+        }catch(java.text.ParseException invalid){throw denied();}
+    }
     public String issueExecution(Map<String,Object> task){
         return sign("execution",String.valueOf(task.get("owner_user")),Map.of(
             "username",task.get("owner_username"),"task_id",task.get("task_id"),"fence",task.get("fence")),130);

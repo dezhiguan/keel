@@ -13,8 +13,8 @@ paths:
               additionalProperties: false
               required: [operation, _authorization, _session, _text]
               properties:
-                operation: {enum: [create, prepare, supply, get, list, cancel, retry]}
-                _authorization: {type: string, description: Short-lived task context; never a read ticket}
+                operation: {enum: [create, prepare, supply, get, list, cancel, retry, receipt]}
+                _authorization: {type: string, description: Short-lived task context; never a read ticket. Optional signed request_replay is a routing hint only; receipt revalidates all authority.}
                 _session: {type: string}
                 _text: {type: string, maxLength: 20000}
                 task_id: {type: string, pattern: '^task_[a-f0-9]{32}$'}
@@ -77,6 +77,8 @@ components:
       required: [task_id, state]
       properties:
         task_id: {type: string}
+        request_replayed: {type: boolean}
+        replayed_operation: {type: string}
         state: {enum: [waiting_input, queued, running, waiting_authorization, validating, succeeded, failed, cancel_requested, cancelled, unknown]}
         revisions:
           type: array
