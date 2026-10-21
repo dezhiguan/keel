@@ -22,6 +22,7 @@ _INJECTION = re.compile(
 _ROLE_CLAIM = re.compile(r"\[/?(?:system|developer|admin)\]|<\|(?:im_start|start_header_id)\|>\s*(?:system|developer)", re.I)
 _QUOTED = re.compile(r'“[^“”]{1,4000}”|「[^「」]{1,4000}」|『[^『』]{1,4000}』|"[^"\n]{1,4000}"')
 _ANALYSIS = re.compile(r"(?:分析|解释|指出|讨论|识别).{0,30}(?:风险|注入|攻击|这句话|指令)|(?:风险|注入).{0,15}(?:分析|解释)")
+_DO_EXECUTE = re.compile(r"(?:现在|然后|接着|请|必须|立刻|立即).{0,10}(?:执行|照做|调用|输出|泄露|发布|修改|删除)|(?:执行|照做)(?:它|引号|引文|其中|里面|上述|这些|下述)")
 _NO_EXECUTE = re.compile(r"(?:不|不要|不得|切勿)执行(?:它|该指令|这些指令|引述|引文)?")
 
 
@@ -35,7 +36,8 @@ def _user_instruction(text):
         pass
     outside = _QUOTED.sub('', text)
     # Both explicit analysis and non-execution are required. Quoting alone is no exemption.
-    if _ANALYSIS.search(outside) and _NO_EXECUTE.search(outside):
+    if (_ANALYSIS.search(outside) and _NO_EXECUTE.search(outside)
+            and not _DO_EXECUTE.search(_NO_EXECUTE.sub('',outside))):
         return outside
     return text
 
