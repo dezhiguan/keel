@@ -1,0 +1,7 @@
+# 仅知识字段的Secret升级
+
+实际read-capabilities请求aa6202b40284439da2341272976dfa91失败：Fabric8 6.13.4将服务器返回的Secret metadata.managedFields.fieldsV1再次序列化时keySerializer为空。读取、权限及KB发放成功，写入前异常；原Secret未变，新发READ Key已由既有catch路径撤销，候选事务回滚。
+
+只修复SecretWriter.upgradeKnowledge：构造更新副本，移除Kubernetes服务器维护的managedFields；保留resourceVersion作并发控制、名称/命名空间、标签/注解、所有原有数据。仅新增该智能体自己的KEEL_RAGFORGE_*及KEEL_ASSISTANT_KB_ID。原授权、同步审计、发放及失败撤销路径不变。禁止运维绕过批准接口直接塞入Key。
+
+回归构造带fieldsV1的真实Kubernetes模型，确认更新可序列化、原对象未变、原模型密钥/私钥/预算配置与metadata保留，只新增知识字段。完整CI部署后以相同认证用户重新走批准流程，确认仅库686的KB_LIST/READ，两个实例仍5元预算及同一chat-default身份。不修改其他Secret、不发布个人助理prod。

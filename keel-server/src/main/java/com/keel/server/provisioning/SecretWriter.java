@@ -160,12 +160,19 @@ public class SecretWriter implements ProvisionStep {
             throw new IllegalStateException("已有知识库凭证，须单独审查升级");
         var issued=ragForge.issue(agent,env,names);
         try {
-            var data=new LinkedHashMap<>(secret.getData());
-            data.put("KEEL_RAGFORGE_URL",encode(issued.url()));data.put("KEEL_RAGFORGE_TOKEN",encode(issued.token()));
-            data.put("KEEL_RAGFORGE_KEY_ID",encode(Long.toString(issued.id())));data.put("KEEL_RAGFORGE_KB_IDS",encode(issued.kbIds()));
-            data.put("KEEL_ASSISTANT_KB_ID",encode(issued.kbIds()));
-            secret.setData(data);client.secrets().inNamespace(NAMESPACE).resource(secret).update();
+            var updated=knowledgeSecret(secret,issued);
+            client.secrets().inNamespace(NAMESPACE).resource(updated).update();
         }catch(RuntimeException error){ragForge.revoke(issued.id());throw error;}
+    }
+
+    /** managedFields is server-owned; Fabric8 cannot reserialize some fieldsV1 maps. */
+    static Secret knowledgeSecret(Secret original,RagForgeAccess.Issued issued) {
+        var data=new LinkedHashMap<>(original.getData());
+        data.put("KEEL_RAGFORGE_URL",encode(issued.url()));data.put("KEEL_RAGFORGE_TOKEN",encode(issued.token()));
+        data.put("KEEL_RAGFORGE_KEY_ID",encode(Long.toString(issued.id())));data.put("KEEL_RAGFORGE_KB_IDS",encode(issued.kbIds()));
+        data.put("KEEL_ASSISTANT_KB_ID",encode(issued.kbIds()));
+        return new SecretBuilder(original).editMetadata().withManagedFields((java.util.List<io.fabric8.kubernetes.api.model.ManagedFieldsEntry>)null)
+                .endMetadata().withData(data).build();
     }
 
     /** Drops a key that was issued but never written, for example when a later check refuses registration. */
