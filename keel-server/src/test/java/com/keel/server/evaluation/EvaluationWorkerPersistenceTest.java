@@ -38,6 +38,9 @@ class EvaluationWorkerPersistenceTest {
         assertThatThrownBy(()->bridge.context(id,"c".repeat(64),body)).isInstanceOf(KeelException.class);
         caller("other");assertThatThrownBy(()->bridge.context(id,cap,body)).isInstanceOf(KeelException.class);caller("assistant");
         var first=bridge.context(id,cap,body);assertThat((List<?>)first.get("history")).isEmpty();
+        var policy=(Map<?,?>)first.get("policyEvidence");
+        assertThat((List<?>)policy.get("employeeEnvironments")).isEmpty();
+        assertThat((List<?>)policy.get("retiredEnvironments")).hasSize(2);
         bridge.saveTurn(id,cap,json.readTree("{\"caseId\":\"case-a\",\"turn\":0,\"question\":\"先查A\",\"answer\":\"A信息\",\"evidence\":{}}"));
         var next=bridge.context(id,cap,json.readTree("{\"caseId\":\"case-a\",\"turn\":1}"));
         assertThat((List<?>)next.get("history")).hasSize(2);

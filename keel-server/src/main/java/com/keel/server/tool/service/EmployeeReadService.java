@@ -12,6 +12,9 @@ import java.util.*;
 /** Business read projection: no runtime probe, secrets or raw manifest leave this service. */
 @Service
 public class EmployeeReadService {
+    public static final Set<String> READ_ENVIRONMENTS=Set.of("staging");
+    public static final Set<String> RETIRED_ENVIRONMENTS=Set.of("dev","test");
+    public static final Set<String> BUSINESS_ENVIRONMENTS=Set.of("staging","prod");
     private final JdbcTemplate jdbc;
     private final UserReadContext contexts;
     public EmployeeReadService(JdbcTemplate jdbc,UserReadContext contexts){this.jdbc=jdbc;this.contexts=contexts;}
@@ -29,7 +32,7 @@ public class EmployeeReadService {
         if(actor.session()==null || !actor.session().equals(args.path("_session").asText("")))
             throw new KeelException(ErrorCode.TOOL_NOT_GRANTED,"用户会话授权不匹配");
         var env=args.path("env").asText("");
-        if(!"staging".equals(env))throw invalid("只读查询当前仅开放 staging；dev/test 已停用，prod 未授权");
+        if(!READ_ENVIRONMENTS.contains(env))throw invalid("只读查询当前仅开放 staging；dev/test 已停用，prod 未授权");
         boolean detail="keel.employees.detail".equals(tool);
         var allowed=detail ? Set.of("env","id","_authorization","_session") : Set.of("env","page","size","_authorization","_session");
         args.fieldNames().forEachRemaining(k->{if(!allowed.contains(k))throw invalid("工具参数不在白名单");});

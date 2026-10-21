@@ -1143,7 +1143,19 @@ paths:
                   - $ref: "#/components/schemas/Envelope"
                   - type: object
                     properties:
-                      data: { type: object, additionalProperties: true }
+                      data:
+                        type: object
+                        additionalProperties: true
+                        properties:
+                          policyEvidence:
+                            type: object
+                            description: 服务端当前只读授权及环境策略的脱敏快照，不是模型自报权限
+                            properties:
+                              source: { type: string }
+                              employeeEnvironments: { type: array, items: { type: string } }
+                              retiredEnvironments: { type: array, items: { type: string } }
+                              businessEnvironments: { type: array, items: { type: string } }
+                              scopeOrg: { type: string }
 
   /eval/runs/{runId}/turns:
     parameters:

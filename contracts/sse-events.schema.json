@@ -72,7 +72,8 @@
         "message": { "type": "string" },
         "trace_id": { "$ref": "#/$defs/traceId" },
         "run_id": { "$ref": "#/$defs/runId" },
-        "retryable": { "type": "boolean" }
+        "retryable": { "type": "boolean" },
+        "meta": { "type": "object", "default": {}, "description": "可选脱敏运行证据：提示词版本、工具尝试白名单；不得含票据、Secret或原始请求。" }
       }
     },
     "suspend": {

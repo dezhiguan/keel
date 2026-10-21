@@ -15,6 +15,11 @@ public record ErrorEvent(
     @JsonProperty("message") String message,
     @JsonProperty("trace_id") String trace_id,
     @JsonProperty("run_id") String run_id,
-    @JsonProperty("retryable") Boolean retryable
+    @JsonProperty("retryable") Boolean retryable,
+    @JsonProperty("meta") Map<String, Object> meta
 ) {
+    // Preserve the keel/v1 five-argument source API.
+    public ErrorEvent(String code, String message, String trace_id, String run_id, Boolean retryable) {
+        this(code, message, trace_id, run_id, retryable, null);
+    }
 }

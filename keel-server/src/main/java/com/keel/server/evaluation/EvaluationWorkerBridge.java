@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.keel.common.error.ErrorCode;
 import com.keel.server.auth.*;
+import com.keel.server.tool.service.EmployeeReadService;
 import com.keel.server.common.KeelException;
 import com.keel.server.common.R;
 import com.keel.server.integration.langfuse.LangfuseClient;
@@ -78,6 +79,11 @@ public class EvaluationWorkerBridge {
         Collections.reverse(previous);previous.forEach(history::addAll);
         var output=new LinkedHashMap<String,Object>();output.put("readContext",ticket);
         output.put("sessionId",UserReadContext.sessionHash(run.user.userId(),rawSession));output.put("history",history);output.put("endpoint",run.endpoint);
+        var approved=Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM agent_employee_read_scope WHERE agent_name=? AND environment=? AND target_org=? AND enabled)",Boolean.class,run.agent,run.env,run.user.org()));
+        output.put("policyEvidence",Map.of("source","Keel current read authorization and environment policy", "scopeOrg",run.user.org(),
+                "employeeEnvironments",approved ? EmployeeReadService.READ_ENVIRONMENTS.stream().sorted().toList() : List.of(),
+                "retiredEnvironments",EmployeeReadService.RETIRED_ENVIRONMENTS.stream().sorted().toList(),
+                "businessEnvironments",EmployeeReadService.BUSINESS_ENVIRONMENTS.stream().sorted().toList()));
         if(body.path("alternateInstance").asBoolean()) {
             var pods=cluster.pods().inNamespace(run.namespace).withLabel("keel.io/agent",run.agent).list().getItems().stream()
                     .filter(p->run.env.equals(p.getMetadata().getLabels().get("keel.io/env")))

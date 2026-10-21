@@ -19,6 +19,29 @@ _INJECTION = re.compile(
 )
 
 
+_ROLE_CLAIM = re.compile(r"\[/?(?:system|developer|admin)\]|<\|(?:im_start|start_header_id)\|>\s*(?:system|developer)", re.I)
+_QUOTED = re.compile(r'“[^“”]{1,4000}”|「[^「」]{1,4000}」|『[^『』]{1,4000}』|"[^"\n]{1,4000}"')
+_ANALYSIS = re.compile(r"(?:分析|解释|指出|讨论|识别).{0,30}(?:风险|注入|攻击|这句话|指令)|(?:风险|注入).{0,15}(?:分析|解释)")
+_DO_EXECUTE = re.compile(r"(?:现在|然后|接着|请|必须|立刻|立即).{0,10}(?:执行|照做|调用|输出|泄露|发布|修改|删除)|(?:执行|照做)(?:它|引号|引文|其中|里面|上述|这些|下述)")
+_NO_EXECUTE = re.compile(r"(?:不|不要|不得|切勿)执行(?:它|该指令|这些指令|引述|引文)?")
+
+
+def _user_instruction(text):
+    # ASGI checks the input envelope; only actual text, never opaque auth fields.
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict) and isinstance(data.get('text'), str):
+            text = data['text']
+    except (ValueError, TypeError):
+        pass
+    outside = _QUOTED.sub('', text)
+    # Both explicit analysis and non-execution are required. Quoting alone is no exemption.
+    if (_ANALYSIS.search(outside) and _NO_EXECUTE.search(outside)
+            and not _DO_EXECUTE.search(_NO_EXECUTE.sub('',outside))):
+        return outside
+    return text
+
+
 def _mode(config, name, default):
     value = getattr(config, name, None) if config is not None else None
     return getattr(value, "value", value) or default
@@ -29,7 +52,8 @@ def check(config, source: str, text: str) -> dict:
         raise ValueError("invalid guard source or text")
     mode = _mode(config, "inputInjection" if source == "user" else "indirectInjection",
                  "shadow" if source == "user" and config is not None else "off")
-    hit = bool(_INJECTION.search(text))
+    candidate = _user_instruction(text) if source == "user" else text
+    hit = bool(_INJECTION.search(candidate) or _ROLE_CLAIM.search(candidate))
     if not hit:
         kind, tone = "clear", "ok"
     elif mode == "enforce":

@@ -40,8 +40,8 @@ _END = object()
 _INVOKE_SCHEMA = yaml.safe_load(_contract_file("invoke.openapi.yaml"))["components"]["schemas"]["InvokeRequest"]
 
 
-def _error(code: ErrorCode, trace_id: str = "", run_id: str = "", message: str | None = None) -> dict:
-    return {"code": code.value, "message": message or code.message, "trace_id": trace_id,
+def _error(code: ErrorCode, trace_id: str = "", run_id: str = "", message: str | None = None, meta: dict | None = None) -> dict:
+    return {**({"meta": meta} if meta else {}), "code": code.value, "message": message or code.message, "trace_id": trace_id,
             "run_id": run_id, "retryable": code.retryable}
 
 
@@ -166,7 +166,7 @@ def create_app(agent) -> Starlette:
                     root.set_attribute(attrs.BLOCKED, True)
                 logger.error("agent invocation rejected trace_id=%s agent=%s code=%s",
                              trace_id, agent.name, exc.code.value)
-                events.put_nowait(ErrorEvent(**_error(exc.code, trace_id, run_id, str(exc))))
+                events.put_nowait(ErrorEvent(**_error(exc.code, trace_id, run_id, str(exc), exc.meta)))
             except Exception:
                 root.set_attribute(attrs.STATUS, "failed")
                 logger.error("agent invocation failed trace_id=%s agent=%s", trace_id, agent.name)
@@ -334,7 +334,7 @@ def create_app(agent) -> Starlette:
                 root.set_attribute(attrs.STATUS, "failed")
                 if exc.code in (ErrorCode.GUARD_INJECTION_BLOCKED, ErrorCode.GUARD_OUTPUT_BLOCKED):
                     root.set_attribute(attrs.BLOCKED, True)
-                events.put_nowait(ErrorEvent(**_error(exc.code, trace_id, run_id, str(exc))))
+                events.put_nowait(ErrorEvent(**_error(exc.code, trace_id, run_id, str(exc), exc.meta)))
             except Exception:
                 root.set_attribute(attrs.STATUS, "failed")
                 events.put_nowait(ErrorEvent(**_error(ErrorCode.SERVER_INTERNAL_ERROR, trace_id, run_id)))

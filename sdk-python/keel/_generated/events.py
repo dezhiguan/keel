@@ -92,6 +92,7 @@ class ErrorEvent(KeelModel):
     trace_id: str
     run_id: str
     retryable: bool
+    meta: Optional[dict[str, Any]] = None
 
 
 class SuspendEvent(KeelModel):

@@ -144,6 +144,10 @@ def java_model(name, root, event_defs=False):
         "@JsonIgnoreProperties(ignoreUnknown = true)", "@JsonInclude(JsonInclude.Include.NON_NULL)",
         f"public record {name}("
     ] + [line[4:] for line in main[3:-1]] + [") {", *lines[lines.index(f"public final class {name} {{") + 3:]]
+    if name == "ErrorEvent" and "meta" in root.get("properties", {}):
+        lines[-1:-1] = ["    // Preserve the keel/v1 five-argument source API.",
+                       "    public ErrorEvent(String code, String message, String trace_id, String run_id, Boolean retryable) {",
+                       "        this(code, message, trace_id, run_id, retryable, null);", "    }"]
     (JAVA / "model").mkdir(parents=True, exist_ok=True)
     (JAVA / "model" / f"{name}.java").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
