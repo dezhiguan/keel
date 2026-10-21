@@ -19,7 +19,7 @@ describe('sidebar active item', () => {
     expect(NAV.some((item) => item.path === '/quality')).toBe(false)
     expect(NAV.map((item) => item.title)).toEqual([
       '运行总览', '智能体管理', '智能体研发', '基础服务',
-      '链路追踪', '测评中心', '模型网关',
+      '提示词管理', '测评中心', '链路追踪', '模型网关',
       '工具与技能', '审批中心', '审计中心',
     ])
   })
