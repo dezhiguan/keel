@@ -35,6 +35,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class AgentController {
     @org.springframework.beans.factory.annotation.Autowired
     private com.keel.server.auth.UserReadContext readContexts;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.keel.server.tasks.TaskContext taskContexts;
     private final AgentRegistryService agentRegistryService;
     private final LifecycleService lifecycleService;
     private final AgentChatService chats;
@@ -137,7 +139,10 @@ public class AgentController {
         var evaluationRun=request.getHeader("X-Keel-Eval-Run");
         if(evaluationRun!=null && !evaluationRun.matches("[A-Za-z0-9_-]{1,128}"))
             throw new KeelException(com.keel.common.error.ErrorCode.SERVER_INVALID_PARAM,"评测运行标记无效");
-        var remember = evaluationRun == null;
+        var taskAcceptance=request.getHeader("X-Keel-Task-Acceptance");
+        if(taskAcceptance!=null && !taskAcceptance.matches("[A-Za-z0-9_-]{1,64}"))throw com.keel.server.tasks.TaskContext.invalid("专项验收标记无效");
+        var remember = evaluationRun == null && taskAcceptance == null;
+        var forwardedEvaluation=taskAcceptance==null?evaluationRun:"task-"+taskAcceptance;
         try {
             chats.prepareStream(name, text, sessionId, owner, remember);
         } catch (KeelException error) {
@@ -160,6 +165,8 @@ public class AgentController {
         var detail=agentRegistryService.registeredDetail(name);
         // Capture trusted identity on the authenticated servlet thread, before async streaming.
         var readContext=readContexts.issue(com.keel.server.auth.ConsolePrincipal.current(),name,detail.summary().env(),sessionId);
+        var taskContext=taskContexts.issueUser(com.keel.server.auth.ConsolePrincipal.current(),name,detail.summary().env(),sessionId,text,
+            body.path("requestId").asText(""),evaluationRun!=null && taskAcceptance==null,taskAcceptance==null?"user":"acceptance:"+taskAcceptance);
         var relayTrace=com.keel.server.common.TraceIds.current();
         if(relayTrace==null || relayTrace.isBlank())relayTrace=java.util.UUID.randomUUID().toString().replace("-","");
         var errorTrace=relayTrace;
@@ -169,7 +176,7 @@ public class AgentController {
         response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
         return output -> {
             try {
-                chats.streamChat(name, text, sessionId, owner, remember, output, readContext, evaluationRun);
+                chats.streamChat(name, text, sessionId, owner, remember, output, readContext, forwardedEvaluation, taskContext);
             } catch (RuntimeException error) {
                 org.slf4j.LoggerFactory.getLogger(AgentController.class).warn(
                         "trace_id={} agent={} stream relay interrupted run_id={}",errorTrace,name,relayRun);

@@ -129,6 +129,10 @@ public class AgentChatService {
     }
 
     public void streamChat(String name, String text, String sessionId, String owner, boolean remember, OutputStream output, String readContext, String evaluationRun) {
+        streamChat(name,text,sessionId,owner,remember,output,readContext,evaluationRun,null);
+    }
+
+    public void streamChat(String name,String text,String sessionId,String owner,boolean remember,OutputStream output,String readContext,String evaluationRun,String taskContext) {
         var detail = ready(name, text);
         var env = detail.summary().env();
         if (remember) sessions.require(name, env, owner, sessionId);
@@ -151,7 +155,7 @@ public class AgentChatService {
         long started = System.nanoTime();
         try (var input = endpoints.openStream(endpoint, inputText, bridge, name, env, userId,
                 rag == null ? null : rag.token(), rag == null ? null : rag.kbIds(),
-                scopedSessionId(owner, sessionId), structured ? history : null, readContext, evaluationRun)) {
+                scopedSessionId(owner, sessionId), structured ? history : null, readContext, evaluationRun, taskContext)) {
             var fin = DebugSseRelay.copy(input, output);
             var traceId = fin == null ? null : fin.traceId();
             audits.append(name, env, "invoke", "low", fin == null ? "error" : "allowed", name, traceId);

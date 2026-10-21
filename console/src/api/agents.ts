@@ -161,7 +161,7 @@ export async function streamAgentChat(
         traceparent: newTraceparent(),
         'X-Keel-Console': '1',
       },
-      body: JSON.stringify({ text, sessionId }),
+      body: JSON.stringify({ text, sessionId, requestId: crypto.randomUUID() }),
       signal,
     })
   } catch (error) {
