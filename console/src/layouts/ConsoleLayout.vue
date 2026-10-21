@@ -107,7 +107,11 @@ watch(() => route.fullPath, () => {
             :to="item.path"
             :class="{ 'router-link-active': isNavActive(item.path, route.path) }"
           >
-            <i>{{ item.icon }}</i>{{ item.title }}
+            <i aria-hidden="true">{{ item.icon }}</i>
+            <span class="nav-copy">
+              <span class="nav-title">{{ item.title }}</span>
+              <small>{{ item.description }}</small>
+            </span>
             <span v-if="item.badge" class="nt">{{ item.badge }}</span>
             <span v-if="item.path === '/approvals' && approvalsStore.pending" class="cnt">{{ approvalsStore.pending }}</span>
           </RouterLink>
@@ -196,13 +200,16 @@ watch(() => route.fullPath, () => {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
+  padding: 10px;
   border-radius: 6px;
   color: var(--text);
   text-decoration: none;
   font-size: 13px;
 }
-.nav a i { font-style: normal; width: 16px; text-align: center; color: var(--mute); }
+.nav a i { flex: 0 0 16px; font-style: normal; text-align: center; color: var(--mute); }
+.nav-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; }
+.nav-title { font-weight: 600; line-height: 1.4; }
+.nav-copy small { color: var(--mute); font-size: 10px; line-height: 1.5; white-space: nowrap; }
 .nav a:hover { background: var(--panel2); }
 .nav a.router-link-active { background: var(--panel3); color: var(--white); }
 .nav a.router-link-active i { color: var(--acc); }
