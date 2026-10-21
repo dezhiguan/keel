@@ -45,7 +45,7 @@ public class AnalysisTasks {
                 if(!text.contains(id) && db.queryForObject("SELECT count(*) FROM assistant_analysis_task WHERE owner_user=? AND namespace=? AND agent_name='keel-assistant' AND environment='staging'",Integer.class,c.getSubject(),c.getClaim("namespace"))>1)
                     throw TaskContext.invalid("存在多个任务，请在消息中明确任务ID，不能猜测它或刚才那个");
                 var task=owned(c.getSubject(),String.valueOf(c.getClaim("namespace")),id,true);
-                if("get".equals(op))return snapshot(task);
+                if("get".equals(op))return detail(task);
                 String state=(String)task.get("state");
                 if("cancel".equals(op)){
                     if(!text.matches("(?s).*(取消|停止|终止).*"))throw TaskContext.invalid("取消任务需要用户明确指令");
@@ -102,8 +102,26 @@ public class AnalysisTasks {
         }
         out.put("executor","keel-assistant");out.put("environment","staging");out.put("task_type","analysis");
         out.put("cancellation_note","cancel_requested".equals(row.get("state"))?"已请求停止后续步骤；正在进行的模型调用未确认停止，可能产生费用":
-            "unknown".equals(row.get("state"))?"调用结果未知；不会自动重算，可能已产生计算与费用":null);
+            "unknown".equals(row.get("state"))?"调用结果未知；不会自动重算，可能已产生计算与费用":
+            "cancelled".equals(row.get("state"))?((Number)row.get("attempt")).intValue()==0?"在执行前取消，没有发起模型调用":
+            "后续步骤已取消；先前调用不保证已停止，已有计算和费用不能撤回，请回查历次执行记录":null);
         return out;
+    }
+    private Map<String,Object> detail(Map<String,Object> row){
+        var out=snapshot(row);
+        var history=db.queryForList("SELECT attempt,state,intent_at,report,acceptance,error,execution_trace_id,execution_run_id,prompt_version,gateway_request_id,cost_cny,usage FROM assistant_analysis_attempt WHERE task_id=? ORDER BY attempt LIMIT 2",row.get("task_id"));
+        var attempts=new ArrayList<Map<String,Object>>();
+        for(var attempt:history){
+            var item=new LinkedHashMap<String,Object>();
+            for(var entry:attempt.entrySet()){
+                Object value=entry.getValue();
+                if(value instanceof Timestamp time)value=time.toInstant().toString();
+                if(value!=null && Set.of("acceptance","usage").contains(entry.getKey()))try{value=json.readTree(value.toString());}catch(Exception invalid){value=null;}
+                item.put(entry.getKey(),value);
+            }
+            attempts.add(item);
+        }
+        out.put("attempts",attempts);return out;
     }
     public void checkAuthority(Map<String,Object> row){
         var user=contexts.requireUser((String)row.get("owner_username"));requireScope(user.org());

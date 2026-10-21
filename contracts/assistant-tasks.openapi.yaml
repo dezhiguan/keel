@@ -21,7 +21,21 @@ paths:
                 material: {type: string, maxLength: 12000}
                 acknowledge_duplicate_cost: {type: boolean}
       responses:
-        '200': {description: Authoritative persisted task snapshot or list, scoped to authenticated subject}
+        '200':
+          description: Authoritative owner-scoped snapshot or list. get also includes up to two preserved attempts. Cancellation notes distinguish no invocation from stopping only future steps.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    oneOf:
+                      - {$ref: '#/components/schemas/TaskSnapshot'}
+                      - type: object
+                        required: [items, limit]
+                        properties:
+                          items: {type: array, items: {$ref: '#/components/schemas/TaskSnapshot'}}
+                          limit: {type: integer}
   /api/v1/tools/keel.tasks.execution/invoke:
     post:
       description: Same assistant only. Execution ticket is bound to an existing task and current fence.
@@ -55,3 +69,25 @@ paths:
                 enabled: {type: boolean}
       responses:
         '200': {description: Scope and two exact tool grants updated transactionally and audited}
+components:
+  schemas:
+    TaskSnapshot:
+      type: object
+      required: [task_id, state]
+      properties:
+        task_id: {type: string}
+        state: {type: string}
+        cancellation_note: {type: [string, 'null']}
+        attempts:
+          type: array
+          maxItems: 2
+          items:
+            type: object
+            required: [attempt, state]
+            properties:
+              attempt: {type: integer}
+              state: {type: string}
+              report: {type: [string, 'null']}
+              error: {type: [string, 'null']}
+              acceptance: {type: [object, 'null']}
+              cost_cny: {type: [number, 'null']}

@@ -26,4 +26,14 @@ Worker使用数据库事务、SKIP LOCKED、30秒租约/递增fence、5秒续租
 
 ## 专项验收隔离
 
-真实USER可在现有聊天请求携带`X-Keel-Analysis-Acceptance`（1–80位字母数字、下划线或连字符），服务端使用`acceptance:<标记>`命名空间并关闭会话记忆，后台分析关联eval标记；身份和授权校验不变。普通eval worker不取得任务上下文，不能代替用户。正常用户任务与专项命名空间互不可见。
+真实USER可在现有聊天请求携带`X-Keel-Analysis-Acceptance`（1–64位字母数字、下划线或连字符），服务端使用`acceptance:<标记>`命名空间并关闭会话记忆，后台分析关联eval标记；身份和授权校验不变。普通eval worker不取得任务上下文，不能代替用户。正常用户任务与专项命名空间互不可见。
+
+## 历次产物回查与取消含义补充
+
+get在同一owner/namespace校验后返回最多两次的attempts记录（序号、状态、原产物、验收、错误、prompt/Trace/run与未知费用），不返回票据、授权引用、租约身份或用户凭证。list仍返回简洁当前快照。失败后重试成功，也可通过同一任务ID回查上次原始失败产物。
+
+取消排队中的重试仅取消后续步骤，不能据此把先前unknown调用当作已停止。cancelled快照在attempt>0时明确已有调用及费用不因取消撤回；只有attempt=0才说明没有发起模型调用。状态迁移仍由原确定性代码控制，不改动执行、预算或其他员工权限。
+
+## 已授权声明的候选接入
+
+现有候选接口把tools视为不可直接变更的权限边界；仅在scope表新增grant不足以登记本版工具。沿用候选接口，不绕过边界或借用管理员DB写清单：真实USER/ADMIN在自己的组织对keel-assistant/staging显式开启task scope、且两项远程工具1.0.0 grant ACTIVE后，候选接口才允许一次加入固定7项声明：assistant.tasks.create/get/list/cancel/retry及keel.tasks.command/execution。其access固定、risk=low、approval=none；旧工具声明逐项完全不变。其他新增工具、共享工具、既有权限修改、环境、身份、endpoint、预算、模型路由及护栏仍经原边界校验拒绝；scope本身不改候选清单。评测期间仍拒绝候选更新。SERVICE、PREVIEW和其他组织不可使用此路径。测试须包括未授权、超出白名单与改变原有声明的拒绝。

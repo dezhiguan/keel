@@ -135,7 +135,24 @@ class AnalysisTasksPersistenceTest {
         assertThat(tasks.command(consent,"t").get("state")).isEqualTo("queued");
         tasks.finish(tasks.start(tasks.claim("b")),report(),1,null);
         assertThat(db.queryForList("SELECT report FROM assistant_analysis_attempt ORDER BY attempt",String.class)).containsExactly("invalid first report",report());
-        assertThat(tasks.command(get(id),"t").get("attempt")).isEqualTo(2);
+        var queried=tasks.command(get(id),"t");
+        assertThat(queried.get("attempt")).isEqualTo(2);
+        var history=(List<?>)queried.get("attempts");assertThat(history).hasSize(2);
+        assertThat(((Map<?,?>)history.getFirst()).get("report")).isEqualTo("invalid first report");
+        assertThat(((Map<?,?>)history.getFirst()).get("state")).isEqualTo("failed");
+        assertThat(((Map<?,?>)history.getLast()).get("report")).isEqualTo(report());
+        assertThat(((Map<?,?>)history.getLast()).get("acceptance")).isInstanceOf(JsonNode.class);
+    }
+    @Test void cancellingQueuedRetryDoesNotClaimEarlierUnknownCallStopped(){
+        var id=(String)create().get("task_id");var task=tasks.start(tasks.claim("a"));tasks.finish(task,null,null,"ambiguous timeout");
+        tasks.command(args("retry","确认可能重复计算和费用，重试 "+id,"r2","user").put("task_id",id).put("acknowledge_duplicate_cost",true),"t");
+        var cancelled=tasks.command(args("cancel","取消任务 "+id,"c2","user").put("task_id",id),"t");
+        assertThat(cancelled.get("state")).isEqualTo("cancelled");
+        assertThat((String)cancelled.get("cancellation_note")).contains("先前调用不保证已停止","费用不能撤回");
+        var history=(List<?>)tasks.command(get(id),"t").get("attempts");assertThat(history).hasSize(1);
+        assertThat(((Map<?,?>)history.getFirst()).get("state")).isEqualTo("unknown");
+        assertThat(((Map<?,?>)history.getFirst()).get("error")).isEqualTo("ambiguous timeout");
+        assertThat(tasks.claim("b")).isNull();
     }
     @Test void retentionOnlyRemovesOldTerminalTasksAndDoesNotDeleteUnknownCalls(){
         var id=(String)create().get("task_id");var task=tasks.start(tasks.claim("a"));tasks.finish(task,null,null,"ambiguous timeout");
