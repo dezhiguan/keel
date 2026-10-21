@@ -9,7 +9,7 @@ public final class CatalogAccess {
                 || ("POST".equals(method) && (uri.equals("/api/v1/devflow/holdout-results")
                     || uri.matches("/api/v1/devflow/ci/jobs/DF-[0-9]+/(context|prepare|ready|complete|status)")))))
             return true;
-        return readable(method, uri) || ("POST".equals(method) && uri != null
+        return ("POST".equals(method) && uri != null && uri.matches("/api/v1/eval/runs/ev_[a-f0-9]{32}/(context|turns|progress)")) || readable(method, uri) || ("POST".equals(method) && uri != null
                 && uri.matches("/api/v1/tools/[a-z][a-z0-9.-]+/invoke"))
                 || ("GET".equals(method) && uri != null
                     && uri.matches("/api/v1/agents/[a-z][a-z0-9-]*/skills/[a-z][a-z0-9-]*"))

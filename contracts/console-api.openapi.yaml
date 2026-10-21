@@ -1119,6 +1119,84 @@ paths:
                             allOf:
                               - $ref: "#/components/schemas/EvalResult"
 
+  /eval/runs/{runId}/context:
+    parameters:
+      - { name: runId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: evaluationWorkerContext
+      tags: [eval]
+      summary: 本次Job私钥断言和capability共同认证的独立评测context，不授予控制台权限
+      parameters:
+        - { name: X-Keel-Eval-Capability, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        "200":
+          description: 已验证并处理；context短期票据仅内存使用，不记录日志
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { type: object, additionalProperties: true }
+
+  /eval/runs/{runId}/turns:
+    parameters:
+      - { name: runId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: evaluationWorkerTurns
+      tags: [eval]
+      summary: 本次Job私钥断言和capability共同认证的独立评测turns，不授予控制台权限
+      parameters:
+        - { name: X-Keel-Eval-Capability, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        "200":
+          description: 已验证并处理；context短期票据仅内存使用，不记录日志
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { type: object, additionalProperties: true }
+
+  /eval/runs/{runId}/progress:
+    parameters:
+      - { name: runId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: evaluationWorkerProgress
+      tags: [eval]
+      summary: 本次Job私钥断言和capability共同认证的独立评测progress，不授予控制台权限
+      parameters:
+        - { name: X-Keel-Eval-Capability, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        "200":
+          description: 已验证并处理；context短期票据仅内存使用，不记录日志
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { type: object, additionalProperties: true }
+
   # ---------------------------------------------------------------- 提示词
   /prompts:
     get:
@@ -4516,6 +4594,31 @@ components:
     EvalResult:
       type: object
       properties:
+        runner: { type: string, enum: [sdk, acceptance-v1] }
+        datasetHash: { type: string }
+        coverage:
+          type: object
+          properties:
+            total: { type: integer }
+            executed: { type: integer }
+            passed: { type: integer }
+            failed: { type: integer }
+            blocked: { type: integer }
+            reviewRequired: { type: integer }
+        cases:
+          type: array
+          items:
+            type: object
+            properties:
+              caseId: { type: string }
+              category: { type: string }
+              execution: { type: string, description: 根据服务端固定用例定义区分真实请求、多轮与受控夹具 }
+              evaluatorTraceId: { type: string }
+              executed: { type: boolean }
+              status: { type: string, enum: [PASS, FAIL, BLOCKED, REVIEW_REQUIRED, NOT_RUN] }
+              reason: { type: string }
+              traceId: { type: string }
+              critical: { type: boolean }
         complete: { type: boolean, description: 全部有效用例均有且只有一个执行结果；旧结果缺省不作为完整发布证据 }
         promptVersions:
           type: object

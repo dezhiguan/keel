@@ -139,6 +139,7 @@ public record AgentManifest(
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record AgentManifestSpecEval(
         @JsonProperty("dataset") String dataset,
+        @JsonProperty("runner") AgentManifestSpecEvalRunnerValue runner,
         @JsonProperty("evaluators") List<String> evaluators,
         @JsonProperty("gate") AgentManifestSpecEvalGate gate
     ) {}
@@ -413,6 +414,17 @@ public record AgentManifest(
         @JsonValue public String value() { return value; }
         @JsonCreator public static AgentManifestSpecPromptsSourceValue fromValue(String value) {
             for (AgentManifestSpecPromptsSourceValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum AgentManifestSpecEvalRunnerValue {
+        SDK("sdk"), ACCEPTANCE_V1("acceptance-v1");
+        private final String value;
+        AgentManifestSpecEvalRunnerValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static AgentManifestSpecEvalRunnerValue fromValue(String value) {
+            for (AgentManifestSpecEvalRunnerValue item : values()) if (item.value.equals(value)) return item;
             throw new IllegalArgumentException("Unknown enum value: " + value);
         }
     }

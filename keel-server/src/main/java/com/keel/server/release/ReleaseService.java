@@ -57,6 +57,7 @@ public class ReleaseService {
         try { result = json.readTree(row.get("result")); }
         catch (Exception error) { throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "评测结果无效"); }
         requirePublishable(row.get("state"), result, row.get("image"));
+        requireAcceptanceDataset(agent,runId);
         var versions = result.path("promptVersions");
         for (var item : catalog.declared(agent)) {
             var measured = versions.path(item.name());
@@ -79,6 +80,19 @@ public class ReleaseService {
         return published;
     }
 
+    private void requireAcceptanceDataset(String agent,String runId) {
+        var candidates=jdbc.query("SELECT manifest_json::text FROM agent_version WHERE agent_name=? AND env='staging' ORDER BY released_at DESC,id DESC LIMIT 1",(rs,n)->rs.getString(1),agent);
+        if(candidates.isEmpty())return;
+        try {
+            var config=json.readTree(candidates.getFirst()).path("spec").path("eval");
+            if(!"acceptance-v1".equals(config.path("runner").asText()))return;
+            var rows=jdbc.query("SELECT result::text FROM eval_run WHERE run_id=? AND agent_name=? AND runner='acceptance-v1' AND state='DONE'",(rs,n)->rs.getString(1),runId,agent);
+            if(rows.size()!=1 || rows.getFirst()==null)throw new IllegalArgumentException();
+            var result=json.readTree(rows.getFirst());
+            if(!config.path("dataset").asText().equals(result.path("dataset").asText()) || !result.path("complete").asBoolean() || !result.path("passed").asBoolean())throw new IllegalArgumentException();
+        }catch(Exception error){throw new KeelException(ErrorCode.SERVER_INVALID_PARAM,"当前候选要求完整证据评测，旧单轮门禁或未完成结果不能发布");}
+    }
+
     static void requirePublishable(String state, JsonNode result, String image) {
         if (!"DONE".equals(state) || !result.path("passed").asBoolean() || !result.path("complete").asBoolean()
                 || !result.path("promptVersions").isObject() || result.path("caseCount").asInt() < 1
@@ -90,6 +104,7 @@ public class ReleaseService {
     public Map<String, Object> release(String agent, JsonNode body) {
         var env = body.path("env").asText("");
         var gateRunId = body.path("gateRunId").asText("");
+        requireAcceptanceDataset(agent,gateRunId);
         var image = body.path("image").asText("");
         if (!"prod".equals(env) && !"staging".equals(env)) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "env 只能是 staging 或 prod");

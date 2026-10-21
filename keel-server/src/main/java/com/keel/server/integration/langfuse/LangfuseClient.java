@@ -119,6 +119,17 @@ public class LangfuseClient {
         return get("/api/public/dataset-items?datasetName=" + URLEncoder.encode(dataset, StandardCharsets.UTF_8));
     }
 
+    /** Complete bounded pagination for a frozen acceptance run, not a latest-experiment scan. */
+    public JsonNode datasetItemsComplete(String dataset) {
+        var rows=json.createArrayNode();
+        for(var page=1;page<=20;page++) {
+            var response=get("/api/public/dataset-items?datasetName="+URLEncoder.encode(dataset,StandardCharsets.UTF_8)+"&limit=100&page="+page);
+            response.path("data").forEach(rows::add);
+            if(page>=response.path("meta").path("totalPages").asInt(page))return rows;
+        }
+        throw new IllegalStateException("评测数据集分页超出上限");
+    }
+
     /** One feedback row in the agent's eval dataset. The same trace is not inserted twice. */
     public String addFeedbackItem(String dataset, String traceId, String input, String output) {
         if (baseUrl.isBlank() || authorization.isBlank()) {

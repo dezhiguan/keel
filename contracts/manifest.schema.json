@@ -212,6 +212,7 @@
           "default": {},
           "properties": {
             "dataset": { "type": "string", "description": "Langfuse 数据集名" },
+            "runner": { "type": "string", "enum": ["sdk", "acceptance-v1"], "default": "sdk", "description": "固定同镜像评测入口；不改变SDK业务调用接口" },
             "evaluators": { "type": "array", "items": { "type": "string" }, "default": [] },
             "gate": {
               "type": "object",
