@@ -2521,6 +2521,34 @@ paths:
                           version: { type: integer }
                           objective: { type: string, enum: [balanced, cost, latency] }
 
+  /insight/route/diagnose:
+    post:
+      tags: [models]
+      operationId: diagnoseRoute
+      summary: 按智能体默认模型诊断完整路由
+      description: 不调用模型。缺省 model 时读取 Key 所属智能体同环境的登记清单；显式模型用于高级排查。薄网关使用同形返回，不包含清单来源三字段。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alias]
+              properties:
+                alias: { type: string }
+                model: { type: string, description: 可选，逻辑模型或真实模型名 }
+      responses:
+        "200":
+          description: 当前已发布规则的完整诊断
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/RouteDiagnosis" }
+
   /insight/route/preview:
     post:
       tags: [models]
@@ -4801,6 +4829,38 @@ components:
         hashVerified: { type: boolean }
         hash: { type: string, description: 本事件 sha256 hex }
         prevHash: { type: string, nullable: true, description: 同智能体链上一条的 hash，链头为空 }
+
+    RouteDiagnosis:
+      type: object
+      properties:
+        alias: { type: string }
+        env: { type: string }
+        agent: { type: string }
+        defaultModel: { type: string }
+        modelSource: { type: string, enum: [manifest, override] }
+        requestedModel: { type: string }
+        kind: { type: string, enum: [logical, concrete] }
+        version: { type: integer }
+        objective: { type: string }
+        blocked: { type: boolean }
+        fallback: { type: string }
+        minInputTokens: { type: integer }
+        targets:
+          type: array
+          items:
+            type: object
+            properties:
+              model: { type: string }
+              weight: { type: number }
+              authorized: { type: boolean }
+              breakerOpen: { type: boolean }
+              attempts:
+                type: array
+                items: { type: string }
+              warning: { type: string }
+        warnings:
+          type: array
+          items: { type: string }
 
     # ------------------------------------------------------------ 模型网关
     GatewayChannel:

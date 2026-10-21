@@ -200,6 +200,13 @@ public class LlmController {
         return Map.of("version", current.version(), "objective", current.objective());
     }
 
+    @PostMapping("/admin/v1/route/diagnose")
+    Map<String,Object> diagnose(@RequestHeader(value="Authorization",required=false) String authorization,
+                                @RequestBody Map<String,Object> body) {
+        admin(authorization);
+        return gateway.diagnose(text(body.get("alias")),text(body.get("model")));
+    }
+
     @PostMapping("/admin/v1/route/preview")
     Map<String, Object> preview(@RequestHeader(value = "Authorization", required = false) String authorization,
                                 @RequestBody Map<String, Object> body) {

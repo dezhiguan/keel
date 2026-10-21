@@ -113,6 +113,14 @@ public class CodeCandidateService {
             throw invalid("只支持代码智能体候选配置");
         var oldBoundary = boundary(prior);
         var newBoundary = boundary(candidate);
+        // Removing an application fallback only narrows configuration; keep gateway grants untouched.
+        var oldModels=oldBoundary.path("spec").path("models");
+        var newModels=newBoundary.path("spec").path("models");
+        if ((!newModels.has("fallback") || (newModels.path("fallback").isArray() && newModels.path("fallback").isEmpty()))
+                && prior.path("spec").path("models").path("default").equals(candidate.path("spec").path("models").path("default"))) {
+            ((ObjectNode)oldModels).remove("fallback");
+            ((ObjectNode)newModels).remove("fallback");
+        }
         if (!oldBoundary.equals(newBoundary))
             throw invalid("身份、权限、运行地址、预算及护栏变更须走各自授权流程");
         var prompts = candidate.path("spec").path("prompts");

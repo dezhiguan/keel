@@ -18,6 +18,37 @@ class DynamicRoutingTest {
         return new ModelCatalog(Map.of(Q,new ModelCatalog.Model(Q,new BigDecimal("0.000001"),new BigDecimal("0.000002"),"http://localhost:"+port+"/q",""),
                 D,new ModelCatalog.Model(D,new BigDecimal("0.000002"),new BigDecimal("0.000003"),"http://localhost:"+port+"/d","")));
     }
+    @Test void diagnosisEnumeratesAllBranchesAndGrayWithoutCallingOrBillingAndReportsCoverage() {
+        var gateway=new Gateway(catalog(9),new BudgetCounter(),new Upstream());
+        var custom=new RouteTable.Rule("qa-diagnose","staging",Q,D,80,D,10,D,200000);
+        gateway.logicalRouting.save(1,List.of(custom));gateway.logicalRouting.publish(2);
+        var key=gateway.create("qa-diagnose-staging",List.of("qa-diagnose"),List.of(),new BigDecimal("100"),false);
+        var diagnostic=gateway.diagnose(key.alias(),"qa-diagnose");
+        var rows=(List<Map<String,Object>>)diagnostic.get("targets");
+        assertThat(rows).extracting(row->row.get("model")).containsExactly(Q,D);
+        assertThat(rows).extracting(row->row.get("weight")).containsExactly(72d,28d);
+        assertThat(rows.getFirst().get("attempts")).isEqualTo(List.of(Q,D));
+        assertThat(diagnostic.get("warnings").toString()).contains("200000");
+        assertThat(gateway.spend(null,1,5000)).isEmpty();
+        assertThat(diagnostic.toString()).doesNotContain(key.key());
+        gateway.updateChannels(key.alias(),List.of(new Gateway.Share("m-"+Q,5)),Map.of());
+        var gap=(List<Map<String,Object>>)gateway.diagnose(key.alias(),"qa-diagnose").get("targets");
+        assertThat(gap.getLast().get("authorized")).isEqualTo(false);
+        assertThat(gap.getLast().get("warning")).isEqualTo("缺少同环境模型/渠道授权");
+        gateway.block(key.alias());
+        assertThat(gateway.diagnose(key.alias(),"qa-diagnose").get("blocked")).isEqualTo(true);
+        assertThatThrownBy(()->gateway.diagnose(key.alias(),"unknown-model")).hasMessageContaining("未知模型");
+    }
+
+    @Test void concreteDiagnosisLabelsLegacyMappingAndKeepsKeyFallbackSemantics() {
+        var gateway=new Gateway(catalog(9),new BudgetCounter(),new Upstream());
+        var key=gateway.create("qa-concrete-staging",List.of(Q,D),List.of(D),new BigDecimal("100"),true);
+        var diagnostic=gateway.diagnose(key.alias(),"qwen-plus");
+        assertThat(diagnostic.get("kind")).isEqualTo("concrete");
+        assertThat(diagnostic.get("warnings").toString()).contains("qwen-plus → "+Q,"不参与逻辑模型分流");
+        assertThat(gateway.spend(null,1,5000)).isEmpty();
+    }
+
     @Test void draftIsIsolatedConflictIsRejectedAndRollbackRestoresWholeSnapshot() {
         var table=new RouteTable(null);var cat=catalog(9);
         var first=table.current();

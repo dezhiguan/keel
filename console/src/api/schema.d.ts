@@ -1623,6 +1623,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/insight/route/diagnose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 按智能体默认模型诊断完整路由
+         * @description 不调用模型。缺省 model 时读取 Key 所属智能体同环境的登记清单；显式模型用于高级排查。薄网关使用同形返回，不包含清单来源三字段。
+         */
+        post: operations["diagnoseRoute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/insight/route/preview": {
         parameters: {
             query?: never;
@@ -3435,6 +3455,31 @@ export interface components {
             hash?: string;
             /** @description 同智能体链上一条的 hash，链头为空 */
             prevHash?: string | null;
+        };
+        RouteDiagnosis: {
+            alias?: string;
+            env?: string;
+            agent?: string;
+            defaultModel?: string;
+            /** @enum {string} */
+            modelSource?: "manifest" | "override";
+            requestedModel?: string;
+            /** @enum {string} */
+            kind?: "logical" | "concrete";
+            version?: number;
+            objective?: string;
+            blocked?: boolean;
+            fallback?: string;
+            minInputTokens?: number;
+            targets?: {
+                model?: string;
+                weight?: number;
+                authorized?: boolean;
+                breakerOpen?: boolean;
+                attempts?: string[];
+                warning?: string;
+            }[];
+            warnings?: string[];
         };
         GatewayChannel: {
             id?: string;
@@ -6798,6 +6843,36 @@ export interface operations {
                             /** @enum {string} */
                             objective?: "balanced" | "cost" | "latency";
                         };
+                    };
+                };
+            };
+        };
+    };
+    diagnoseRoute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    alias: string;
+                    /** @description 可选，逻辑模型或真实模型名 */
+                    model?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 当前已发布规则的完整诊断 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["RouteDiagnosis"];
                     };
                 };
             };

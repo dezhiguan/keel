@@ -3,10 +3,10 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import Pager from '@/components/Pager.vue'
 import LogicalRouting from './LogicalRouting.vue'
+import RouteDiagnostic from './RouteDiagnostic.vue'
 import {
   addModelChannel,
   getModelGateway,
-  previewRoute,
   probeModel,
   probeModelChannel,
   rotateModelKey,
@@ -27,7 +27,7 @@ import {
   type ChannelDraft,
 } from './channelShare'
 import { mergeGateway, prefetchAfter, sectionForTab, type GatewaySection } from './gatewayLoad'
-import { billClock, billStatusLabel, limitLabel, objectiveLabel, routeReason } from './modelBill'
+import { billClock, billStatusLabel, limitLabel, routeReason } from './modelBill'
 import { toKeelError } from '@/api/http'
 import { useEnvStore } from '@/stores/env'
 import { useUserStore } from '@/stores/user'
@@ -72,11 +72,7 @@ const modelPage = ref(1)
 const modelSize = ref<PageSize>(10)
 const keyPage = ref(1)
 const keySize = ref<PageSize>(10)
-const routeBusy = ref(false)
-const previewAlias = ref('')
-const previewModel = ref('')
-const previewText = ref('选择 Key 和模型后试算，结果来自薄网关。')
-const previewTone = ref<'info' | 'warn'>('info')
+const diagnosticRevision = ref(0)
 const nowMs = ref(Date.now())
 const channelBusy = ref(false)
 const addOpen = ref(false)
@@ -96,7 +92,6 @@ const simulated = ref<{ time: string; alias: string; tone: string; result: strin
 const admin = computed(() => userStore.user?.platformRole === 'ADMIN')
 const quotaOpen = ref(false)
 const selectedKey = computed(() => keys.value.find((key) => key.alias === selectedAlias.value) ?? null)
-const previewChoices = computed(() => keys.value.find((key) => key.alias === previewAlias.value)?.models ?? [])
 const keyRows = computed(() => keys.value.slice((keyPage.value - 1) * keySize.value, keyPage.value * keySize.value))
 const logicalRoutes = computed(() => data.value?.logicalRoutes ?? [])
 
@@ -262,10 +257,7 @@ function settleSelection() {
   const current = keys.value.find((key) => key.alias === selectedAlias.value)
   if (current) selectKey(current)
   else quotaOpen.value = false
-  if (!keys.value.some((key) => key.alias === previewAlias.value)) {
-    previewAlias.value = keys.value[0]?.alias ?? ''
-    previewModel.value = keys.value[0]?.models?.[0] ?? ''
-  }
+
 }
 
 async function fetchSection(section: GatewaySection, mine: number, resync: boolean) {
@@ -385,26 +377,6 @@ async function confirmRotation() {
   }
 }
 
-async function simulate() {
-  if (!previewAlias.value || !previewModel.value) {
-    previewTone.value = 'warn'
-    previewText.value = '先选择 Key 和模型。'
-    return
-  }
-  routeBusy.value = true
-  try {
-    const result = await previewRoute(previewAlias.value, previewModel.value)
-    const chain = result.models?.length ? result.models.join(' → ') : '没有可用模型'
-    previewTone.value = result.models?.length ? 'info' : 'warn'
-    previewText.value = `v${result.version} · ${logicalRoutes.value.some(row => row.logical === previewModel.value) ? '逻辑模型路由' : objectiveLabel(result.objective)} · ${chain}`
-  } catch (error) {
-    previewTone.value = 'warn'
-    previewText.value = toKeelError(error).message
-  } finally {
-    routeBusy.value = false
-  }
-}
-
 function channelFits(channel: LiveChannel, env?: string | null) {
   if (!env) return true
   const listed = (channel.env || '').split('、').filter(Boolean)
@@ -453,12 +425,6 @@ function simulateOnce() {
   }
   simulated.value = simulated.value.slice(0, 6)
 }
-
-watch(previewAlias, (alias) => {
-  const modelsForKey = keys.value.find((key) => key.alias === alias)?.models ?? []
-  if (!modelsForKey.includes(previewModel.value)) previewModel.value = modelsForKey[0] ?? ''
-})
-
 
 function modelOf(name?: string) {
   return models.value.find((model) => model.model === name)
@@ -751,30 +717,8 @@ watch(tab, (value) => {
 
     <div v-if="tab === 'route'" v-loading="sectionPending('routes')" class="tab-body">
       <template v-if="loaded.routes">
-      <LogicalRouting @keys="tab = 'key'" @changed="load" />
-      <div class="card">
-        <h3>
-          路由试算
-          <small>按当前已发布策略，向薄网关查询这把 Key 会尝试的模型</small>
-          <span class="sp" />
-          <button v-write class="btn pri sm" type="button" :disabled="routeBusy" @click="simulate">试算</button>
-        </h3>
-        <div class="share-grid">
-          <div class="field">
-            <label>虚拟 Key</label>
-            <select v-model="previewAlias" class="inp">
-              <option v-for="key in keys" :key="key.alias" :value="key.alias">{{ key.alias }}</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>指定模型</label>
-            <select v-model="previewModel" class="inp">
-              <option v-for="name in previewChoices" :key="name" :value="name">{{ name }}</option>
-            </select>
-          </div>
-        </div>
-        <div class="banner" :class="previewTone">{{ previewText }}</div>
-      </div>
+      <LogicalRouting @keys="tab = 'key'" @changed="load(); diagnosticRevision++" />
+      <RouteDiagnostic :keys="keys" :logical-routes="logicalRoutes" :revision="diagnosticRevision" />
       </template>
     </div>
 

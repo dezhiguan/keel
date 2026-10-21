@@ -41,6 +41,18 @@ class CodeCandidateServiceTest {
         assertThatThrownBy(() -> CodeCandidateService.requireCompatible(old, next)).isInstanceOf(com.keel.server.common.KeelException.class);
     }
 
+    @Test void fallbackRemovalWithSameDefaultIsAllowedButAddingOrReplacingFallbackIsRejected() throws Exception {
+        var old=manifest();old.withObject("/spec/models").put("default","chat-default");
+        old.withObject("/spec/models").putArray("fallback").add("qwen3.8-flash").add("deepseek-flash");
+        var next=old.deepCopy();next.withObject("/spec/models").remove("fallback");
+        assertThatCode(()->CodeCandidateService.requireCompatible(old,next)).doesNotThrowAnyException();
+        var widened=next.deepCopy();widened.withObject("/spec/models").putArray("fallback").add("new-model");
+        assertThatThrownBy(()->CodeCandidateService.requireCompatible(next,widened)).isInstanceOf(com.keel.server.common.KeelException.class);
+        assertThatThrownBy(()->CodeCandidateService.requireCompatible(old,widened)).isInstanceOf(com.keel.server.common.KeelException.class);
+        next.withObject("/spec/models/budget").put("dailyCny",100);
+        assertThatThrownBy(()->CodeCandidateService.requireCompatible(old,next)).isInstanceOf(com.keel.server.common.KeelException.class);
+    }
+
     @Test void duplicatePromptAndInvalidSkillVersionsAreRejected() throws Exception {
         var old = manifest();
         var next = old.deepCopy();

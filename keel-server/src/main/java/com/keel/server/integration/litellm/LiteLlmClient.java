@@ -328,6 +328,10 @@ public class LiteLlmClient {
         return new RoutePolicy(body.path("version").asInt(), body.path("objective").asText("balanced"));
     }
 
+    public JsonNode diagnoseRoute(String alias,String model) {
+        return send("/admin/v1/route/diagnose",Map.of("alias",alias,"model",model));
+    }
+
     public Preview previewRoute(String alias, String model) {
         var request = new java.util.LinkedHashMap<String, Object>();
         request.put("alias", alias);

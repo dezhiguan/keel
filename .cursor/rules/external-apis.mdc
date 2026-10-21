@@ -72,3 +72,5 @@ alwaysApply: true
 - 2026-10-19 实测 /v2/observations 的 metadata 可使用扁平键 attributes.keel.agent / attributes.keel.status，而非仅嵌套 attributes 对象。护栏归属、命中、类型读取必须兼容此形态（trace详情已有兼容）。
 
 - 2026-10-21 动态路由：GET/POST /admin/v1/route-table；POST /admin/v1/route-table/{publish,rollback,grants,replay}。POST显式revision，草稿保存另带rules，跨副本CAS；返回完整快照/授权缺口，发布/回滚前校验覆盖与引用。逻辑模型降级继承已发布规则，具体模型保留Key fallback。回放仅计算真实请求元数据，不发上游。旧route-policy接口仅管理具体模型降级选择目标。
+
+- 2026-10-21 路由诊断：POST /admin/v1/route/diagnose 接收 {alias,model}，返回 RouteDiagnosis（contracts/console-api.openapi.yaml），完整枚举权重和降级、授权、断路器；不调用模型或写账单，保留旧 preview。服务端 /insight/route/diagnose 可省 model，从同环境登记清单读取默认模型。

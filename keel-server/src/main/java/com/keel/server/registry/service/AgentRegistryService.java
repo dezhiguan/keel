@@ -120,6 +120,13 @@ public class AgentRegistryService {
         return readManifest(versions.isEmpty() ? null : versions.get(0));
     }
 
+    /** Latest registered configuration in the Key's exact environment; never borrow another environment. */
+    public String defaultModelForEnv(String name,String env) {
+        var manifest=versionMapper.listByAgent(name).stream().filter(v->env.equals(v.getEnv()))
+                .findFirst().map(this::readManifest).orElse(null);
+        return manifest==null?"":manifest.path("spec").path("models").path("default").asText("");
+    }
+
     public AgentDetail detail(String name) {
         return readDetail(name, true);
     }

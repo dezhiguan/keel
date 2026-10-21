@@ -82,3 +82,8 @@ export function operateLogicalRouteTable(operation: 'publish' | 'rollback' | 'gr
 export function replayLogicalRouteTable(revision: number) {
   return post<RouteReplay>('/insight/route-table/replay', { revision })
 }
+
+export type RouteDiagnosis = components['schemas']['RouteDiagnosis']
+export function diagnoseRoute(alias: string, model?: string) {
+  return post<RouteDiagnosis>('/insight/route/diagnose', { alias, ...(model ? { model } : {}) })
+}

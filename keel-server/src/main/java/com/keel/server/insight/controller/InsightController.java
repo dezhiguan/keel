@@ -240,6 +240,21 @@ public class InsightController {
         return R.ok(Map.of("id", result.id(), "breaker", result.breaker(), "openUntil", result.openUntil()));
     }
 
+    @PostMapping("/route/diagnose")
+    public R<com.fasterxml.jackson.databind.JsonNode> diagnoseRoute(@RequestBody Map<String,Object> body) {
+        var alias=text(body.get("alias"));
+        if(!alias.matches("^[a-z][a-z0-9-]{1,38}[a-z0-9]-(dev|test|staging|prod)$"))
+            throw new KeelException(ErrorCode.SERVER_INVALID_PARAM,"请选择有效的虚拟 Key");
+        int dash=alias.lastIndexOf('-');var agent=alias.substring(0,dash);var env=alias.substring(dash+1);
+        var defaultModel=agents.defaultModelForEnv(agent,env);
+        var model=text(body.get("model")).trim();boolean override=!model.isBlank();
+        if(!override)model=defaultModel;
+        if(model.isBlank())throw new KeelException(ErrorCode.SERVER_INVALID_PARAM,"该 Key 的同环境智能体未登记默认模型，请在高级选项填写请求模型名");
+        var result=(com.fasterxml.jackson.databind.node.ObjectNode)costs.diagnoseRoute(alias,model);
+        result.put("agent",agent);result.put("defaultModel",defaultModel);result.put("modelSource",override?"override":"manifest");
+        return R.ok(result);
+    }
+
     @PostMapping("/route/preview")
     public R<Map<String, Object>> previewRoute(@RequestBody Map<String, Object> body) {
         var preview = costs.previewRoute(

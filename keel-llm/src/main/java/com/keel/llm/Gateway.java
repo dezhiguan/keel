@@ -590,6 +590,55 @@ public final class Gateway {
         return new Preview(row==null?version.version():snapshot.version(), version.objective(), namedAttempts(key,row,live,false,JSON.createObjectNode()));
     }
 
+    /** Read-only plan: enumerate every branch, never select randomly or invoke the upstream. */
+    public Map<String,Object> diagnose(String alias, String model) {
+        var key=requireAlias(alias);
+        var snapshot=routes.table.current();
+        var row=RouteTable.match(snapshot.rules(),model,envOf(alias));
+        var weights=new java.util.LinkedHashMap<String,Double>();
+        var warnings=new ArrayList<String>();
+        if(key.blocked()) warnings.add("Key 已停用，请求会被拒绝");
+        if(row==null) {
+            if(routes.table.logical(model))throw RouteTable.invalid("该逻辑模型在此环境没有已发布规则");
+            var live=liveModel(model,alias);
+            weights.put(live,100d);
+            if(!live.equals(model))warnings.add("兼容模型别名映射: "+model+" → "+live);
+            warnings.add("真实模型请求不参与逻辑模型分流，降级使用该 Key 的配置");
+            // Include Key fallbacks even when they are currently unavailable.
+            if(key.allowFallback())for(var fallback:key.fallback())weights.putIfAbsent(fallback,0d);
+        } else {
+            double normal=(100-row.grayPercent())/100d;
+            weights.merge(row.primary(),normal*row.primaryWeight(),Double::sum);
+            weights.merge(row.secondary(),normal*(100-row.primaryWeight()),Double::sum);
+            if(row.grayPercent()>0)weights.merge(row.grayModel(),(double)row.grayPercent(),Double::sum);
+            weights.entrySet().removeIf(e->e.getValue()==0);
+            for(var target:row.targets())weights.putIfAbsent(target,0d);
+            if(row.minInputTokens()>0)warnings.add("规则要求输入长度估算至少 "+row.minInputTokens()+"；本次仅检查路由配置，未验证输入长度");
+        }
+        var targets=new ArrayList<Map<String,Object>>();
+        for(var entry:weights.entrySet()) {
+            var target=entry.getKey(); boolean authorized=covers(key,target);
+            var item=new java.util.LinkedHashMap<String,Object>();
+            item.put("model",target);item.put("weight",entry.getValue());item.put("authorized",authorized);
+            item.put("breakerOpen",routes.open(breakerKey(key,target)));
+            List<String> plan=List.of();String warning="";
+            if(!authorized)warning="缺少同环境模型/渠道授权";
+            else if(entry.getValue()>0) {
+                try {plan=row==null?attempts(key,target,false):routeAttempts(key,row,target);}
+                catch(GatewayException e){warning=e.getMessage();}
+            }
+            item.put("attempts",plan);item.put("warning",warning);targets.add(item);
+        }
+        var result=new java.util.LinkedHashMap<String,Object>();
+        result.put("alias",alias);result.put("env",envOf(alias));result.put("requestedModel",model);
+        result.put("kind",row==null?"concrete":"logical");
+        result.put("version",row==null?routes.current().version():snapshot.version());
+        result.put("objective",routes.current().objective());result.put("blocked",key.blocked());
+        result.put("fallback",row==null?(key.allowFallback()?String.join(" → ",key.fallback()):"none"):row.fallback());
+        result.put("minInputTokens",row==null?0:row.minInputTokens());result.put("targets",targets);result.put("warnings",warnings);
+        return result;
+    }
+
     private static boolean streamRejected(Upstream.Stream opened) {
         return opened.retryable() || opened.status() >= 400;
     }
@@ -811,6 +860,10 @@ public final class Gateway {
     private List<String> namedAttempts(VirtualKey key,RouteTable.Rule row,String requested,boolean embedding,JsonNode request) {
         if(row==null || embedding)return attempts(key,requested,embedding);
         if(inputEstimate(request)<row.minInputTokens())throw RouteTable.invalid("输入长度估算未达到逻辑模型的最小输入阈值");
+        return routeAttempts(key,row,requested);
+    }
+
+    private List<String> routeAttempts(VirtualKey key,RouteTable.Rule row,String requested) {
         var candidates=new ArrayList<String>();candidates.add(requested);
         if(!"none".equals(row.fallback())) {
             var pool=new ArrayList<>(row.targets());pool.remove(requested);

@@ -97,6 +97,18 @@ public class CostService {
         }
     }
 
+    public com.fasterxml.jackson.databind.JsonNode diagnoseRoute(String alias,String model) {
+        try { return gateway.diagnoseRoute(alias,model); }
+        catch(IllegalStateException e) {
+            var message=e.getMessage()==null?"":e.getMessage();
+            if(message.contains(" 400")) {
+                var detail=message.substring(message.indexOf(" 400")+4).trim();
+                throw new KeelException(ErrorCode.SERVER_INVALID_PARAM,detail.isBlank()?"路由试算失败":detail);
+            }
+            throw e;
+        }
+    }
+
     public LiteLlmClient.Preview previewRoute(String alias, String model) {
         if (alias == null || alias.isBlank()) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "alias 不能为空");
