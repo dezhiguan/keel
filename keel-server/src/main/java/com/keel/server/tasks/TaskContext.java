@@ -39,7 +39,7 @@ public class TaskContext {
             var now=Instant.now();var builder=new JWTClaimsSet.Builder().issuer("keel-assistant-task")
                 .audience("keel-assistant-task").subject(subject).jwtID(UUID.randomUUID().toString())
                 .issueTime(Date.from(now)).expirationTime(Date.from(now.plusSeconds(seconds)))
-                .claim("agent","keel-assistant").claim("env","staging").claim("purpose",purpose);
+                .claim("agent","keel-assistant").claim("env","staging").claim("task_type","analysis").claim("purpose",purpose);
             values.forEach(builder::claim);
             var jwt=new SignedJWT(new JWSHeader(JWSAlgorithm.RS256),builder.build());jwt.sign(new RSASSASigner(key.privateKey()));return jwt.serialize();
         }catch(Exception error){throw denied();}
@@ -51,6 +51,7 @@ public class TaskContext {
                 || !"keel-assistant-task".equals(claims.getIssuer()) || !claims.getAudience().equals(List.of("keel-assistant-task"))
                 || !purpose.equals(claims.getStringClaim("purpose")) || !"keel-assistant".equals(claims.getStringClaim("agent"))
                 || !"staging".equals(claims.getStringClaim("env")) || claims.getSubject()==null || claims.getSubject().isBlank()
+                || !"analysis".equals(claims.getStringClaim("task_type"))
                 || claims.getIssueTime()==null || claims.getIssueTime().toInstant().isAfter(now.plusSeconds(5))
                 || claims.getExpirationTime()==null || !claims.getExpirationTime().toInstant().isAfter(now)
                 || claims.getExpirationTime().toInstant().isAfter(claims.getIssueTime().toInstant().plusSeconds(300)))throw denied();

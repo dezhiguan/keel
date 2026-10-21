@@ -51,7 +51,7 @@ public class AnalysisTaskController {
         // Audit is synchronous and inside the transaction; a write failure rolls back the scope.
         audit.append(name,"staging","tool.grant","high","allowed","assistant.analysis.scope",null,actor.username(),Map.of("enabled",enabled));
         db.update("INSERT INTO assistant_analysis_scope(agent_name,environment,owner_org,enabled,granted_by) VALUES (?,'staging',?,?,?) ON CONFLICT(agent_name,environment) DO UPDATE SET enabled=excluded.enabled,granted_by=excluded.granted_by,updated_at=clock_timestamp()",name,actor.org(),enabled,actor.username());
-        for(String tool:List.of("keel.tasks.command","keel.tasks.execution"))db.update("INSERT INTO agent_tool_grant(agent_name,tool_name,version_range,granted_by,status) VALUES (?,?,'1.0.0',?,?) ON CONFLICT(agent_name,tool_name) DO UPDATE SET status=excluded.status,granted_by=excluded.granted_by",name,tool,actor.username(),enabled?"ACTIVE":"REVOKED");
+        for(String tool:List.of("keel.tasks.command","keel.tasks.execution"))db.update("INSERT INTO agent_tool_grant(agent_name,tool_name,version_range,granted_by,status) VALUES (?,?,'1.0.0',?,?) ON CONFLICT(agent_name,tool_name,version_range) DO UPDATE SET status=excluded.status,granted_by=excluded.granted_by",name,tool,actor.username(),enabled?"ACTIVE":"REVOKED");
         if(!enabled){
             db.update("UPDATE assistant_analysis_task SET state='waiting_authorization',error='任务授权已撤销',updated_at=clock_timestamp() WHERE state='queued'");
             db.update("UPDATE assistant_analysis_task SET state='cancel_requested',error='任务授权已撤销；停止后续步骤，模型调用未确认停止',updated_at=clock_timestamp() WHERE state IN ('running','validating')");

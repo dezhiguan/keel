@@ -23,7 +23,10 @@ class AnalysisTasksPersistenceTest {
     @BeforeEach void setup()throws Exception{
         db=new JdbcTemplate(new DriverManagerDataSource(System.getenv("KEEL_TASK_PG_URL"),System.getenv().getOrDefault("KEEL_TASK_PG_USER","amy"),System.getenv().getOrDefault("KEEL_TASK_PG_PASSWORD","")));
         assertThat(db.queryForObject("SELECT current_database()",String.class)).isEqualTo("keel_assistant_platform_task_test");
-        db.execute("DROP TABLE IF EXISTS assistant_analysis_attempt,assistant_analysis_task,assistant_analysis_scope,tool_version,tool");
+        db.execute("DROP TABLE IF EXISTS assistant_analysis_attempt,assistant_analysis_task,assistant_analysis_scope,tool_version,tool,agent_tool_grant,agent");
+        db.execute("CREATE TABLE agent(name text PRIMARY KEY,owner_org text,status text)");
+        db.execute("INSERT INTO agent VALUES ('keel-assistant','平台组','ONLINE')");
+        db.execute("CREATE TABLE agent_tool_grant(agent_name text,tool_name text,version_range text,granted_by text,status text,UNIQUE(agent_name,tool_name,version_range))");
         db.execute("CREATE TABLE tool(name text PRIMARY KEY,scope text,owner_org text,provider text,status text CHECK(status IN ('ONLINE','REGISTERED','RETIRED')))");
         db.execute("CREATE TABLE tool_version(tool_name text,version text,schema_json jsonb,description text,access text,risk text,breaking boolean,UNIQUE(tool_name,version))");
         db.execute(Files.readString(Path.of("src/main/resources/db/migration/V33__assistant_analysis_tasks.sql")));
@@ -54,6 +57,7 @@ class AnalysisTasksPersistenceTest {
         assertThatThrownBy(()->tasks.command(args("create",text,"r1","user").put("user_id","other").put("material",material),"t")).isInstanceOf(RuntimeException.class);
         assertThatThrownBy(()->tasks.command(args("create",text,"r1","user").put("_session","wrong").put("material",material),"t")).isInstanceOf(RuntimeException.class);
         assertThatThrownBy(()->tasks.command(args("create",text,"r1","user").put("material","虚构资料"),"t")).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(()->tasks.command(args("create","请读取链接生成报告：https://example.com","r1","user").put("material","https://example.com"),"t")).isInstanceOf(RuntimeException.class);
         assertThat(db.queryForObject("SELECT count(*) FROM assistant_analysis_task",Integer.class)).isZero();
     }
     @Test void differentUserAndAcceptanceNamespaceCannotReadNormalTasks(){
@@ -145,5 +149,44 @@ class AnalysisTasksPersistenceTest {
         var first=create();tasks.command(args("create",text,"r2","user").put("material",material),"t");
         assertThatThrownBy(()->tasks.command(args("cancel","取消刚才那个任务","c1","user").put("task_id",(String)first.get("task_id")),"t")).isInstanceOf(RuntimeException.class);
         assertThat(db.queryForObject("SELECT count(*) FROM assistant_analysis_task WHERE state='queued'",Integer.class)).isEqualTo(2);
+    }
+    @Test void explicitUserScopeGrantsOnlyTwoExactToolsAndCanBeRevoked(){
+        var request=new org.springframework.mock.web.MockHttpServletRequest();ConsolePrincipal.set(request,user);
+        org.springframework.web.context.request.RequestContextHolder.setRequestAttributes(new org.springframework.web.context.request.ServletRequestAttributes(request));
+        var audits=new java.util.concurrent.atomic.AtomicInteger();
+        try{
+            var controller=new AnalysisTaskController(tasks,db,audit(audits,false),json);
+            controller.scope("keel-assistant",json.createObjectNode().put("environment","staging").put("enabled",true));
+            controller.scope("keel-assistant",json.createObjectNode().put("environment","staging").put("enabled",true));
+            assertThat(db.queryForObject("SELECT count(*) FROM agent_tool_grant WHERE status='ACTIVE'",Integer.class)).isEqualTo(2);
+            controller.scope("keel-assistant",json.createObjectNode().put("environment","staging").put("enabled",false));
+            assertThat(db.queryForObject("SELECT count(*) FROM agent_tool_grant WHERE status='ACTIVE'",Integer.class)).isZero();
+            assertThat(audits.get()).isEqualTo(3);
+            ConsolePrincipal.set(request,ConsolePrincipal.service("keel-assistant"));
+            assertThatThrownBy(()->controller.scope("keel-assistant",json.createObjectNode().put("environment","staging").put("enabled",true))).isInstanceOf(RuntimeException.class);
+        }finally{org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();}
+    }
+    @Test void auditFailureRejectsScopeWriteBeforeAnyPermissionMutation(){
+        var request=new org.springframework.mock.web.MockHttpServletRequest();ConsolePrincipal.set(request,user);
+        org.springframework.web.context.request.RequestContextHolder.setRequestAttributes(new org.springframework.web.context.request.ServletRequestAttributes(request));
+        try{
+            var controller=new AnalysisTaskController(tasks,db,audit(new java.util.concurrent.atomic.AtomicInteger(),true),json);
+            assertThatThrownBy(()->controller.scope("keel-assistant",json.createObjectNode().put("environment","staging").put("enabled",false))).isInstanceOf(RuntimeException.class);
+            assertThat(db.queryForObject("SELECT enabled FROM assistant_analysis_scope",Boolean.class)).isTrue();
+            assertThat(db.queryForObject("SELECT count(*) FROM agent_tool_grant",Integer.class)).isZero();
+        }finally{org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();}
+    }
+    @Test void assistantValidationVetoRetainsOriginalReportButCannotSucceed()throws Exception{
+        var id=(String)create().get("task_id");var task=tasks.start(tasks.claim("a"));
+        tasks.finish(task,report(),1,null,List.of("fixture independent validation failed"));
+        var result=tasks.command(get(id),"t");assertThat(result.get("state")).isEqualTo("failed");
+        assertThat(result.get("report")).isEqualTo(report());
+    }
+    private com.keel.server.integration.audit.AuditStore audit(java.util.concurrent.atomic.AtomicInteger count,boolean fail){
+        return new com.keel.server.integration.audit.AuditStore(){
+            public void append(String agent,String env,String action,String risk,String decision,String resource,String trace){if(fail)throw new IllegalStateException("fixture audit failure");count.incrementAndGet();}
+            public Map<String,Object> page(String agent,String risk,String env,int page,int size){return Map.of();}
+            public Map<String,Object> verify(String agent){return Map.of();}
+        };
     }
 }

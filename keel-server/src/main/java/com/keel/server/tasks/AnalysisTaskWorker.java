@@ -45,7 +45,7 @@ public class AnalysisTaskWorker {
             if(String.valueOf(task.get("namespace")).startsWith("acceptance:"))builder.header("X-Keel-Eval-Run","task-"+String.valueOf(task.get("namespace")).substring(11));
             var request=builder.POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(payload))).build();
             var response=http.send(request,HttpResponse.BodyHandlers.ofString());
-            if(response.statusCode()!=200)throw new IllegalStateException("assistant HTTP error");
+            if(response.statusCode()!=200)throw new IllegalStateException("HTTP:"+response.statusCode());
             var result=readFinal(response.body());
             if(!valid.get())return;
             if(!task.get("task_id").equals(result.path("meta").path("task_id").asText())
@@ -53,9 +53,12 @@ public class AnalysisTaskWorker {
                 || !result.path("meta").path("analysis_prompt_fallback").isBoolean()
                 || result.path("meta").path("analysis_prompt_fallback").asBoolean()
                 || !result.path("meta").path("analysis_prompt_version").isInt())throw new IllegalStateException("task execution evidence mismatch");
-            tasks.finish(task,result.path("answer").asText(),result.path("meta").path("analysis_prompt_version").isInt()?result.path("meta").path("analysis_prompt_version").asInt():null,null);
+            var local=result.path("meta").path("analysis_validation").path("passed");
+            tasks.finish(task,result.path("answer").asText(),result.path("meta").path("analysis_prompt_version").asInt(),null,
+                local.isBoolean() && local.asBoolean()?List.of():List.of("助理代码的确定性报告核验未通过或证据缺失"));
         }catch(Exception error){
-            if(task!=null && valid.get())try{tasks.finish(task,null,null,"模型调用结果未确认或流被中断；不会自动重算，可能已有费用");}catch(Exception lost){/* stale worker cannot write */}
+            var detail=error.getMessage()!=null && error.getMessage().matches("SSE:[A-Z_]{1,80}|HTTP:[0-9]{3}")?"（"+error.getMessage()+"）":"";
+            if(task!=null && valid.get())try{tasks.finish(task,null,null,"模型调用结果未确认或流被中断"+detail+"；不会自动重算，可能已有费用");}catch(Exception lost){/* stale worker cannot write */}
             LoggerFactory.getLogger(getClass()).warn("trace_id=unknown agent=keel-assistant task={} execution interrupted",claimed.get("task_id"));
         }finally{if(heartbeat!=null)heartbeat.cancel(false);busy.set(false);}
     }
@@ -63,7 +66,10 @@ public class AnalysisTaskWorker {
         String event="";JsonNode terminal=null;
         for(String line:wire.split("\n")){
             if(line.startsWith("event:"))event=line.substring(6).strip();
-            else if(line.startsWith("data:") && "error".equals(event))throw new IllegalStateException("assistant SSE error");
+            else if(line.startsWith("data:") && "error".equals(event)){
+                var code=json.readTree(line.substring(5).strip()).path("code").asText("");
+                throw new IllegalStateException(code.matches("[A-Z_]{1,80}")?"SSE:"+code:"assistant SSE error");
+            }
             else if(line.startsWith("data:") && "final".equals(event))terminal=json.readTree(line.substring(5).strip());
         }
         if(terminal==null)throw new IllegalStateException("missing final");return terminal;

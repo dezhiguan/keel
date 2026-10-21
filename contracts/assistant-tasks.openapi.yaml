@@ -18,7 +18,6 @@ paths:
                 _session: {type: string}
                 _text: {type: string, maxLength: 20000}
                 task_id: {type: string, pattern: '^task_[a-f0-9]{32}$'}
-                goal: {type: string, maxLength: 2000}
                 material: {type: string, maxLength: 12000}
                 acknowledge_duplicate_cost: {type: boolean}
       responses:

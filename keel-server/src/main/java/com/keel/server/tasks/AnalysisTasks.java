@@ -26,7 +26,7 @@ public class AnalysisTasks {
         if(!Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM assistant_analysis_scope WHERE agent_name='keel-assistant' AND environment='staging' AND owner_org=? AND enabled)",Boolean.class,org)))throw TaskContext.denied();
     }
     public Map<String,Object> command(JsonNode args,String trace){
-        var allowed=Set.of("operation","_authorization","_session","_text","task_id","goal","material","acknowledge_duplicate_cost");
+        var allowed=Set.of("operation","_authorization","_session","_text","task_id","material","acknowledge_duplicate_cost");
         args.fieldNames().forEachRemaining(k->{if(!allowed.contains(k))throw TaskContext.invalid("任务参数不在白名单");});
         var c=contexts.verify(args.path("_authorization").asText(""),"user");
         try{
@@ -70,6 +70,7 @@ public class AnalysisTasks {
     private Map<String,Object> create(com.nimbusds.jwt.JWTClaimsSet c,JsonNode args,String text,String org,String trace){
         var material=args.path("material").asText("").strip();
         if(material.isEmpty() || material.length()>12000 || !text.contains(material))throw TaskContext.invalid("请直接提供不超过12000字的完整文字材料");
+        if(material.matches("(?s)(链接[:：]\\s*)?https?://\\S+"))throw TaskContext.invalid("本版不读取链接，请直接粘贴要分析的文字材料");
         var objective=text.replace(material,"[用户提供的文字材料]").strip();
         // The directive is outside the quoted material, so instructions inside data cannot create tasks.
         if(objective.length()>2000 || !objective.matches("(?s).*(生成|创建|开始|执行|分析|总结|提取).*(报告|任务|风险|问题|材料).*"))
@@ -99,7 +100,7 @@ public class AnalysisTasks {
             Object v=row.get(name);out.put(name,v instanceof Timestamp t?t.toInstant().toString():v);
             if(v!=null && Set.of("acceptance","usage").contains(name))try{out.put(name,json.readTree(v.toString()));}catch(Exception invalid){out.put(name,null);}
         }
-        out.put("executor","keel-assistant");out.put("environment","staging");
+        out.put("executor","keel-assistant");out.put("environment","staging");out.put("task_type","analysis");
         out.put("cancellation_note","cancel_requested".equals(row.get("state"))?"已请求停止后续步骤；正在进行的模型调用未确认停止，可能产生费用":
             "unknown".equals(row.get("state"))?"调用结果未知；不会自动重算，可能已产生计算与费用":null);
         return out;
@@ -162,6 +163,9 @@ public class AnalysisTasks {
         });}catch(Exception denied){throw TaskContext.denied();}
     }
     public void finish(Map<String,Object> task,String raw,Integer promptVersion,String error){
+        finish(task,raw,promptVersion,error,List.of());
+    }
+    public void finish(Map<String,Object> task,String raw,Integer promptVersion,String error,List<String> additionalFailures){
         if(error==null)tx.executeWithoutResult(status->{
             var row=leased(task);
             var saved=raw==null?null:raw.substring(0,Math.min(raw.length(),100000));
@@ -170,7 +174,7 @@ public class AnalysisTasks {
             db.update("UPDATE assistant_analysis_attempt SET state='validating',report=?,prompt_version=? WHERE task_id=? AND attempt=?",saved,promptVersion,task.get("task_id"),task.get("attempt"));
         });
         tx.executeWithoutResult(status->{
-            var row=leased(task);var checks=validate(raw,(String)row.get("material"));
+            var row=leased(task);var checks=new ArrayList<>(validate(raw,(String)row.get("material")));checks.addAll(additionalFailures);
             String state=error!=null?"unknown":checks.isEmpty()?"succeeded":"failed";
             if("cancel_requested".equals(row.get("state")) && error==null)state="cancelled";
             var acceptance=new LinkedHashMap<String,Object>();acceptance.put("passed",checks.isEmpty() && error==null);acceptance.put("errors",checks);acceptance.put("semantic_review","pending");
@@ -192,6 +196,7 @@ public class AnalysisTasks {
             for(var risk:report.path("risks")){
                 var ev=risk.path("evidence");
                 if(risk.size()!=3 || !risk.path("risk").isTextual() || risk.path("risk").asText().isBlank()
+                    || risk.path("risk").asText().length()>4000 || risk.path("recommendation").asText().length()>4000
                     || !names.add(risk.path("risk").asText().strip().toLowerCase(Locale.ROOT)) || !risk.path("recommendation").isTextual()
                     || risk.path("recommendation").asText().isBlank())errors.add("风险或改进建议缺失、重复或格式错误");
                 if(ev.size()!=2 || !"material".equals(ev.path("source_id").asText()) || !ev.path("quote").isTextual()

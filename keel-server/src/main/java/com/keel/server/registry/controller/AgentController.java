@@ -139,7 +139,7 @@ public class AgentController {
         var evaluationRun=request.getHeader("X-Keel-Eval-Run");
         if(evaluationRun!=null && !evaluationRun.matches("[A-Za-z0-9_-]{1,128}"))
             throw new KeelException(com.keel.common.error.ErrorCode.SERVER_INVALID_PARAM,"评测运行标记无效");
-        var taskAcceptance=request.getHeader("X-Keel-Task-Acceptance");
+        var taskAcceptance=request.getHeader("X-Keel-Analysis-Acceptance");
         if(taskAcceptance!=null && !taskAcceptance.matches("[A-Za-z0-9_-]{1,64}"))throw com.keel.server.tasks.TaskContext.invalid("专项验收标记无效");
         var remember = evaluationRun == null && taskAcceptance == null;
         var forwardedEvaluation=taskAcceptance==null?evaluationRun:"task-"+taskAcceptance;
