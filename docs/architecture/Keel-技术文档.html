@@ -1184,5 +1184,5 @@ const secs=links.map(a=>document.querySelector(a.getAttribute('href')));
 const spy=()=>{let cur=0;secs.forEach((s,i)=>{if(s.getBoundingClientRect().top<140)cur=i});links.forEach((a,i)=>a.classList.toggle('on',i===cur))};
 addEventListener('scroll',spy,{passive:true});spy();
 </script>
-</body>
+<section><h2>2026-10-21 动态逻辑模型路由</h2><p>管理接口 GET/POST /admin/v1/route-table 与 publish、rollback、grants、replay 子操作；控制台经 /api/v1/insight/route-table 转发。revision 乐观锁，Redis保存完整快照和草稿，发布校验Key授权和逻辑引用，逻辑请求从已发布规则选择分流/灰度/降级。具体模型调用兼容Key fallback。回放只读请求元数据和真实账单，不发上游。见 docs/specs/r1021/dynamic-model-routing.md。</p></section></body>
 </html>

@@ -302,6 +302,10 @@ public class LiteLlmClient {
         return rows;
     }
 
+    public JsonNode logicalRouteTable(String operation,Map<String,Object> body) {
+        return operation==null ? get("/admin/v1/route-table") : send("/admin/v1/route-table"+(operation.isEmpty()?"":"/"+operation),body);
+    }
+
     public RoutePolicy routePolicy() {
         try {
             var body = get("/admin/v1/route-policy");

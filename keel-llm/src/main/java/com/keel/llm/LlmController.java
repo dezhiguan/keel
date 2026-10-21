@@ -147,15 +147,35 @@ public class LlmController {
     @GetMapping("/admin/v1/logical-routes")
     Map<String, Object> logicalRoutes(@RequestHeader(value = "Authorization", required = false) String authorization) {
         admin(authorization);
-        return Map.of("data", LogicalRoutes.ROWS.stream().map(row -> Map.of(
-                "logical", row.logical(),
-                "condition", row.condition(),
-                "env", row.env(),
-                "primary", row.primary(),
-                "secondary", row.secondary(),
-                "primaryWeight", row.primaryWeight(),
-                "fallback", row.fallback(),
-                "gray", row.gray())).toList());
+        return Map.of("data", gateway.logicalRoutingSnapshotRules());
+    }
+
+    @GetMapping("/admin/v1/route-table")
+    Map<String,Object> routeTable(@RequestHeader(value="Authorization",required=false) String authorization) {
+        admin(authorization);return gateway.logicalRouting.view();
+    }
+
+    @PostMapping({"/admin/v1/route-table", "/admin/v1/route-table/{operation}"})
+    Map<String,Object> routeTableWrite(@RequestHeader(value="Authorization",required=false) String authorization,
+                                      @PathVariable(required=false) String operation,@RequestBody Map<String,Object> body) {
+        admin(authorization);
+        long revision;
+        try { revision=new java.math.BigDecimal(String.valueOf(body.get("revision"))).longValueExact(); }
+        catch(Exception e) {throw RouteTable.invalid("必须传入当前revision");}
+        try {
+            return switch(operation==null?"save":operation) {
+                case "save" -> {
+                    if(!(body.get("rules") instanceof List<?>))throw RouteTable.invalid("必须提供完整规则列表");
+                    var rules=new com.fasterxml.jackson.databind.ObjectMapper().disable(com.fasterxml.jackson.databind.DeserializationFeature.ACCEPT_FLOAT_AS_INT).enable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES).convertValue(body.get("rules"),new com.fasterxml.jackson.core.type.TypeReference<List<RouteTable.Rule>>(){});
+                    yield gateway.logicalRouting.save(revision,rules);
+                }
+                case "publish" -> gateway.logicalRouting.publish(revision);
+                case "rollback" -> gateway.logicalRouting.rollback(revision);
+                case "grants" -> gateway.logicalRouting.grant(revision);
+                case "replay" -> gateway.logicalRouting.replay(revision,gateway.spend(null,1,5000));
+                default -> throw RouteTable.invalid("未知路由操作");
+            };
+        } catch(IllegalArgumentException e) {throw RouteTable.invalid("规则字段格式不正确");}
     }
 
     @GetMapping("/admin/v1/route-policy")

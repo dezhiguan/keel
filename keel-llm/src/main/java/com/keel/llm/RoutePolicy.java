@@ -20,6 +20,8 @@ public final class RoutePolicy {
     private final Map<String, Long> latency = new HashMap<>();
     private final RedisCommands<String, String> redis;
     private final java.util.function.LongSupplier clock;
+    final RouteTable table;
+    final RoutingJournal journal;
     private static final String POLICY = "keel-llm:route-policy:v1";
 
     public RoutePolicy() {
@@ -32,6 +34,8 @@ public final class RoutePolicy {
 
     RoutePolicy(String redisUri, java.util.function.LongSupplier clock) {
         redis = redisUri == null || redisUri.isBlank() ? null : RedisClient.create(redisUri).connect().sync();
+        table = new RouteTable(redisUri);
+        journal = new RoutingJournal(redisUri);
         versions.add(new Version(1, "balanced"));
         this.clock = clock == null ? System::currentTimeMillis : clock;
     }
@@ -207,6 +211,8 @@ public final class RoutePolicy {
         }
         return pool.getFirst();
     }
+
+    long latencyFor(String upstream) { return latencyOf(upstream); }
 
     private long latencyOf(String upstream) {
         if (redis != null) {

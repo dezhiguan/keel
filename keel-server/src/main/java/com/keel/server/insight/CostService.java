@@ -50,6 +50,20 @@ public class CostService {
         this.audit = audit;
     }
 
+    public com.fasterxml.jackson.databind.JsonNode logicalRouteTable(String operation,Map<String,Object> body) {
+        try {
+            var response=gateway.logicalRouteTable(operation,body);
+            if(operation!=null && !"replay".equals(operation)) {
+                evict();audit.record("keel-llm","prod");
+            }
+            return response;
+        } catch(IllegalStateException error) {
+            var message=error.getMessage()==null?"":error.getMessage();
+            if(message.contains(" 400")) throw new KeelException(ErrorCode.SERVER_INVALID_PARAM,message);
+            throw error;
+        }
+    }
+
     public LiteLlmClient.RoutePolicy routePolicy() {
         return gateway.routePolicy();
     }

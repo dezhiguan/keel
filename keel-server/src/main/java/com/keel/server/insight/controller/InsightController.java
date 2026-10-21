@@ -169,6 +169,19 @@ public class InsightController {
         return R.ok(saved);
     }
 
+    @GetMapping("/route-table")
+    public R<com.fasterxml.jackson.databind.JsonNode> routeTable() {
+        return R.ok(costs.logicalRouteTable(null,Map.of()));
+    }
+
+    @PostMapping({"/route-table", "/route-table/{operation}"})
+    @Audited
+    public R<com.fasterxml.jackson.databind.JsonNode> routeTableWrite(@PathVariable(required=false) String operation,@RequestBody Map<String,Object> body) {
+        requireAdmin();
+        if(operation!=null && !java.util.Set.of("publish","rollback","grants","replay").contains(operation))throw new KeelException(ErrorCode.SERVER_INVALID_PARAM,"未知路由操作");
+        return R.ok(costs.logicalRouteTable(operation==null?"":operation,body));
+    }
+
     @PostMapping("/route-policy")
     @Audited
     public R<Map<String, Object>> publishRoute(@RequestBody Map<String, Object> body) {

@@ -2305,6 +2305,169 @@ paths:
                           alias: { type: string }
                           dailyBudgetCny: { type: number, format: float }
 
+  /insight/route-table:
+    get:
+      tags: [models]
+      summary: 动态路由表草稿
+      operationId: getLogicalRouteTable
+      responses:
+        "200":
+          description: 操作结果；发布和回滚校验授权及引用，回放不请求厂商
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/LogicalRoutingSnapshot'
+    post:
+      tags: [models]
+      summary: 动态路由表草稿
+      operationId: postLogicalRouteTable
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                rules:
+                  type: array
+                  items: { $ref: '#/components/schemas/LogicalRoutingRule' }
+      responses:
+        "200":
+          description: 操作结果；发布和回滚校验授权及引用，回放不请求厂商
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/LogicalRoutingSnapshot'
+  /insight/route-table/publish:
+    post:
+      tags: [models]
+      summary: 动态路由表/publish
+      operationId: postLogicalRouteTablePublish
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                rules:
+                  type: array
+                  items: { $ref: '#/components/schemas/LogicalRoutingRule' }
+      responses:
+        "200":
+          description: 操作结果；发布和回滚校验授权及引用，回放不请求厂商
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/LogicalRoutingSnapshot'
+  /insight/route-table/rollback:
+    post:
+      tags: [models]
+      summary: 动态路由表/rollback
+      operationId: postLogicalRouteTableRollback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                rules:
+                  type: array
+                  items: { $ref: '#/components/schemas/LogicalRoutingRule' }
+      responses:
+        "200":
+          description: 操作结果；发布和回滚校验授权及引用，回放不请求厂商
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/LogicalRoutingSnapshot'
+  /insight/route-table/grants:
+    post:
+      tags: [models]
+      summary: 动态路由表/grants
+      operationId: postLogicalRouteTableGrants
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                rules:
+                  type: array
+                  items: { $ref: '#/components/schemas/LogicalRoutingRule' }
+      responses:
+        "200":
+          description: 操作结果；发布和回滚校验授权及引用，回放不请求厂商
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/LogicalRoutingSnapshot'
+  /insight/route-table/replay:
+    post:
+      tags: [models]
+      summary: 动态路由表/replay
+      operationId: postLogicalRouteTableReplay
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                rules:
+                  type: array
+                  items: { $ref: '#/components/schemas/LogicalRoutingRule' }
+      responses:
+        "200":
+          description: 操作结果；发布和回滚校验授权及引用，回放不请求厂商
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: true
+
   /insight/route-policy:
     post:
       tags: [models]
@@ -3451,6 +3614,43 @@ components:
           schema: { $ref: "#/components/schemas/ApiError" }
 
   schemas:
+    LogicalRoutingRule:
+      type: object
+      required: [logical, env, primary, secondary, primaryWeight, fallback]
+      properties:
+        logical: { type: string, pattern: '^[a-z][a-z0-9-]{1,62}$' }
+        env: { type: string, enum: [prod, staging, dev, test] }
+        primary: { type: string }
+        secondary: { type: string }
+        primaryWeight: { type: integer, minimum: 0, maximum: 100 }
+        fallback: { type: string, description: 'none、alternate、latency、cost 或具体模型名' }
+        grayPercent: { type: integer, minimum: 0, maximum: 100, default: 0 }
+        grayModel: { type: string }
+        minInputTokens: { type: integer, minimum: 0, default: 0 }
+    LogicalRoutingSnapshot:
+      type: object
+      properties:
+        revision: { type: integer }
+        version: { type: integer }
+        rules:
+          type: array
+          items: { $ref: '#/components/schemas/LogicalRoutingRule' }
+        draft:
+          type: array
+          items: { $ref: '#/components/schemas/LogicalRoutingRule' }
+        gaps:
+          type: array
+          items:
+            type: object
+            properties:
+              alias: { type: string }
+              logical: { type: string }
+              models: { type: array, items: { type: string } }
+        references:
+          type: array
+          items: { type: string }
+        canRollback: { type: boolean }
+        models: { type: array, items: { type: string } }
     # ------------------------------------------------------------ 通用
     Envelope:
       type: object

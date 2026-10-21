@@ -1497,6 +1497,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/insight/route-table": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 动态路由表草稿 */
+        get: operations["getLogicalRouteTable"];
+        put?: never;
+        /** 动态路由表草稿 */
+        post: operations["postLogicalRouteTable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insight/route-table/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 动态路由表/publish */
+        post: operations["postLogicalRouteTablePublish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insight/route-table/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 动态路由表/rollback */
+        post: operations["postLogicalRouteTableRollback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insight/route-table/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 动态路由表/grants */
+        post: operations["postLogicalRouteTableGrants"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/insight/route-table/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 动态路由表/replay */
+        post: operations["postLogicalRouteTableReplay"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/insight/route-policy": {
         parameters: {
             query?: never;
@@ -2252,6 +2338,35 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        LogicalRoutingRule: {
+            logical: string;
+            /** @enum {string} */
+            env: "prod" | "staging" | "dev" | "test";
+            primary: string;
+            secondary: string;
+            primaryWeight: number;
+            /** @description none、alternate、latency、cost 或具体模型名 */
+            fallback: string;
+            /** @default 0 */
+            grayPercent: number;
+            grayModel?: string;
+            /** @default 0 */
+            minInputTokens: number;
+        };
+        LogicalRoutingSnapshot: {
+            revision?: number;
+            version?: number;
+            rules?: components["schemas"]["LogicalRoutingRule"][];
+            draft?: components["schemas"]["LogicalRoutingRule"][];
+            gaps?: {
+                alias?: string;
+                logical?: string;
+                models?: string[];
+            }[];
+            references?: string[];
+            canRollback?: boolean;
+            models?: string[];
+        };
         Envelope: {
             /**
              * @description 成功固定为 OK，失败为 contracts/error-codes.yaml 里的错误码
@@ -6454,6 +6569,175 @@ export interface operations {
                             alias?: string;
                             /** Format: float */
                             dailyBudgetCny?: number;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    getLogicalRouteTable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 操作结果；发布和回滚校验授权及引用，回放不请求厂商 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["LogicalRoutingSnapshot"];
+                    };
+                };
+            };
+        };
+    };
+    postLogicalRouteTable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    rules?: components["schemas"]["LogicalRoutingRule"][];
+                };
+            };
+        };
+        responses: {
+            /** @description 操作结果；发布和回滚校验授权及引用，回放不请求厂商 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["LogicalRoutingSnapshot"];
+                    };
+                };
+            };
+        };
+    };
+    postLogicalRouteTablePublish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    rules?: components["schemas"]["LogicalRoutingRule"][];
+                };
+            };
+        };
+        responses: {
+            /** @description 操作结果；发布和回滚校验授权及引用，回放不请求厂商 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["LogicalRoutingSnapshot"];
+                    };
+                };
+            };
+        };
+    };
+    postLogicalRouteTableRollback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    rules?: components["schemas"]["LogicalRoutingRule"][];
+                };
+            };
+        };
+        responses: {
+            /** @description 操作结果；发布和回滚校验授权及引用，回放不请求厂商 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["LogicalRoutingSnapshot"];
+                    };
+                };
+            };
+        };
+    };
+    postLogicalRouteTableGrants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    rules?: components["schemas"]["LogicalRoutingRule"][];
+                };
+            };
+        };
+        responses: {
+            /** @description 操作结果；发布和回滚校验授权及引用，回放不请求厂商 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["LogicalRoutingSnapshot"];
+                    };
+                };
+            };
+        };
+    };
+    postLogicalRouteTableReplay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    rules?: components["schemas"]["LogicalRoutingRule"][];
+                };
+            };
+        };
+        responses: {
+            /** @description 操作结果；发布和回滚校验授权及引用，回放不请求厂商 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            [key: string]: unknown;
                         };
                     };
                 };

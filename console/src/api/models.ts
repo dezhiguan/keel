@@ -61,3 +61,24 @@ export function simulateChannelFailures(id: string) {
 export function probeModelChannel(id: string) {
   return post<{ id: string; breaker: string; openUntil: number }>('/insight/channels/probe', { id })
 }
+
+export type LogicalRule = components['schemas']['LogicalRoutingRule']
+export type LogicalRouteSnapshot = Required<Omit<components['schemas']['LogicalRoutingSnapshot'], 'gaps'>> & {
+  gaps: { alias: string; logical: string; models: string[] }[]
+}
+export type RouteReplay = {
+  requests: number; published: Record<string, number>; draft: Record<string, number>
+  missingAuthorization: number; unmatched: number; pricedRequests: number
+  publishedEstimatedCny: number; draftEstimatedCny: number; legacyRequests: number
+  recordLimit: number; windowHours: number; version: number; revision: number
+}
+export function getLogicalRouteTable() { return get<LogicalRouteSnapshot>('/insight/route-table') }
+export function saveLogicalRouteTable(revision: number, rules: LogicalRule[]) {
+  return post<LogicalRouteSnapshot>('/insight/route-table', { revision, rules })
+}
+export function operateLogicalRouteTable(operation: 'publish' | 'rollback' | 'grants', revision: number) {
+  return post<LogicalRouteSnapshot>(`/insight/route-table/${operation}`, { revision })
+}
+export function replayLogicalRouteTable(revision: number) {
+  return post<RouteReplay>('/insight/route-table/replay', { revision })
+}

@@ -172,7 +172,7 @@ class GatewayTest {
             var created = gateway.create("echo-dev", List.of("qwen-plus", "chat-default"), List.of("deepseek-v3"), new BigDecimal("30"), true);
             gateway.updateChannels("echo-dev", List.of(new Gateway.Share("m-qwen-plus", 1)), Map.of("tpm", 1000));
             var key = gateway.requireAlias("echo-dev");
-            assertThat(key.models()).containsExactly("qwen-plus");
+            assertThat(key.models()).containsExactly("chat-default", "qwen-plus");
             assertThat(key.rpm()).isNull();
             assertThat(key.tpm()).isEqualTo(1000);
             assertThat(key.shares()).containsExactly(new Gateway.Share("m-qwen-plus", 1));

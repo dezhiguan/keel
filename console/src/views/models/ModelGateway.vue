@@ -2,13 +2,13 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import Pager from '@/components/Pager.vue'
+import LogicalRouting from './LogicalRouting.vue'
 import {
   addModelChannel,
   getModelGateway,
   previewRoute,
   probeModel,
   probeModelChannel,
-  rollbackRoutePolicy,
   rotateModelKey,
   simulateChannelFailures,
   switchProdChannel,
@@ -94,32 +94,11 @@ const bills = computed(() => data.value?.bills ?? [])
 const failedBills = computed(() => bills.value.filter((bill) => bill.status === 'FAILED'))
 const simulated = ref<{ time: string; alias: string; tone: string; result: string; reason: string }[]>([])
 const admin = computed(() => userStore.user?.platformRole === 'ADMIN')
-const objective = computed(() => data.value?.routePolicy?.objective)
-const policyVersion = computed(() => data.value?.routePolicy?.version)
 const quotaOpen = ref(false)
 const selectedKey = computed(() => keys.value.find((key) => key.alias === selectedAlias.value) ?? null)
 const previewChoices = computed(() => keys.value.find((key) => key.alias === previewAlias.value)?.models ?? [])
 const keyRows = computed(() => keys.value.slice((keyPage.value - 1) * keySize.value, keyPage.value * keySize.value))
-const FALLBACK_ROUTES: NonNullable<ModelGateway['logicalRoutes']> = [
-  { logical: 'chat-default', condition: 'env=prod', env: 'prod', primary: 'qwen3.8-flash', secondary: 'deepseek-flash', primaryWeight: 80, fallback: 'deepseek-flash', gray: '—' },
-  { logical: 'chat-default', condition: 'env≠prod', env: 'dev', primary: 'qwen3.8-flash', secondary: 'deepseek-flash', primaryWeight: 100, fallback: '无', gray: '—' },
-  { logical: 'chat-cheap', condition: 'env=prod', env: 'prod', primary: 'qwen3.8-flash', secondary: 'deepseek-flash', primaryWeight: 30, fallback: '按延迟', gray: '新规则 10%' },
-  { logical: 'long-context', condition: 'env=prod · 输入 > 200k', env: 'prod', primary: 'qwen3.8-flash', secondary: 'deepseek-flash', primaryWeight: 0, fallback: 'qwen3.8-flash', gray: '—' },
-]
-const logicalRoutes = computed(() => data.value?.logicalRoutes?.length ? data.value.logicalRoutes : FALLBACK_ROUTES)
-
-function routeTargets(row: NonNullable<ModelGateway['logicalRoutes']>[number]) {
-  const weight = row.primaryWeight ?? 0
-  return [weight > 0 ? row.primary : '', weight < 100 ? row.secondary : ''].filter((name): name is string => !!name)
-}
-
-function uncoveredKeys(row: NonNullable<ModelGateway['logicalRoutes']>[number]) {
-  const targets = routeTargets(row)
-  return keys.value.filter((key) => {
-    const same = row.env === 'prod' ? key.env === 'prod' : !!key.env && key.env !== 'prod'
-    return same && targets.some((model) => !keyAllows(key, model))
-  })
-}
+const logicalRoutes = computed(() => data.value?.logicalRoutes ?? [])
 
 function keyAllows(key: GatewayKey, model: string) {
   const visible = channelsForEnv(liveChannels.value, key.env)
@@ -406,24 +385,6 @@ async function confirmRotation() {
   }
 }
 
-async function rollback() {
-  if (!admin.value) return
-  if ((policyVersion.value ?? 1) <= 1) {
-    ElMessage.warning('只有一版，不能回滚')
-    return
-  }
-  routeBusy.value = true
-  try {
-    const policy = await rollbackRoutePolicy()
-    ElMessage.success(`已回到 v${policy.version} · ${objectiveLabel(policy.objective)}`)
-    await load()
-  } catch (error) {
-    ElMessage.error(toKeelError(error).message)
-  } finally {
-    routeBusy.value = false
-  }
-}
-
 async function simulate() {
   if (!previewAlias.value || !previewModel.value) {
     previewTone.value = 'warn'
@@ -435,7 +396,7 @@ async function simulate() {
     const result = await previewRoute(previewAlias.value, previewModel.value)
     const chain = result.models?.length ? result.models.join(' → ') : '没有可用模型'
     previewTone.value = result.models?.length ? 'info' : 'warn'
-    previewText.value = `v${result.version} · ${objectiveLabel(result.objective)} · ${chain}`
+    previewText.value = `v${result.version} · ${logicalRoutes.value.some(row => row.logical === previewModel.value) ? '逻辑模型路由' : objectiveLabel(result.objective)} · ${chain}`
   } catch (error) {
     previewTone.value = 'warn'
     previewText.value = toKeelError(error).message
@@ -790,46 +751,7 @@ watch(tab, (value) => {
 
     <div v-if="tab === 'route'" v-loading="sectionPending('routes')" class="tab-body">
       <template v-if="loaded.routes">
-      <div class="card">
-        <h3>
-          路由表
-          <span class="pill nd p-soft mono">已发布 v{{ policyVersion ?? '—' }}</span>
-          <small>{{ objectiveLabel(objective) }}</small>
-          <span class="sp" />
-          <button v-if="admin" v-write class="btn sm" type="button" :disabled="routeBusy" @click="rollback">回滚</button>
-        </h3>
-        <table class="t route-table">
-          <thead>
-            <tr>
-              <th>逻辑模型</th>
-              <th>条件</th>
-              <th>qwen3.8-flash 权重</th>
-              <th>deepseek-flash</th>
-              <th>降级</th>
-              <th>灰度</th>
-              <th>Key 覆盖</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, index) in logicalRoutes" :key="`${row.logical}-${row.condition}-${index}`">
-              <td class="mono">{{ row.logical }}</td>
-              <td>{{ row.condition }}</td>
-              <td class="mono">{{ row.primaryWeight ?? 0 }}%</td>
-              <td class="mono">{{ 100 - (row.primaryWeight ?? 0) }}%</td>
-              <td>{{ row.fallback || '无' }}</td>
-              <td>
-                <span v-if="!row.gray || row.gray === '—'" class="mut">—</span>
-                <span v-else class="pill nd p-soft">{{ row.gray }}</span>
-              </td>
-              <td>
-                <span v-if="uncoveredKeys(row).length" class="pill p-bad">{{ uncoveredKeys(row).length }} 把 Key 未覆盖</span>
-                <span v-else class="pill p-ok">全部覆盖</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <div class="pbanner ok">请求里写了模型就先用它。超时或 5xx 只切换一次；401、403 和预算不足不降级。渠道连续 2 次 5xx 后熔断 60 秒。</div>
-      </div>
+      <LogicalRouting @keys="tab = 'key'" @changed="load" />
       <div class="card">
         <h3>
           路由试算

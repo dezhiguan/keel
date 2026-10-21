@@ -33,6 +33,7 @@ public final class Gateway {
     private final ProbeMarks probed;
     private final RequestDefaults requestDefaults;
     private final ChannelBoard channels;
+    final LogicalRouting logicalRouting;
 
     public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream) {
         this(catalog, budget, upstream, new KeyDirectory());
@@ -88,6 +89,7 @@ public final class Gateway {
         this.alertRules = alertRules;
         this.requestDefaults = requestDefaults;
         this.channels = channels == null ? new ChannelBoard(null) : channels;
+        this.logicalRouting = new LogicalRouting(this,catalog,keys,routes.table,routes.journal);
     }
 
     public synchronized Created create(String alias, List<String> models, List<String> fallback, BigDecimal dailyBudgetCny, boolean allowFallback) {
@@ -107,13 +109,13 @@ public final class Gateway {
             if (!expanded.contains(model)) {
                 expanded.add(model);
             }
-            for (var concrete : LogicalRoutes.targets(model)) {
+            for (var concrete : routes.table.targets(model, envOf(alias))) {
                 if (catalog.models().containsKey(concrete) && !expanded.contains(concrete)) {
                     expanded.add(concrete);
                 }
             }
         }
-        expanded.stream().filter(model -> !LogicalRoutes.isLogical(model)).forEach(catalog::require);
+        expanded.stream().filter(model -> !routes.table.logical(model)).forEach(catalog::require);
         models = expanded;
         limit(rpm);
         limit(tpm);
@@ -164,6 +166,7 @@ public final class Gateway {
         }
         var rows = channelRows();
         var models = new ArrayList<String>();
+        key.models().stream().filter(routes.table::logical).forEach(models::add);
         var clean = new ArrayList<Share>();
         var seen = new java.util.HashSet<String>();
         for (var share : shares) {
@@ -293,11 +296,13 @@ public final class Gateway {
         var key = virtualKey(bearer);
         var request = read(body);
         var named = request.path("model").asText("");
-        var requested = liveModel(named, key.alias());
+        var row=RouteTable.match(routes.table.current().rules(),named,envOf(key.alias()));
+        var requested = row==null?liveModel(named,key.alias()):row.select(requestId);
         if (!key.models.contains(named) && !key.models.contains(requested)) {
             throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "模型不在该 Key 的允许列表里");
         }
-        var attempts = attempts(key, requested, "/v1/embeddings".equals(path));
+        var attempts = namedAttempts(key,row,requested,"/v1/embeddings".equals(path),request);
+        if(row!=null) routes.journal.record(requestId,key.alias(),named,inputEstimate(request));
         var forwarding = (ObjectNode) request.deepCopy();
         var maxCost = reservationCost(attempts, path);
         try {
@@ -389,11 +394,13 @@ public final class Gateway {
         var key = virtualKey(bearer);
         var request = read(body);
         var named = request.path("model").asText("");
-        var requested = liveModel(named, key.alias());
+        var row=RouteTable.match(routes.table.current().rules(),named,envOf(key.alias()));
+        var requested = row==null?liveModel(named,key.alias()):row.select(requestId);
         if (!key.models.contains(named) && !key.models.contains(requested)) {
             throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "模型不在该 Key 的允许列表里");
         }
-        var attempts = attempts(key, requested, "/v1/embeddings".equals(path));
+        var attempts = namedAttempts(key,row,requested,"/v1/embeddings".equals(path),request);
+        if(row!=null) routes.journal.record(requestId,key.alias(),named,inputEstimate(request));
         var forwarding = (ObjectNode) request.deepCopy();
         var options = forwarding.path("stream_options").isObject()
                 ? (ObjectNode) forwarding.path("stream_options")
@@ -554,6 +561,11 @@ public final class Gateway {
         return found;
     }
 
+    public List<Map<String,Object>> logicalRoutingSnapshotRules() {
+        return routes.table.current().rules().stream().map(r -> Map.<String,Object>of("logical",r.logical(),"env",r.env(),"condition","env="+r.env(),
+                "primary",r.primary(),"secondary",r.secondary(),"primaryWeight",r.primaryWeight(),"fallback",r.fallback(),"gray",r.grayPercent()>0?r.grayModel()+" "+r.grayPercent()+"%":"—")).toList();
+    }
+
     public RoutePolicy.Version routePolicy() {
         return routes.current();
     }
@@ -568,12 +580,14 @@ public final class Gateway {
 
     public Preview preview(String alias, String model) {
         var key = requireAlias(alias);
-        var live = liveModel(model, alias);
+        var snapshot=routes.table.current();
+        var row=RouteTable.match(snapshot.rules(),model,envOf(alias));
+        var live = row==null?liveModel(model,alias):row.select(newRequestId());
         if (!key.models().contains(model) && !key.models().contains(live)) {
             throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM, "模型不在该 Key 的允许列表里");
         }
         var version = routes.current();
-        return new Preview(version.version(), version.objective(), routes.plan(key, live, false, catalog, breakerKey(key, live)));
+        return new Preview(row==null?version.version():snapshot.version(), version.objective(), namedAttempts(key,row,live,false,JSON.createObjectNode()));
     }
 
     private static boolean streamRejected(Upstream.Stream opened) {
@@ -599,15 +613,7 @@ public final class Gateway {
 
     /** Keys issued before the catalog rename still name qwen-plus and deepseek-v3. Logical names resolve first. */
     private String liveModel(String requested, String alias) {
-        if (requested != null && catalog.models().containsKey(requested)) {
-            return requested;
-        }
-        if (LogicalRoutes.isLogical(requested)) {
-            var concrete = LogicalRoutes.resolve(requested, envOf(alias), java.util.concurrent.ThreadLocalRandom.current().nextInt(100));
-            if (catalog.models().containsKey(concrete)) {
-                return concrete;
-            }
-        }
+        if (requested != null && catalog.models().containsKey(requested)) return requested;
         var replacement = switch (requested == null ? "" : requested) {
             case "qwen-plus" -> "qwen3.8-flash";
             case "deepseek-v3" -> "deepseek-flash";
@@ -797,6 +803,50 @@ public final class Gateway {
         return alias.substring(dash + 1);
     }
 
+    private static int inputEstimate(JsonNode request) {
+        var text=request.path("messages").toString();
+        return text.codePointCount(0,text.length());
+    }
+
+    private List<String> namedAttempts(VirtualKey key,RouteTable.Rule row,String requested,boolean embedding,JsonNode request) {
+        if(row==null || embedding)return attempts(key,requested,embedding);
+        if(inputEstimate(request)<row.minInputTokens())throw RouteTable.invalid("输入长度估算未达到逻辑模型的最小输入阈值");
+        var candidates=new ArrayList<String>();candidates.add(requested);
+        if(!"none".equals(row.fallback())) {
+            var pool=new ArrayList<>(row.targets());pool.remove(requested);
+            pool.removeIf(m->!covers(key,m));
+            if("cost".equals(row.fallback()))pool.sort(java.util.Comparator.comparing(m->catalog.require(m).inputCnyPerToken().add(catalog.require(m).outputCnyPerToken())));
+            if("latency".equals(row.fallback()))pool.sort(java.util.Comparator.comparingLong(m->routes.latencyFor(breakerKey(key,m))));
+            if(!java.util.Set.of("alternate","cost","latency").contains(row.fallback()))pool.removeIf(m->!m.equals(row.fallback()));
+            if(!pool.isEmpty())candidates.add(pool.getFirst());
+        }
+        for(var model:candidates)if(!covers(key,model))throw RouteTable.invalid("模型不在该Key的同环境渠道允许列表: "+model);
+        var available=candidates.stream().filter(m->!routes.open(breakerKey(key,m))).toList();
+        if(available.isEmpty())throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR,"可用模型渠道已熔断");
+        return available;
+    }
+
+    boolean covers(VirtualKey key,String model) {
+        if(!key.models().contains(model))return false;
+        if(key.shares()==null || key.shares().isEmpty())return true;
+        return key.shares().stream().anyMatch(share->channelRows().stream().anyMatch(c->c.id().equals(share.id()) && model.equals(c.model())
+                && java.util.Arrays.asList(c.env().split("、")).contains(envOf(key.alias()))));
+    }
+
+    synchronized void grantRouteModels(String alias,List<String> missing) {
+        var key=requireAlias(alias);
+        var allowed=new java.util.LinkedHashSet<>(key.models());
+        var shares=new ArrayList<>(key.shares()==null?List.<Share>of():key.shares());
+        for(var model:missing) {
+            var channel=channelRows().stream().filter(c->model.equals(c.model()) && java.util.Arrays.asList(c.env().split("、")).contains(envOf(alias)))
+                .filter(c->c.rpm()==null || keys.list().stream().flatMap(k->k.shares()==null?java.util.stream.Stream.<Share>empty():k.shares().stream()).filter(sh->sh.id().equals(c.id())).mapToInt(Share::rpm).sum()<c.rpm())
+                .findFirst().orElseThrow(()->RouteTable.invalid("没有可授权的同环境渠道或渠道配额已满: "+alias+" / "+model));
+            allowed.add(model);
+            if(!shares.isEmpty() && shares.stream().noneMatch(sh->sh.id().equals(channel.id())))shares.add(new Share(channel.id(),1));
+        }
+        keys.save(new VirtualKey(key.alias(),key.token(),List.copyOf(allowed),key.fallback(),key.dailyBudgetCny(),key.allowFallback(),key.blocked(),key.version(),key.rpm(),key.tpm(),key.concurrency(),List.copyOf(shares)));
+    }
+
     private List<String> attempts(VirtualKey key, String requested, boolean embedding) {
         var planned = routes.plan(key, requested, embedding, catalog, breakerKey(key, requested));
         if (planned.isEmpty()) throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "可用模型渠道已熔断");
@@ -850,6 +900,8 @@ public final class Gateway {
     }
 
     private String breakerKey(VirtualKey key, String model) {
+        var share=shareFor(key,model);
+        if(share!=null && !share.id().startsWith("m-")) return "ch:"+share.id();
         var bound = channels.binding(key.alias(), model);
         if (bound == null || bound.isBlank()) {
             return catalog.require(model).upstream();
