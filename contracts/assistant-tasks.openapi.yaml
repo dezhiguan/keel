@@ -1,0 +1,58 @@
+openapi: 3.1.0
+info: {title: Keel assistant analysis task tools, version: keel/v1}
+paths:
+  /api/v1/tools/keel.tasks.command/invoke:
+    post:
+      description: Private-key authenticated keel-assistant plus purpose-specific user context; staging only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [operation, _authorization, _session, _text]
+              properties:
+                operation: {enum: [create, get, list, cancel, retry]}
+                _authorization: {type: string, description: Short-lived task context; never a read ticket}
+                _session: {type: string}
+                _text: {type: string, maxLength: 20000}
+                task_id: {type: string, pattern: '^task_[a-f0-9]{32}$'}
+                goal: {type: string, maxLength: 2000}
+                material: {type: string, maxLength: 12000}
+                acknowledge_duplicate_cost: {type: boolean}
+      responses:
+        '200': {description: Authoritative persisted task snapshot or list, scoped to authenticated subject}
+  /api/v1/tools/keel.tasks.execution/invoke:
+    post:
+      description: Same assistant only. Execution ticket is bound to an existing task and current fence.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [_authorization, run_id]
+              properties:
+                _authorization: {type: string}
+                run_id: {type: string, pattern: '^[a-f0-9]{32}$'}
+      responses:
+        '200': {description: Minimum authorized task goal and material, never credentials}
+  /api/v1/agents/{name}/task-scope:
+    put:
+      description: Authenticated owner administrator explicitly enables only this assistant/staging analysis scope.
+      parameters:
+        - {in: path, name: name, required: true, schema: {const: keel-assistant}}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [environment, enabled]
+              properties:
+                environment: {const: staging}
+                enabled: {type: boolean}
+      responses:
+        '200': {description: Scope and two exact tool grants updated transactionally and audited}
