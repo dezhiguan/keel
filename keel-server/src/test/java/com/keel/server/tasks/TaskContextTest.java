@@ -31,4 +31,14 @@ class TaskContextTest {
         assertThatThrownBy(()->contexts.verify(read,"user")).isInstanceOf(RuntimeException.class);
         assertThatThrownBy(()->contexts.verify("forged-user-context","user")).isInstanceOf(RuntimeException.class);
     }
+    @org.junit.jupiter.api.Test void replayHintIsSignedWithoutBroadeningAuthority()throws Exception{
+        var contexts=new TaskContext(new ConsoleSigningKey(),new ConsoleUsers("fixture-user"));
+        var user=new ConsolePrincipal("USER","fixture-a","fixture-user","fixture","平台组","ADMIN",java.util.List.of(),false);
+        var original=contexts.issueUser(user,"keel-assistant","staging","s","生成报告","r",false,"user");
+        var normal=contexts.verify(original,"user");var marked=contexts.verify(contexts.forRequestReplay(original),"user");
+        for(String claim:java.util.List.of("sub","agent","env","task_type","purpose","username","session","text_hash","request_id","namespace"))
+            assertThat(marked.getClaim(claim)).isEqualTo(normal.getClaim(claim));
+        assertThat(marked.getBooleanClaim("request_replay")).isTrue();
+        assertThatThrownBy(()->contexts.forRequestReplay("forged")).isInstanceOf(com.keel.server.common.KeelException.class);
+    }
 }

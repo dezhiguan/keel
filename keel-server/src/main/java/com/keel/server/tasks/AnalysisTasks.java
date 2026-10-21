@@ -25,6 +25,18 @@ public class AnalysisTasks {
     public void requireScope(String org){
         if(!Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM assistant_analysis_scope WHERE agent_name='keel-assistant' AND environment='staging' AND owner_org=? AND enabled)",Boolean.class,org)))throw TaskContext.denied();
     }
+    public boolean hasReceipt(String token,String text){
+        var c=contexts.verify(token,"user");
+        if(!TaskContext.hash(text).equals(c.getClaim("text_hash")))throw TaskContext.denied();
+        return receiptCommand(c,text)!=null;
+    }
+    private Map<String,Object> receiptCommand(com.nimbusds.jwt.JWTClaimsSet c,String text){
+        var rows=db.queryForList("SELECT * FROM assistant_analysis_command WHERE owner_user=? AND namespace=? AND request_id=?",c.getSubject(),c.getClaim("namespace"),c.getClaim("request_id"));
+        if(rows.isEmpty())return null;
+        var row=rows.getFirst();
+        if(!TaskContext.hash(text).equals(row.get("input_digest")))throw TaskContext.invalid("相同请求标识的内容冲突");
+        return row;
+    }
     public Map<String,Object> command(JsonNode args,String trace){
         var allowed=Set.of("operation","_authorization","_session","_text","task_id","material","acknowledge_duplicate_cost");
         args.fieldNames().forEachRemaining(k->{if(!allowed.contains(k))throw TaskContext.invalid("任务参数不在白名单");});
@@ -36,6 +48,12 @@ public class AnalysisTasks {
                 || !args.path("_session").asText("").equals(c.getStringClaim("session")))throw TaskContext.denied();
             String id=args.path("task_id").asText("");String op=args.path("operation").asText("");
             return tx.execute(status->{
+                if("receipt".equals(op)){
+                    var prior=receiptCommand(c,text);
+                    if(prior==null)throw TaskContext.invalid("未找到此请求的持久化任务回执");
+                    var result=detail(owned(c.getSubject(),String.valueOf(c.getClaim("namespace")),(String)prior.get("task_id"),false));
+                    result.put("request_replayed",true);result.put("replayed_operation",prior.get("operation"));return result;
+                }
                 if("list".equals(op)){
                     var rows=db.queryForList("SELECT * FROM assistant_analysis_task WHERE owner_user=? AND namespace=? AND agent_name='keel-assistant' AND environment='staging' ORDER BY created_at DESC LIMIT 20",c.getSubject(),c.getClaim("namespace"));
                     return Map.of("items",rows.stream().map(this::snapshot).toList(),"limit",20);

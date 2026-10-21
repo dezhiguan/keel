@@ -48,6 +48,29 @@ class AnalysisTasksPersistenceTest {
             risk.putObject("evidence").put("source_id","material").put("quote",quote);
         }return json.writeValueAsString(root);
     }
+    @Test void duplicateReceiptIsAuthorizedAndDoesNotReplayExecution(){
+        var initial=args("receipt",text,"r1","user");
+        assertThat(tasks.hasReceipt(initial.path("_authorization").asText(),text)).isFalse();
+        assertThatThrownBy(()->tasks.command(initial,"trace")).isInstanceOf(com.keel.server.common.KeelException.class);
+        var task=create();String id=(String)task.get("task_id");
+        assertThat(tasks.hasReceipt(initial.path("_authorization").asText(),text)).isTrue();
+        var claimed=tasks.start(tasks.claim("fixture-worker"));
+        var receipt=tasks.command(initial,"receipt-trace");
+        assertThat(receipt.get("task_id")).isEqualTo(id);assertThat(receipt.get("state")).isEqualTo("running");
+        assertThat(receipt.get("request_replayed")).isEqualTo(true);assertThat(receipt.get("replayed_operation")).isEqualTo("create");
+        assertThat(receipt.get("attempt")).isEqualTo(1);
+        assertThat(db.queryForObject("SELECT count(*) FROM assistant_analysis_attempt",Integer.class)).isEqualTo(1);
+        var conflict=args("receipt",text+"不同内容","r1","user");
+        assertThatThrownBy(()->tasks.hasReceipt(conflict.path("_authorization").asText(),text+"不同内容")).isInstanceOf(com.keel.server.common.KeelException.class);
+        assertThatThrownBy(()->tasks.command(conflict,"trace")).isInstanceOf(com.keel.server.common.KeelException.class);
+        assertThat(tasks.hasReceipt(args("receipt",text,"r1","acceptance:other").path("_authorization").asText(),text)).isFalse();
+        var other=new ConsolePrincipal("USER","fixture-b","fixture-user","fixture","平台组","ADMIN",List.of(),false);
+        var otherToken=contexts.issueUser(other,"keel-assistant","staging","s",text,"r1",false,"user");
+        assertThat(tasks.hasReceipt(otherToken,text)).isFalse();
+        assertThatThrownBy(()->tasks.command(initial.deepCopy().put("_authorization","forged"),"trace")).isInstanceOf(com.keel.server.common.KeelException.class);
+        db.update("UPDATE assistant_analysis_scope SET enabled=false");
+        assertThatThrownBy(()->tasks.command(initial,"trace")).isInstanceOf(com.keel.server.common.KeelException.class);
+    }
     @Test void duplicateRequestDeduplicatesAndDifferentContentConflicts(){
         var a=create();var b=create();assertThat(a.get("task_id")).isEqualTo(b.get("task_id"));
         assertThat(db.queryForObject("SELECT count(*) FROM assistant_analysis_task",Integer.class)).isEqualTo(1);
