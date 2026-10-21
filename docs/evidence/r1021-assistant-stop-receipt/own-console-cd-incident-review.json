@@ -1,0 +1,18 @@
+{
+  "workflow": 39672978661,
+  "codeCommit": "958fab8e68a1cc928dfe95582c8e8672b384a5bf",
+  "intendedScope": "keel-assistant/staging stop reception copy in shared console",
+  "incident": "CD change detection used the last complete deployment snapshot and included historical SDK deployment debt. Non-target service images and server sandbox-image reference were rolled.",
+  "workflowStatus": "force-cancelled",
+  "consoleStatus": "intended console958 deployed with two Ready; actual UI verified",
+  "restorationEvidence": [
+    "own-console-cd-scope-restoration.json",
+    "own-console-cd-restored-ready.json",
+    "own-console-cd-final-scope.json"
+  ],
+  "knownNonTargetPodTemplateChanges": "Eight image-only changes plus server image and KEEL_SANDBOX_IMAGE; restored with UID/resourceVersion/current-image tests to previous ReplicaSet values, all Ready",
+  "modelBudgetOrGrantWritePaths": "Meta bootstrap failed at its first GET /admin/v1/keys/meta-agent-dev (404), before any write; other deployment commands applied Kubernetes manifests, not model budget/permission APIs.",
+  "additionalReappliedResources": "Image-pull acr-cred Secrets and QA manifest ConfigMaps were reapplied by the workflow. No pre-run byte snapshots were captured, so prior manual overrides/content equality cannot be fully verified. No speculative restoration was attempted.",
+  "formalRunCaveat": "Existing v0.3.6 run overlapped unplanned server rolling/restoration. No unsupported attribution of its failures; all results retained, not claimed as fully frozen-platform passing release evidence.",
+  "futureSafety": "No shared CD scope-policy change in this task. Acceptance-only platform documentation will not trigger another deployment; functional CI remains associated with code912/958 and the app gates remain failed."
+}
