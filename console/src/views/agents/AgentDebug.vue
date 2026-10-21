@@ -3,6 +3,7 @@ import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import StatusPill from '@/components/StatusPill.vue'
+import MessageMarkdown from '@/components/MessageMarkdown.vue'
 import {
   chatWithAgent, createDebugSession, deleteDebugSession, getAgent, listDebugMessages, listDebugSessions,
   streamAgentChat, type AgentDetail, type DebugMessageRow, type DebugSessionSummary,
@@ -522,7 +523,10 @@ watch(name, async (agent) => {
               <div class="pg" :class="{ loading: paging.messages }">{{ pageStatus(current.messages.length, current.messageCount, '条', 'up', paging.messages) }}</div>
               <div v-for="(msg, index) in current.messages" :key="index" class="msg" :class="{ u: msg.role === 'user' }">
                 <div>
-                  <div class="bub" :class="{ err: msg.error }">{{ msg.text }}</div>
+                  <div class="bub" :class="{ err: msg.error }">
+                    <MessageMarkdown v-if="msg.role === 'agent' && !msg.error" :text="msg.text" />
+                    <template v-else>{{ msg.text }}</template>
+                  </div>
                   <div v-if="msg.meta || msg.traceId" class="meta">
                     <span v-if="msg.meta">{{ msg.meta }}</span>
                     <RouterLink v-if="msg.traceId" :to="`/traces/${msg.traceId}`">查看链路</RouterLink>
@@ -530,7 +534,7 @@ watch(name, async (agent) => {
                 </div>
               </div>
               <div v-if="liveText !== null" class="msg">
-                <div><div class="bub cursor">{{ liveText }}</div></div>
+                <div><div class="bub cursor"><MessageMarkdown :text="liveText" /></div></div>
               </div>
             </template>
           </div>
@@ -700,9 +704,13 @@ watch(name, async (agent) => {
 .pg.loading { color: var(--acc); }
 .msg { display: flex; margin: 8px 0; }
 .msg.u { justify-content: flex-end; }
-.msg > div { max-width: 78%; }
+.msg > div { min-width: 0; max-width: 88%; }
+.msg.u > div { max-width: 78%; }
 .msg.u > div { text-align: right; }
 .bub {
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   display: inline-block;
   text-align: left;
   padding: 8px 12px;
