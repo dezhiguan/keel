@@ -616,7 +616,7 @@ watch(tab, (value) => {
 <template>
   <div class="models">
     <div class="vh">
-      <h2>模型与成本</h2>
+      <h2>模型网关</h2>
     </div>
     <div class="dtabs">
       <button type="button" :class="{ on: tab === 'model' }" @click="tab = 'model'">模型与渠道</button>

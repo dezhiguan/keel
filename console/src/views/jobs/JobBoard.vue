@@ -58,9 +58,7 @@ function open(job: DevflowJob) {
 <template>
   <div v-loading="loading">
     <div class="vh">
-      <h2>智能体生产线</h2>
-      <span class="tag-new">新页面</span>
-      <span class="sub">由智能体生产或改造智能体的全过程。等人处理的事项在审批中心</span>
+      <h2>智能体研发</h2>
       <span class="sp" />
       <button v-write class="btn pri" type="button" @click="router.push('/agents/new')">＋ 新建智能体</button>
     </div>

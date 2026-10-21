@@ -112,7 +112,7 @@ watch(() => envStore.env, load, { immediate: true })
 <template>
   <div v-loading="loading">
     <div class="vh">
-      <h2>待我处理</h2>
+      <h2>审批中心</h2>
       <span class="sub">所有需要人点一下的事都在这里。「研发任务」汇总研发任务的关口，不另开待办；工具、智能体、数据导出是审批单，「人工介入」是执行挂起等人回话，处理完智能体从断点继续</span>
     </div>
     <div class="chipsel" style="margin-bottom: 14px">

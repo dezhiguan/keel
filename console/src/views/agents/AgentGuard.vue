@@ -148,7 +148,7 @@ function layerPill(layer: GuardCaller['layer']) {
     <div class="vh">
       <h2>{{ name }} · 护栏</h2>
       <span class="sub trail">
-        <RouterLink to="/agents">智能体目录</RouterLink>
+        <RouterLink to="/agents">智能体管理</RouterLink>
         ›
         <RouterLink :to="{ path: '/agents', query: { drawer: name } }">{{ name }}</RouterLink>
         ›

@@ -120,8 +120,7 @@ onBeforeUnmount(() => { disposed = true; ++loadSequence; clearTimeout(poll); con
 <template>
   <div v-loading="loading">
     <div class="vh">
-      <h2>平台与能力服务</h2>
-      <span class="sub">平台组件每次调用都会经过；能力服务在 manifest 声明、授权后使用</span>
+      <h2>基础服务</h2>
       <InsightSyncStatus :status="data?.dataStatus" :loading="loading" :failed="failed" subject="服务状态">
         <button v-if="failed || data?.dataStatus?.state === 'stale'" class="btn sm" @click="load()">重试</button>
       </InsightSyncStatus>

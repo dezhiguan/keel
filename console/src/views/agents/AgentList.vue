@@ -42,7 +42,6 @@ const shown = computed(() => {
 })
 const pageRows = computed(() => shown.value.slice((filter.page - 1) * filter.size, filter.page * filter.size))
 const showCreate = computed(() => filter.page === Math.max(1, Math.ceil(shown.value.length / filter.size)))
-const registered = computed(() => result.value?.total ?? 0)
 
 function open(name?: string) {
   if (!name) return
@@ -118,8 +117,7 @@ watch(() => route.query.drawer, (drawer, previous) => {
 <template>
   <div>
     <div class="vh">
-      <h2>智能体目录</h2>
-      <span class="sub">注册中心 · 共 {{ registered }} 个</span>
+      <h2>智能体管理</h2>
       <span class="sp" />
       <button v-write class="btn pri" @click="router.push('/agents/new')">+ 新建智能体</button>
     </div>

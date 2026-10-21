@@ -50,9 +50,7 @@ onMounted(load)
 <template>
   <div v-loading="loading">
     <div class="vh">
-      <h2>智能体生产线</h2>
-      <span class="tag-new">新页面</span>
-      <span class="sub">规则仅平台管理员可改，每次保存写 config.change 审计</span>
+      <h2>智能体研发</h2>
     </div>
     <JobTabs current="rules" />
     <div v-if="!admin" class="banner warn">当前身份只能查看。</div>

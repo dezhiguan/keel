@@ -134,16 +134,17 @@ watch(() => route.fullPath, () => {
             <RouterLink to="/traces">链路追踪</RouterLink> / <b class="mono">{{ traceId }}</b>
           </template>
           <template v-else-if="jobCrumb">
-            <RouterLink to="/jobs">研发任务</RouterLink> / <b class="mono">{{ jobCrumb }}</b>
+            <RouterLink v-if="route.path.startsWith('/approvals/')" to="/approvals">审批中心</RouterLink>
+            <RouterLink v-else to="/jobs">智能体研发</RouterLink> / <b class="mono">{{ jobCrumb }}</b>
           </template>
           <template v-else-if="promptCrumb">
             <RouterLink to="/prompts">提示词</RouterLink> / <b class="mono">{{ promptCrumb }}</b>
           </template>
           <template v-else-if="debugAgent">
-            <RouterLink to="/agents">智能体目录</RouterLink> / <b>{{ debugAgent }} › 调试</b>
+            <RouterLink to="/agents">智能体管理</RouterLink> / <b>{{ debugAgent }} › 调试</b>
           </template>
           <template v-else-if="guardAgent">
-            <RouterLink to="/agents">智能体目录</RouterLink> /
+            <RouterLink to="/agents">智能体管理</RouterLink> /
             <RouterLink :to="{ path: '/agents', query: { drawer: guardAgent } }">{{ guardAgent }}</RouterLink> /
             <b>护栏</b>
           </template>

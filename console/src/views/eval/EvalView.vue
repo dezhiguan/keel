@@ -275,7 +275,7 @@ watch(agent, () => {
 <template>
   <div v-loading="loading">
     <div class="vh">
-      <h2>评测与门禁</h2>
+      <h2>测评中心</h2>
       <span class="sub">Langfuse 数据集 {{ result?.dataset ?? (agent || '—') }} · 门禁由 keel-gate 判定</span>
       <span class="sp" />
       <a v-if="result?.langfuseUrl" class="btn" :href="result.langfuseUrl" target="_blank" rel="noopener">在 Langfuse 中打开 ↗</a>
@@ -295,7 +295,7 @@ watch(agent, () => {
     </div>
 
     <div v-if="evalTab === 'confirm'" class="card">
-      <h3>待评测确认<small>和待我处理是同一批待办</small></h3>
+      <h3>待评测确认<small>和审批中心是同一批待办</small></h3>
       <template v-if="pending.length">
         <RouterLink v-for="item in pending" :key="item.jobId" class="btn sm" :to="reviewPath(item.jobId)">{{ item.jobId }} <AgentName :id="item.agent" /> · 去确认</RouterLink>
       </template>
