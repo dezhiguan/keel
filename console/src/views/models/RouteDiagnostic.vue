@@ -85,7 +85,7 @@ function fallbackLabel(value?: string) {
           <div class="mut">{{ result.modelSource === 'manifest' ? '来源：同环境智能体登记清单' : '来源：高级选项覆盖' }} · 降级：{{ fallbackLabel(result.fallback) }}</div>
         </div>
         <div v-for="warning in result.warnings" :key="warning" class="banner warn">{{ warning }}</div>
-        <div class="diagnostic-table"><table>
+        <div class="diagnostic-table"><table class="t">
           <thead><tr><th>真实模型</th><th>分流比例</th><th>授权</th><th>渠道状态</th><th>选中此模型时的尝试顺序</th></tr></thead>
           <tbody><tr v-for="target in result.targets" :key="target.model">
             <td class="mono">{{ target.model }}</td><td>{{ target.weight ? `${Number(target.weight.toFixed(2))}%` : '仅降级' }}</td>
@@ -102,9 +102,12 @@ function fallbackLabel(value?: string) {
 </template>
 
 <style scoped>
-.default-model { min-height: 38px; display: flex; align-items: center; color: var(--text, #d6dfeb); }
-.advanced-toggle { display: flex; gap: 8px; align-items: center; margin: 14px 0; color: var(--mut, #8190a5); cursor: pointer; }
+.share-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.default-model { min-height: 30px; display: flex; align-items: center; color: var(--text); }
+.route-diagnostic h3 { flex-wrap: wrap; row-gap: 8px; }
+.advanced-toggle { display: flex; gap: 8px; align-items: center; margin: 14px 0; color: var(--mute); cursor: pointer; }
 .advanced-model { margin-bottom: 18px; }
 .diagnostic-table { overflow-x: auto; }
 .route-diagnostic p { margin: 14px 0 0; }
+@media (max-width: 680px) { .share-grid { grid-template-columns: 1fr; } }
 </style>
