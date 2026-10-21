@@ -1,0 +1,14 @@
+{
+  "ownWorkflowRun": 39672978661,
+  "status": "force-cancelled",
+  "remainingOwn958Deployments": [
+    {
+      "ns": "keel-system",
+      "name": "keel-console",
+      "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-console:958fab8e68a1",
+      "ready": 2
+    }
+  ],
+  "nonTargetDeploymentsRestored": true,
+  "privateFullSnapshotsRetainedOutsideRepo": true
+}

@@ -1,0 +1,11 @@
+{
+  "uiCodeCommit": "958fab8e68a1cc928dfe95582c8e8672b384a5bf",
+  "application": "fac244c51a8da13b6f6717039db4ca230364efcd",
+  "status": "real-ui-task-and-stop-passed",
+  "taskId": "task_3b50a8bd1c4546bdb4ad867c5357dd4a",
+  "evidenceRepository": "dezhiguan/keel-assistant",
+  "evidencePath": "docs/evidence/v0.3-single/latest-real-ui-task-and-stop-final.json",
+  "noMockedServerOutput": true,
+  "networkConditionsRestored": true,
+  "doesNotClaimFormalMvpRelease": true
+}
