@@ -77,6 +77,8 @@ public class CodeCandidateService {
                 catch (Exception error) { throw invalid("生产门禁证据无效"); }
             }
         }
+        if (hasNewAnalysisTools(comparison,candidate))
+            comparison=authorizedAnalysisComparison(comparison,candidate,analysisScopeGranted(name,env));
         requireCompatible(comparison, candidate);
         if (candidate.equals(prior)) return Map.of("env", env, "manifestHash", body.path("expectedHash").asText());
         var declaredTools = new HashSet<String>();
@@ -106,6 +108,48 @@ public class CodeCandidateService {
         if (principal == null || principal.readOnly() || !"USER".equals(principal.mode())
                 || !"ADMIN".equals(principal.platformRole()))
             throw new KeelException(ErrorCode.AUTH_CONSOLE_FORBIDDEN, "运行清单对齐须由管理员明确发起");
+    }
+
+    private static final Map<String,String> ANALYSIS_TOOLS=Map.of(
+        "assistant.tasks.create","write","assistant.tasks.get","read","assistant.tasks.list","read",
+        "assistant.tasks.prepare","write","assistant.tasks.supply","write",
+        "assistant.tasks.cancel","write","assistant.tasks.retry","write",
+        "keel.tasks.command","write","keel.tasks.execution","read");
+
+    private static boolean hasNewAnalysisTools(JsonNode prior,JsonNode candidate){
+        var old=new HashSet<String>();prior.path("spec").path("tools").forEach(t->old.add(t.path("name").asText()));
+        for(var tool:candidate.path("spec").path("tools"))
+            if(ANALYSIS_TOOLS.containsKey(tool.path("name").asText()) && !old.contains(tool.path("name").asText()))return true;
+        return false;
+    }
+
+    private boolean analysisScopeGranted(String name,String env){
+        var actor=ConsolePrincipal.current();
+        if(!"keel-assistant".equals(name)||!"staging".equals(env)||actor==null||actor.readOnly()
+            ||!"USER".equals(actor.mode())||!"ADMIN".equals(actor.platformRole()))return false;
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+            SELECT EXISTS(SELECT 1 FROM assistant_analysis_scope s JOIN agent a ON a.name=s.agent_name
+              WHERE s.agent_name='keel-assistant' AND s.environment='staging' AND s.enabled AND s.owner_org=? AND a.owner_org=?)
+              AND (SELECT count(DISTINCT tool_name) FROM agent_tool_grant WHERE agent_name='keel-assistant'
+                AND tool_name IN ('keel.tasks.command','keel.tasks.execution') AND version_range='1.0.0' AND status='ACTIVE')=2
+            """,Boolean.class,actor.org(),actor.org()));
+    }
+
+    static JsonNode authorizedAnalysisComparison(JsonNode prior,JsonNode candidate,boolean authorized){
+        if(!authorized||!"keel-assistant".equals(prior.path("metadata").path("name").asText()))throw invalid("任务工具声明须先由真实用户明确授权");
+        var proposed=new java.util.HashMap<String,JsonNode>();
+        for(var tool:candidate.path("spec").path("tools"))
+            if(proposed.put(tool.path("name").asText(),tool)!=null)throw invalid("任务工具声明重复");
+        for(var tool:prior.path("spec").path("tools")){
+            if(!tool.equals(proposed.remove(tool.path("name").asText())))throw invalid("已有工具权限不可变化");
+        }
+        if(!proposed.keySet().equals(ANALYSIS_TOOLS.keySet()))throw invalid("只允许完整加入本版固定九项任务工具");
+        for(var entry:proposed.entrySet()){
+            var tool=entry.getValue();
+            if(tool.size()!=4||!ANALYSIS_TOOLS.get(entry.getKey()).equals(tool.path("access").asText())
+                ||!"low".equals(tool.path("risk").asText())||!"none".equals(tool.path("approval").asText()))throw invalid("任务工具授权范围不匹配");
+        }
+        ObjectNode aligned=prior.deepCopy();aligned.withObject("/spec").set("tools",candidate.path("spec").path("tools").deepCopy());return aligned;
     }
 
     static void requireCompatible(JsonNode prior, JsonNode candidate) {

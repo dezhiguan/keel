@@ -62,4 +62,32 @@ class CodeCandidateServiceTest {
         skill.withObject("/spec").withArray("skills").addObject().put("name", "development").put("version", 0);
         assertThatThrownBy(() -> CodeCandidateService.requireCompatible(old, skill)).isInstanceOf(com.keel.server.common.KeelException.class);
     }
+
+    private ObjectNode analysisCandidate(ObjectNode prior){
+        var next=prior.deepCopy();
+        for(var name:java.util.List.of("assistant.tasks.create","assistant.tasks.prepare","assistant.tasks.supply","assistant.tasks.get","assistant.tasks.list","assistant.tasks.cancel","assistant.tasks.retry","keel.tasks.command","keel.tasks.execution"))
+            next.withObject("/spec").withArray("tools").addObject().put("name",name)
+                .put("access",java.util.Set.of("assistant.tasks.get","assistant.tasks.list","keel.tasks.execution").contains(name)?"read":"write").put("risk","low").put("approval","none");
+        return next;
+    }
+    @Test void scopedAnalysisDeclarationsRequireAuthorizationAndCannotWeakenOtherBoundaries()throws Exception{
+        var prior=manifest();prior.withObject("/metadata").put("name","keel-assistant");var next=analysisCandidate(prior);
+        assertThatThrownBy(()->CodeCandidateService.requireCompatible(prior,next)).isInstanceOf(com.keel.server.common.KeelException.class);
+        assertThatThrownBy(()->CodeCandidateService.authorizedAnalysisComparison(prior,next,false)).isInstanceOf(com.keel.server.common.KeelException.class);
+        var aligned=CodeCandidateService.authorizedAnalysisComparison(prior,next,true);
+        assertThatCode(()->CodeCandidateService.requireCompatible(aligned,next)).doesNotThrowAnyException();
+        next.withObject("/spec/models/budget").put("dailyCny",999);
+        assertThatThrownBy(()->CodeCandidateService.requireCompatible(aligned,next)).isInstanceOf(com.keel.server.common.KeelException.class);
+        assertThatThrownBy(()->CodeCandidateService.authorizedAnalysisComparison(manifest(),analysisCandidate(manifest()),true)).isInstanceOf(com.keel.server.common.KeelException.class);
+    }
+    @Test void scopedAnalysisDeclarationsCannotAddOtherToolsOrModifyExistingGrants()throws Exception{
+        var prior=manifest();prior.withObject("/metadata").put("name","keel-assistant");
+        prior.withObject("/spec").withArray("tools").addObject().put("name","keel.employees.list").put("access","read").put("risk","low");
+        var extra=analysisCandidate(prior);extra.withObject("/spec").withArray("tools").addObject().put("name","git.pr.merge");
+        assertThatThrownBy(()->CodeCandidateService.authorizedAnalysisComparison(prior,extra,true)).isInstanceOf(com.keel.server.common.KeelException.class);
+        var changed=analysisCandidate(prior);((ObjectNode)changed.path("spec").path("tools").get(0)).put("access","write");
+        assertThatThrownBy(()->CodeCandidateService.authorizedAnalysisComparison(prior,changed,true)).isInstanceOf(com.keel.server.common.KeelException.class);
+        var widened=analysisCandidate(prior);((ObjectNode)widened.path("spec").path("tools").get(1)).put("shared",true);
+        assertThatThrownBy(()->CodeCandidateService.authorizedAnalysisComparison(prior,widened,true)).isInstanceOf(com.keel.server.common.KeelException.class);
+    }
 }

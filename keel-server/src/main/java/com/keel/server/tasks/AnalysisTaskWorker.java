@@ -52,6 +52,8 @@ public class AnalysisTaskWorker {
                 || !"keel-assistant".equals(result.path("meta").path("executor").asText())
                 || !result.path("meta").path("analysis_prompt_fallback").isBoolean()
                 || result.path("meta").path("analysis_prompt_fallback").asBoolean()
+                || !result.path("meta").path("model_permit_checked").isBoolean()
+                || !result.path("meta").path("model_permit_checked").asBoolean()
                 || !result.path("meta").path("analysis_prompt_version").isInt())throw new IllegalStateException("task execution evidence mismatch");
             var local=result.path("meta").path("analysis_validation").path("passed");
             tasks.finish(task,result.path("answer").asText(),result.path("meta").path("analysis_prompt_version").asInt(),null,

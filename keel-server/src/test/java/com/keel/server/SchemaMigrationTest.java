@@ -22,7 +22,7 @@ class SchemaMigrationTest {
     @Test
     @Transactional
     void migratesAllPlatformTablesAndRunConstraints() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("33");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("34");
 
         List<String> tables = jdbc.queryForList("""
             SELECT tablename FROM pg_tables
@@ -31,7 +31,7 @@ class SchemaMigrationTest {
             """, String.class);
         assertThat(tables).containsExactlyInAnyOrder(
             "agent", "agent_version", "agent_instance", "agent_resource",
-            "agent_employee_read_scope", "assistant_analysis_scope", "assistant_analysis_task", "assistant_analysis_attempt", "reconcile_finding", "tool", "tool_version", "agent_tool_grant",
+            "agent_employee_read_scope", "assistant_analysis_scope", "assistant_analysis_task", "assistant_analysis_attempt", "assistant_analysis_command", "reconcile_finding", "tool", "tool_version", "agent_tool_grant",
             "approval_policy", "approval_request", "agent_run", "release_record",
             "route_snapshot", "console_audit_event", "invoke_trace", "prompt_promotion",
             "prompt_code_version", "prompt_label_snapshot", "agent_self_check", "eval_run", "eval_turn",

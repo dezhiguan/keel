@@ -40,51 +40,86 @@ public class AnalysisTasks {
                     var rows=db.queryForList("SELECT * FROM assistant_analysis_task WHERE owner_user=? AND namespace=? AND agent_name='keel-assistant' AND environment='staging' ORDER BY created_at DESC LIMIT 20",c.getSubject(),c.getClaim("namespace"));
                     return Map.of("items",rows.stream().map(this::snapshot).toList(),"limit",20);
                 }
-                if("create".equals(op))return create(c,args,text,user.org(),trace);
-                if(!id.matches("task_[a-f0-9]{32}"))throw TaskContext.invalid("请提供准确的任务ID");
-                if(!text.contains(id) && db.queryForObject("SELECT count(*) FROM assistant_analysis_task WHERE owner_user=? AND namespace=? AND agent_name='keel-assistant' AND environment='staging'",Integer.class,c.getSubject(),c.getClaim("namespace"))>1)
-                    throw TaskContext.invalid("存在多个任务，请在消息中明确任务ID，不能猜测它或刚才那个");
-                var task=owned(c.getSubject(),String.valueOf(c.getClaim("namespace")),id,true);
-                if("get".equals(op))return snapshot(task);
-                String state=(String)task.get("state");
-                if("cancel".equals(op)){
-                    if(!text.matches("(?s).*(取消|停止|终止).*"))throw TaskContext.invalid("取消任务需要用户明确指令");
-                    if(Set.of("queued","waiting_authorization").contains(state))state="cancelled";
-                    else if(Set.of("running","validating").contains(state))state="cancel_requested";
-                    db.update("UPDATE assistant_analysis_task SET state=?,updated_at=clock_timestamp() WHERE task_id=?",state,id);
-                    return snapshot(owned(c.getSubject(),String.valueOf(c.getClaim("namespace")),id,false));
+                if("get".equals(op))return detail(commandTask(c,text,id));
+                if(!Set.of("create","prepare","supply","cancel","retry").contains(op))throw TaskContext.invalid("不支持的任务动作");
+                String request=(String)c.getClaim("request_id"),digest=TaskContext.hash(text);
+                db.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?,0))",c.getSubject()+":"+c.getClaim("namespace")+":"+request);
+                var prior=db.queryForList("SELECT * FROM assistant_analysis_command WHERE owner_user=? AND namespace=? AND request_id=?",c.getSubject(),c.getClaim("namespace"),request);
+                if(!prior.isEmpty()){
+                    var command=prior.getFirst();
+                    if(!digest.equals(command.get("input_digest"))||!op.equals(command.get("operation")))throw TaskContext.invalid("相同请求标识的内容或操作冲突");
+                    if(!Set.of("create","prepare").contains(op)&&!id.equals(command.get("task_id")))throw TaskContext.invalid("相同请求标识的任务冲突");
+                    return snapshot(owned(c.getSubject(),String.valueOf(c.getClaim("namespace")),(String)command.get("task_id"),false));
                 }
-                if("retry".equals(op)){
-                    if(!Set.of("failed","unknown","waiting_authorization").contains(state) || ((Number)task.get("attempt")).intValue()>=2)
-                        throw TaskContext.invalid("任务当前不可重试或已达到两次执行上限");
-                    if(!args.path("acknowledge_duplicate_cost").asBoolean(false) || !text.matches("(?s).*(重试|继续|恢复).*")
-                        || !text.matches("(?s).*((确认|接受|同意|允许).{0,30}(费用|重复|计算)|(费用|重复|计算).{0,30}(确认|接受|同意|允许)).*"))
-                        throw TaskContext.invalid("重试需要明确确认可能重复计算和费用");
-                    db.update("UPDATE assistant_analysis_task SET state='queued',revision=revision+1,fence=fence+1,lease_owner=NULL,lease_until=NULL,intent_at=NULL,authorized_until=clock_timestamp()+interval '15 minutes',updated_at=clock_timestamp() WHERE task_id=?",id);
-                    return snapshot(owned(c.getSubject(),String.valueOf(c.getClaim("namespace")),id,false));
-                }
-                throw TaskContext.invalid("不支持的任务动作");
+                Map<String,Object> result;
+                if(Set.of("create","prepare").contains(op))result=create(c,args,text,user.org(),trace,"prepare".equals(op));
+                else result=change(c,args,text,id,op);
+                var taskId=(String)result.get("task_id");
+                var reference=db.queryForObject("SELECT authorization_ref FROM assistant_analysis_task WHERE task_id=?",String.class,taskId);
+                db.update("INSERT INTO assistant_analysis_command(owner_user,namespace,request_id,operation,input_digest,task_id,authorization_ref,trace_id) VALUES (?,?,?,?,?,?,?,?)",c.getSubject(),c.getClaim("namespace"),request,op,digest,taskId,reference,trace);
+                return result;
             });
         }catch(java.text.ParseException e){throw TaskContext.denied();}
     }
-    private Map<String,Object> create(com.nimbusds.jwt.JWTClaimsSet c,JsonNode args,String text,String org,String trace){
-        var material=args.path("material").asText("").strip();
-        if(material.isEmpty() || material.length()>12000 || !text.contains(material))throw TaskContext.invalid("请直接提供不超过12000字的完整文字材料");
+    private Map<String,Object> commandTask(com.nimbusds.jwt.JWTClaimsSet c,String text,String id){
+        if(!id.matches("task_[a-f0-9]{32}"))throw TaskContext.invalid("请提供准确的任务ID");
+        if(!text.contains(id) && db.queryForObject("SELECT count(*) FROM assistant_analysis_task WHERE owner_user=? AND namespace=? AND agent_name='keel-assistant' AND environment='staging'",Integer.class,c.getSubject(),c.getClaim("namespace"))>1)
+            throw TaskContext.invalid("存在多个任务，请在消息中明确任务ID，不能猜测它或刚才那个");
+        return owned(c.getSubject(),String.valueOf(c.getClaim("namespace")),id,true);
+    }
+    private Map<String,Object> change(com.nimbusds.jwt.JWTClaimsSet c,JsonNode args,String text,String id,String operation){
+        var task=commandTask(c,text,id);String state=(String)task.get("state");
+        if("supply".equals(operation)){
+            if(!"waiting_input".equals(state))throw TaskContext.invalid("仅待补充任务可补充材料；更改目标须另建任务");
+            var material=args.path("material").asText("").strip();requireMaterial(material,text);
+            var directive=text.replace(material,"[用户提供的文字材料]");requireNotDiscussion(directive);
+            if(directive.matches("(?s).*(修改目标|更改目标|改变目标|目标改为).*"))throw TaskContext.invalid("不能覆盖原目标，请另建明确的新任务");
+            db.update("UPDATE assistant_analysis_task SET material=?,state='queued',revision=revision+1,authorization_ref=?,authorized_until=clock_timestamp()+interval '15 minutes',updated_at=clock_timestamp() WHERE task_id=?",material,grantReference(),id);
+        }else if("cancel".equals(operation)){
+            if(!text.matches("(?s).*(取消|停止|终止).*"))throw TaskContext.invalid("取消任务需要用户明确指令");
+            requireNotDiscussion(text);
+            if(Set.of("waiting_input","queued","waiting_authorization").contains(state))state="cancelled";
+            else if(Set.of("running","validating").contains(state))state="cancel_requested";
+            db.update("UPDATE assistant_analysis_task SET state=?,updated_at=clock_timestamp() WHERE task_id=?",state,id);
+        }else{
+            if(!Set.of("failed","unknown","waiting_authorization").contains(state)||((Number)task.get("attempt")).intValue()>=2||((String)task.get("material")).isBlank())throw TaskContext.invalid("任务当前不可重试、材料缺失或已达到两次执行上限");
+            if(!args.path("acknowledge_duplicate_cost").asBoolean(false)||!text.matches("(?s).*(重试|继续|恢复).*")
+                ||!text.matches("(?s).*((确认|接受|同意|允许).{0,30}(费用|重复|计算)|(费用|重复|计算).{0,30}(确认|接受|同意|允许)).*"))throw TaskContext.invalid("重试需要明确确认可能重复计算和费用");
+            requireNotDiscussion(text);
+            db.update("UPDATE assistant_analysis_task SET state='queued',revision=revision+1,fence=fence+1,lease_owner=NULL,lease_until=NULL,intent_at=NULL,authorization_ref=?,authorized_until=clock_timestamp()+interval '15 minutes',updated_at=clock_timestamp() WHERE task_id=?",grantReference(),id);
+        }
+        return snapshot(owned(c.getSubject(),String.valueOf(c.getClaim("namespace")),id,false));
+    }
+    private static String grantReference(){return "grant_"+UUID.randomUUID().toString().replace("-","");}
+    private static void requireMaterial(String material,String text){
+        if(material.isEmpty()||material.length()>12000||!text.contains(material))throw TaskContext.invalid("请直接提供不超过12000字的完整文字材料");
         if(material.matches("(?s)(链接[:：]\\s*)?https?://\\S+"))throw TaskContext.invalid("本版不读取链接，请直接粘贴要分析的文字材料");
-        var objective=text.replace(material,"[用户提供的文字材料]").strip();
+    }
+    private static void requireNotDiscussion(String directive){
+        if(directive.matches("(?s).*(是否支持|能否支持|讨论|假设).*")||directive.matches("(?s)\\s*(如何|怎么|是什么|什么是|如果).*"))throw TaskContext.invalid("当前是在讨论方案，请明确实际任务指令");
+        if(directive.matches("(?s).*(不要|暂不|先不|先别|不需要|不必).{0,20}(生成|创建|开始|执行|分析|总结|提取|取消|重试|恢复).*"))throw TaskContext.invalid("当前消息未授权执行该动作");
+    }
+    private Map<String,Object> create(com.nimbusds.jwt.JWTClaimsSet c,JsonNode args,String text,String org,String trace,boolean pending){
+        String requestId=(String)c.getClaim("request_id");String fingerprint=TaskContext.hash(text);
+        var existing=db.queryForList("SELECT * FROM assistant_analysis_task WHERE agent_name='keel-assistant' AND environment='staging' AND owner_user=? AND namespace=? AND request_id=?",c.getSubject(),c.getClaim("namespace"),requestId);
+        if(!existing.isEmpty()){
+            if(!fingerprint.equals(existing.getFirst().get("input_digest")))throw TaskContext.invalid("相同请求标识携带不同任务内容，拒绝冲突");
+            return snapshot(existing.getFirst());
+        }
+        var material=pending?"":args.path("material").asText("").strip();
+        if(!pending)requireMaterial(material,text);
+        var objective=(pending?text:text.replace(material,"[用户提供的文字材料]")).strip();
         // The directive is outside the quoted material, so instructions inside data cannot create tasks.
         if(objective.length()>2000 || !objective.matches("(?s).*(生成|创建|开始|执行|分析|总结|提取).*(报告|任务|风险|问题|材料).*"))
             throw TaskContext.invalid("需要明确的资料分析任务目标");
-        if(objective.matches("(?s).*(如何|怎么|是什么|什么是|是否支持|能否支持|讨论|假设|如果).*"))
-            throw TaskContext.invalid("当前是在讨论方案，请明确是否现在生成材料分析报告");
-        String requestId=(String)c.getClaim("request_id");String fingerprint=TaskContext.hash(text+"\0"+material);
+        requireNotDiscussion(objective);
         String id="task_"+UUID.randomUUID().toString().replace("-","");
         var inserted=db.queryForList("""
             INSERT INTO assistant_analysis_task(task_id,agent_name,environment,owner_user,owner_username,owner_org,
               session_id,request_id,namespace,input_digest,original_goal,material,authorization_ref,authorized_until,state,parent_trace_id)
-            VALUES (?,'keel-assistant','staging',?,?,?,?,?,?,?,?,?,?,clock_timestamp()+interval '15 minutes','queued',?)
+            VALUES (?,'keel-assistant','staging',?,?,?,?,?,?,?,?,?,?,clock_timestamp()+interval '15 minutes',?,?)
             ON CONFLICT(agent_name,environment,owner_user,namespace,request_id) DO NOTHING RETURNING *
-            """,id,c.getSubject(),c.getClaim("username"),org,c.getClaim("session"),requestId,c.getClaim("namespace"),fingerprint,objective,material,"grant_"+UUID.randomUUID().toString().replace("-",""),trace);
+            """,id,c.getSubject(),c.getClaim("username"),org,c.getClaim("session"),requestId,c.getClaim("namespace"),fingerprint,objective,material,grantReference(),pending?"waiting_input":"queued",trace);
         if(!inserted.isEmpty())return snapshot(inserted.getFirst());
         var prior=db.queryForMap("SELECT * FROM assistant_analysis_task WHERE agent_name='keel-assistant' AND environment='staging' AND owner_user=? AND namespace=? AND request_id=?",c.getSubject(),c.getClaim("namespace"),requestId);
         if(!fingerprint.equals(prior.get("input_digest")))throw TaskContext.invalid("相同请求标识携带不同任务内容，拒绝冲突");
@@ -102,12 +137,34 @@ public class AnalysisTasks {
         }
         out.put("executor","keel-assistant");out.put("environment","staging");out.put("task_type","analysis");
         out.put("cancellation_note","cancel_requested".equals(row.get("state"))?"已请求停止后续步骤；正在进行的模型调用未确认停止，可能产生费用":
-            "unknown".equals(row.get("state"))?"调用结果未知；不会自动重算，可能已产生计算与费用":null);
+            "unknown".equals(row.get("state"))?"调用结果未知；不会自动重算，可能已产生计算与费用":
+            "cancelled".equals(row.get("state"))?((Number)row.get("attempt")).intValue()==0?"在执行前取消，没有发起模型调用":
+            "后续步骤已取消；先前调用不保证已停止，已有计算和费用不能撤回，请回查历次执行记录":null);
         return out;
+    }
+    private Map<String,Object> detail(Map<String,Object> row){
+        var out=snapshot(row);
+        var history=db.queryForList("SELECT attempt,state,intent_at,report,acceptance,error,execution_trace_id,execution_run_id,prompt_version,gateway_request_id,cost_cny,usage FROM assistant_analysis_attempt WHERE task_id=? ORDER BY attempt LIMIT 2",row.get("task_id"));
+        var attempts=new ArrayList<Map<String,Object>>();
+        for(var attempt:history){
+            var item=new LinkedHashMap<String,Object>();
+            for(var entry:attempt.entrySet()){
+                Object value=entry.getValue();
+                if(value instanceof Timestamp time)value=time.toInstant().toString();
+                if(value!=null && Set.of("acceptance","usage").contains(entry.getKey()))try{value=json.readTree(value.toString());}catch(Exception invalid){value=null;}
+                item.put(entry.getKey(),value);
+            }
+            attempts.add(item);
+        }
+        out.put("attempts",attempts);
+        var revisions=db.queryForList("SELECT operation,trace_id,created_at FROM assistant_analysis_command WHERE task_id=? ORDER BY created_at",row.get("task_id"));
+        for(var revision:revisions)if(revision.get("created_at") instanceof Timestamp time)revision.put("created_at",time.toInstant().toString());
+        out.put("revisions",revisions);return out;
     }
     public void checkAuthority(Map<String,Object> row){
         var user=contexts.requireUser((String)row.get("owner_username"));requireScope(user.org());
         if(!user.org().equals(row.get("owner_org")) || !((Timestamp)row.get("authorized_until")).toInstant().isAfter(Instant.now()))throw TaskContext.denied();
+        if(!Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM assistant_analysis_command WHERE task_id=? AND owner_user=? AND authorization_ref=? AND operation IN ('create','supply','retry') AND ?<=created_at+interval '15 minutes')",Boolean.class,row.get("task_id"),row.get("owner_user"),row.get("authorization_ref"),row.get("authorized_until"))))throw TaskContext.denied();
     }
     public Map<String,Object> claim(String worker){
         return tx.execute(status->{
@@ -118,6 +175,7 @@ public class AnalysisTasks {
                   fence=fence+1,lease_owner=NULL,lease_until=NULL,error='Worker租约过期；有调用意图时不自动重算',updated_at=clock_timestamp()
                 WHERE state IN ('running','validating','cancel_requested') AND lease_until<=clock_timestamp()
                 """);
+            db.update("UPDATE assistant_analysis_attempt a SET state='unknown',error=t.error FROM assistant_analysis_task t WHERE t.task_id=a.task_id AND t.attempt=a.attempt AND t.state='unknown' AND a.state IN ('running','model_starting','validating')");
             if(Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM assistant_analysis_task WHERE state IN ('running','validating','cancel_requested') AND lease_until>clock_timestamp())",Boolean.class)))return null;
             var rows=db.queryForList("SELECT * FROM assistant_analysis_task WHERE state='queued' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1");
             if(rows.isEmpty())return null;var task=rows.getFirst();
@@ -151,12 +209,20 @@ public class AnalysisTasks {
         });
     }
     public Map<String,Object> execution(String ticket,String trace,String runId){
+        return execution(ticket,trace,runId,"load");
+    }
+    public Map<String,Object> execution(String ticket,String trace,String runId,String phase){
         var c=contexts.verify(ticket,"execution");
         try{return tx.execute(status->{
             var rows=db.queryForList("SELECT * FROM assistant_analysis_task WHERE task_id=? AND owner_user=? AND fence=? AND lease_until>clock_timestamp() AND state='running' FOR UPDATE",c.getClaim("task_id"),c.getSubject(),c.getClaim("fence"));
             if(rows.isEmpty())throw TaskContext.denied();var row=rows.getFirst();checkAuthority(row);
-            if(row.get("execution_run_id")!=null)throw TaskContext.denied(); // no duplicate execution of this attempt
             if(!runId.matches("[a-f0-9]{32}") || !trace.matches("[a-f0-9]{32}"))throw TaskContext.denied();
+            if("begin_model".equals(phase)){
+                if(!runId.equals(row.get("execution_run_id"))||!trace.equals(row.get("execution_trace_id")))throw TaskContext.denied();
+                if(db.update("UPDATE assistant_analysis_attempt SET state='model_starting' WHERE task_id=? AND attempt=? AND fence=? AND state='running'",row.get("task_id"),row.get("attempt"),row.get("fence"))!=1)throw TaskContext.denied();
+                return Map.of("task_id",row.get("task_id"),"allowed",true);
+            }
+            if(!"load".equals(phase)||row.get("execution_run_id")!=null)throw TaskContext.denied(); // no duplicate execution of this attempt
             db.update("UPDATE assistant_analysis_task SET execution_trace_id=?,execution_run_id=? WHERE task_id=?",trace,runId,row.get("task_id"));
             db.update("UPDATE assistant_analysis_attempt SET execution_trace_id=?,execution_run_id=? WHERE task_id=? AND attempt=?",trace,runId,row.get("task_id"),row.get("attempt"));
             return Map.of("task_id",row.get("task_id"),"goal",row.get("original_goal"),"material",row.get("material"),"source_id","material","max_seconds",120);
@@ -208,8 +274,9 @@ public class AnalysisTasks {
     @org.springframework.scheduling.annotation.Scheduled(cron="0 0 3 * * *",zone="Asia/Shanghai")
     public void expireTerminalArtifacts(){
         tx.executeWithoutResult(status->{
-            db.update("DELETE FROM assistant_analysis_attempt WHERE task_id IN (SELECT task_id FROM assistant_analysis_task WHERE state IN ('succeeded','failed','cancelled') AND updated_at<clock_timestamp()-interval '30 days')");
-            db.update("DELETE FROM assistant_analysis_task WHERE state IN ('succeeded','failed','cancelled') AND updated_at<clock_timestamp()-interval '30 days'");
+            db.update("DELETE FROM assistant_analysis_command WHERE task_id IN (SELECT task_id FROM assistant_analysis_task WHERE state IN ('waiting_input','succeeded','failed','cancelled') AND updated_at<clock_timestamp()-interval '30 days')");
+            db.update("DELETE FROM assistant_analysis_attempt WHERE task_id IN (SELECT task_id FROM assistant_analysis_task WHERE state IN ('waiting_input','succeeded','failed','cancelled') AND updated_at<clock_timestamp()-interval '30 days')");
+            db.update("DELETE FROM assistant_analysis_task WHERE state IN ('waiting_input','succeeded','failed','cancelled') AND updated_at<clock_timestamp()-interval '30 days'");
         });
     }
 }
