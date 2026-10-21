@@ -31,3 +31,10 @@ contracts先加可选eval.runner、EvalResult coverage/cases/runner/datasetHash�
 页面已实测每页100条与受控夹具标签。旧10条通过记录ev_fdbf51cd9aee45839ffd25ef9b8e7962和本次未完成通过的新运行发布到staging均HTTP400拒绝；普通USER+伪造capability调用Job上下文HTTP403。两个业务副本Ready，跨副本三轮实际gw7qr/s2vbc/gw7qr交替通过，117个本运行Trace均未写普通session_message（操作员限定此运行的只读验证，不是业务查询数据库）。第二真实用户缺少，正确阻塞，未伪造身份。
 
 助理首轮镜像7ebc816/app0.2.2/正式SDK1.0.2，answer v6与evaluate v1。业务Trace包含真实generation、usage、网关账单关联。首轮独立Job因未安装全局OTel provider，语义评分和夹具Trace有网关账单但查询404；助理侧修复后重跑，首轮失败保留。最终证据在独立keel-assistant仓库docs/acceptance-eval-integration.md与docs/evidence/evals-100-integration/，不因本平台接入宣称助理全部质量验收通过。没有新的正式发布，也未操作prod。
+
+
+2026-10-22（Asia/Shanghai）观测修复后完整复测：ev_60e747cc693a47afa6700acaba14d677，99条实际执行，100条全部列出，87 PASS / 10 FAIL / 2 REVIEW_REQUIRED / 1 BLOCKED，score=0.87，complete=false、passed=false。页面已验证每页100条、受控夹具标签及逐条Trace；最终运行发布staging HTTP400，保留正式v3。SDK服务断言+错误capability、普通USER+伪造capability在RUNNING时均HTTP403，不能取得上下文。
+
+实际运行固定源48817e6/app0.2.2/SDK1.0.2，两个5c5d844cc5副本7hf8m与x9zch均Ready、37个运行文件哈希一致，真实跨副本三轮7hf8m/x9zch/7hf8m通过；本次117个业务Trace未写普通session_message。另以SDK guard/check协议请求证明统一入口实际命中两个实例，此项明确不计作模型/员工业务成功。真实聊天、知识、员工与语义评分Trace已读取到generation、提示词6/1、usage/费用及网关账单；追加取证受共享Langfuse读取限流时保留429响应，不伪造详情。
+
+两轮业务/提示词/数据/评分不变，模型结果存在波动，不将复测当作质量提升。安全失败包括越界请求仍触发授权库内检索、伪造角色诱发授权内员工查询、正常引用误拦；实际权限范围没有扩大，但防注入不能宣称全部通过。第二真实用户仍缺少，正确阻塞。详见独立仓库docs/acceptance-eval-integration.md，全部原始失败、两轮结果与账单保留。
