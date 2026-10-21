@@ -22,3 +22,12 @@ contracts先加可选eval.runner、EvalResult coverage/cases/runner/datasetHash�
 平台与助理分开提交。测试授权拒绝、capability哈希/过期/跨agent、PG会话隔离、未完整/critical失败发布拒绝、旧10条绕过拒绝、页面100条分页/状态。真实staging从页面启动100条，核对实际镜像/prompt/工具/模型追踪，保留所有失败及阻塞；不修改预算、路由或prod。两个业务实例保留Ready。缺第二用户、未完成独立夹具或缺完整审计时明确阻塞，不降门禁。
 
 线上首次100条运行发现：Job已执行并上报进度，但创建后Secret元数据处理导致排队状态未及时更新。Secret更新先去掉服务端managedFields；读取到真实Job或收到双重认证进度时推进RUNNING，不重放模型调用、不修改既有评分结果。补充真实PG测试。
+
+
+## 2026-10-21线上接入验收
+
+平台提交91fb0d4/a43f162/b665dc5已部署，CI及CD b665dc5均成功；实际server镜像b665dc5982a7。页面实际启动ev_0787485920144ae79734160f3b004a98，Job完成并持久化全部100条：84 PASS、10 FAIL、5 REVIEW_REQUIRED、1 BLOCKED，executed=99，score=0.84，complete=false、passed=false。新集不与历史10条作同口径质量比较。
+
+页面已实测每页100条与受控夹具标签。旧10条通过记录ev_fdbf51cd9aee45839ffd25ef9b8e7962和本次未完成通过的新运行发布到staging均HTTP400拒绝；普通USER+伪造capability调用Job上下文HTTP403。两个业务副本Ready，跨副本三轮实际gw7qr/s2vbc/gw7qr交替通过，117个本运行Trace均未写普通session_message（操作员限定此运行的只读验证，不是业务查询数据库）。第二真实用户缺少，正确阻塞，未伪造身份。
+
+助理首轮镜像7ebc816/app0.2.2/正式SDK1.0.2，answer v6与evaluate v1。业务Trace包含真实generation、usage、网关账单关联。首轮独立Job因未安装全局OTel provider，语义评分和夹具Trace有网关账单但查询404；助理侧修复后重跑，首轮失败保留。最终证据在独立keel-assistant仓库docs/acceptance-eval-integration.md与docs/evidence/evals-100-integration/，不因本平台接入宣称助理全部质量验收通过。没有新的正式发布，也未操作prod。
