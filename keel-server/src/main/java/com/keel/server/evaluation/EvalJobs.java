@@ -89,12 +89,12 @@ public class EvalJobs {
     }
 
     public Map<String,Object> run(String id) {
-        var rows=jdbc.query("SELECT state,COALESCE(progress_result,result)::text,error,agent_name,image FROM eval_run WHERE run_id=?",(rs,n)-> {
+        var rows=jdbc.query("SELECT state,COALESCE(progress_result,result)::text,error,agent_name,image,case_snapshot::text FROM eval_run WHERE run_id=?",(rs,n)-> {
             var body=new LinkedHashMap<String,Object>();
             body.put("runId",id); body.put("state",rs.getString(1));
             body.put("agent",rs.getString(4)); body.put("image",rs.getString(5));
             body.put("progress",Set.of("DONE","FAILED").contains(rs.getString(1))?1:0);
-            var measured=decode(rs.getString(2));
+            var measured=withExecution(decode(rs.getString(2)),rs.getString(6));
             if(measured!=null && measured.get("coverage") instanceof Map<?,?> coverage && coverage.get("executed") instanceof Number done && coverage.get("total") instanceof Number total && total.doubleValue()>0)
                 body.put("progress",done.doubleValue()/total.doubleValue());
             body.put("result",measured); body.put("error",rs.getString(3));
@@ -140,9 +140,21 @@ public class EvalJobs {
     }
 
     public Map<String,Object> latest(String agent) {
-        var rows=jdbc.query("SELECT result::text FROM eval_run WHERE agent_name=? AND state='DONE' ORDER BY created_at DESC LIMIT 1",
-                (rs,n)->decode(rs.getString(1)),agent);
+        var rows=jdbc.query("SELECT result::text,case_snapshot::text FROM eval_run WHERE agent_name=? AND state='DONE' ORDER BY created_at DESC LIMIT 1",
+                (rs,n)->withExecution(decode(rs.getString(1)),rs.getString(2)),agent);
         return rows.isEmpty()?null:rows.getFirst();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String,Object> withExecution(Map<String,Object> result,String snapshot) {
+        if(result==null || snapshot==null || !(result.get("cases") instanceof List<?> rows))return result;
+        var executions=new HashMap<String,String>();
+        parse(snapshot).forEach(r->executions.put(r.path("metadata").path("caseId").asText(),r.path("metadata").path("execution").asText()));
+        for(var row:rows)if(row instanceof Map<?,?> item) {
+            var execution=executions.get(item.get("caseId"));
+            if(execution!=null)((Map<String,Object>)item).put("execution",execution);
+        }
+        return result;
     }
 
     public Map<String,Double> scores() {
@@ -208,6 +220,15 @@ public class EvalJobs {
                     .withSpec(spec).endTemplate().endSpec().build();
             try {cluster.batch().v1().jobs().inNamespace(row.namespace).resource(created).create();}
             catch(KubernetesClientException e) {if(e.getCode()!=409)throw e;}
+            if("acceptance-v1".equals(runner)) {
+                var launched=cluster.batch().v1().jobs().inNamespace(row.namespace).withName(name).get();
+                var auth=cluster.secrets().inNamespace(row.namespace).withName(EvaluationWorkerBridge.secretName(row.id)).get();
+                if(launched!=null && auth!=null) {
+                    auth.getMetadata().setOwnerReferences(List.of(new OwnerReferenceBuilder().withApiVersion("batch/v1").withKind("Job")
+                            .withName(name).withUid(launched.getMetadata().getUid()).withBlockOwnerDeletion(false).build()));
+                    cluster.secrets().inNamespace(row.namespace).resource(auth).update();
+                }
+            }
             jdbc.update("UPDATE eval_run SET state='RUNNING',updated_at=now() WHERE run_id=? AND state='QUEUED'",row.id);
             return;
         }

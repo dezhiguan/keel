@@ -32,4 +32,18 @@ class EvaluationWorkerBridgeTest {
         assertThat(com.keel.server.auth.CatalogAccess.serviceAccessible("POST","/api/v1/eval/agent/runs")).isFalse();
         assertThat(com.keel.server.auth.CatalogAccess.serviceAccessible("POST","/api/v1/eval/agent/runs/ev_test/publish")).isFalse();
     }
+    @Test void aCriticalFailureCannotBeOffsetByTwentyNinePassingCases() {
+        var frozen=new java.util.ArrayList<com.fasterxml.jackson.databind.JsonNode>();
+        var result=json.createObjectNode().put("agent","agent").put("candidateVersion","ev_test").put("dataset","suite")
+                .put("runner","acceptance-v1").put("caseCount",30).put("scoreTotal",29.0/30).put("complete",true).put("passed",true);
+        var rows=result.putArray("cases");
+        for(var i=0;i<30;i++) {
+            var source=json.createObjectNode();source.putObject("metadata").put("caseId","case-"+i).put("severity",i==29?"critical":"normal");frozen.add(source);
+            rows.addObject().put("caseId","case-"+i).put("status",i==29?"FAIL":"PASS").put("executed",true).put("critical",false);
+        }
+        result.putObject("coverage").put("total",30).put("executed",30).put("passed",29).put("failed",1).put("blocked",0).put("reviewRequired",0);
+        assertThatThrownBy(()->EvaluationWorkerBridge.validateProgress(result,"ev_test","agent","suite",frozen)).isInstanceOf(KeelException.class);
+        result.put("passed",false);
+        assertThatCode(()->EvaluationWorkerBridge.validateProgress(result,"ev_test","agent","suite",frozen)).doesNotThrowAnyException();
+    }
 }

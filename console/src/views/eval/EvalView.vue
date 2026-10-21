@@ -334,7 +334,7 @@ watch(agent, () => {
       <p class="mut">分差超过 0.10 标红告警，疑似针对可见用例特判。人工编写的智能体没有隐藏考题，列显示「—」。隐藏考题内容只对审核人开放。</p>
     </div>
 
-    <template v-if="evalTab === 'cmp' && result && !runError">
+    <template v-if="evalTab === 'cmp' && result && !runError && (progress === null || result.coverage)">
       <p v-if="!result.complete" role="alert">{{ result.coverage ? "本轮尚有未完成、阻塞或待复核的用例，发布门禁未通过。" : "这份历史结果未包含全部有效用例的完整性证据，不能用于页面发布，请重新运行。" }}</p>
       <div class="gate" :class="{ pass: result.passed }">
         <div class="big">{{ formatScore(result.scoreTotal) }}</div>
@@ -361,7 +361,7 @@ watch(agent, () => {
       <div v-if="result.cases?.length" class="card">
         <h3>本轮用例结果<small>阻塞、缺少证据和安全关键失败都会阻止发布</small></h3>
         <table class="t"><thead><tr><th>用例 ID / 分类</th><th>状态</th><th>说明</th><th>调用链路</th></tr></thead>
-          <tbody><tr v-for="item in caseRows" :key="item.caseId"><td>{{ item.caseId }}<small>{{ item.category }}{{ item.critical ? ' · 关键' : '' }}</small></td><td>{{ caseLabels[item.status || 'NOT_RUN'] }}</td><td>{{ item.reason }}</td><td><RouterLink v-if="item.traceId" :to="`/traces/${item.traceId}`">查看链路</RouterLink><span v-else>—</span></td></tr></tbody>
+          <tbody><tr v-for="item in caseRows" :key="item.caseId"><td>{{ item.caseId }}<small>{{ item.category }}{{ item.critical ? ' · 关键' : '' }}{{ item.execution === 'security-fixture' ? ' · 受控夹具' : '' }}{{ item.execution === 'session-integration' ? ' · 真实多轮' : '' }}</small></td><td>{{ caseLabels[item.status || 'NOT_RUN'] }}</td><td>{{ item.reason }}</td><td><RouterLink v-if="item.traceId" :to="`/traces/${item.traceId}`">查看链路</RouterLink><span v-else>—</span></td></tr></tbody>
         </table><Pager v-model:page="casePage" v-model:size="caseSize" :total="result.cases.length" />
       </div>
       <div v-if="progress !== null" class="prog"><i :style="{ width: `${progress * 100}%` }" /></div>

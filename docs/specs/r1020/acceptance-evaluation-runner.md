@@ -14,7 +14,7 @@
 全量应有100条状态，blocked/review/未执行使complete=false、passed=false。critical失败独立阻断，不能以平均分抵消。0.85/回归2pt保留；数据集变化不与旧prod作同口径分差。服务器再次验证服务端持久化结果的数量/状态及当前manifest数据集/runner绑定，旧10条通过记录不能为新100条候选发布。运行异常/Job丢失保留失败，不能自动重放已计费请求。
 
 ## 协议及页面
-contracts先加可选eval.runner、EvalResult coverage/cases/runner/datasetHash。仅Job可访问GET/POST /eval/runs/{runId}/context与POST /turns、/progress，ConsolePrincipal SERVICE且capability同时验证，不开放其他控制台API。响应票据不进日志/审计；审计仅run/case/decision/hash白名单。
+contracts先加可选eval.runner、EvalResult coverage/cases/runner/datasetHash。仅Job可访问GET/POST /eval/runs/{runId}/context与POST /turns、/progress，ConsolePrincipal SERVICE且capability同时验证，不开放其他控制台API。逐条执行类型由服务端固定定义补全，页面标记受控夹具/真实多轮，防止把夹具当真实业务。capability Secret归属本次Job，随Job TTL清理。响应票据不进日志/审计；审计仅run/case/decision/hash白名单。
 
 现有#/eval原型维持布局，增加数据集、总量/完成/阻塞/待复核及逐条结果分页，运行时展示真实进度和本轮100条结果。失败不能继续露出旧10条可发布结论。旧结果文案兼容，详情支持真实trace链接。同步ui-checklist。
 

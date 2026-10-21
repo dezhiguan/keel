@@ -4611,6 +4611,9 @@ components:
             properties:
               caseId: { type: string }
               category: { type: string }
+              execution: { type: string, description: 根据服务端固定用例定义区分真实请求、多轮与受控夹具 }
+              evaluatorTraceId: { type: string }
+              executed: { type: boolean }
               status: { type: string, enum: [PASS, FAIL, BLOCKED, REVIEW_REQUIRED, NOT_RUN] }
               reason: { type: string }
               traceId: { type: string }

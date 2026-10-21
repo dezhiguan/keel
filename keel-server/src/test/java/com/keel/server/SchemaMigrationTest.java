@@ -34,7 +34,7 @@ class SchemaMigrationTest {
             "agent_employee_read_scope", "reconcile_finding", "tool", "tool_version", "agent_tool_grant",
             "approval_policy", "approval_request", "agent_run", "release_record",
             "route_snapshot", "console_audit_event", "invoke_trace", "prompt_promotion",
-            "prompt_code_version", "prompt_label_snapshot", "agent_self_check", "eval_run",
+            "prompt_code_version", "prompt_label_snapshot", "agent_self_check", "eval_run", "eval_turn",
             "service_assertion_jti", "devflow_job", "devflow_batch", "devflow_stage_run",
             "devflow_execution", "devflow_artifact", "devflow_holdout", "devflow_holdout_result", "devflow_setting", "devflow_sandbox_run",
             "devflow_tool_grant",

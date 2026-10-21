@@ -3227,6 +3227,10 @@ export interface components {
             cases?: {
                 caseId?: string;
                 category?: string;
+                /** @description 根据服务端固定用例定义区分真实请求、多轮与受控夹具 */
+                execution?: string;
+                evaluatorTraceId?: string;
+                executed?: boolean;
                 /** @enum {string} */
                 status?: "PASS" | "FAIL" | "BLOCKED" | "REVIEW_REQUIRED" | "NOT_RUN";
                 reason?: string;
