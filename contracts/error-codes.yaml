@@ -51,6 +51,11 @@ codes:
     retryable: false
     http: 409
 
+  AGENT_CONTEXT_EXCEEDED:
+    message: 上下文窗口过大
+    retryable: false
+    http: 409
+
   # ── keel-gateway ────────────────────────────────────────────────
   GW_QUOTA_EXCEEDED:
     message: 配额已用完

@@ -10,6 +10,7 @@ class ErrorCode(str, Enum):
     AGENT_NAME_TAKEN = 'AGENT_NAME_TAKEN'
     AGENT_NOT_RETIRED = 'AGENT_NOT_RETIRED'
     AGENT_MAX_STEPS_EXCEEDED = 'AGENT_MAX_STEPS_EXCEEDED'
+    AGENT_CONTEXT_EXCEEDED = 'AGENT_CONTEXT_EXCEEDED'
     GW_QUOTA_EXCEEDED = 'GW_QUOTA_EXCEEDED'
     GW_CONCURRENCY_LIMIT = 'GW_CONCURRENCY_LIMIT'
     GW_AGENT_OFFLINE = 'GW_AGENT_OFFLINE'
@@ -79,6 +80,7 @@ _DETAILS = {
     ErrorCode.AGENT_NAME_TAKEN: ('名称已被占用', False, 409),
     ErrorCode.AGENT_NOT_RETIRED: ('智能体还没下线，不能删除', False, 409),
     ErrorCode.AGENT_MAX_STEPS_EXCEEDED: ('智能体执行步数已达到上限', False, 409),
+    ErrorCode.AGENT_CONTEXT_EXCEEDED: ('上下文窗口过大', False, 409),
     ErrorCode.GW_QUOTA_EXCEEDED: ('配额已用完', True, 429),
     ErrorCode.GW_CONCURRENCY_LIMIT: ('并发连接数达到上限', True, 429),
     ErrorCode.GW_AGENT_OFFLINE: ('智能体当前不可用', True, 503),

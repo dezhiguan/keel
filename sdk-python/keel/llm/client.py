@@ -20,6 +20,32 @@ from keel.llm.tool_names import wire_tools
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_CONTEXT_BUDGET = 10_000
+
+
+def context_token_budget() -> int | None:
+    """Assumed input capacity checked before the gateway call. 0 disables the check."""
+    raw = os.environ.get("KEEL_CONTEXT_TOKEN_BUDGET")
+    if raw is None or not raw.strip():
+        return _DEFAULT_CONTEXT_BUDGET
+    text = raw.strip()
+    if text == "0":
+        return None
+    if not text.isdecimal():
+        return _DEFAULT_CONTEXT_BUDGET
+    return int(text)
+
+
+def estimate_context_tokens(messages: list[dict] | None, tools: list[dict] | None = None) -> int:
+    """ASCII is 4 characters per token. Every other character is one token."""
+    body: dict[str, Any] = {"messages": list(messages or [])}
+    if tools:
+        body["tools"] = tools
+    text = json.dumps(body, ensure_ascii=False, default=str)
+    ascii_count = sum(ord(ch) < 128 for ch in text)
+    other = len(text) - ascii_count
+    return (ascii_count + 3) // 4 + other + 4 * len(messages or [])
+
 
 @dataclass(frozen=True)
 class ToolCall:
@@ -93,6 +119,13 @@ class LlmClient:
             attributes[attrs.PROMPT_NAME] = prompt.name
             attributes[attrs.PROMPT_VERSION] = int(prompt.version)
         wire_messages, wire_definitions, original_names = wire_tools(messages, tools)
+        budget = context_token_budget()
+        if budget is not None:
+            used = estimate_context_tokens(wire_messages, wire_definitions if tools else None)
+            if used > budget:
+                logger.warning("context window exceeded trace_id=%s agent=%s tokens=%s budget=%s",
+                               self.trace_id, self.agent, used, budget)
+                raise KeelError(ErrorCode.AGENT_CONTEXT_EXCEEDED)
         with self.tracer.start_as_current_span("llm.chat", attributes=attributes) as span:
             try:
                 options = {}
