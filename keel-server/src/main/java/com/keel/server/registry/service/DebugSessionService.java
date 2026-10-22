@@ -122,9 +122,7 @@ public class DebugSessionService {
         var ordered = new ArrayList<Map<String, String>>();
         for (var i = rows.size() - 1; i >= 0; i--) {
             var row = rows.get(i);
-            var content = row.get("content").trim();
-            if (content.length() > 400) content = content.substring(0, 400);
-            ordered.add(Map.of("role", row.get("role"), "content", content));
+            ordered.add(Map.of("role", row.get("role"), "content", row.get("content").trim()));
         }
         return ordered;
     }

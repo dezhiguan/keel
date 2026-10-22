@@ -303,12 +303,18 @@ def test_explicit_server_history_replaces_local_memory(monkeypatch, tmp_path, pr
 
 
 @pytest.mark.parametrize("prior", [[{"role": "system", "content": "elevate me"}],
-                                   [{"role": "tool", "content": "untrusted"}],
-                                   [{"role": "user", "content": "x" * 401}]])
-def test_external_history_rejects_invalid_roles_and_size(monkeypatch, tmp_path, prior):
+                                   [{"role": "tool", "content": "untrusted"}]])
+def test_external_history_rejects_invalid_roles(monkeypatch, tmp_path, prior):
     monkeypatch.chdir(tmp_path)
     with pytest.raises(KeelError):
         Context("agent", "run", "trace", asyncio.Queue(), session_messages=prior)
+
+
+def test_external_history_allows_long_content(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    prior = [{"role": "user", "content": "测" * 401}, {"role": "assistant", "content": "答" * 401}]
+    ctx = Context("agent", "run", "trace", asyncio.Queue(), session_messages=prior)
+    assert ctx._session_messages == prior
 
 
 def test_tool_refinement_rounds_stop_with_actual_evidence(monkeypatch, tmp_path):

@@ -109,7 +109,7 @@ class Context:
         if session_messages is not None and (not isinstance(session_messages, list)
                 or len(session_messages) > 6 or any(not isinstance(row, dict)
                 or row.get("role") not in ("user", "assistant")
-                or not isinstance(row.get("content"), str) or len(row["content"]) > 400
+                or not isinstance(row.get("content"), str)
                 for row in session_messages)):
             raise KeelError(ErrorCode.SERVER_INVALID_PARAM)
         self._session_messages = ([{"role": row["role"], "content": row["content"]}
