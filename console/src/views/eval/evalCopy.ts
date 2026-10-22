@@ -47,6 +47,20 @@ export function expectedSubject(agent: string, result: EvalResult | null): strin
   return text.slice(0, 128)
 }
 
+const DIMENSION_NOTES: Record<string, string> = {
+  chat: '聊天',
+  context: '上下文',
+  employees: '员工',
+  knowledge: '知识',
+  security: '安全',
+}
+
+/** Chinese category name for the assistant acceptance set. Other tags stay unlabeled. */
+export function dimensionNote(tag: string | null | undefined): string {
+  if (!tag) return ''
+  return DIMENSION_NOTES[tag] ?? ''
+}
+
 /** Keep total definitions distinct from executed cases and blocking states. */
 export function coverageText(result: EvalResult): string {
   const c = result.coverage

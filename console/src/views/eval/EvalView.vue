@@ -14,7 +14,7 @@ import { useEnvStore } from '@/stores/env'
 import { useUserStore } from '@/stores/user'
 import type { StatusTone } from '@/utils/format'
 import { reviewPath } from '@/views/tools/approvalGroups'
-import { coverageText, deltaText, expectedSubject, formatScore, gateRule, holdoutGap, holdoutGapAlarm, holdoutGapText } from './evalCopy'
+import { coverageText, deltaText, dimensionNote, expectedSubject, formatScore, gateRule, holdoutGap, holdoutGapAlarm, holdoutGapText } from './evalCopy'
 
 const VERDICT: Record<string, { label: string; tone: StatusTone }> = {
   IMPROVED: { label: '提升', tone: 'ok' },
@@ -36,10 +36,6 @@ const dimensionPage = ref(1)
 const dimensionSize = ref<10 | 20 | 50 | 100>(10)
 const dimensions = computed(() => result.value?.dimensions ?? [])
 const dimensionRows = computed(() => dimensions.value.slice((dimensionPage.value - 1) * dimensionSize.value, dimensionPage.value * dimensionSize.value))
-const casePage = ref(1)
-const caseSize = ref<10 | 20 | 50 | 100>(20)
-const caseRows = computed(() => (result.value?.cases ?? []).slice((casePage.value - 1) * caseSize.value, casePage.value * caseSize.value))
-const caseLabels: Record<string,string> = { PASS: "通过", FAIL: "失败", BLOCKED: "阻塞", REVIEW_REQUIRED: "待复核", NOT_RUN: "未运行" }
 const gates = ref<EvalGateRow[]>([])
 const pending = ref<{ jobId: string; agent: string }[]>([])
 const gap = computed(() => holdoutGap(result.value?.scoreTotal, result.value?.holdout?.score))
@@ -146,7 +142,7 @@ async function run() {
   try {
     const { runId } = await runEval(name)
     if (seq !== loadSeq) return
-    if (runId) { result.value = null; casePage.value = 1; pollRun(runId, seq) }
+    if (runId) { result.value = null; pollRun(runId, seq) }
     else progress.value = null
   } catch (error) {
     if (seq !== loadSeq) return
@@ -358,12 +354,6 @@ watch(agent, () => {
       </div>
       <p v-if="published" role="status">已发布 {{ published }} · <RouterLink :to="{ path: '/agents', query: { drawer: agent } }">查看智能体版本</RouterLink></p>
       <p v-if="result.coverage || result.caseCount != null" class="mut" role="status">{{ coverageText(result) }}</p>
-      <div v-if="result.cases?.length" class="card">
-        <h3>本轮用例结果<small>阻塞、缺少证据和安全关键失败都会阻止发布</small></h3>
-        <table class="t"><thead><tr><th>用例 ID / 分类</th><th>状态</th><th>说明</th><th>调用链路</th></tr></thead>
-          <tbody><tr v-for="item in caseRows" :key="item.caseId"><td>{{ item.caseId }}<small>{{ item.category }}{{ item.critical ? ' · 关键' : '' }}{{ item.execution === 'security-fixture' ? ' · 受控夹具' : '' }}{{ item.execution === 'session-integration' ? ' · 真实多轮' : '' }}</small></td><td>{{ caseLabels[item.status || 'NOT_RUN'] }}</td><td>{{ item.reason }}</td><td><RouterLink v-if="item.traceId" :to="`/traces/${item.traceId}`">查看链路</RouterLink><span v-else>—</span></td></tr></tbody>
-        </table><Pager v-model:page="casePage" v-model:size="caseSize" :total="result.cases.length" />
-      </div>
       <div v-if="progress !== null" class="prog"><i :style="{ width: `${progress * 100}%` }" /></div>
 
       <div v-if="evalTab === 'cmp'" class="card">
@@ -372,7 +362,7 @@ watch(agent, () => {
           <thead><tr><th>维度（用例标签）</th><th>用例数</th><th>prod</th><th>候选</th><th>变化</th><th>判定</th></tr></thead>
           <tbody>
             <tr v-for="d in dimensionRows" :key="d.tag">
-              <td>{{ d.tag }}</td>
+              <td>{{ d.tag }}<small v-if="dimensionNote(d.tag)">{{ dimensionNote(d.tag) }}</small></td>
               <td class="mono">{{ d.cases ?? '—' }}</td>
               <td class="mono">{{ formatScore(d.prodScore) }}</td>
               <td class="mono">{{ formatScore(d.candidateScore) }}</td>
@@ -383,18 +373,6 @@ watch(agent, () => {
           </tbody>
         </table>
         <Pager v-model:page="dimensionPage" v-model:size="dimensionSize" :total="dimensions.length" />
-      </div>
-      <div v-if="evalTab === 'cmp' && result.newFailures?.length" class="card">
-        <h3>未通过评分的用例<small>总分通过门禁仍可能有个别评分未通过，请复核实际答复和预期。</small></h3>
-        <table class="t">
-          <thead><tr><th>用例 ID</th><th>调用链路</th></tr></thead>
-          <tbody>
-            <tr v-for="failure in result.newFailures" :key="`${failure.caseId}-${failure.traceId}`">
-              <td class="mono">{{ failure.caseId || '—' }}</td>
-              <td><RouterLink v-if="failure.traceId" :to="`/traces/${failure.traceId}`">查看调用链路</RouterLink><span v-else class="mut">没有链路 ID</span></td>
-            </tr>
-          </tbody>
-        </table>
       </div>
     </template>
     <template v-else-if="evalTab === 'cmp'">
@@ -426,4 +404,5 @@ watch(agent, () => {
 
 <style scoped>
 textarea.inp { width: 100%; box-sizing: border-box; resize: vertical; }
+td small { margin-left: 8px; color: var(--mute); font-weight: 400; }
 </style>

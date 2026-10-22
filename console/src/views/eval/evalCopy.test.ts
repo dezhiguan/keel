@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { EvalResult } from '@/api/eval'
-import { coverageText, deltaText, expectedSubject, formatScore, gateRule, holdoutGap, holdoutGapAlarm, holdoutGapText } from './evalCopy'
+import { coverageText, deltaText, dimensionNote, expectedSubject, formatScore, gateRule, holdoutGap, holdoutGapAlarm, holdoutGapText } from './evalCopy'
 
 const failed: EvalResult = {
   agent: 'offshore-wind',
@@ -46,5 +46,17 @@ describe('acceptance coverage', () => {
   })
   it('preserves the legacy single-turn result text', () => {
     expect(coverageText({ caseCount: 10, complete: true })).toBe('已执行 10 条用例 · 全部有效用例已完成')
+  })
+})
+
+describe('dimension notes', () => {
+  it('annotates the assistant acceptance categories and leaves other tags blank', () => {
+    expect(dimensionNote('chat')).toBe('聊天')
+    expect(dimensionNote('context')).toBe('上下文')
+    expect(dimensionNote('employees')).toBe('员工')
+    expect(dimensionNote('knowledge')).toBe('知识')
+    expect(dimensionNote('security')).toBe('安全')
+    expect(dimensionNote('安全规程合规')).toBe('')
+    expect(dimensionNote(undefined)).toBe('')
   })
 })
