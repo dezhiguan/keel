@@ -21,3 +21,12 @@
 后端回归覆盖未声明但存在会话、仅长期记录、无记录，以及环境与过期条件；
 前端覆盖已验证记忆的分层说明和未知态。执行后端定向测试、前端测试及类型检查。
 发布后核对线上个人助理 elements 接口和静态前端版本。
+
+## 发布回执（2026-10-22）
+
+- PR #21，合并提交 `8018c2507219a45fef445f0b1e6dece854504ebc`。全部 PR CI 检查通过。
+- 主分支 CD 因累计未部署范围包含其他智能体，已主动取消；未将这些旧改动随本次发布。
+- 本次在现有运行镜像上追加经过测试的两组 Java 类及新的前端静态产物，使用 OCI 层导入单节点 k3s，只滚动更新 keel-server、keel-console。未修改运行环境变量或智能体配置。镜像及原版本见 `docs/evidence/r1022-memory-elements/release.json`。本次本地镜像未推 ACR，后续标准 CD 构建已包含此修复的 main 即可替换。
+- 两个后端副本的 elements 接口均返回记忆 passed=true，missing 不再包含记忆；分别说明已有会话证据、暂无长期用户记忆记录。两个控制台副本的 JS/CSS 均包含分层记忆说明逻辑及样式。
+- 发布前后已核对既有 Key 配置不变，个人助理日预算仍为 110，dev/test 列表为空。服务启动时旧 EchoCredentialRunner 自动创建的 echo-dev 已停用并移除，恢复发布前无 dev/test Key 的状态；历史账单未改。
+- 本次未调用模型或重跑正式评测。回读结果见 `docs/evidence/r1022-memory-elements/verification.jsonl`。

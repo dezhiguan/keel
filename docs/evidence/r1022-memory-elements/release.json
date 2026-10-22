@@ -1,0 +1,16 @@
+[
+  {
+    "deployment": "keel-server",
+    "container": "keel-server",
+    "oldImage": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-server:baac70945bf2",
+    "newImage": "docker.io/library/keel-server:memory-8018c2507219",
+    "manifestDigest": "sha256:2aeaeb3ce23284637092ce2cfe4f65f17038346ae5e19c72a51105b6d34c97e9"
+  },
+  {
+    "deployment": "keel-console",
+    "container": "keel-console",
+    "oldImage": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-console:958fab8e68a1",
+    "newImage": "docker.io/library/keel-console:memory-8018c2507219",
+    "manifestDigest": "sha256:d643e50455b1f54dffc9f8281d38ecc6d6a96d3c6d541a1a6b67c311bfb8d14c"
+  }
+]

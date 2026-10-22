@@ -1,0 +1,5 @@
+{"assistantBudget": 110, "devTestKeys": [], "existingKeysUnchanged": true}
+{"source": "server", "podIp": "10.42.0.213", "memory": {"name": "记忆", "passed": true, "detail": "会话记忆：已有有效多轮记录；长期记忆：暂无用户记忆记录"}, "missing": ["模型自己调工具", "agent loop"]}
+{"source": "server", "podIp": "10.42.0.214", "memory": {"name": "记忆", "passed": true, "detail": "会话记忆：已有有效多轮记录；长期记忆：暂无用户记忆记录"}, "missing": ["模型自己调工具", "agent loop"]}
+{"source": "console", "podIp": "10.42.0.215", "memoryUiAssetVerified": true, "assets": ["/assets/index-Bke49CSF.css", "/assets/index-BQ0x_Mc0.js"]}
+{"source": "console", "podIp": "10.42.0.216", "memoryUiAssetVerified": true, "assets": ["/assets/index-Bke49CSF.css", "/assets/index-BQ0x_Mc0.js"]}
