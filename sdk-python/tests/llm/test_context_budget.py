@@ -118,3 +118,20 @@ def test_zero_budget_disables_the_check(monkeypatch):
 
     assert run(scenario()) == "ok"
     assert len(calls) == 1
+
+
+def test_summary_call_does_not_stream_tokens_to_the_chat(monkeypatch):
+    requests = []
+    llm = client(monkeypatch, lambda request: requests.append(json.loads(request.content)) or reply())
+    emitted = []
+    llm.on_token = emitted.append
+
+    async def scenario():
+        result = await llm.chat([{'role': 'user', 'content': '历史摘要'}], tools=[], emit_tokens=False, max_tokens=512)
+        await llm.aclose()
+        return result
+
+    assert run(scenario()).content == 'ok'
+    assert emitted == []
+    assert requests[0]['max_tokens'] == 512
+    assert requests[0].get('stream') is not True

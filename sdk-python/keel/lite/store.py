@@ -52,6 +52,11 @@ class LiteStore:
                 );
                 CREATE INDEX IF NOT EXISTS ix_session_message
                     ON session_message(agent, session_id, id);
+                CREATE TABLE IF NOT EXISTS session_summary (
+                    agent TEXT NOT NULL, session_id TEXT NOT NULL, version INTEGER NOT NULL,
+                    through_id INTEGER NOT NULL, content TEXT NOT NULL, expires_at REAL NOT NULL,
+                    PRIMARY KEY(agent,session_id)
+                );
             """)
 
     @contextmanager
@@ -137,14 +142,31 @@ class LiteStore:
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (agent, session_id, role, content, now, now + ttl_seconds))
 
-    def session_messages(self, agent: str, session_id: str, now: float, limit: int = 40) -> list[dict]:
+    def session_messages(self, agent: str, session_id: str, now: float, limit: int = 128,
+                         include_ids: bool = False) -> list[dict]:
         with self._connect() as connection:
             rows = connection.execute("""
-                SELECT role, content FROM session_message
+                SELECT id, role, content FROM session_message
                 WHERE agent=? AND session_id=? AND expires_at>?
                 ORDER BY id DESC LIMIT ?
             """, (agent, session_id, now, limit)).fetchall()
-        return [{"role": row["role"], "content": row["content"]} for row in reversed(rows)]
+        return [{"role": row["role"], "content": row["content"], **({"id": str(row["id"])} if include_ids else {})} for row in reversed(rows)]
+
+    def session_summary(self, agent, session, now):
+        with self._connect() as connection:
+            row = connection.execute("SELECT version,through_id,content FROM session_summary WHERE agent=? AND session_id=? AND expires_at>?",
+                                     (agent, session, now)).fetchone()
+        return {"version": row["version"], "throughId": str(row["through_id"]), "content": row["content"]} if row else {"version": 0, "throughId": "0", "content": ""}
+
+    def save_session_summary(self, agent, session, state, now, ttl):
+        with self._lock, self._connect() as connection:
+            connection.execute("DELETE FROM session_summary WHERE expires_at<=?", (now,))
+            if state["version"] == 0:
+                connection.execute("INSERT OR IGNORE INTO session_summary VALUES (?,?,1,?,?,?)",
+                                   (agent, session, int(state["throughId"]), state["content"], now+ttl))
+            else:
+                connection.execute("UPDATE session_summary SET version=version+1,through_id=?,content=? WHERE agent=? AND session_id=? AND version=? AND through_id<?",
+                                   (int(state["throughId"]), state["content"], agent, session, state["version"], int(state["throughId"])))
 
     def insert_approval(self, data: dict, audit_events: list[dict]) -> dict:
         if not audit_events:

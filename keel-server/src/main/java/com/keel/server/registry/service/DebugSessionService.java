@@ -115,14 +115,14 @@ public class DebugSessionService {
     /** Recent turns already stored for this session, oldest first. The agent process does not share them across replicas. */
     public List<Map<String, String>> history(String agent, String owner, String id) {
         var rows = jdbc.query("""
-                SELECT role, content FROM session_message
+                SELECT id, role, content FROM session_message
                 WHERE session_id = ? AND owner_user = ? AND agent_name = ? AND expires_at > now()
-                ORDER BY id DESC LIMIT 6
-                """, (rs, n) -> Map.of("role", rs.getString("role"), "content", rs.getString("content")), id, owner, agent);
+                ORDER BY id DESC LIMIT 128
+                """, (rs, n) -> Map.of("id", rs.getString("id"), "role", rs.getString("role"), "content", rs.getString("content")), id, owner, agent);
         var ordered = new ArrayList<Map<String, String>>();
         for (var i = rows.size() - 1; i >= 0; i--) {
             var row = rows.get(i);
-            ordered.add(Map.of("role", row.get("role"), "content", row.get("content").trim()));
+            ordered.add(Map.of("id", row.get("id"), "role", row.get("role"), "content", row.get("content")));
         }
         return ordered;
     }
@@ -201,7 +201,7 @@ public class DebugSessionService {
 
     private static String clip(String text) {
         if (text == null) return "";
-        return text.length() <= 20_000 ? text : text.substring(0, 20_000);
+        return text;
     }
 
     private record Cursor(Timestamp at, String id) {}

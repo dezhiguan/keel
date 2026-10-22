@@ -51,3 +51,7 @@ cd sdk-python && PYTHONPATH=. ../.venv/bin/python -m pytest tests/loop/test_loop
 - 不取消最近 6 条上限。
 - 不做摘要或工具输出裁剪。
 - 不在本任务内完成 staging 部署；发布 SDK 与助理锁版本另走正式发布流程。
+
+## R1023 后续调整
+
+最近6条限制由 `p1/P1-context-window-recovery.md` 替代：最多128条带可选消息id的原文进入组装器，再按既有10000 token卡点选择完整轮次或摘要。原文存储不静默截断。

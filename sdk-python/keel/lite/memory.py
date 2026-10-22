@@ -47,6 +47,26 @@ class LiteMemory:
         assert self.store is not None
         return self.store.session_messages(self.agent, self.session_id, self.clock())
 
+    def context_history(self):
+        if not self.session_id:
+            return []
+        return self.store.session_messages(self.agent, self.session_id, self.clock(), include_ids=True)
+
+    def local_summary(self):
+        return self.store.session_summary(self.agent, self.session_id, self.clock())
+
+    def save_local_summary(self, state):
+        if not self.eval_run_id and not (self.guard and self.guard.tainted):
+            self.store.save_session_summary(self.agent, self.session_id, state, self.clock(), self.ttl_seconds)
+            return self.local_summary()
+
+    async def load_summary(self, owner):
+        return await self._user.load_summary(owner, self.session_id)
+
+    async def save_summary(self, owner, state):
+        if not self.eval_run_id and not (self.guard and self.guard.tainted):
+            return await self._user.save_summary(owner, self.session_id, state)
+
     def append(self, role: str, content: str) -> None:
         if self.guard is not None and self.guard.tainted:
             return

@@ -1,6 +1,7 @@
 """User memory on keel-server. Session text stays in keel-lite."""
 
 import os
+from urllib.parse import urlencode
 
 import httpx
 from keel.auth.client_assertion import ASSERTION_TYPE, sign_client_assertion
@@ -28,6 +29,15 @@ class UserMemory:
 
     async def forget(self, memory_id: int) -> None:
         await self._send("DELETE", f"/{memory_id}", None)
+
+    async def load_summary(self, owner, session):
+        query = urlencode({"ownerUser": owner, "env": self.env, "sessionId": session})
+        return await self._send("GET", "/session-summary?" + query, None)
+
+    async def save_summary(self, owner, session, state):
+        if self.eval_run_id:
+            raise KeelError(ErrorCode.MEMORY_WRITE_DENIED)
+        return await self._send("POST", "/session-summary", {**state, "ownerUser": owner, "env": self.env, "sessionId": session})
 
     async def _send(self, method: str, suffix: str, payload: dict | None) -> dict:
         base = os.environ.get("KEEL_SERVER_URL", "").rstrip("/")

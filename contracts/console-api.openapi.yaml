@@ -1513,6 +1513,49 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Envelope" }
 
+  /agents/{name}/memories/session-summary:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+    get:
+      tags: [agents]
+      operationId: getSessionSummary
+      summary: 读取当前用户和环境隔离的会话摘要，过期视为空
+      parameters:
+        - { name: ownerUser, in: query, required: true, schema: { type: string } }
+        - { name: env, in: query, required: true, schema: { type: string } }
+        - { name: sessionId, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+    post:
+      tags: [agents]
+      operationId: saveSessionSummary
+      summary: 按version进行CAS保存，冲突保留已存版本；摘要不替换原始消息
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ownerUser, env, sessionId, version, throughId, content]
+              properties:
+                ownerUser: { type: string }
+                env: { type: string, enum: [dev, test, staging, prod] }
+                sessionId: { type: string, maxLength: 128 }
+                version: { type: integer, minimum: 0 }
+                throughId: { type: string, pattern: "^[0-9]+$" }
+                content: { type: string, maxLength: 8192 }
+                evalRunId: { type: string }
+      responses:
+        "200":
+          description: OK，包含version、throughId、content与saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+
   # ---------------------------------------------------------------- 用户记忆
   /agents/{name}/memories:
     parameters:
