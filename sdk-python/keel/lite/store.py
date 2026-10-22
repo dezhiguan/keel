@@ -168,6 +168,33 @@ class LiteStore:
                 connection.execute("UPDATE session_summary SET version=version+1,through_id=?,content=? WHERE agent=? AND session_id=? AND version=? AND through_id<?",
                                    (int(state["throughId"]), state["content"], agent, session, state["version"], int(state["throughId"])))
 
+    def search_session(self, agent, session, query, before, now):
+        from keel.session_history import terms, excerpt
+        words = terms(query)
+        if not words:
+            return {"items": []}
+        score = "+".join("CASE WHEN instr(lower(content),?)>0 THEN 1 ELSE 0 END" for _ in words)
+        with self._connect() as connection:
+            rows = connection.execute("SELECT id,role,content,"+score+" AS score FROM session_message "
+                "WHERE agent=? AND session_id=? AND expires_at>? AND id<? ORDER BY score DESC,id DESC LIMIT 4",
+                (*words, agent, session, now, int(before))).fetchall()
+        items = []
+        for row in rows:
+            if row['score']:
+                lower = row['content'].lower()
+                start = min(lower.index(w) for w in words if w in lower)
+                items.append(excerpt(row, max(0, start-160)))
+        return {"items": items}
+
+    def read_session(self, agent, session, message_id, now, offset=0, limit=1200):
+        from keel.session_history import excerpt
+        if offset < 0 or not 1 <= limit <= 4000:
+            raise ValueError("invalid excerpt range")
+        with self._connect() as connection:
+            row = connection.execute("SELECT id,role,content FROM session_message "
+                "WHERE agent=? AND session_id=? AND id=? AND expires_at>?", (agent, session, int(message_id), now)).fetchone()
+        return {"items": [excerpt(row, offset, limit)] if row else []}
+
     def insert_approval(self, data: dict, audit_events: list[dict]) -> dict:
         if not audit_events:
             raise ValueError("approval requires a synchronous audit event")

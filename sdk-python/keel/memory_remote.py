@@ -39,6 +39,16 @@ class UserMemory:
             raise KeelError(ErrorCode.MEMORY_WRITE_DENIED)
         return await self._send("POST", "/session-summary", {**state, "ownerUser": owner, "env": self.env, "sessionId": session})
 
+    async def search_session(self, session, query, before):
+        return await self._send("POST", "/session-history/search", {"env": self.env,
+            "sessionId": session, "query": query, "beforeId": before, "limit": 4})
+
+    async def read_session(self, session, message_id, owner, version, offset=0, limit_chars=1200):
+        params = {"env": self.env, "sessionId": session, "offset": offset, "limitChars": limit_chars}
+        if version:
+            params.update(ownerUser=owner, summaryVersion=version)
+        return await self._send("GET", "/session-history/messages/" + message_id + "?" + urlencode(params), None)
+
     async def _send(self, method: str, suffix: str, payload: dict | None) -> dict:
         base = os.environ.get("KEEL_SERVER_URL", "").rstrip("/")
         if not base:

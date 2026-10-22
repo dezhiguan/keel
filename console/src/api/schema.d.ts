@@ -1058,6 +1058,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agents/{name}/memories/session-history/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 检索当前作用域会话保留期内的原文；返回带游标及完整性元数据的片段 */
+        post: operations["searchSessionHistory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{name}/memories/session-history/messages/{messageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                messageId: string;
+            };
+            cookie?: never;
+        };
+        /** 按消息引用回查原文；版本变化返回stale=true及最新summary，不返回旧引用片段 */
+        get: operations["readSessionHistoryMessage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agents/{name}/memories/session-summary": {
         parameters: {
             query?: never;
@@ -2435,6 +2474,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        SessionHistoryItem: {
+            id: string;
+            /** @enum {string} */
+            role: "user" | "assistant";
+            content: string;
+            /** @description Unicode码点偏移 */
+            offset: number;
+            /** @description 完整原文Unicode码点长度 */
+            totalChars: number;
+            /** @description 完整UTF-8原文摘要 */
+            sha256: string;
+            hasMore: boolean;
+        };
         LogicalRoutingRule: {
             logical: string;
             /** @enum {string} */
@@ -5875,6 +5927,72 @@ export interface operations {
             };
         };
     };
+    searchSessionHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    env: "dev" | "test" | "staging" | "prod";
+                    sessionId: string;
+                    query: string;
+                    beforeId?: string;
+                    /** @default 4 */
+                    limit?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description data.items为SessionHistoryItem列表；原文不改写，不跨用户/会话/环境读取 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    readSessionHistoryMessage: {
+        parameters: {
+            query: {
+                env: "dev" | "test" | "staging" | "prod";
+                sessionId: string;
+                offset?: number;
+                limitChars?: number;
+                /** @description 回查摘要引用时必填，对应摘要范围，不能代替会话授权 */
+                ownerUser?: string;
+                /** @description 回查摘要引用时必填；需匹配当前摘要且消息在sourceIds内 */
+                summaryVersion?: number;
+            };
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+                messageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description data.items为SessionHistoryItem列表，stale标识版本变化；过期/不属于当前会话的消息不返回 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
     getSessionSummary: {
         parameters: {
             query: {
@@ -5925,7 +6043,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK，包含version、throughId、content与saved */
+            /** @description OK，包含version、throughId、content、sourceIds与saved；sourceIds从同版本content的[m:数字id]引用导出 */
             200: {
                 headers: {
                     [name: string]: unknown;

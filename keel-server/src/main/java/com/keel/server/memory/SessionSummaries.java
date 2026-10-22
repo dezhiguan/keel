@@ -33,7 +33,15 @@ public class SessionSummaries {
                 SELECT version,through_id,content FROM session_summary
                 WHERE agent_name=? AND env=? AND owner_user=? AND session_id=? AND expires_at>now()
                 """,(rs,n)->Map.<String,Object>of("version",rs.getLong(1),"throughId",Long.toString(rs.getLong(2)),"content",rs.getString(3)),agent,env,owner,session);
-        return rows.isEmpty()?Map.of("version",0,"throughId","0","content",""):rows.getFirst();
+        var result=new LinkedHashMap<String,Object>(rows.isEmpty()?Map.of("version",0,"throughId","0","content",""):rows.getFirst());
+        result.put("sourceIds",sourceIds((String)result.get("content")));return result;
+    }
+
+    static List<String> sourceIds(String content) {
+        var found=new java.util.LinkedHashSet<String>();
+        var matcher=java.util.regex.Pattern.compile("\\[m:([0-9]{1,18})\\]").matcher(content);
+        while(matcher.find() && found.size()<16) found.add(matcher.group(1));
+        return List.copyOf(found);
     }
 
     public Map<String,Object> save(String agent,JsonNode body) {

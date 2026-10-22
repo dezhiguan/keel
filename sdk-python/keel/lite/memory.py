@@ -67,6 +67,26 @@ class LiteMemory:
         if not self.eval_run_id and not (self.guard and self.guard.tainted):
             return await self._user.save_summary(owner, self.session_id, state)
 
+    async def search_session(self, query, before, external):
+        if self.eval_run_id:
+            return {"items": []}
+        if external:
+            return await self._user.search_session(self.session_id, query, before)
+        return self.store.search_session(self.agent, self.session_id, query, before, self.clock())
+
+    async def read_session(self, message_id, external, owner=None, version=0, offset=0, limit_chars=1200):
+        if self.eval_run_id:
+            return {"items": []}
+        if external:
+            return await self._user.read_session(self.session_id, message_id, owner, version, offset, limit_chars)
+        state = self.local_summary()
+        if version and state['version'] != version:
+            return {"stale": True, "summary": state, "items": []}
+        from keel.session_history import source_ids
+        if version and message_id not in source_ids(state['content']):
+            return {"items": []}
+        return self.store.read_session(self.agent, self.session_id, message_id, self.clock(), offset, limit_chars)
+
     def append(self, role: str, content: str) -> None:
         if self.guard is not None and self.guard.tainted:
             return
