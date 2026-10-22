@@ -18,9 +18,22 @@ import java.util.Map;
 @RequestMapping("/api/v1/agents/{name}/memories")
 public class MemoryController {
     private final MemoryService memories;
+    @org.springframework.beans.factory.annotation.Autowired
+    private SessionSummaries summaries;
 
     public MemoryController(MemoryService memories) {
         this.memories = memories;
+    }
+
+    @GetMapping("/session-summary")
+    public R<Map<String,Object>> summary(@PathVariable String name, @RequestParam String ownerUser,
+                                        @RequestParam String env,@RequestParam String sessionId) {
+        return R.ok(summaries.get(name,env,ownerUser,sessionId));
+    }
+
+    @PostMapping("/session-summary")
+    public R<Map<String,Object>> saveSummary(@PathVariable String name,@RequestBody JsonNode body) {
+        return R.ok(summaries.save(name,body));
     }
 
     @GetMapping

@@ -102,7 +102,8 @@ class LlmClient:
                                          http_client=http_client, default_headers=headers)
 
     async def chat(self, messages: list[dict], model: str | None = None, prompt=None,
-                   tools: list[dict] | None = None, tool_choice: str | dict | None = None) -> str | ChatResult:
+                   tools: list[dict] | None = None, tool_choice: str | dict | None = None,
+                   emit_tokens: bool = True, max_tokens: int | None = None) -> str | ChatResult:
         chosen = model or self.default_model
         if not chosen:
             raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "No LiteLLM model alias configured")
@@ -136,13 +137,15 @@ class LlmClient:
                     options["max_tokens"] = config["max_tokens"]
                 if "top_p" in config:
                     options["top_p"] = config["top_p"]
+                if max_tokens is not None:
+                    options["max_tokens"] = max_tokens
                 if tools:
                     options["tools"] = wire_definitions
                 if tool_choice is not None:
                     options["tool_choice"] = tool_choice
                 if not self.standalone:
                     options["extra_body"] = {"metadata": {"caller_agent": self.agent}}
-                if self.on_token is not None:
+                if self.on_token is not None and emit_tokens:
                     reply, calls, usage = await self._stream(chosen, wire_messages, options, span, original_names)
                     self._record_usage(span, usage)
                     if self.guard is not None:

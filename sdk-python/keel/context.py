@@ -99,20 +99,23 @@ class Context:
                  *, manifest=None, tool_functions=None, children=None, budget=None,
                  env: str | None = None, llm_client=None, knowledge_client=None,
                  audit_reporter=None, session_id: str | None = None,
-                 eval_run_id: str | None = None, session_messages: list[dict] | None = None):
+                 eval_run_id: str | None = None, session_messages: list[dict] | None = None,
+                 user_id: str | None = None):
         self.agent = agent
         self.env = env
         self.run_id = run_id
         self.trace_id = trace_id
         self.session_id = session_id
         self.eval_run_id = eval_run_id
+        self.user_id = user_id
         if session_messages is not None and (not isinstance(session_messages, list)
-                or len(session_messages) > 6 or any(not isinstance(row, dict)
+                or len(session_messages) > 128 or any(not isinstance(row, dict)
                 or row.get("role") not in ("user", "assistant")
                 or not isinstance(row.get("content"), str)
+                or ("id" in row and (not isinstance(row["id"], str) or not row["id"].isascii() or not row["id"].isdecimal()))
                 for row in session_messages)):
             raise KeelError(ErrorCode.SERVER_INVALID_PARAM)
-        self._session_messages = ([{"role": row["role"], "content": row["content"]}
+        self._session_messages = ([{k: row[k] for k in ("role", "content", "id") if k in row}
                                    for row in session_messages] if session_messages is not None else None)
         self._events = events
         self.manifest = manifest
@@ -266,8 +269,13 @@ class Context:
         else:
             system = [message for message in turn_messages if message.get("role") == "system"]
             turns = [message for message in turn_messages if message.get("role") != "system"]
-            prior = self.memory.history() if self._session_messages is None else self._session_messages
-            history = system + prior + turns
+            prior = self.memory.context_history() if self._session_messages is None else self._session_messages
+            from keel.context_window import ContextWindow
+            window = ContextWindow(self.llm, self.memory, self.agent, self.env, self.session_id,
+                                   self.user_id, self._session_messages is not None, self.eval_run_id, self.trace_id)
+            history = system + [{"role": r["role"], "content": r["content"]} for r in prior] + turns
+        chain_start = len(history) - len(turns) if not self.resuming else 0
+        managed = not self.resuming
         step = 0
         last_call = None
         if self.resuming:
@@ -320,6 +328,10 @@ class Context:
                 try:
                     active_tools = tools if max_tool_rounds is None or step <= max_tool_rounds else []
                     allowed_names = {tool.get("function", {}).get("name") for tool in active_tools}
+                    if managed:
+                        current_chain = history[chain_start:]
+                        history = await window.assemble(system, prior, current_chain, tools if tools and not active_tools else active_tools)
+                        chain_start = len(history) - len(current_chain)
                     if tools and not active_tools:
                         result = await self.llm.chat(history, tools=tools, tool_choice="none", prompt=prompt)
                     else:

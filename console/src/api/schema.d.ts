@@ -1058,6 +1058,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agents/{name}/memories/session-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        /** 读取当前用户和环境隔离的会话摘要，过期视为空 */
+        get: operations["getSessionSummary"];
+        put?: never;
+        /** 按version进行CAS保存，冲突保留已存版本；摘要不替换原始消息 */
+        post: operations["saveSessionSummary"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agents/{name}/memories": {
         parameters: {
             query?: never;
@@ -5375,6 +5395,15 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Envelope"] & {
                         data?: {
+                            /** @description 服务端当前只读授权及环境策略的脱敏快照，不是模型自报权限 */
+                            policyEvidence?: {
+                                source?: string;
+                                employeeEnvironments?: string[];
+                                retiredEnvironments?: string[];
+                                businessEnvironments?: string[];
+                                scopeOrg?: string;
+                            };
+                        } & {
                             [key: string]: unknown;
                         };
                     };
@@ -5836,6 +5865,67 @@ export interface operations {
         };
         responses: {
             /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getSessionSummary: {
+        parameters: {
+            query: {
+                ownerUser: string;
+                env: string;
+                sessionId: string;
+            };
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    saveSessionSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ownerUser: string;
+                    /** @enum {string} */
+                    env: "dev" | "test" | "staging" | "prod";
+                    sessionId: string;
+                    version: number;
+                    throughId: string;
+                    content: string;
+                    evalRunId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK，包含version、throughId、content与saved */
             200: {
                 headers: {
                     [name: string]: unknown;

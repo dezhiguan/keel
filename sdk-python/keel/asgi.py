@@ -114,7 +114,8 @@ def create_app(agent) -> Starlette:
                           children=agent._children, budget=_budget(request),
                           env=request.headers.get("X-Keel-Env") or os.environ.get("KEEL_ENV"),
                           session_id=data.get("session_id"), eval_run_id=eval_run_id,
-                          session_messages=(data.get("context") or {}).get("session_messages"))
+                          session_messages=(data.get("context") or {}).get("session_messages"),
+                          user_id=(data.get("context") or {}).get("user_id"))
         entry_request = SimpleNamespace(**data)
 
         async def execute():
@@ -302,7 +303,8 @@ def create_app(agent) -> Starlette:
                           children=agent._children, budget=_budget(request),
                           env=request.headers.get("X-Keel-Env") or os.environ.get("KEEL_ENV"),
                           session_id=data.get("session_id"), eval_run_id=eval_run_id,
-                          session_messages=(data.get("context") or {}).get("session_messages"))
+                          session_messages=(data.get("context") or {}).get("session_messages"),
+                          user_id=(data.get("context") or {}).get("user_id"))
         context.resuming = True
         context.delegation_token = delegation_token
         entry_request = SimpleNamespace(**data, resume=True)
