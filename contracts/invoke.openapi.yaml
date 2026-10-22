@@ -267,7 +267,7 @@ components:
                 required: [role, content]
                 properties:
                   role: { type: string, enum: [user, assistant] }
-                  content: { type: string, maxLength: 400 }
+                  content: { type: string, maxLength: 20000 }
 
         options:
           type: object

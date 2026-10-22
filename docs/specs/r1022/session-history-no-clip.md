@@ -7,7 +7,7 @@
 ## 依赖
 
 - 前置任务：R1019 structured-session-history、R1022 context-token-budget。
-- 依赖的契约文件：无新增字段。
+- 依赖的契约文件：`contracts/invoke.openapi.yaml`（去掉会话历史单条 400 上限）。
 - 依赖的外部组件及其真实行为：无。
 
 ## 改哪些文件
@@ -15,6 +15,7 @@
 ```
 docs/specs/r1022/session-history-no-clip.md
 docs/specs/r1019/structured-session-history.md
+contracts/invoke.openapi.yaml
 keel-server/src/main/java/com/keel/server/registry/service/DebugSessionService.java
 sdk-python/keel/context.py
 sdk-python/tests/loop/test_loop.py
@@ -22,7 +23,7 @@ sdk-python/tests/loop/test_loop.py
 
 ## 接口契约
 
-`context.session_messages` 仍最多 6 条，`role` 仅 `user`/`assistant`，`content` 为文本。不再要求 `content.length() <= 400`。超长内容是否调用模型由既有 `KEEL_CONTEXT_TOKEN_BUDGET`（默认 10000）卡点决定。
+`context.session_messages` 仍最多 6 条，`role` 仅 `user`/`assistant`，`content` 为文本。`content` 的 OpenAPI `maxLength` 与本轮 `input.text` 对齐为 20000，不再是 400。超长内容是否调用模型由既有 `KEEL_CONTEXT_TOKEN_BUDGET`（默认 10000）卡点决定。
 
 ## 界面对齐
 
@@ -43,6 +44,7 @@ cd sdk-python && PYTHONPATH=. ../.venv/bin/python -m pytest tests/loop/test_loop
 
 - [x] 服务端 history 返回超过 400 字的原文前缀不被截断。
 - [x] SDK 接受超过 400 字的 session_messages；仍拒绝 system/tool 角色。
+- [x] `invoke.openapi.yaml` 中 `session_messages.content.maxLength` 为 20000；助理镜像装入含该契约的 SDK 后，历史超 400 字不再因 schema 返回 `SERVER_INVALID_PARAM`。
 
 ## 明确不做
 
