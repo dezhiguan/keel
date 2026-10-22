@@ -65,6 +65,42 @@ class ElementEvidenceTest {
         assertThat(new ElementEvidence(jdbc,client).report(detail("hash","v1",false)).unavailable()).isEmpty();
     }
 
+    @Test void undeclaredMemoryIsProvedByLocalSessionHistoryWithoutExternalRequests() throws Exception {
+        var database = new JdbcTemplate() {
+            @Override public <T> T queryForObject(String sql, Class<T> type, Object... args) {
+                if (sql.contains("session_message")) {
+                    assertThat(args).containsExactly("qa", "dev");
+                    return type.cast(1);
+                }
+                return type.cast(0);
+            }
+        };
+        var client = new LangfuseClient("", "", "") {
+            @Override public JsonNode elementObservations(java.time.Instant from) { throw new AssertionError("memory must not query Langfuse"); }
+        };
+        var result = new ElementEvidence(database,client).report(detail("hash","v1",false));
+        var memory = result.elements().items().get(2);
+        assertThat(memory.passed()).isTrue();
+        assertThat(memory.detail()).contains("会话记忆：已有有效多轮记录", "长期记忆：暂无用户记忆记录");
+        assertThat(result.elements().missing()).doesNotContain("记忆");
+        assertThat(result.elements().items().getFirst().passed()).isFalse();
+    }
+
+    @Test void userMemoryAndAbsentEvidenceAreReportedSeparately() throws Exception {
+        var database = new JdbcTemplate() {
+            @Override public <T> T queryForObject(String sql, Class<T> type, Object... args) {
+                return type.cast(sql.contains("layer='USER'") ? 1 : 0);
+            }
+        };
+        var result = new ElementEvidence(database,new LangfuseClient("","","")).report(detail("hash","v1",false));
+        assertThat(result.elements().items().get(2).passed()).isTrue();
+        assertThat(result.elements().items().get(2).detail()).contains("会话记忆：暂无有效多轮记录", "长期记忆：已有用户记忆记录");
+        var empty = new ElementEvidence(jdbc,new LangfuseClient("","","")).report(detail("hash","v1",false));
+        assertThat(empty.elements().items().get(2).passed()).isNull();
+        assertThat(empty.elements().missing()).doesNotContain("记忆");
+        assertThat(ElementEvidence.needsRemote(empty.elements().items().get(2))).isFalse();
+    }
+
     private AgentDetail detail(String hash, String number, boolean prompts) throws Exception {
         var agent = new Agent(); agent.setName("qa");
         var version = new AgentVersion(); version.setEnv("dev"); version.setVersion(number); version.setManifestHash(hash);

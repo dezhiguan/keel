@@ -55,6 +55,13 @@ describe('agent drawer', () => {
     expect(channelIdentity('EMBED', 'EXCHANGE')).toBe('业务系统用户（换票）')
     expect(channelIdentity('MINIPROGRAM', 'OPENID')).toBe('openid 映射')
   })
+
+  it('shows session and long-term memory evidence even when the element passes', () => {
+    const detail = '会话记忆：已有有效多轮记录；长期记忆：暂无用户记忆记录'
+    expect(elementCell({ name: '记忆', passed: true, detail }, 2)).toMatchObject({ mark: '✓', note: detail, loading: false })
+    expect(elementCell({ name: '记忆', passed: null, detail: '会话记忆与长期记忆待验证' }, 2, 'loading')).toMatchObject({ loading: true })
+    expect(elementCell({ name: '记忆', passed: null, detail: '会话记忆：暂无有效多轮记录；长期记忆：暂无用户记忆记录' }, 2, 'loading')).toMatchObject({ mark: '·', loading: false })
+  })
   it('matches the registry card chips', () => {
     expect(cardChips({ category: 'biz', language: 'java', env: 'prod', version: 'v2.4.1' })).toEqual(['业务', 'Java', 'prod', 'v2.4.1'])
     expect(cardChips({ category: 'dev', language: 'python', runtime: 'code', delegateCount: 2 })).toEqual([

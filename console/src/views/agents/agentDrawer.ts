@@ -66,6 +66,7 @@ export function memoryTone(value: string) {
 const CORE_ELEMENTS = new Set(['模型自己调工具', 'agent loop', '记忆', '有版本的提示词', '评测'])
 
 export function needsElementEvidence(item: { name: string; passed?: boolean | null; detail?: string | null }) {
+  if (item.name === '记忆') return item.passed == null && !!item.detail?.includes('待验证')
   return new Set(['模型自己调工具', 'agent loop', '记忆', '有版本的提示词', '知识检索', '评测']).has(item.name)
     && item.passed == null && !item.detail?.includes('未声明')
 }
@@ -76,10 +77,13 @@ export function elementCell(item: { name: string; passed?: boolean | null; detai
   const mark = item.passed === true ? '✓' : item.passed === false ? '✗' : '·'
   return {
     label: `${index + 1}. ${item.name}`,
-    cls: CORE_ELEMENTS.has(item.name) ? `${state} core` : state,
+    cls: (CORE_ELEMENTS.has(item.name) ? `${state} core` : state)
+      + (item.name === '记忆' && item.detail?.startsWith('会话记忆：') ? ' memory-evidence' : ''),
     mark,
     loading: needsElementEvidence(item) && phase === 'loading',
-    note: needsElementEvidence(item) && phase === 'unavailable' ? '暂无法验证' : item.passed == null ? elementNote(item.detail) : '',
+    note: needsElementEvidence(item) && phase === 'unavailable' ? '暂无法验证'
+      : item.name === '记忆' && item.detail?.startsWith('会话记忆：') ? item.detail
+      : item.passed == null ? elementNote(item.detail) : '',
   }
 }
 
