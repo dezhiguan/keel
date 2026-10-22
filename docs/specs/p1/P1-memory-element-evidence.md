@@ -30,3 +30,7 @@
 - 两个后端副本的 elements 接口均返回记忆 passed=true，missing 不再包含记忆；分别说明已有会话证据、暂无长期用户记忆记录。两个控制台副本的 JS/CSS 均包含分层记忆说明逻辑及样式。
 - 发布前后已核对既有 Key 配置不变，个人助理日预算仍为 110，dev/test 列表为空。服务启动时旧 EchoCredentialRunner 自动创建的 echo-dev 已停用并移除，恢复发布前无 dev/test Key 的状态；历史账单未改。
 - 本次未调用模型或重跑正式评测。回读结果见 `docs/evidence/r1022-memory-elements/verification.jsonl`。
+
+## 页面精简回执
+
+按用户要求移除记忆要素的分层证据描述，保留勾选、未知及加载状态。修复提交 `d63c30f8f17d`；前端 19 项测试、类型检查、生产构建、前端门禁通过。仅定向更新 keel-console，两个副本的 JS/CSS 均与已测试产物哈希一致，后端记忆 passed=true 保持不变。发布镜像 `docker.io/library/keel-console:memory-brief-d63c30f8f17d`，摘要 `sha256:a7f0b5df4ae76444384c2c371100d53f6722b9c1f13b0b8237dfed3cd8c95aaa`。
