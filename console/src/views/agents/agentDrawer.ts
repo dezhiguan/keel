@@ -77,12 +77,11 @@ export function elementCell(item: { name: string; passed?: boolean | null; detai
   const mark = item.passed === true ? '✓' : item.passed === false ? '✗' : '·'
   return {
     label: `${index + 1}. ${item.name}`,
-    cls: (CORE_ELEMENTS.has(item.name) ? `${state} core` : state)
-      + (item.name === '记忆' && item.detail?.startsWith('会话记忆：') ? ' memory-evidence' : ''),
+    cls: CORE_ELEMENTS.has(item.name) ? `${state} core` : state,
     mark,
     loading: needsElementEvidence(item) && phase === 'loading',
     note: needsElementEvidence(item) && phase === 'unavailable' ? '暂无法验证'
-      : item.name === '记忆' && item.detail?.startsWith('会话记忆：') ? item.detail
+      : item.name === '记忆' && item.detail?.startsWith('会话记忆：') ? ''
       : item.passed == null ? elementNote(item.detail) : '',
   }
 }

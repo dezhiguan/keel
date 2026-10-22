@@ -185,8 +185,6 @@ select.inp {
 .elem .no i { color: var(--bad); }
 .elem .mid i { color: var(--warn); }
 .elem small { margin-left: auto; color: var(--mute); font-size: 11px; flex: none; }
-.elem span.memory-evidence { flex-wrap: wrap; }
-.elem .memory-evidence small { flex: 1 1 100%; margin-left: 0; padding-left: 18px; box-sizing: border-box; }
 .drawer a { color: var(--soft); margin-right: 8px; text-decoration: none; }
 .drawer pre.code { background: #0a0f18; border: 1px solid var(--line); border-radius: 9px; padding: 12px 14px; line-height: 1.65; color: #c9d4e3; overflow: auto; white-space: pre; }
 .drawer pre.code .k { color: #ff9a6b; }
