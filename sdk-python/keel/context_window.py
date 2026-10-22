@@ -98,11 +98,11 @@ class ContextWindow:
                         raise ValueError("summary input exceeds budget")
                     self.summary_calls += 1
                     if self.summary_deadline is None:
-                        self.summary_deadline = time.monotonic() + 20
+                        self.summary_deadline = time.monotonic() + 60
                     remaining = self.summary_deadline - time.monotonic()
                     if remaining <= 0:
                         raise TimeoutError("summary time budget exceeded")
-                    async with asyncio.timeout(min(15, remaining)):
+                    async with asyncio.timeout(min(25, remaining)):
                         response = await self.llm.chat(messages, tools=[], emit_tokens=False, max_tokens=512)
                     candidate = getattr(response, "content", response)
                     marker = getattr(getattr(self.memory, "guard", None), "canary", None)

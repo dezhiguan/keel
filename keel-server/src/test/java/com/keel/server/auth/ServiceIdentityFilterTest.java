@@ -5,6 +5,8 @@ import com.keel.server.common.KeelException;
 import com.keel.server.integration.authgw.ClientAssertion;
 import com.keel.server.provisioning.AgentKeys;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
@@ -17,13 +19,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ServiceIdentityFilterTest {
     private static final String AUDIENCE = "keel-api";
 
-    @Test void catalogReadsAcceptASignedAgent() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/tools/alarm_query", "/api/v1/agents/coder/memories/session-summary"})
+    void catalogReadsAcceptASignedAgent(String path) throws Exception {
         var keys = new AgentKeys();
         var material = keys.generate("coder");
         var token = ClientAssertion.sign(material.privatePem(), material.kid(), "coder", AUDIENCE);
         var identity = new ServiceIdentityAuthenticator(keys, acceptingReplay(), AUDIENCE);
         var filter = filter(identity);
-        var request = catalogGet("/api/v1/tools/alarm_query");
+        var request = catalogGet(path);
         request.addHeader("X-Client-Id", "coder");
         request.addHeader("X-Client-Assertion-Type", ServiceAssertion.TYPE);
         request.addHeader("X-Client-Assertion", token);
@@ -58,6 +62,10 @@ class ServiceIdentityFilterTest {
         assertThat(CatalogAccess.serviceAccessible("POST", "/api/v1/tools/git.pr.diff/grants")).isFalse();
         assertThat(CatalogAccess.serviceAccessible("POST", "/api/v1/agents/qa-desk-1016/memories")).isTrue();
         assertThat(CatalogAccess.serviceAccessible("GET", "/api/v1/agents/qa-desk-1016/memories")).isTrue();
+        assertThat(CatalogAccess.serviceAccessible("GET", "/api/v1/agents/qa-desk-1016/memories/session-summary")).isTrue();
+        assertThat(CatalogAccess.serviceAccessible("POST", "/api/v1/agents/qa-desk-1016/memories/session-summary")).isTrue();
+        assertThat(CatalogAccess.serviceAccessible("DELETE", "/api/v1/agents/qa-desk-1016/memories/session-summary")).isFalse();
+        assertThat(CatalogAccess.serviceAccessible("POST", "/api/v1/agents/qa-desk-1016/memories/session-summary/other")).isFalse();
         assertThat(CatalogAccess.serviceAccessible("GET", "/api/v1/agents/qa-desk-1016/skills/cite-from-kb")).isTrue();
         assertThat(CatalogAccess.serviceAccessible("POST", "/api/v1/agents/qa-desk-1016/skills/cite-from-kb")).isFalse();
         assertThat(CatalogAccess.serviceAccessible("GET", "/api/v1/agents/qa-desk-1016/skills")).isFalse();
