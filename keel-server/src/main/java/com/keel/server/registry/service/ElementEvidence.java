@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /** Recent sample evidence is independent of the first paint and of release gates. */
 @Service
 public class ElementEvidence {
-    private static final Set<String> REMOTE = Set.of("模型自己调工具", "agent loop", "记忆", "有版本的提示词", "知识检索");
+    private static final Set<String> REMOTE = Set.of("模型自己调工具", "agent loop", "有版本的提示词", "知识检索");
     private final JdbcTemplate jdbc;
     private final LangfuseClient langfuse;
     private final ConcurrentHashMap<String, Cached> cache = new ConcurrentHashMap<>();
@@ -24,14 +24,25 @@ public class ElementEvidence {
 
     public Report report(AgentDetail detail) {
         var agent = detail.summary().name();
+        var env = detail.summary().env();
         var declared = detail.elements();
         if (declared == null) return new Report(null, detail.manifestHash(), Instant.now().toString(), List.of());
-        var local = declared.withRuntime(false, false, count("SELECT count(*) FROM user_memory WHERE agent_name=?", agent) > 0,
+        var session = count("""
+                SELECT count(*) FROM (
+                    SELECT m.session_id FROM session_message m
+                    JOIN agent_session s ON s.id=m.session_id AND s.agent_name=m.agent_name AND s.owner_user=m.owner_user
+                    WHERE m.agent_name=? AND s.env=? AND m.expires_at>now()
+                    GROUP BY m.session_id, m.owner_user
+                    HAVING count(*) FILTER (WHERE m.role='user')>=2
+                       AND count(*) FILTER (WHERE m.role='assistant')>=1
+                ) sessions
+                """, agent, env) > 0;
+        var user = count("SELECT count(*) FROM user_memory WHERE agent_name=? AND layer='USER'", agent) > 0;
+        var local = declared.withRuntime(false, false, false,
                 count("SELECT count(*) FROM eval_run WHERE agent_name=? AND state='DONE' AND result->>'passed'='true'", agent) > 0,
-                count("SELECT count(*) FROM console_audit_event WHERE agent=?", agent) > 0);
+                count("SELECT count(*) FROM console_audit_event WHERE agent=?", agent) > 0).withMemoryEvidence(session, user);
         var pending = local.items().stream().filter(i -> needsRemote(i)).map(AgentElements.Item::name).toList();
         if (pending.isEmpty()) return new Report(local, detail.manifestHash(), Instant.now().toString(), List.of());
-        var env = detail.summary().env();
         var key = agent + "@" + env + "@" + detail.summary().version() + "@" + detail.manifestHash();
         var sample = cache.compute(key, (ignored, previous) -> {
             if (previous != null && previous.until().isAfter(Instant.now())) return previous;
@@ -45,7 +56,7 @@ public class ElementEvidence {
         });
         if (cache.size() > 1000) cache.entrySet().removeIf(e -> e.getValue().until().isBefore(Instant.now()));
         var evidence = sample.evidence();
-        var proved = local.withRuntime(evidence.tool(), evidence.loop(), evidence.session(), false, false,
+        var proved = local.withRuntime(evidence.tool(), evidence.loop(), false, false, false,
                 evidence.prompt(), evidence.retrieval());
         return new Report(proved, detail.manifestHash(), sample.at().toString(), sample.available() ? List.of() : pending);
     }
@@ -53,7 +64,7 @@ public class ElementEvidence {
     static boolean needsRemote(AgentElements.Item item) {
         return REMOTE.contains(item.name()) && item.passed() == null && item.detail() != null && !item.detail().contains("未声明");
     }
-    private int count(String sql, String agent) { Integer value = jdbc.queryForObject(sql,Integer.class,agent); return value == null ? 0 : value; }
+    private int count(String sql, Object... args) { Integer value = jdbc.queryForObject(sql,Integer.class,args); return value == null ? 0 : value; }
     private record Cached(ElementObservations.Evidence evidence, boolean available, Instant at, Instant until) {}
     public record Report(AgentElements elements, String manifestHash, String checkedAt, List<String> unavailable) {}
 }

@@ -15,20 +15,18 @@ public record AgentElements(String kind, List<Item> items, List<String> missing)
         var capabilities = spec.path("capabilities");
         boolean toolCalling = capabilities.path("toolCalling").asBoolean(false) && !spec.path("tools").isEmpty();
         boolean loop = capabilities.path("loop").asBoolean(false);
-        boolean memory = capabilities.path("memory").asBoolean(false);
         boolean prompts = "langfuse".equals(spec.path("prompts").path("source").asText())
                 && !spec.path("prompts").path("items").isEmpty();
         boolean eval = !spec.path("eval").path("dataset").asText("").isBlank();
         var missing = new ArrayList<String>();
         if (!toolCalling) missing.add("模型自己调工具");
         if (!loop) missing.add("agent loop");
-        if (!memory) missing.add("记忆");
         if (!prompts) missing.add("有版本的提示词");
         if (!eval) missing.add("评测");
         var items = new ArrayList<Item>();
         items.add(core("模型自己调工具", toolCalling));
         items.add(core("agent loop", loop));
-        items.add(core("记忆", memory));
+        items.add(new Item("记忆", null, "会话记忆与长期记忆待验证"));
         items.add(core("有版本的提示词", prompts));
         items.add(declared("模型接入", !spec.path("models").path("default").asText("").isBlank()));
         items.add(optional("知识检索", !spec.path("knowledge").isEmpty()));
@@ -73,6 +71,19 @@ public record AgentElements(String kind, List<Item> items, List<String> missing)
                 items.set(i, new Item(name, true, detail));
             }
         }
+    }
+
+    /** Platform session history is valid evidence even without a manifest capability flag. */
+    public AgentElements withMemoryEvidence(boolean session, boolean user) {
+        var next = new ArrayList<>(items);
+        for (var i = 0; i < next.size(); i++) {
+            if ("记忆".equals(next.get(i).name())) {
+                var detail = (session ? "会话记忆：已有有效多轮记录" : "会话记忆：暂无有效多轮记录")
+                        + "；" + (user ? "长期记忆：已有用户记忆记录" : "长期记忆：暂无用户记忆记录");
+                next.set(i, new Item("记忆", session || user ? Boolean.TRUE : null, detail));
+            }
+        }
+        return new AgentElements(kind, List.copyOf(next), missing.stream().filter(name -> !"记忆".equals(name)).toList());
     }
 
     private static Item core(String name, boolean present) {
