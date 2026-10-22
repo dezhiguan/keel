@@ -321,6 +321,12 @@ def test_dev_serves_sse_keeps_approval_across_reload_and_prints_local_trace(tmp_
             for line in trace_path.read_text().splitlines() if line.strip()
         ]
         assert any("agent.run" in tree and "greet" in tree for tree in trees)
+        # The trace file and the subprocess stdout reader complete independently.
+        output_deadline = time.monotonic() + 5
+        while time.monotonic() < output_deadline:
+            if "agent.run" in "".join(lines):
+                break
+            time.sleep(0.05)
         output = "".join(lines)
         assert "dev injected KEEL_ENV=dev" in output
         assert "dev injected KEEL_AUDIT_URL=" in output
