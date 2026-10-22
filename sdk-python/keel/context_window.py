@@ -2,6 +2,7 @@
 import asyncio
 import json
 import logging
+import time
 
 from keel.llm.client import context_token_budget, estimate_context_tokens
 from keel.llm.tool_names import wire_tools
@@ -41,6 +42,7 @@ class ContextWindow:
         self.state = {"version": 0, "throughId": "0", "content": ""}
         self.loaded = False
         self.summary_calls = 0
+        self.summary_deadline = None
 
     async def load(self):
         if self.loaded or not self.session or self.evaluation:
@@ -95,7 +97,12 @@ class ContextWindow:
                     if tokens(messages, []) > budget - 128:
                         raise ValueError("summary input exceeds budget")
                     self.summary_calls += 1
-                    async with asyncio.timeout(15):
+                    if self.summary_deadline is None:
+                        self.summary_deadline = time.monotonic() + 20
+                    remaining = self.summary_deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise TimeoutError("summary time budget exceeded")
+                    async with asyncio.timeout(min(15, remaining)):
                         response = await self.llm.chat(messages, tools=[], emit_tokens=False, max_tokens=512)
                     candidate = getattr(response, "content", response)
                     marker = getattr(getattr(self.memory, "guard", None), "canary", None)
