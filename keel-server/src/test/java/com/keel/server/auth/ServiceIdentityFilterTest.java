@@ -20,7 +20,7 @@ class ServiceIdentityFilterTest {
     private static final String AUDIENCE = "keel-api";
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/v1/tools/alarm_query", "/api/v1/agents/coder/memories/session-summary"})
+    @ValueSource(strings = {"/api/v1/tools/alarm_query", "/api/v1/agents/coder/memories/session-summary", "/api/v1/agents/coder/memories/session-history/messages/1"})
     void catalogReadsAcceptASignedAgent(String path) throws Exception {
         var keys = new AgentKeys();
         var material = keys.generate("coder");
@@ -62,6 +62,10 @@ class ServiceIdentityFilterTest {
         assertThat(CatalogAccess.serviceAccessible("POST", "/api/v1/tools/git.pr.diff/grants")).isFalse();
         assertThat(CatalogAccess.serviceAccessible("POST", "/api/v1/agents/qa-desk-1016/memories")).isTrue();
         assertThat(CatalogAccess.serviceAccessible("GET", "/api/v1/agents/qa-desk-1016/memories")).isTrue();
+        assertThat(CatalogAccess.serviceAccessible("POST", "/api/v1/agents/qa-desk-1016/memories/session-history/search")).isTrue();
+        assertThat(CatalogAccess.serviceAccessible("GET", "/api/v1/agents/qa-desk-1016/memories/session-history/messages/1")).isTrue();
+        assertThat(CatalogAccess.serviceAccessible("POST", "/api/v1/agents/qa-desk-1016/memories/session-history/messages/1")).isFalse();
+        assertThat(CatalogAccess.serviceAccessible("DELETE", "/api/v1/agents/qa-desk-1016/memories/session-history/messages/1")).isFalse();
         assertThat(CatalogAccess.serviceAccessible("GET", "/api/v1/agents/qa-desk-1016/memories/session-summary")).isTrue();
         assertThat(CatalogAccess.serviceAccessible("POST", "/api/v1/agents/qa-desk-1016/memories/session-summary")).isTrue();
         assertThat(CatalogAccess.serviceAccessible("DELETE", "/api/v1/agents/qa-desk-1016/memories/session-summary")).isFalse();

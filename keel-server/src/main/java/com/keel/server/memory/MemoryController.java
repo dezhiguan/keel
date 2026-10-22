@@ -21,6 +21,22 @@ public class MemoryController {
     @org.springframework.beans.factory.annotation.Autowired
     private SessionSummaries summaries;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private SessionHistory history;
+
+    @PostMapping("/session-history/search")
+    public R<Map<String,Object>> searchHistory(@PathVariable String name,@RequestBody JsonNode body) {
+        return R.ok(history.search(name,body));
+    }
+
+    @GetMapping("/session-history/messages/{messageId}")
+    public R<Map<String,Object>> historyMessage(@PathVariable String name,@PathVariable String messageId,
+            @RequestParam String env,@RequestParam String sessionId,
+            @RequestParam(defaultValue="0") int offset,@RequestParam(defaultValue="1200") int limitChars,
+            @RequestParam(required=false) String ownerUser,@RequestParam(required=false) Long summaryVersion) {
+        return R.ok(history.read(name,env,sessionId,messageId,offset,limitChars,ownerUser,summaryVersion));
+    }
+
     public MemoryController(MemoryService memories) {
         this.memories = memories;
     }
