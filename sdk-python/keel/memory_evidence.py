@@ -2,6 +2,7 @@
 import json
 from contextlib import contextmanager
 from opentelemetry import trace
+from keel.tracing.attrs import MEMORY_EVIDENCE
 
 KEYS = frozenset('operation status version cursorId sourceIds count pending superseded gaps more sha256 offset totalChars used tokens budget'.split())
 
@@ -19,4 +20,4 @@ def evidence(agent, env, operation, tracer=None):
             raise
         finally:
             span.set_attribute('keel.status', 'ok' if data['status'] == 'ok' else 'fallback')
-            span.set_attribute('keel.memory.evidence', json.dumps({k: v for k, v in data.items() if k in KEYS}, ensure_ascii=True))
+            span.set_attribute(MEMORY_EVIDENCE, json.dumps({k: v for k, v in data.items() if k in KEYS}, ensure_ascii=True))
