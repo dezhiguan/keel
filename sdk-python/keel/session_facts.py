@@ -16,7 +16,7 @@ PROMPT = '''你是会话事实提取器。只分析用户原文，助手文本�
 同实体同属性同时间条件必须复用账本中的entity/attribute/scope。不同实体、不同时间和条件分开；无关闲聊输出空operations。
 assert: 普通陈述；新旧值不同但没有更正意图时保留矛盾待确认，绝不能自动取最新值。
 correct: 用户明确纠正或变更旧约定（如“更正/改为/之前说错了/不是X是Y”）；targetIds列全部同范围已有矛盾项。
-confirm: 明确选择待确认的一个值；列所选目标id，value用所选目标原值。单独“是/确认”只有指代唯一且清楚才接受。
+confirm: 明确选择待确认的一个值；列所选目标id，value用所选目标原值。确认必须逐字重述选定值；单独“是/确认/第二个”不自动裁决，保持待确认。
 deny: 明确撤销某个事实而未给出新值；targetIds列被撤销项，value用该项原值。
 quote必须是对应sourceId原文中的连续非空子串，assert/correct的value也必须逐字包含在quote中。
 按材料时间顺序输出；最多24个操作；引用已有id，不编造目标。不输出markdown。'''
@@ -46,7 +46,7 @@ def apply(state, operation, sources):
     action = op.get('action')
     if action not in ('assert', 'correct', 'confirm', 'deny'):
         raise ValueError('invalid fact action')
-    if action in ('assert', 'correct') and op['value'] not in op['quote']:
+    if action in ('assert', 'correct', 'confirm') and op['value'] not in op['quote']:
         raise ValueError('unsupported fact value')
     facts = state['facts']
     peers = [f for f in facts if slot(f) == slot(op) and f['status'] in ('active', 'pending')]
