@@ -448,12 +448,17 @@ public class TraceQueryService {
         if (matched.isEmpty() || !(detail.get("nodes") instanceof List<?> nodes)) return;
         var generations = nodes.stream().filter(node -> node instanceof Map<?, ?> map
                 && "generation".equals(map.get("type")) && map.get("model") != null).toList();
+        var linked = generations.stream().map(node -> ((Map<?, ?>) node).get("llmRequestId"))
+                .filter(id -> id instanceof String text && !text.isBlank()).toList();
+        var missing = generations.stream().filter(node -> !(((Map<?, ?>) node).get("llmRequestId") instanceof String id)
+                || id.isBlank()).toList();
+        var unlinked = matched.stream().filter(row -> !linked.contains(row.requestId())).toList();
         for (var node : generations) {
             var raw = (Map<?, ?>) node;
             var requestId = raw.get("llmRequestId") instanceof String id ? id : "";
             var candidates = requestId.isBlank()
-                    ? (generations.size() == 1 && matched.stream().map(LiteLlmClient.Spend::requestId).distinct().count() == 1
-                        ? matched : List.<LiteLlmClient.Spend>of())
+                    ? (missing.size() == 1 && unlinked.stream().map(LiteLlmClient.Spend::requestId).distinct().count() == 1
+                        ? unlinked : List.<LiteLlmClient.Spend>of())
                     : matched.stream().filter(row -> requestId.equals(row.requestId())).toList();
             if (candidates.isEmpty()) continue;
             var attempts = new ArrayList<Map<String, Object>>();
@@ -471,6 +476,15 @@ public class TraceQueryService {
             @SuppressWarnings("unchecked")
             var writable = (Map<String, Object>) raw;
             writable.put("attempts", attempts);
+            writable.put("llmRequestId", candidates.getFirst().requestId());
+            var usage = candidates.stream().filter(TraceQueryService::hasUsage).toList();
+            if (!usage.isEmpty()) {
+                int input = usage.stream().mapToInt(LiteLlmClient.Spend::inputTokens).sum();
+                int output = usage.stream().mapToInt(LiteLlmClient.Spend::outputTokens).sum();
+                writable.put("tokensIn", input);
+                writable.put("tokensOut", output);
+                writable.put("tokens", input + output);
+            }
             var known = candidates.stream().filter(row -> row.costCny() != null).toList();
             writable.put("costCny", known.isEmpty() ? null : known.stream().mapToDouble(LiteLlmClient.Spend::costCny).sum());
         }
@@ -481,6 +495,9 @@ public class TraceQueryService {
             if (known.isEmpty()) summary.remove("costCny");
             else summary.put("costCny", known.stream().mapToDouble(LiteLlmClient.Spend::costCny).sum());
             summary.put("pendingBillCount", matched.stream().filter(row -> "PENDING".equals(row.status())).count());
+            var usage = matched.stream().filter(TraceQueryService::hasUsage).toList();
+            if (!usage.isEmpty()) summary.put("tokens", usage.stream()
+                    .mapToLong(row -> (long) row.inputTokens() + row.outputTokens()).sum());
             detail.put("summary", summary);
         }
         var costs = new LinkedHashMap<String, Double>();
@@ -489,5 +506,10 @@ public class TraceQueryService {
         }
         detail.put("costBreakdown", costs.entrySet().stream()
                 .map(entry -> Map.<String, Object>of("agentKey", entry.getKey(), "costCny", entry.getValue())).toList());
+    }
+
+    private static boolean hasUsage(LiteLlmClient.Spend row) {
+        return row.inputTokens() != null && row.inputTokens() >= 0
+                && row.outputTokens() != null && row.outputTokens() >= 0;
     }
 }

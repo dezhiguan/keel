@@ -96,11 +96,13 @@ class InsightReadModelPersistenceTest {
         jdbc.update("UPDATE insight_snapshot SET retry_at=now() WHERE snapshot_key='overview-ledger-v1'");
         owner=snapshots.claim("overview-ledger-v1",Duration.ofMinutes(1));
         ledger=snapshots.decode("""
-                {"bills":[{"traceId":"tr-bill","status":"SETTLED","costCny":0.25}],"keys":[],"models":[],"rules":[]}
+                {"bills":[{"traceId":"tr-bill","status":"SETTLED","costCny":0.25,"inputTokens":5140,"outputTokens":42},
+                          {"traceId":"tr-bill","status":"SETTLED","costCny":0.5,"inputTokens":2000,"outputTokens":1389}],"keys":[],"models":[],"rules":[]}
                 """,com.keel.server.insight.CostService.Ledger.class);
         assertThat(index.replaceBills(owner,ledger)).isTrue();
         item=items(index.list(1,10,"","all",null,null,null,false,null,null)).getFirst();
-        assertThat(item.get("costCny")).isEqualTo(.25);assertThat(item.get("pendingBillCount")).isNull();
+        assertThat(item.get("costCny")).isEqualTo(.75);assertThat(item.get("pendingBillCount")).isNull();
+        assertThat(((Number)item.get("tokens")).longValue()).isEqualTo(8571L);
     }
 
     @Test void failedPageDoesNotMoveCheckpointAndReplacedLeaseCannotWriteIndex() throws Exception {

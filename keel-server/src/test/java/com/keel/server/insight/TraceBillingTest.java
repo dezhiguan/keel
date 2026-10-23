@@ -10,6 +10,36 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TraceBillingTest {
+    @Test void cancelledSummaryUsageAndMoneyAreRecoveredFromTheSameLedger() {
+        var answer=generation("r1");
+        var summary=generation(""); summary.put("status","failed");
+        var detail=new LinkedHashMap<String,Object>();
+        detail.put("nodes",List.of(answer,summary)); detail.put("summary",Map.of("tokens",20));
+        TraceQueryService.attachBills(detail,List.of(bill("r1","a1","qwen3.8-flash",.003509,"SETTLED"),
+                bill("r2","a2","qwen3.8-flash",.006525,"SETTLED")));
+        assertThat(summary.get("llmRequestId")).isEqualTo("r2");
+        assertThat(summary.get("status")).isEqualTo("failed");
+        assertThat(summary.get("tokens")).isEqualTo(20);
+        assertThat(((Map<?,?>)detail.get("summary")).get("tokens")).isEqualTo(40L);
+        assertThat(((Number)((Map<?,?>)detail.get("summary")).get("costCny")).doubleValue()).isCloseTo(.010034,org.assertj.core.data.Offset.offset(1e-12));
+    }
+
+    @Test void successfulRootKeepsRecoveredMaintenanceFailureVisibleWithoutFailingTheTurn() throws Exception {
+        var json=new com.fasterxml.jackson.databind.ObjectMapper();
+        var root=json.readTree("""
+                {"id":"root","name":"agent.run","startTime":"2026-10-23T00:00:00Z","endTime":"2026-10-23T00:00:30Z",
+                "metadata":{"keel.agent":"qa","keel.status":"ok","langfuse.observation.type":"agent"}}
+                """);
+        var child=json.readTree("""
+                {"id":"summary","parentObservationId":"root","name":"llm.chat","startTime":"2026-10-23T00:00:01Z","endTime":"2026-10-23T00:00:26Z",
+                "metadata":{"keel.agent":"qa","keel.status":"failed","langfuse.observation.type":"generation"},"output":"调用已取消"}
+                """);
+        var detail=TraceAssembly.detail("trace",List.of(root,child),"",Map.of());
+        assertThat(((Map<?,?>)detail.get("summary")).get("status")).isEqualTo("ok");
+        assertThat((List<Map<String,Object>>)detail.get("nodes")).anySatisfy(node->{
+            assertThat(node.get("id")).isEqualTo("summary"); assertThat(node.get("status")).isEqualTo("failed");
+        });
+    }
     @Test void inputGuardRejectionWithoutAnyGenerationHasKnownZeroModelCost() throws Exception {
         var json = new com.fasterxml.jackson.databind.ObjectMapper();
         var root = json.readTree("""

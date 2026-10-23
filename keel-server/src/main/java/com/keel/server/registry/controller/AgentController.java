@@ -39,6 +39,8 @@ public class AgentController {
     private com.keel.server.tasks.TaskContext taskContexts;
     @org.springframework.beans.factory.annotation.Autowired
     private com.keel.server.tasks.AnalysisTasks analysisTasks;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.keel.server.registry.service.DebugChatRequests chatRequests;
     private final AgentRegistryService agentRegistryService;
     private final LifecycleService lifecycleService;
     private final AgentChatService chats;
@@ -148,21 +150,7 @@ public class AgentController {
         try {
             chats.prepareStream(name, text, sessionId, owner, remember);
         } catch (KeelException error) {
-            // produces 锁在 text/event-stream 时，异常体写成 JSON 会被内容协商丢掉，浏览器只能看到空的 500。
-            response.setStatus(error.code().http());
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            byte[] bytes;
-            try {
-                bytes = json.writeValueAsBytes(ApiError.of(error.code(), error.getMessage()));
-            } catch (com.fasterxml.jackson.core.JsonProcessingException failed) {
-                bytes = "{\"code\":\"SERVER_INTERNAL_ERROR\",\"message\":\"调用失败\",\"retryable\":true}"
-                        .getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            }
-            var payload = bytes;
-            return output -> {
-                output.write(payload);
-                output.flush();
-            };
+            return jsonError(response,error);
         }
         var detail=agentRegistryService.registeredDetail(name);
         // Capture trusted identity on the authenticated servlet thread, before async streaming.
@@ -175,20 +163,40 @@ public class AgentController {
         if(relayTrace==null || relayTrace.isBlank())relayTrace=java.util.UUID.randomUUID().toString().replace("-","");
         var errorTrace=relayTrace;
         var relayRun="console-relay-"+java.util.UUID.randomUUID();
+        com.keel.server.registry.service.DebugChatRequests.Claim claim;
+        try {
+            claim=remember ? chatRequests.begin(name,detail.summary().env(),owner,sessionId,
+                    body.path("requestId").asText(""),text) : null;
+        } catch (KeelException error) { return jsonError(response,error); }
         response.setHeader("Cache-Control", "no-cache");
         response.setHeader("X-Accel-Buffering", "no");
         response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
+        if (claim!=null && claim.replay()!=null) return output -> {
+            output.write(claim.replay().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            output.flush();
+        };
         return output -> {
-            try {
-                chats.streamChat(name, text, sessionId, owner, remember, output, readContext, forwardedEvaluation, forwardedTaskContext);
-            } catch (RuntimeException error) {
-                org.slf4j.LoggerFactory.getLogger(AgentController.class).warn(
-                        "trace_id={} agent={} stream relay interrupted run_id={}",errorTrace,name,relayRun);
-                var frame = streamError(errorTrace,relayRun);
-                output.write(frame.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                output.flush();
+            try (var guarded=new com.keel.server.registry.service.DebugStreamOutput(output)) {
+                try {
+                    chats.streamChat(name, text, sessionId, owner, remember, guarded, readContext, forwardedEvaluation, forwardedTaskContext);
+                } catch (RuntimeException error) {
+                    org.slf4j.LoggerFactory.getLogger(AgentController.class).warn(
+                            "trace_id={} agent={} stream relay interrupted run_id={}",errorTrace,name,relayRun);
+                    guarded.write(streamError(errorTrace,relayRun).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    guarded.flush();
+                } finally { chatRequests.finish(claim,guarded.terminal()); }
             }
         };
+    }
+
+    private StreamingResponseBody jsonError(HttpServletResponse response,KeelException error) {
+        // The stream route must explicitly negotiate JSON for preflight rejection.
+        response.setStatus(error.code().http());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        final byte[] payload;
+        try { payload=json.writeValueAsBytes(ApiError.of(error.code(),error.getMessage())); }
+        catch (com.fasterxml.jackson.core.JsonProcessingException failed) { throw new IllegalStateException(failed); }
+        return output -> { output.write(payload); output.flush(); };
     }
 
     /** These IDs identify the real console relay execution, never an invented agent run. */

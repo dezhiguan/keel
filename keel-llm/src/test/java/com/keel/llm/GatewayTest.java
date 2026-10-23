@@ -534,6 +534,44 @@ class GatewayTest {
         }
     }
 
+    @Test void disconnectedCallerStillSettlesUsageArrivingInALaterChunk() throws Exception {
+        var upstream=server((model,exchange)->{
+            exchange.sendResponseHeaders(200,0);
+            exchange.getResponseBody().write("data: {\"choices\":[]}\n\n".getBytes(StandardCharsets.UTF_8));
+            exchange.getResponseBody().flush();
+            Thread.sleep(100);
+            exchange.getResponseBody().write("data: {\"usage\":{\"prompt_tokens\":4,\"completion_tokens\":2}}\n\ndata: [DONE]\n\n".getBytes(StandardCharsets.UTF_8));
+            exchange.close();
+        });
+        try {
+            var budget=new BudgetCounter(); var gateway=new Gateway(catalog(upstream),budget,new Upstream());
+            var key=gateway.create("echo-dev",List.of("qwen-plus"),List.of(),new BigDecimal("30"),false);
+            var spent=gateway.stream("Bearer "+key.key(),"/v1/chat/completions","{\"model\":\"qwen-plus\",\"stream\":true}",
+                    Duration.ofSeconds(3),throwingAfter(1),"late-usage");
+            assertThat(spent.status()).isEqualTo("SETTLED");
+            assertThat(spent.inputTokens()).isEqualTo(4); assertThat(spent.outputTokens()).isEqualTo(2);
+            assertThat(budget.snapshot("echo-dev").reservedCny()).isEqualByComparingTo("0");
+            assertThat(gateway.spend("echo-dev",1,10)).hasSize(1);
+        } finally { upstream.stop(0); }
+    }
+
+    @Test void unknownUsageRemainsPendingButDrainCannotOutliveItsOriginalDeadline() throws Exception {
+        var upstream=server((model,exchange)->{
+            exchange.sendResponseHeaders(200,0);
+            exchange.getResponseBody().write("data: {\"choices\":[]}\n\n".getBytes(StandardCharsets.UTF_8));
+            exchange.getResponseBody().flush(); Thread.sleep(1500); exchange.close();
+        });
+        try {
+            var gateway=gateway(upstream); var key=gateway.create("echo-dev",List.of("qwen-plus"),List.of(),new BigDecimal("30"),false);
+            long start=System.nanoTime();
+            var spent=gateway.stream("Bearer "+key.key(),"/v1/chat/completions","{\"model\":\"qwen-plus\",\"stream\":true}",
+                    Duration.ofMillis(300),throwingAfter(1),"unknown-usage");
+            assertThat(Duration.ofNanos(System.nanoTime()-start)).isLessThan(Duration.ofSeconds(1));
+            assertThat(spent.status()).isEqualTo("PENDING"); assertThat(spent.costCny()).isNull();
+            assertThat(gateway.listed().getFirst().reservedCny()).isGreaterThan(BigDecimal.ZERO);
+        } finally { upstream.stop(0); }
+    }
+
     @Test void streamingAdmissionErrorIs429JsonInsteadOfAnEmpty500() throws Exception {
         var server = echoServer();
         try {

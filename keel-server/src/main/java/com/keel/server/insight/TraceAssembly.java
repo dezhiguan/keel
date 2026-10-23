@@ -445,9 +445,17 @@ public final class TraceAssembly {
     }
 
     private static String status(List<Span> spans) {
+        // A recovered maintenance failure must not override the completed root.
+        // Preserve failed children in the graph; an actual cancelled root remains failed.
+        var roots = spans.stream().filter(span -> "agent.run".equals(span.name)
+                && span.ended && span.meta.containsKey("keel.status")
+                && (span.parent.isBlank() || spans.stream().noneMatch(parent -> parent.id.equals(span.parent)))).toList();
+        boolean recovered = roots.size() == 1 && !"failed".equals(roots.getFirst().status);
         var rank = 0;
         var status = "ok";
         for (Span span : spans) {
+            if (recovered && "generation".equals(span.type) && "failed".equals(span.status)
+                    && "调用已取消".equals(span.output)) continue;
             var next = switch (span.status) {
                 case "failed" -> 2;
                 case "fallback" -> 1;
@@ -552,6 +560,7 @@ public final class TraceAssembly {
         final int tokensOut;
         final int tokens;
         final boolean blocked;
+        final boolean ended;
         final Map<String, String> meta;
         final List<String> auditIds;
         int depth;
@@ -566,6 +575,7 @@ public final class TraceAssembly {
             this.agent = meta.getOrDefault("keel.agent", "");
             this.parentAgent = meta.getOrDefault("keel.parent_agent", "");
             this.status = nodeStatus(row, meta);
+            this.ended = row.path("endTime").isTextual() && !row.path("endTime").asText().isBlank();
             this.input = observationBody(row);
             this.userText = userTurn(row);
             this.output = observationText(row, "output");
