@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import logging
+import time
 
 from keel.llm.client import estimate_context_tokens
 from keel.prompts import TrustedMessage
@@ -94,13 +95,16 @@ class SessionFacts:
         self.agent, self.env = agent, env
         self.result = None
 
-    async def collect(self, current):
+    async def collect(self, current, deadline=None):
         if self.result is not None:
             return self.result
         self.result = []
         with evidence(self.agent, self.env, 'facts', getattr(self.llm, 'tracer', None)) as ev:
             try:
-                async with asyncio.timeout(35):
+                remaining = min(15, deadline-time.monotonic()) if deadline is not None else 15
+                if remaining <= 0:
+                    raise TimeoutError('memory work deadline exceeded')
+                async with asyncio.timeout(remaining):
                     for attempt in range(2):
                         batch = await self.memory.load_facts(self.external)
                         state = batch['state']

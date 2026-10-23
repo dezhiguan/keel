@@ -152,3 +152,12 @@ def test_semantic_memory_span_uses_runtime_provider_and_contains_only_evidence(t
     assert data['version']==1 and data['sourceIds']==['1']
     assert '12月9日' not in json.dumps(dict(spans[0].attributes),ensure_ascii=False)
     provider.shutdown()
+
+
+def test_exhausted_memory_deadline_does_not_call_model_or_storage():
+    class Forbidden:
+        def __getattr__(self, key):
+            if key in ('tracer', 'trace_id'):
+                return None
+            raise AssertionError('deadline must precede storage and model work')
+    assert asyncio.run(SessionFacts(Forbidden(),Forbidden(),True,'a','staging').collect([],0))==[]
