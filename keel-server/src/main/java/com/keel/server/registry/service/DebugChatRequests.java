@@ -24,6 +24,7 @@ public class DebugChatRequests {
         String digest;
         try { digest = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8))); }
         catch (java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+        expireInterrupted();
         jdbc.update("DELETE FROM debug_chat_request WHERE expires_at <= now()");
         int inserted = jdbc.update("""
                 INSERT INTO debug_chat_request(agent_name,env,owner_user,session_id,request_id,input_digest,state)
@@ -48,9 +49,22 @@ public class DebugChatRequests {
         if (claim == null || claim.replay() != null) return;
         jdbc.update("""
                 UPDATE debug_chat_request SET state=?,terminal_frame=?,updated_at=now()
-                WHERE agent_name=? AND env=? AND owner_user=? AND session_id=? AND request_id=? AND state='RUNNING'
+                WHERE agent_name=? AND env=? AND owner_user=? AND session_id=? AND request_id=?
+                  AND (state='RUNNING' OR (state='UNKNOWN' AND ?))
                 """, frame == null ? "UNKNOWN" : "COMPLETE", frame,
-                claim.agent(),claim.env(),claim.owner(),claim.session(),claim.request());
+                claim.agent(),claim.env(),claim.owner(),claim.session(),claim.request(),frame!=null);
+    }
+
+    /** Console async execution is bounded at 210s. A crashed worker cannot hold a request RUNNING forever.
+     * Expiry never reclaims the right to compute: a replay sees UNKNOWN, while the original worker
+     * may still reconcile a genuine late terminal without charging again.
+     */
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay=60_000)
+    public void expireInterrupted() {
+        jdbc.update("""
+                UPDATE debug_chat_request SET state='UNKNOWN',updated_at=now()
+                WHERE state='RUNNING' AND created_at<now()-interval '5 minutes'
+                """);
     }
 
     private static KeelException invalid(String message) { return new KeelException(ErrorCode.SERVER_INVALID_PARAM,message); }

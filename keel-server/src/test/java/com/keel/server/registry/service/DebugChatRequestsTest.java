@@ -46,4 +46,19 @@ class DebugChatRequestsTest {
         assertThat(requests.begin("request-test","prod","u1","s1","r1","first").replay()).isNull();
         assertThat(requests.begin("request-test","staging","u1","s2","r1","first").replay()).isNull();
     }
+
+    @Test void crashedWorkersBecomeUnknownWithoutRecomputingAndCanReconcileTheirLateTerminal() {
+        var original=new DebugChatRequests(jdbc);
+        var claim=original.begin("request-test","staging","u1","s1","orphan","paid request");
+        jdbc.update("UPDATE debug_chat_request SET created_at=now()-interval '6 minutes' WHERE agent_name='request-test'");
+        var restarted=new DebugChatRequests(jdbc);
+        assertThatThrownBy(()->restarted.begin("request-test","staging","u1","s1","orphan","paid request"))
+                .isInstanceOf(KeelException.class).hasMessageContaining("结果未知");
+        assertThat(jdbc.queryForObject("SELECT state FROM debug_chat_request WHERE agent_name='request-test'",String.class)).isEqualTo("UNKNOWN");
+        var frame="event: final\ndata: {\"answer\":\"original paid result\",\"trace_id\":\"original\"}\n\n";
+        original.finish(claim,frame);
+        original.finish(claim,null); // Cancellation cleanup cannot downgrade a reconciled receipt.
+        assertThat(restarted.begin("request-test","staging","u1","s1","orphan","paid request").replay()).isEqualTo(frame);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM debug_chat_request WHERE agent_name='request-test'",Integer.class)).isEqualTo(1);
+    }
 }
