@@ -158,7 +158,7 @@ class SessionFacts:
                         if not isinstance(operations, list) or len(operations) > 24:
                             raise ValueError('invalid fact operations')
                         ignored = parsed.get('ignoredSourceIds', [])
-                        if not isinstance(ignored, list) or any(not isinstance(v, str) or v not in sources or v == 'current' for v in ignored):
+                        if not isinstance(ignored, list) or any(not isinstance(v, str) or v not in sources for v in ignored):
                             raise ValueError('invalid ignored fact sources')
                         covered = {str(op.get('sourceId')) for op in operations}
                         if any(str(row['id']) not in covered and str(row['id']) not in ignored for row in rows):

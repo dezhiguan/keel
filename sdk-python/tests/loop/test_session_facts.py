@@ -219,3 +219,12 @@ def test_empty_proposals_cannot_silently_skip_history(tmp_path,ignored,advances)
     asyncio.run(SessionFacts(Model(),memory,False,'a','staging').collect([]))
     state=asyncio.run(memory.load_facts(False))['state']
     assert (state['cursorId']=='1')==advances
+
+
+def test_current_question_can_be_explicitly_ignored_without_rejecting_history(tmp_path):
+    memory=LiteMemory(LiteStore(tmp_path),'a','s');memory.append('user','12月9日')
+    class Model:
+        async def chat(self,*args,**kwargs):return ChatResult(json.dumps({'operations':[op('1','12月9日')],'ignoredSourceIds':['current']}),())
+    asyncio.run(SessionFacts(Model(),memory,False,'a','staging').collect([{'role':'user','content':'这个日期确定了吗？'}]))
+    state=asyncio.run(memory.load_facts(False))['state']
+    assert state['cursorId']=='1' and len(state['facts'])==1
