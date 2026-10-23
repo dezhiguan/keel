@@ -67,3 +67,7 @@ generation span **只由 Keel SDK 上报一次**。薄网关不向 Langfuse 上�
 - generation 的 `langfuse.observation.input` 是带角色的消息 JSON，`output` 只放模型回复。控制台链路页从 Langfuse 读回这两项并展示。提示词原文只出现在 generation 的 input 里
 - 根 span 的 `langfuse.observation.input` 只放用户问题，不放系统提示词。除此之外，其他 span 属性不放用户原文，也不放厂商 API Key 和检索到的文档全文（只放 citations 的标识）。审计仍只收 manifest `audit.captureFields` 白名单
 - 所有日志必须带 `trace_id` 和 `agent`
+
+## 会话记忆证据（可选）
+
+`memory.summary`、`memory.history.search`、`memory.reference.read`、`memory.facts`、`memory.context` 使用 retriever 类型。`keel.memory.evidence` 是 JSON 字符串，键仅允许 operation/status/version/cursorId/sourceIds/count/pending/superseded/gaps/more/sha256/offset/totalChars/used/tokens/budget。值仅数字、布尔、ID列表或状态；不允许原文、事实值、摘要或检索词。控制台解析为可选 memoryEvidence 字符串映射。generation 输入仍是核对实际采用内容的依据。

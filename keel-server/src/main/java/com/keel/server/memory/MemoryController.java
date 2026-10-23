@@ -37,6 +37,19 @@ public class MemoryController {
         return R.ok(history.read(name,env,sessionId,messageId,offset,limitChars,ownerUser,summaryVersion));
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private SessionFacts facts;
+
+    @GetMapping("/session-facts")
+    public R<Map<String,Object>> facts(@PathVariable String name,@RequestParam String env,@RequestParam String sessionId) {
+        return R.ok(facts.get(name,env,sessionId));
+    }
+
+    @PostMapping("/session-facts")
+    public R<Map<String,Object>> saveFacts(@PathVariable String name,@RequestBody JsonNode body) {
+        return R.ok(facts.save(name,body));
+    }
+
     public MemoryController(MemoryService memories) {
         this.memories = memories;
     }

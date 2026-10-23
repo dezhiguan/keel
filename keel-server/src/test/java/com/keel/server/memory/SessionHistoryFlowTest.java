@@ -27,7 +27,7 @@ class SessionHistoryFlowTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired com.keel.server.registry.service.DebugSessionService sessions;
     @BeforeEach void reset() {
-        for(var table:java.util.List.of("session_message","agent_session","session_summary"))
+        for(var table:java.util.List.of("session_message","agent_session","session_summary","session_fact_state"))
             jdbc.update("DELETE FROM "+table+" WHERE agent_name='history-agent'");
         jdbc.update("DELETE FROM agent WHERE name='history-agent'");
         jdbc.update("INSERT INTO agent(name,display_name,kind,runtime,language,owner_org,owner_user,status,liveness,layer) "
@@ -98,4 +98,38 @@ class SessionHistoryFlowTest {
             .andExpect(jsonPath("$.data.stale").value(true)).andExpect(jsonPath("$.data.summary.version").value(2))
             .andExpect(jsonPath("$.data.items.length()").value(0));
     }
+    @Test void factLedgerUsesCanonicalCasAndRejectsCrossOwnerAndInventedSources() throws Exception {
+        var session=(String)sessions.create("history-agent","staging","u_1").get("id");
+        sessions.appendTurn("history-agent","u_1",session,"检查日期12月9日","已记录","fixture");
+        var id=sessions.history("history-agent","u_1",session).getFirst().get("id");
+        var hash=scoped("u_1",session);var path="/api/v1/agents/history-agent/memories/session-facts";
+        mvc.perform(get(path).with(asOwner("u_1")).param("env","staging").param("sessionId",hash))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.state.version").value(0))
+            .andExpect(jsonPath("$.data.messages[0].id").value(id));
+        var json=new com.fasterxml.jackson.databind.ObjectMapper();
+        var state=json.createObjectNode().put("version",0).put("cursorId",id);
+        state.putArray("gaps");var fact=state.putArray("facts").addObject();
+        fact.put("id","abcdef012345abcdef012345").put("entity","纸鹤计划").put("attribute","检查日期")
+            .put("scope","").put("value","12月9日").put("status","active");
+        fact.putArray("sourceIds").add(id);fact.putArray("replaces");
+        var body=json.createObjectNode().put("env","staging").put("sessionId",hash);body.set("state",state);
+        mvc.perform(post(path).with(asOwner("u_2")).contentType("application/json").content(body.toString())).andExpect(status().isForbidden());
+        fact.withArray("sourceIds").removeAll().add("999999999");
+        mvc.perform(post(path).with(asOwner("u_1")).contentType("application/json").content(body.toString())).andExpect(status().isBadRequest());
+        fact.withArray("sourceIds").removeAll().add(id);
+        var futures=new java.util.ArrayList<java.util.concurrent.CompletableFuture<com.fasterxml.jackson.databind.JsonNode>>();
+        for(int i=0;i<2;i++) futures.add(java.util.concurrent.CompletableFuture.supplyAsync(()-> {
+            try { return json.readTree(mvc.perform(post(path).with(asOwner("u_1")).contentType("application/json").content(body.toString()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("data"); }
+            catch(Exception e) {throw new RuntimeException(e);}
+        }));
+        var results=futures.stream().map(java.util.concurrent.CompletableFuture::join).toList();
+        assertThat(results.stream().filter(r->r.path("saved").asBoolean()).count()).isEqualTo(1);
+        assertThat(results).allMatch(r->r.path("state").path("version").asInt()==1);
+        mvc.perform(get(path).with(asOwner("u_1")).param("env","prod").param("sessionId",hash)).andExpect(status().isNotFound());
+        jdbc.update("UPDATE session_fact_state SET expires_at=now()-interval '1 second' WHERE agent_name='history-agent'");
+        mvc.perform(get(path).with(asOwner("u_1")).param("env","staging").param("sessionId",hash))
+            .andExpect(jsonPath("$.data.state.version").value(0));
+    }
+
 }

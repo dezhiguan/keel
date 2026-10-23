@@ -8,6 +8,8 @@ import time
 from keel.llm.client import context_token_budget, estimate_context_tokens
 from keel.llm.tool_names import wire_tools
 from keel.prompts import TrustedMessage
+from keel.session_facts import SessionFacts
+from keel.memory_evidence import evidence as observe
 from keel.session_history import SessionRecall, source_ids
 
 log = logging.getLogger(__name__)
@@ -46,7 +48,8 @@ class ContextWindow:
         self.loaded = False
         self.summary_calls = 0
         self.summary_deadline = None
-        self.recall = SessionRecall(memory, external, owner, agent, trace_id)
+        self.facts = SessionFacts(llm, memory, external, agent, env)
+        self.recall = SessionRecall(memory, external, owner, agent, trace_id, getattr(llm, "tracer", None), env)
 
     async def load(self):
         if self.loaded or not self.session or self.evaluation:
@@ -76,6 +79,12 @@ class ContextWindow:
         if not self.evaluation and self.session:
             items, self.state = await self.recall.collect(prior, current, self.state)
             evidence = self.recall.messages(items, min(2400, max(0, budget - fixed - 128)))
+            fact_messages = await self.facts.collect(current)
+            if tokens(system + evidence + fact_messages + current, tools) <= budget - 128:
+                evidence += fact_messages
+        with observe(self.agent, self.env, 'summary', getattr(self.llm, 'tracer', None)) as ev:
+            ev.update(version=self.state.get('version', 0), cursorId=self.state.get('throughId', '0'),
+                      sourceIds=source_ids(self.state.get('content', '')), count=len(self.state.get('content', '')))
         through = int(self.state.get("throughId", "0"))
         groups = turns([r for r in prior if not r.get("id") or int(r["id"]) > through])
         summary = self.state.get("content", "")
@@ -88,7 +97,9 @@ class ContextWindow:
         target = max(int(budget * .85), fixed + 128)
         original = tokens(compose(groups, summary), tools)
         if original <= target:
-            return compose(groups, summary)
+            result = compose(groups, summary)
+            self.observe_context(result, tools, budget, summary, evidence)
+            return result
         removed = []
         reserve = min(1000, max(0, target - fixed - 128))
         while groups and tokens(compose(groups, ""), tools) > target - reserve:
@@ -114,8 +125,11 @@ class ContextWindow:
                     remaining = self.summary_deadline - time.monotonic()
                     if remaining <= 0:
                         raise TimeoutError("summary time budget exceeded")
-                    async with asyncio.timeout(min(25, remaining)):
-                        response = await self.llm.chat(messages, tools=[], emit_tokens=False, max_tokens=512)
+                    with observe(self.agent, self.env, 'summary', getattr(self.llm, 'tracer', None)) as ev:
+                        ev.update(version=self.state.get('version', 0), sourceIds=list(allowed_ids), status='attempted')
+                        async with asyncio.timeout(min(25, remaining)):
+                            response = await self.llm.chat(messages, tools=[], emit_tokens=False, max_tokens=512)
+                        ev['status'] = 'ok'
                     candidate = getattr(response, "content", response)
                     marker = getattr(getattr(self.memory, "guard", None), "canary", None)
                     if marker and isinstance(candidate, str) and marker in candidate:
@@ -167,4 +181,16 @@ class ContextWindow:
         result = compose(groups, summary)
         log.info("context assembled trace_id=%s agent=%s before=%s after=%s limit=%s summary_calls=%s",
                  self.trace_id, self.agent, original, tokens(result, tools), budget, self.summary_calls)
+        self.observe_context(result, tools, budget, summary, evidence)
         return result
+
+    def observe_context(self, result, tools, budget, summary, retrieved):
+        import hashlib
+        with observe(self.agent, self.env, 'context', getattr(self.llm, 'tracer', None)) as ev:
+            recalled = []
+            for message in retrieved:
+                if message.get('content', '').startswith('本会话历史原文片段'):
+                    recalled = [item['id'] for item in json.loads(message['content'].split('\n', 1)[1])]
+            ev.update(tokens=tokens(result, tools), budget=budget, version=self.state.get('version', 0),
+                      sourceIds=list(dict.fromkeys(source_ids(summary)+recalled)), used=bool(summary), count=len(retrieved),
+                      sha256=hashlib.sha256(summary.encode()).hexdigest() if summary else '')

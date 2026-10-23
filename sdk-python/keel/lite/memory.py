@@ -87,6 +87,21 @@ class LiteMemory:
             return {"items": []}
         return self.store.read_session(self.agent, self.session_id, message_id, self.clock(), offset, limit_chars)
 
+    async def load_facts(self, external):
+        if self.eval_run_id:
+            from keel.session_facts import empty_state
+            return dict(state=empty_state(), messages=[], skippedIds=[], nextCursor='0', more=False)
+        if external:
+            return await self._user.load_facts(self.session_id)
+        return self.store.session_facts(self.agent, self.session_id, self.clock())
+
+    async def save_facts(self, state, external):
+        if self.eval_run_id or (self.guard and self.guard.tainted):
+            return None
+        if external:
+            return await self._user.save_facts(self.session_id, state)
+        return self.store.save_session_facts(self.agent,self.session_id,state,self.clock(),self.ttl_seconds)
+
     def append(self, role: str, content: str) -> None:
         if self.guard is not None and self.guard.tainted:
             return

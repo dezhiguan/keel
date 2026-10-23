@@ -111,3 +111,10 @@ describe('trace view helpers', () => {
     expect(observationUrl('', 'n1')).toBe('')
   })
 })
+import { memoryEvidenceText } from './traceView'
+it('shows memory versions and references without treating a hit as a used summary', () => {
+  const text = memoryEvidenceText({ operation: 'reference.read', version: '3', sourceIds: '["17"]', count: '1' })
+  expect(text).toContain('版本：3')
+  expect(text).toContain('原文消息编号：["17"]')
+  expect(text).not.toContain('摘要已加入模型输入')
+})

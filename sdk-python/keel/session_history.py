@@ -6,6 +6,7 @@ import logging
 import re
 
 from keel.llm.client import estimate_context_tokens
+from keel.memory_evidence import evidence
 
 log = logging.getLogger(__name__)
 STOP = {'之前','什么','帮我','让我','记得','曾经','我们','你说','我说','那个','这个','时候','一下','会话','聊天','记录','请问','可以','原文','摘要'}
@@ -36,10 +37,11 @@ def excerpt(row, offset=0, limit=1200):
 
 
 class SessionRecall:
-    def __init__(self, memory, external, owner, agent, trace_id):
+    def __init__(self, memory, external, owner, agent, trace_id, tracer=None, env=None):
         self.memory, self.external, self.owner = memory, external, owner
         self.agent, self.trace_id = agent, trace_id
         self.items = None
+        self.tracer, self.env = tracer, env
 
     async def collect(self, prior, current, state):
         # Tool-loop iterations reuse the same immutable evidence, without repeated network I/O.
@@ -54,19 +56,21 @@ class SessionRecall:
         before = str(max(int(state.get('throughId', '0'))+1, min(ids)))
         try:
             async with asyncio.timeout(6):
-                result = await self.memory.search_session(query, before, self.external)
+                with evidence(self.agent, self.env, 'history.search', self.tracer) as ev:
+                    result = await self.memory.search_session(query, before, self.external)
+                    ev.update(count=len(result.get('items', [])), sourceIds=[r['id'] for r in result.get('items', [])])
                 self.items.extend(result.get('items', []))
                 refs = state.get('sourceIds', source_ids(state.get('content', '')))
                 # A missing detail in the summary can be checked against its original sources.
                 for ref in refs[:2]:
                     if any(r['id'] == ref for r in self.items):
                         continue
-                    result = await self.memory.read_session(ref, self.external, self.owner, state.get('version', 0))
+                    result = await self.read(ref, state)
                     if result.get('stale'):
                         state = result['summary']
                         latest = state.get('sourceIds', source_ids(state.get('content', '')))
                         if latest:
-                            retry = await self.memory.read_session(latest[0], self.external, self.owner, state.get('version', 0))
+                            retry = await self.read(latest[0], state)
                             if retry.get('stale'):
                                 state = retry['summary']
                             else:
@@ -77,6 +81,16 @@ class SessionRecall:
             log.warning('session retrieval unavailable trace_id=%s agent=%s kind=%s',
                         self.trace_id, self.agent, type(error).__name__)
         return self.items, state
+
+    async def read(self, ref, state):
+        with evidence(self.agent, self.env, 'reference.read', self.tracer) as ev:
+            result = await self.memory.read_session(ref, self.external, self.owner, state.get('version', 0))
+            items = result.get('items', [])
+            ev.update(version=state.get('version', 0), sourceIds=[ref], count=len(items),
+                      status='stale' if result.get('stale') else 'ok')
+            if items:
+                ev.update({k: items[0][k] for k in ('sha256', 'offset', 'totalChars') if k in items[0]})
+            return result
 
     @staticmethod
     def messages(items, budget):

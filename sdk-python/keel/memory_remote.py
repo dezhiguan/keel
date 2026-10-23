@@ -39,6 +39,15 @@ class UserMemory:
             raise KeelError(ErrorCode.MEMORY_WRITE_DENIED)
         return await self._send("POST", "/session-summary", {**state, "ownerUser": owner, "env": self.env, "sessionId": session})
 
+    async def load_facts(self, session):
+        params = urlencode({'env': self.env, 'sessionId': session})
+        return await self._send('GET', '/session-facts?'+params, None)
+
+    async def save_facts(self, session, state):
+        if self.eval_run_id:
+            raise KeelError(ErrorCode.MEMORY_WRITE_DENIED)
+        return await self._send('POST', '/session-facts', {'env': self.env, 'sessionId': session, 'state': state})
+
     async def search_session(self, session, query, before):
         return await self._send("POST", "/session-history/search", {"env": self.env,
             "sessionId": session, "query": query, "beforeId": before, "limit": 4})

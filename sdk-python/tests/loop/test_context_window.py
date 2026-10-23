@@ -12,6 +12,8 @@ class Summarizer:
         self.fail=fail
 
     async def chat(self, messages, **options):
+        if messages[0].get('content', '').startswith('你是会话事实提取器'):
+            return ChatResult('{"operations":[]}', ())
         self.calls.append((messages, options))
         assert tokens(messages, []) < 10000
         assert options['emit_tokens'] is False and options['tools']==[]
