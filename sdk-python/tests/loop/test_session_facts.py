@@ -200,3 +200,12 @@ def test_ordinary_statement_cannot_be_used_as_confirmation():
     proposal=op('3','12月10日','confirm',[state['facts'][-1]['id']])
     apply(state,proposal,sources)
     assert all(f['status']=='pending' for f in state['facts'])
+
+
+@pytest.mark.parametrize('text',['不要更正为12月10日','我没有确认12月10日','请确认12月10日吗？','是否采用12月10日？'])
+def test_negated_or_questioning_intent_cannot_replace_facts(text):
+    state=empty_state();sources={'1':'12月9日','2':text}
+    apply(state,op('1','12月9日'),sources)
+    proposal=op('2','12月10日','correct');proposal['quote']='12月10日'
+    apply(state,proposal,sources)
+    assert all(f['status']=='pending' for f in state['facts'])

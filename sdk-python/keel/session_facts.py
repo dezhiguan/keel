@@ -39,6 +39,8 @@ def slot(f):
 
 def explicit_intent(text, action):
     certain = re.search(r'我(?:现在|明确|再次)?(?:确认|决定|选定)|明确(?:确认|采用)', text)
+    if re.search(r'(?:不要|不能|没有|并未|尚未|还没|不想|不打算|不应).{0,8}(?:更正|纠正|修改|确认|采用|撤销|作废|取消)', text):
+        return False
     if not certain and (re.search(r'是否|是不是|还是|[?？]\s*$|[吗呢]\s*[。！!]?$', text) or text.lstrip().startswith('请确认')):
         return False
     if action == 'correct':
