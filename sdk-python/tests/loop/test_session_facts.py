@@ -114,7 +114,7 @@ def test_invalid_extraction_does_not_advance_cursor_or_break_chat(tmp_path):
     assert asyncio.run(memory.load_facts(False))['state']['cursorId']=='0'
 
 
-def test_cas_loser_reextracts_against_canonical_state(tmp_path):
+def test_cas_loser_rebases_on_canonical_state_without_reextracting_covered_history(tmp_path):
     base=LiteMemory(LiteStore(tmp_path),'a','s');base.append('user','12月9日')
     class Memory:
         guard=None
@@ -132,7 +132,7 @@ def test_cas_loser_reextracts_against_canonical_state(tmp_path):
             return ChatResult(json.dumps({'operations':[op(k,v) for k,v in rows.items()]}),())
     model=Model();memory=Memory()
     result=asyncio.run(SessionFacts(model,memory,True,'a','staging').collect([]))
-    assert model.calls==2 and result and memory.writes==1
+    assert model.calls==1 and result and memory.writes==1
     assert len(asyncio.run(base.load_facts(False))['state']['facts'])==1
 
 
@@ -171,3 +171,12 @@ def test_session_scope_is_not_a_different_time_condition():
     apply(state,op('2','12月10日',scope=''),sources)
     assert len(state['facts'])==2 and all(f['status']=='pending' for f in state['facts'])
     assert all(f['scope']=='' for f in state['facts'])
+
+
+def test_confirmation_can_target_a_unique_value_extracted_in_the_same_batch():
+    state=empty_state();sources={'1':'12月9日','2':'12月10日','3':'确认12月10日'}
+    apply(state,op('1','12月9日'),sources);apply(state,op('2','12月10日'),sources)
+    choice=op('3','12月10日','confirm');choice['quote']='确认12月10日'
+    apply(state,choice,sources)
+    assert [f['status'] for f in state['facts']]==['superseded','active']
+    assert state['facts'][0]['resolvedBy']==state['facts'][1]['id']
