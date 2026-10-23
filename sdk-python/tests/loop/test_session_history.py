@@ -2,6 +2,7 @@ import asyncio
 import json
 import pytest
 from keel.context_window import ContextWindow, tokens
+from keel.session_facts import POLICY
 from keel.lite.memory import LiteMemory
 from keel.lite.store import LiteStore
 from keel.llm.client import ChatResult
@@ -122,5 +123,5 @@ def test_retrieval_failure_preserves_current_and_recent_messages(tmp_path, monke
     current=[{"role":"user","content":"当前问题"}]
     window=ContextWindow(None,Memory(),'a','staging','s','owner',True,None,'trace')
     result=asyncio.run(window.assemble([],prior,current,[]))
-    assert result[-3:]==[{"role":r['role'],"content":r['content']} for r in prior]+current
-    assert result[0]['role']=='system' and '待确认' in result[0]['content']
+    assert [r for r in result if r.get("content") != POLICY]==[{"role":r['role'],"content":r['content']} for r in prior]+current
+    assert any(r['role']=='system' and '待确认' in r['content'] for r in result)
