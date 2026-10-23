@@ -1,0 +1,1171 @@
+{
+  "verifiedAt": "2026-10-23T10:02:32.869145+00:00",
+  "scope": "isolated staging runtime acceptance, not formal business release",
+  "sdk": {
+    "version": "1.0.17",
+    "source": "8d1b60770fb3d5e4e1b69956603f18a895995131",
+    "wheelSha256": "04e15c7fedaefb229386891293d7e2b411261c520fba4b83ba49e80a484746dd",
+    "localTargetedTests": 67,
+    "fullCiRuns": [
+      39930604254,
+      39930612361
+    ],
+    "releaseRun": 39930612370
+  },
+  "application": {
+    "source": "e7a5205dfe4dd5949b7eeec014553e056461bc4c",
+    "ciRun": 39931062777,
+    "localTests": {
+      "passed": 259,
+      "skipped": 18,
+      "streamProtocolPassed": 3
+    },
+    "runtime": [
+      {
+        "instance": "keel-assistant-6c4c664766-6fn95",
+        "sdk": "1.0.17",
+        "contextBudget": 10000,
+        "governed": true,
+        "officialWheelModulesMatch": {
+          "keel/context_window.py": true,
+          "keel/session_facts.py": true,
+          "keel/session_history.py": true,
+          "keel/memory_evidence.py": true,
+          "keel/memory_remote.py": true
+        }
+      },
+      {
+        "instance": "keel-assistant-6c4c664766-8r5vn",
+        "sdk": "1.0.17",
+        "contextBudget": 10000,
+        "governed": true,
+        "officialWheelModulesMatch": {
+          "keel/context_window.py": true,
+          "keel/session_facts.py": true,
+          "keel/session_history.py": true,
+          "keel/memory_evidence.py": true,
+          "keel/memory_remote.py": true
+        }
+      }
+    ],
+    "imageManifestDigest": "sha256:563ff4c29c70a7363fef5c8a468a2760ba5a1b5142e741225beeb24ffcf8d3b8"
+  },
+  "deployments": [
+    {
+      "deployment": "keel-server",
+      "namespace": "keel-system",
+      "ready": 2,
+      "desired": 2,
+      "image": "docker.io/library/keel-server:billing-5d4b212a6927",
+      "pods": [
+        {
+          "name": "keel-server-5cfd58976f-blhbl",
+          "imageID": "sha256:bf31b2d29545f37e870dbe3b9950b122158672fbf2513683857647cc7bc4b744"
+        },
+        {
+          "name": "keel-server-5cfd58976f-qhtb7",
+          "imageID": "sha256:bf31b2d29545f37e870dbe3b9950b122158672fbf2513683857647cc7bc4b744"
+        }
+      ]
+    },
+    {
+      "deployment": "keel-console",
+      "namespace": "keel-system",
+      "ready": 2,
+      "desired": 2,
+      "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-console:46f8d93ab2b0",
+      "pods": [
+        {
+          "name": "keel-console-c799dfbcd-664jx",
+          "imageID": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-console@sha256:ddf12b1c113dd3d969e38d68bba625b264e2dde71a8ab3a23468d3dc6894532d"
+        },
+        {
+          "name": "keel-console-c799dfbcd-8nchp",
+          "imageID": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-console@sha256:ddf12b1c113dd3d969e38d68bba625b264e2dde71a8ab3a23468d3dc6894532d"
+        }
+      ]
+    },
+    {
+      "deployment": "keel-llm",
+      "namespace": "keel-system",
+      "ready": 2,
+      "desired": 2,
+      "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-llm:385e76391053",
+      "pods": [
+        {
+          "name": "keel-llm-6f89b44dcc-7zn8r",
+          "imageID": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-llm@sha256:dc11d3b003d47fe220c3c96dfb70c21b76ad82abf01e30f208b0e01e99368d96"
+        },
+        {
+          "name": "keel-llm-6f89b44dcc-9jwxx",
+          "imageID": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-llm@sha256:dc11d3b003d47fe220c3c96dfb70c21b76ad82abf01e30f208b0e01e99368d96"
+        }
+      ]
+    },
+    {
+      "deployment": "keel-assistant",
+      "namespace": "agents",
+      "ready": 2,
+      "desired": 2,
+      "image": "docker.io/library/keel-assistant:context-8d1b60770fb3",
+      "pods": [
+        {
+          "name": "keel-assistant-6c4c664766-6fn95",
+          "imageID": "sha256:90a44d066ea98c7b3a5cf86b28063880ae7925f7556f5a3b27dde8bab17e1763"
+        },
+        {
+          "name": "keel-assistant-6c4c664766-8r5vn",
+          "imageID": "sha256:90a44d066ea98c7b3a5cf86b28063880ae7925f7556f5a3b27dde8bab17e1763"
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "case": "conflict",
+      "calls": [
+        {
+          "trace": "53f7bf025645dd78c5bfcb7bc3e4ec66",
+          "instance": "keel-assistant-6c4c664766-6fn95",
+          "elapsedSeconds": 5.8,
+          "event": "final",
+          "errorCode": null
+        },
+        {
+          "trace": "07fbfe5898079fed81d335c2e6664606",
+          "instance": "keel-assistant-6c4c664766-8r5vn",
+          "elapsedSeconds": 12.57,
+          "event": "final",
+          "errorCode": null
+        },
+        {
+          "trace": "c79a211814573a5badde7bc9d48cedb6",
+          "instance": "keel-assistant-6c4c664766-6fn95",
+          "elapsedSeconds": 12.71,
+          "event": "final",
+          "errorCode": null
+        },
+        {
+          "trace": "cb79f8c5e59d8740c84632faaaed211f",
+          "instance": "keel-assistant-6c4c664766-8r5vn",
+          "elapsedSeconds": 11.85,
+          "event": "final",
+          "errorCode": null
+        },
+        {
+          "trace": "85d9ead15104b87a305e5818419ace21",
+          "instance": "keel-assistant-6c4c664766-6fn95",
+          "elapsedSeconds": 16.7,
+          "event": "final",
+          "errorCode": null
+        },
+        {
+          "trace": "2006512b28c140cbcc8419224d1f924c",
+          "instance": "keel-assistant-6c4c664766-6fn95",
+          "elapsedSeconds": 0.62,
+          "event": "error",
+          "errorCode": "AGENT_CONTEXT_EXCEEDED"
+        }
+      ],
+      "postgresState": {
+        "version": 4,
+        "cursorId": "910",
+        "facts": [
+          {
+            "id": "9c2c0c098b2c1ae11ad065c7",
+            "scope": "",
+            "value": "2031年12月9日",
+            "entity": "蓝鹭计划检查日期",
+            "status": "superseded",
+            "replaces": [],
+            "attribute": "约定值",
+            "sourceIds": [
+              "904"
+            ],
+            "resolvedBy": "287c695a1204d98debe9552e"
+          },
+          {
+            "id": "287c695a1204d98debe9552e",
+            "scope": "",
+            "value": "2031年12月10日",
+            "entity": "蓝鹭计划检查日期",
+            "status": "active",
+            "replaces": [
+              "9c2c0c098b2c1ae11ad065c7"
+            ],
+            "attribute": "约定值",
+            "sourceIds": [
+              "906",
+              "910"
+            ]
+          }
+        ],
+        "gaps": []
+      }
+    },
+    {
+      "case": "scope",
+      "calls": [
+        {
+          "trace": "feb1dc18d298c4a93df4a51650d97e83",
+          "instance": "keel-assistant-6c4c664766-6fn95",
+          "elapsedSeconds": 8.04,
+          "event": "final",
+          "errorCode": null
+        },
+        {
+          "trace": "89749e50a913370cc19a7beddccf0ea9",
+          "instance": "keel-assistant-6c4c664766-8r5vn",
+          "elapsedSeconds": 7.06,
+          "event": "final",
+          "errorCode": null
+        },
+        {
+          "trace": "aa5681cfff03ec535fe91ca87b98d95c",
+          "instance": "keel-assistant-6c4c664766-6fn95",
+          "elapsedSeconds": 10.66,
+          "event": "final",
+          "errorCode": null
+        },
+        {
+          "trace": "3b6655f42eb36967078a878bed8cd14e",
+          "instance": "keel-assistant-6c4c664766-8r5vn",
+          "elapsedSeconds": 5.92,
+          "event": "final",
+          "errorCode": null
+        }
+      ],
+      "postgresState": {
+        "version": 3,
+        "cursorId": "918",
+        "facts": [
+          {
+            "id": "384e5be432811ba48c97f4c9",
+            "scope": "",
+            "value": "12月9日",
+            "entity": "白鹭计划",
+            "status": "retracted",
+            "replaces": [],
+            "attribute": "今年检查日期",
+            "sourceIds": [
+              "914",
+              "918"
+            ]
+          },
+          {
+            "id": "9db86ddb76564dfdc56aab68",
+            "scope": "",
+            "value": "12月10日",
+            "entity": "白鹭计划",
+            "status": "active",
+            "replaces": [],
+            "attribute": "明年检查日期",
+            "sourceIds": [
+              "914"
+            ]
+          }
+        ],
+        "gaps": []
+      }
+    },
+    {
+      "case": "race",
+      "calls": [
+        {
+          "trace": "34bf8d9ffc67918b8b22e6be6c8e28aa",
+          "instance": "keel-assistant-6c4c664766-6fn95",
+          "elapsedSeconds": 10.68,
+          "event": "final",
+          "errorCode": null
+        },
+        {
+          "trace": "155e2144d349153c458a663d18d3f894",
+          "instance": "keel-assistant-6c4c664766-8r5vn",
+          "elapsedSeconds": 14.24,
+          "event": "final",
+          "errorCode": null
+        }
+      ],
+      "postgresState": {
+        "version": 1,
+        "cursorId": "924",
+        "facts": [
+          {
+            "id": "29e4eeb77b14a61261d937ff",
+            "scope": "",
+            "value": "2033年11月6日",
+            "entity": "朱雀计划",
+            "status": "pending",
+            "replaces": [],
+            "attribute": "检查日期",
+            "sourceIds": [
+              "922"
+            ]
+          },
+          {
+            "id": "b8e2968ac623780215fdca97",
+            "scope": "",
+            "value": "2033年11月7日",
+            "entity": "朱雀计划",
+            "status": "pending",
+            "replaces": [],
+            "attribute": "检查日期",
+            "sourceIds": [
+              "924"
+            ]
+          }
+        ],
+        "gaps": []
+      },
+      "beforePostgresState": {
+        "cursorId": "0",
+        "version": 0,
+        "facts": [],
+        "gaps": []
+      }
+    },
+    {
+      "case": "summary",
+      "calls": [
+        {
+          "trace": "75b50d266f8a3452519214db626e4bac",
+          "instance": "keel-assistant-6c4c664766-6fn95",
+          "elapsedSeconds": 8.55,
+          "event": "final",
+          "errorCode": null
+        },
+        {
+          "trace": "09f4ec97686fa99b3b39015af3838b1e",
+          "instance": "keel-assistant-6c4c664766-8r5vn",
+          "elapsedSeconds": 13.52,
+          "event": "final",
+          "errorCode": null
+        }
+      ],
+      "summary": {
+        "version": 1,
+        "throughId": "927",
+        "sourceIds": [
+          "926",
+          "927"
+        ],
+        "sha256": "05bc82b2960727c4729a719c2160a991b2e1a701aff48492649e05a25ddf2e57"
+      }
+    },
+    {
+      "case": "recovery",
+      "calls": [
+        {
+          "trace": "9ecdb62cd34abd47fc1b01c9d81ff1c0",
+          "instance": "keel-assistant-6c4c664766-8r5vn",
+          "elapsedSeconds": 18.33,
+          "event": "final",
+          "errorCode": null
+        }
+      ],
+      "postgresState": {
+        "version": 3,
+        "cursorId": "898",
+        "facts": [
+          {
+            "id": "a3d911c37469c696364f1233",
+            "scope": "",
+            "value": "2031年12月9日",
+            "entity": "蓝鹭计划",
+            "status": "superseded",
+            "replaces": [],
+            "attribute": "检查日期",
+            "sourceIds": [
+              "888"
+            ],
+            "resolvedBy": "9bffaf2dc1b702d92d77ee0f"
+          },
+          {
+            "id": "9bffaf2dc1b702d92d77ee0f",
+            "scope": "",
+            "value": "2031年12月10日",
+            "entity": "蓝鹭计划",
+            "status": "active",
+            "replaces": [
+              "a3d911c37469c696364f1233"
+            ],
+            "attribute": "检查日期",
+            "sourceIds": [
+              "890",
+              "894"
+            ]
+          }
+        ],
+        "gaps": []
+      }
+    }
+  ],
+  "traceProof": [
+    {
+      "case": "conflict",
+      "question": "只依据本会话：蓝鹭计划检查日期已经确定了吗？有矛盾的话请指出，不要替我选。",
+      "trace": "c79a211814573a5badde7bc9d48cedb6",
+      "terminal": "final",
+      "memory": [
+        {
+          "name": "memory.context",
+          "id": "01adf17341e83d4c",
+          "evidence": {
+            "operation": "context",
+            "status": "ok",
+            "tokens": 4168,
+            "budget": 10000,
+            "version": 0,
+            "sourceIds": [],
+            "used": false,
+            "count": 2,
+            "sha256": ""
+          }
+        },
+        {
+          "name": "memory.summary",
+          "id": "268f9d2bb0d343d6",
+          "evidence": {
+            "operation": "summary",
+            "status": "ok",
+            "version": 0,
+            "cursorId": "0",
+            "sourceIds": [],
+            "count": 0
+          }
+        },
+        {
+          "name": "memory.facts",
+          "id": "dea070e3a366040e",
+          "evidence": {
+            "operation": "facts",
+            "status": "ok",
+            "version": 2,
+            "cursorId": "906",
+            "count": 2,
+            "pending": 2,
+            "superseded": 0,
+            "sourceIds": [
+              "906",
+              "current"
+            ],
+            "gaps": 0,
+            "more": false
+          }
+        },
+        {
+          "name": "memory.history.search",
+          "id": "523942a1e12db6d2",
+          "evidence": {
+            "operation": "history.search",
+            "status": "ok",
+            "count": 0,
+            "sourceIds": []
+          }
+        }
+      ],
+      "generations": [
+        {
+          "factVersion": 2,
+          "factStatuses": [
+            "pending",
+            "pending"
+          ],
+          "id": "799da36e4c5eca7c",
+          "factsExtractor": false,
+          "summaryInput": false,
+          "retrievedOriginalInput": false,
+          "factLedgerInput": true,
+          "inputUsage": 3181,
+          "outputUsage": 476
+        },
+        {
+          "factVersion": null,
+          "factStatuses": [],
+          "id": "f53d836fb5bf0829",
+          "factsExtractor": true,
+          "summaryInput": false,
+          "retrievedOriginalInput": false,
+          "factLedgerInput": false,
+          "inputUsage": 758,
+          "outputUsage": 130
+        }
+      ]
+    },
+    {
+      "case": "conflict",
+      "question": "请复述蓝鹭计划目前确认的日期和旧日期的关系；能提供原始消息编号就附上，不确定不要猜。",
+      "trace": "85d9ead15104b87a305e5818419ace21",
+      "terminal": "final",
+      "memory": [
+        {
+          "name": "memory.context",
+          "id": "e8491008752739cf",
+          "evidence": {
+            "operation": "context",
+            "status": "ok",
+            "tokens": 4554,
+            "budget": 10000,
+            "version": 0,
+            "sourceIds": [],
+            "used": false,
+            "count": 2,
+            "sha256": ""
+          }
+        },
+        {
+          "name": "memory.summary",
+          "id": "6ad255dae03f938a",
+          "evidence": {
+            "operation": "summary",
+            "status": "ok",
+            "version": 0,
+            "cursorId": "0",
+            "sourceIds": [],
+            "count": 0
+          }
+        },
+        {
+          "name": "memory.facts",
+          "id": "f2cf4ba0780a7674",
+          "evidence": {
+            "operation": "facts",
+            "status": "ok",
+            "version": 4,
+            "cursorId": "910",
+            "count": 2,
+            "pending": 0,
+            "superseded": 1,
+            "sourceIds": [
+              "910",
+              "current"
+            ],
+            "gaps": 0,
+            "more": false
+          }
+        },
+        {
+          "name": "memory.history.search",
+          "id": "56ebe8f518f84da2",
+          "evidence": {
+            "operation": "history.search",
+            "status": "ok",
+            "count": 0,
+            "sourceIds": []
+          }
+        }
+      ],
+      "generations": [
+        {
+          "factVersion": 4,
+          "factStatuses": [
+            "superseded",
+            "active"
+          ],
+          "id": "180e0cc6754b4ad9",
+          "factsExtractor": false,
+          "summaryInput": false,
+          "retrievedOriginalInput": false,
+          "factLedgerInput": true,
+          "inputUsage": 3538,
+          "outputUsage": 492
+        },
+        {
+          "factVersion": null,
+          "factStatuses": [],
+          "id": "0260cef200449df5",
+          "factsExtractor": true,
+          "summaryInput": false,
+          "retrievedOriginalInput": false,
+          "factLedgerInput": false,
+          "inputUsage": 913,
+          "outputUsage": 109
+        },
+        {
+          "factVersion": null,
+          "factStatuses": [],
+          "id": "510eb4416b308770",
+          "factsExtractor": true,
+          "summaryInput": false,
+          "retrievedOriginalInput": false,
+          "factLedgerInput": false,
+          "inputUsage": 855,
+          "outputUsage": 208
+        }
+      ]
+    },
+    {
+      "case": "conflict",
+      "question": "测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测测",
+      "trace": "2006512b28c140cbcc8419224d1f924c",
+      "terminal": "error",
+      "memory": [],
+      "generations": []
+    },
+    {
+      "case": "race",
+      "question": "只依据会话记录回答：朱雀计划目前确定的检查日期是什么？存在矛盾时请说明并让我确认，不要替我选。",
+      "trace": "34bf8d9ffc67918b8b22e6be6c8e28aa",
+      "terminal": "final",
+      "memory": [
+        {
+          "name": "memory.context",
+          "id": "27c7a8b3ce743424",
+          "evidence": {
+            "operation": "context",
+            "status": "ok",
+            "tokens": 3987,
+            "budget": 10000,
+            "version": 0,
+            "sourceIds": [],
+            "used": false,
+            "count": 2,
+            "sha256": ""
+          }
+        },
+        {
+          "name": "memory.summary",
+          "id": "030acf9af6564616",
+          "evidence": {
+            "operation": "summary",
+            "status": "ok",
+            "version": 0,
+            "cursorId": "0",
+            "sourceIds": [],
+            "count": 0
+          }
+        },
+        {
+          "name": "memory.facts",
+          "id": "ec7d58d31d09abda",
+          "evidence": {
+            "operation": "facts",
+            "status": "ok",
+            "version": 1,
+            "cursorId": "924",
+            "count": 2,
+            "pending": 2,
+            "superseded": 0,
+            "sourceIds": [
+              "922",
+              "924",
+              "current"
+            ],
+            "gaps": 0,
+            "more": false
+          }
+        },
+        {
+          "name": "memory.history.search",
+          "id": "81c9e967e92a70ab",
+          "evidence": {
+            "operation": "history.search",
+            "status": "ok",
+            "count": 0,
+            "sourceIds": []
+          }
+        }
+      ],
+      "generations": [
+        {
+          "factVersion": 1,
+          "factStatuses": [
+            "pending",
+            "pending"
+          ],
+          "id": "0b3b3801c3b86e76",
+          "factsExtractor": false,
+          "summaryInput": false,
+          "retrievedOriginalInput": false,
+          "factLedgerInput": true,
+          "inputUsage": 3024,
+          "outputUsage": 295
+        },
+        {
+          "factVersion": null,
+          "factStatuses": [],
+          "id": "80cc4496edb2bb79",
+          "factsExtractor": true,
+          "summaryInput": false,
+          "retrievedOriginalInput": false,
+          "factLedgerInput": false,
+          "inputUsage": 696,
+          "outputUsage": 129
+        }
+      ]
+    },
+    {
+      "case": "race",
+      "question": "只依据会话记录回答：朱雀计划目前确定的检查日期是什么？存在矛盾时请说明并让我确认，不要替我选。",
+      "trace": "155e2144d349153c458a663d18d3f894",
+      "terminal": "final",
+      "memory": [
+        {
+          "name": "memory.context",
+          "id": "351aa1766cfe43cb",
+          "evidence": {
+            "operation": "context",
+            "status": "ok",
+            "tokens": 3987,
+            "budget": 10000,
+            "version": 0,
+            "sourceIds": [],
+            "used": false,
+            "count": 2,
+            "sha256": ""
+          }
+        },
+        {
+          "name": "memory.summary",
+          "id": "f5992c4bc6c5d262",
+          "evidence": {
+            "operation": "summary",
+            "status": "ok",
+            "version": 0,
+            "cursorId": "0",
+            "sourceIds": [],
+            "count": 0
+          }
+        },
+        {
+          "name": "memory.facts",
+          "id": "8346848ed1c0c466",
+          "evidence": {
+            "operation": "facts",
+            "status": "ok",
+            "version": 1,
+            "cursorId": "924",
+            "count": 2,
+            "pending": 2,
+            "superseded": 0,
+            "sourceIds": [
+              "922",
+              "924",
+              "current"
+            ],
+            "gaps": 0,
+            "more": false
+          }
+        },
+        {
+          "name": "memory.history.search",
+          "id": "a40aad0629862783",
+          "evidence": {
+            "operation": "history.search",
+            "status": "ok",
+            "count": 0,
+            "sourceIds": []
+          }
+        }
+      ],
+      "generations": [
+        {
+          "factVersion": 1,
+          "factStatuses": [
+            "pending",
+            "pending"
+          ],
+          "id": "bf885d41cd463b74",
+          "factsExtractor": false,
+          "summaryInput": false,
+          "retrievedOriginalInput": false,
+          "factLedgerInput": true,
+          "inputUsage": 3028,
+          "outputUsage": 311
+        },
+        {
+          "factVersion": null,
+          "factStatuses": [],
+          "id": "9ce8808e9334b058",
+          "factsExtractor": true,
+          "summaryInput": false,
+          "retrievedOriginalInput": false,
+          "factLedgerInput": false,
+          "inputUsage": 700,
+          "outputUsage": 129
+        }
+      ]
+    },
+    {
+      "case": "summary",
+      "question": "请回查摘要出处，复述最早的约定；不确定不要猜。",
+      "trace": "09f4ec97686fa99b3b39015af3838b1e",
+      "terminal": "final",
+      "memory": [
+        {
+          "name": "memory.context",
+          "id": "e863f7a08eb92bb6",
+          "evidence": {
+            "operation": "context",
+            "status": "ok",
+            "tokens": 7569,
+            "budget": 10000,
+            "version": 1,
+            "sourceIds": [
+              "926",
+              "927"
+            ],
+            "used": true,
+            "count": 3,
+            "sha256": "05bc82b2960727c4729a719c2160a991b2e1a701aff48492649e05a25ddf2e57"
+          }
+        },
+        {
+          "name": "memory.summary",
+          "id": "abd1d00d0b518100",
+          "evidence": {
+            "operation": "summary",
+            "status": "ok",
+            "version": 1,
+            "cursorId": "927",
+            "sourceIds": [
+              "926",
+              "927"
+            ],
+            "count": 92
+          }
+        },
+        {
+          "name": "memory.facts",
+          "id": "52bd51334f36d6ad",
+          "evidence": {
+            "operation": "facts",
+            "status": "incomplete",
+            "version": 2,
+            "cursorId": "956",
+            "count": 0,
+            "pending": 0,
+            "superseded": 0,
+            "sourceIds": [
+              "942",
+              "944",
+              "946",
+              "948",
+              "950",
+              "952",
+              "954",
+              "956",
+              "current"
+            ],
+            "gaps": 1,
+            "more": true
+          }
+        },
+        {
+          "name": "memory.reference.read",
+          "id": "c89c473feebb512e",
+          "evidence": {
+            "operation": "reference.read",
+            "status": "ok",
+            "version": 1,
+            "sourceIds": [
+              "927"
+            ],
+            "count": 1,
+            "sha256": "d55b704f1348a1eead227fe3eba91e476fdad55bfcf9f772b23583127eae46ff",
+            "offset": 0,
+            "totalChars": 3
+          }
+        },
+        {
+          "name": "memory.reference.read",
+          "id": "7f4019d93dfa4f89",
+          "evidence": {
+            "operation": "reference.read",
+            "status": "ok",
+            "version": 1,
+            "sourceIds": [
+              "926"
+            ],
+            "count": 1,
+            "sha256": "41b4507cf889216eec2e13a792cbb45c4b00b8adb586a7af6391db24363364a8",
+            "offset": 0,
+            "totalChars": 6532
+          }
+        },
+        {
+          "name": "memory.history.search",
+          "id": "a55d965f78ce85d6",
+          "evidence": {
+            "operation": "history.search",
+            "status": "ok",
+            "count": 0,
+            "sourceIds": []
+          }
+        }
+      ],
+      "generations": [
+        {
+          "factVersion": 2,
+          "factStatuses": [],
+          "id": "8b1397521094a1f9",
+          "factsExtractor": false,
+          "summaryInput": true,
+          "retrievedOriginalInput": true,
+          "factLedgerInput": true,
+          "inputUsage": 5665,
+          "outputUsage": 514
+        },
+        {
+          "factVersion": null,
+          "factStatuses": [],
+          "id": "d62cb43204eee78e",
+          "factsExtractor": true,
+          "summaryInput": false,
+          "retrievedOriginalInput": false,
+          "factLedgerInput": false,
+          "inputUsage": 919,
+          "outputUsage": 40
+        }
+      ]
+    },
+    {
+      "case": "recovery",
+      "question": "请核对我已明确确认的现行日期及旧日期关系；只按会话原文回答，不要猜。",
+      "trace": "9ecdb62cd34abd47fc1b01c9d81ff1c0",
+      "terminal": "final",
+      "memory": [
+        {
+          "name": "memory.context",
+          "id": "6c0e45d63e5bc0c0",
+          "evidence": {
+            "operation": "context",
+            "status": "ok",
+            "tokens": 4822,
+            "budget": 10000,
+            "version": 0,
+            "sourceIds": [],
+            "used": false,
+            "count": 2,
+            "sha256": ""
+          }
+        },
+        {
+          "name": "memory.summary",
+          "id": "0eff91d7e036b6b6",
+          "evidence": {
+            "operation": "summary",
+            "status": "ok",
+            "version": 0,
+            "cursorId": "0",
+            "sourceIds": [],
+            "count": 0
+          }
+        },
+        {
+          "name": "memory.facts",
+          "id": "ba705b8d260eea0f",
+          "evidence": {
+            "operation": "facts",
+            "status": "ok",
+            "version": 3,
+            "cursorId": "898",
+            "count": 2,
+            "pending": 0,
+            "superseded": 1,
+            "sourceIds": [
+              "892",
+              "894",
+              "896",
+              "898",
+              "current"
+            ],
+            "gaps": 0,
+            "more": false
+          }
+        },
+        {
+          "name": "memory.history.search",
+          "id": "17eb539552e1a57b",
+          "evidence": {
+            "operation": "history.search",
+            "status": "ok",
+            "count": 0,
+            "sourceIds": []
+          }
+        }
+      ],
+      "generations": [
+        {
+          "factVersion": 3,
+          "factStatuses": [
+            "superseded",
+            "active"
+          ],
+          "id": "628a920eae866253",
+          "factsExtractor": false,
+          "summaryInput": false,
+          "retrievedOriginalInput": false,
+          "factLedgerInput": true,
+          "inputUsage": 3746,
+          "outputUsage": 503
+        },
+        {
+          "factVersion": null,
+          "factStatuses": [],
+          "id": "7be455e9f51c59ad",
+          "factsExtractor": true,
+          "summaryInput": false,
+          "retrievedOriginalInput": false,
+          "factLedgerInput": false,
+          "inputUsage": 947,
+          "outputUsage": 187
+        }
+      ]
+    }
+  ],
+  "consoleMemoryMapping": [
+    {
+      "name": "memory.context",
+      "memoryEvidence": {
+        "operation": "context",
+        "status": "ok",
+        "version": "1",
+        "sourceIds": "[\"926\",\"927\"]",
+        "count": "3",
+        "sha256": "05bc82b2960727c4729a719c2160a991b2e1a701aff48492649e05a25ddf2e57",
+        "used": "true",
+        "tokens": "7569",
+        "budget": "10000"
+      },
+      "id": "e863f7a08eb92bb6"
+    },
+    {
+      "name": "memory.summary",
+      "memoryEvidence": {
+        "operation": "summary",
+        "status": "ok",
+        "version": "1",
+        "cursorId": "927",
+        "sourceIds": "[\"926\",\"927\"]",
+        "count": "92"
+      },
+      "id": "abd1d00d0b518100"
+    },
+    {
+      "name": "memory.facts",
+      "memoryEvidence": {
+        "operation": "facts",
+        "status": "incomplete",
+        "version": "2",
+        "cursorId": "956",
+        "sourceIds": "[\"942\",\"944\",\"946\",\"948\",\"950\",\"952\",\"954\",\"956\",\"current\"]",
+        "count": "0",
+        "pending": "0",
+        "superseded": "0",
+        "gaps": "1",
+        "more": "true"
+      },
+      "id": "52bd51334f36d6ad"
+    },
+    {
+      "name": "memory.reference.read",
+      "memoryEvidence": {
+        "operation": "reference.read",
+        "status": "ok",
+        "version": "1",
+        "sourceIds": "[\"927\"]",
+        "count": "1",
+        "sha256": "d55b704f1348a1eead227fe3eba91e476fdad55bfcf9f772b23583127eae46ff",
+        "offset": "0",
+        "totalChars": "3"
+      },
+      "id": "c89c473feebb512e"
+    },
+    {
+      "name": "memory.reference.read",
+      "memoryEvidence": {
+        "operation": "reference.read",
+        "status": "ok",
+        "version": "1",
+        "sourceIds": "[\"926\"]",
+        "count": "1",
+        "sha256": "41b4507cf889216eec2e13a792cbb45c4b00b8adb586a7af6391db24363364a8",
+        "offset": "0",
+        "totalChars": "6532"
+      },
+      "id": "7f4019d93dfa4f89"
+    },
+    {
+      "name": "memory.history.search",
+      "memoryEvidence": {
+        "operation": "history.search",
+        "status": "ok",
+        "sourceIds": "[]",
+        "count": "0"
+      },
+      "id": "a55d965f78ce85d6"
+    }
+  ],
+  "billing": {
+    "budgetCny": 110,
+    "appCredentialsUnchanged": true,
+    "retiredDevTestKeys": [],
+    "finalRun": {
+      "rows": 29,
+      "states": {
+        "SETTLED": 29
+      },
+      "settledCny": "0.067964"
+    },
+    "allLinkedVerification": {
+      "rows": 111,
+      "states": {
+        "SETTLED": 110,
+        "FAILED": 1
+      },
+      "settledCny": "0.315359"
+    }
+  },
+  "cleanup": {
+    "isolatedSessionsRemoved": 15,
+    "remainingPostgresRows": {
+      "session_fact_state": 0,
+      "session_summary": 0,
+      "session_message": 0,
+      "agent_session": 0
+    },
+    "local": [
+      {
+        "instance": "keel-assistant-6c4c664766-6fn95",
+        "deletedLocalRows": {
+          "session_message": 14,
+          "session_summary": 0,
+          "session_fact_state": 0
+        },
+        "remainingLocalRows": {
+          "session_message": 0,
+          "session_summary": 0,
+          "session_fact_state": 0
+        }
+      },
+      {
+        "instance": "keel-assistant-6c4c664766-8r5vn",
+        "deletedLocalRows": {
+          "session_message": 16,
+          "session_summary": 0,
+          "session_fact_state": 0
+        },
+        "remainingLocalRows": {
+          "session_message": 0,
+          "session_summary": 0,
+          "session_fact_state": 0
+        }
+      }
+    ],
+    "originalConversation": {
+      "before": 52,
+      "now": 52,
+      "originalsUnchanged": true
+    },
+    "traceAuditBillingRetained": true
+  },
+  "limits": {
+    "contextInputTokens": 10000,
+    "maxFactMaintenanceSeconds": 35,
+    "sharedMemoryDeadlineSeconds": 60,
+    "maxProposalAttempts": 2
+  },
+  "browserClickVerification": "not performed: saved test login expired; verified observed data, production mapping logic and deployed static asset",
+  "earlierKnownTransportInterruptedTrace": "f038f6e02be413d358598650e11b46e7"
+}
