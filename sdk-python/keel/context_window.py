@@ -130,7 +130,7 @@ class ContextWindow:
                     with observe(self.agent, self.env, 'summary', getattr(self.llm, 'tracer', None)) as ev:
                         ev.update(version=self.state.get('version', 0), sourceIds=list(allowed_ids), status='attempted')
                         async with asyncio.timeout(min(25, remaining)):
-                            response = await self.llm.chat(messages, tools=[], emit_tokens=False, max_tokens=512)
+                            response = await self.llm.chat(messages, tools=[], emit_tokens=False, max_tokens=512, purpose="memory")
                         ev['status'] = 'ok'
                     candidate = getattr(response, "content", response)
                     marker = getattr(getattr(self.memory, "guard", None), "canary", None)

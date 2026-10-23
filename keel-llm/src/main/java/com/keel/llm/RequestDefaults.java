@@ -18,21 +18,7 @@ final class RequestDefaults {
                     throw new IllegalArgumentException();
                 for (var models = alias.getValue().fields(); models.hasNext();) {
                     var model = models.next();
-                    if (model.getKey().isBlank() || !model.getValue().isObject()) throw new IllegalArgumentException();
-                    for (var fields = model.getValue().fields(); fields.hasNext();) {
-                        var field = fields.next();
-                        var valid = switch (field.getKey()) {
-                            case "enable_thinking", "preserve_thinking" -> field.getValue().isBoolean();
-                            case "thinking_budget" -> field.getValue().isIntegralNumber()
-                                    && field.getValue().canConvertToInt() && field.getValue().intValue() > 0;
-                            case "thinking" -> field.getValue().isObject() && field.getValue().size() == 1
-                                    && field.getValue().path("type").isTextual()
-                                    && (field.getValue().path("type").asText().equals("enabled")
-                                    || field.getValue().path("type").asText().equals("disabled"));
-                            default -> false;
-                        };
-                        if (!valid) throw new IllegalArgumentException();
-                    }
+                    if (model.getKey().isBlank() || !valid(model.getValue(), true)) throw new IllegalArgumentException();
                 }
             }
         } catch (Exception error) {
@@ -40,15 +26,38 @@ final class RequestDefaults {
         }
     }
 
+    private static boolean valid(JsonNode options, boolean allowMemory) {
+        if (!options.isObject()) return false;
+        for (var fields=options.fields();fields.hasNext();) {
+            var field=fields.next();var value=field.getValue();
+            boolean accepted=switch(field.getKey()) {
+                case "enable_thinking", "preserve_thinking" -> value.isBoolean();
+                case "thinking_budget" -> value.isIntegralNumber() && value.canConvertToInt() && value.intValue()>0;
+                case "thinking" -> value.isObject() && value.size()==1 && value.path("type").isTextual()
+                        && (value.path("type").asText().equals("enabled") || value.path("type").asText().equals("disabled"));
+                case "memory" -> allowMemory && valid(value, false);
+                default -> false;
+            };
+            if (!accepted) return false;
+        }
+        return true;
+    }
+
     String apply(ObjectNode original, String alias, String model, String path) {
         var body = original.deepCopy().put("model", model);
         if ("/v1/chat/completions".equals(path)) {
-            scopes.path(alias).path(model).fields().forEachRemaining(field -> {
-                if (!body.has(field.getKey())
-                        && !(field.getKey().equals("thinking_budget") && body.has("reasoning_effort"))) {
+            var options=scopes.path(alias).path(model);
+            options.fields().forEachRemaining(field -> {
+                if (!field.getKey().equals("memory") && !body.has(field.getKey())
+                        && !(field.getKey().equals("thinking_budget") && body.has("reasoning_effort")))
                     body.set(field.getKey(), field.getValue());
-                }
             });
+            boolean maintenance="memory".equals(body.path("metadata").path("keel_task").asText());
+            if(body.path("metadata") instanceof ObjectNode metadata) metadata.remove("keel_task");
+            if(maintenance && options.path("memory").isObject()) {
+                for(var key:java.util.List.of("enable_thinking","preserve_thinking","thinking_budget","thinking","reasoning_effort","reasoning")) body.remove(key);
+                options.path("memory").fields().forEachRemaining(field->body.set(field.getKey(),field.getValue()));
+            }
         }
         return body.toString();
     }

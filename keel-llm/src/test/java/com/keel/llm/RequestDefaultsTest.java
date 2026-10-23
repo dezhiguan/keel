@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.*;
 class RequestDefaultsTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final String CONFIG = """
-        {"meta-agent-dev":{"qwen3.8-flash":{"thinking_budget":2048,"preserve_thinking":false}}}
+        {"meta-agent-dev":{"qwen3.8-flash":{"thinking_budget":2048,"preserve_thinking":false,"memory":{"enable_thinking":false}}}}
         """;
 
     @Test void actualForwardingUsesAuthenticatedAliasAndPreservesExplicitOptions() throws Exception {
@@ -47,7 +47,7 @@ class RequestDefaultsTest {
             var request = "{\"model\":\"qwen3.8-flash\",\"messages\":[{\"role\":\"user\",\"content\":\"draft\"}]}";
             gateway.complete("Bearer " + meta.key(), "/v1/chat/completions", request, Duration.ofSeconds(3));
             var forged = (ObjectNode) JSON.readTree(request);
-            forged.putObject("metadata").put("caller_agent", "meta-agent");
+            forged.putObject("metadata").put("caller_agent", "meta-agent").put("keel_task", "memory");
             gateway.complete("Bearer " + other.key(), "/v1/chat/completions", forged.toString(), Duration.ofSeconds(3));
             var explicit = (ObjectNode) JSON.readTree(request);
             explicit.put("thinking_budget", 4096).put("preserve_thinking", true);
@@ -55,6 +55,13 @@ class RequestDefaultsTest {
             var effort = (ObjectNode) JSON.readTree(request);
             effort.put("reasoning_effort", "medium");
             gateway.complete("Bearer " + meta.key(), "/v1/chat/completions", effort.toString(), Duration.ofSeconds(3));
+            var maintenance=(ObjectNode)JSON.readTree(request);
+            maintenance.putObject("metadata").put("keel_task","memory");
+            gateway.complete("Bearer " + meta.key(), "/v1/chat/completions", maintenance.toString(), Duration.ofSeconds(3));
+            assertThat(seen.get(4).path("enable_thinking").asBoolean(true)).isFalse();
+            assertThat(seen.get(4).has("thinking_budget")).isFalse();
+            assertThat(seen.get(4).path("metadata").has("keel_task")).isFalse();
+            assertThat(seen.get(1).has("enable_thinking")).isFalse();
             assertThat(seen.get(0).path("thinking_budget").asInt()).isEqualTo(2048);
             assertThat(seen.get(0).path("preserve_thinking").asBoolean()).isFalse();
             assertThat(seen.get(0).get("messages")).isEqualTo(JSON.readTree(request).get("messages"));
@@ -62,7 +69,7 @@ class RequestDefaultsTest {
             assertThat(seen.get(2).path("thinking_budget").asInt()).isEqualTo(4096);
             assertThat(seen.get(2).path("preserve_thinking").asBoolean()).isTrue();
             assertThat(seen.get(3).has("thinking_budget")).isFalse();
-            assertThat(gateway.spend("meta-agent-dev", 1, 10)).hasSize(3);
+            assertThat(gateway.spend("meta-agent-dev", 1, 10)).hasSize(4);
         } finally {
             server.stop(0);
         }
@@ -110,4 +117,35 @@ class RequestDefaultsTest {
     void invalidOrIdentityChangingConfigurationRefusesStartup(String config) {
         assertThatThrownBy(() -> new RequestDefaults(config)).isInstanceOf(IllegalArgumentException.class);
     }
+    @Test void memoryProfileIsScopedAndNeverChangesOrdinaryCalls() throws Exception {
+        var defaults=new RequestDefaults("""
+          {"keel-assistant-staging":{"qwen3.8-flash":{"thinking_budget":2048,"memory":{"enable_thinking":false}},
+          "deepseek-flash":{"memory":{"thinking":{"type":"disabled"}}}}}
+          """);
+        var original=(ObjectNode)JSON.readTree("{\"model\":\"chat-default\",\"messages\":[]}");
+        var ordinary=JSON.readTree(defaults.apply(original,"keel-assistant-staging","qwen3.8-flash","/v1/chat/completions"));
+        assertThat(ordinary.path("thinking_budget").asInt()).isEqualTo(2048);
+        assertThat(ordinary.has("enable_thinking")).isFalse();assertThat(ordinary.has("memory")).isFalse();
+        original.putObject("metadata").put("caller_agent","keel-assistant").put("keel_task","memory");
+        original.put("reasoning_effort","high");
+        var qwen=JSON.readTree(defaults.apply(original,"keel-assistant-staging","qwen3.8-flash","/v1/chat/completions"));
+        assertThat(qwen.path("enable_thinking").asBoolean(true)).isFalse();
+        assertThat(qwen.has("thinking_budget")).isFalse();assertThat(qwen.has("reasoning_effort")).isFalse();
+        assertThat(qwen.path("metadata").has("keel_task")).isFalse();
+        assertThat(qwen.path("metadata").path("caller_agent").asText()).isEqualTo("keel-assistant");
+        var deepseek=JSON.readTree(defaults.apply(original,"keel-assistant-staging","deepseek-flash","/v1/chat/completions"));
+        assertThat(deepseek.path("thinking").path("type").asText()).isEqualTo("disabled");
+        assertThat(deepseek.has("enable_thinking")).isFalse();
+        var other=JSON.readTree(defaults.apply(original,"other-agent-staging","qwen3.8-flash","/v1/chat/completions"));
+        assertThat(other.has("enable_thinking")).isFalse();assertThat(other.path("reasoning_effort").asText()).isEqualTo("high");
+        assertThat(JSON.readTree(defaults.apply(original,"keel-assistant-staging","another","/v1/chat/completions")).has("enable_thinking")).isFalse();
+        assertThat(JSON.readTree(defaults.apply(original,"keel-assistant-staging","qwen3.8-flash","/v1/embeddings")).has("enable_thinking")).isFalse();
+        assertThat(original.path("metadata").has("keel_task")).isTrue();
+    }
+    @Test void memoryProfileRejectsNestedOrIdentityChangingOptions() {
+        for(var options:java.util.List.of("{\"memory\":{}}","{\"model\":\"other\"}","{\"enable_thinking\":\"false\"}"))
+            assertThatThrownBy(()->new RequestDefaults("{\"keel-assistant-staging\":{\"qwen3.8-flash\":{\"memory\":"+options+"}}}"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
 }
