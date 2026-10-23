@@ -180,3 +180,23 @@ def test_confirmation_can_target_a_unique_value_extracted_in_the_same_batch():
     apply(state,choice,sources)
     assert [f['status'] for f in state['facts']]==['superseded','active']
     assert state['facts'][0]['resolvedBy']==state['facts'][1]['id']
+
+
+def test_invented_current_correction_is_downgraded_and_targets_are_derived():
+    state=empty_state();sources={'1':'12月9日','current':'12月10日','3':'更正为12月11日'}
+    apply(state,op('1','12月9日'),sources)
+    proposal=op('current','12月10日','correct',['1:invented-id']);proposal['quote']='12月10日'
+    apply(state,proposal,sources)
+    assert [f['status'] for f in state['facts']]==['pending','pending']
+    known={f['id'] for f in state['facts']}
+    apply(state,op('3','12月11日','correct',['invented-id']),sources)
+    assert [f['status'] for f in state['facts']]==['superseded','superseded','active']
+    assert set(state['facts'][-1]['replaces'])==known
+
+
+def test_ordinary_statement_cannot_be_used_as_confirmation():
+    state=empty_state();sources={'1':'12月9日','2':'12月10日','3':'12月10日'}
+    apply(state,op('1','12月9日'),sources);apply(state,op('2','12月10日'),sources)
+    proposal=op('3','12月10日','confirm',[state['facts'][-1]['id']])
+    apply(state,proposal,sources)
+    assert all(f['status']=='pending' for f in state['facts'])

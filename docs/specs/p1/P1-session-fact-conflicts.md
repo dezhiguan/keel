@@ -27,3 +27,6 @@
 
 ## Langfuse真实读取格式
 2026-10-23部署实测v2 observations把attributes.keel.memory.evidence解析为JSON对象，而非SDK上报时的字符串。服务端需兼容扁平/嵌套attributes中的字符串和对象；只为该精确属性序列化对象，再走既有白名单与大小限制。不能因对象形态丢掉面板，也不能扩展到任意metadata原文。用真实观测形态回归并核对实际节点。
+
+## 明确意图与引用校验
+SDK14真实提取把普通日期陈述标为correct并编造本批事实id（54d0fb703af73c222619f5a1235a51fb）。代码需独立验证明确更正/确认/撤销意图；未明确的correct/confirm保守降为assert进入pending。替代目标由同实体/属性/条件的实际事实集合生成，确认/撤销按原文重述的唯一值定位，不信任模型自造的目标编号。保留严格原文quote/sourceId校验和失败不推进游标。
