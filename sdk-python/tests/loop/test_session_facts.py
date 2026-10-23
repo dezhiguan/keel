@@ -228,3 +228,20 @@ def test_current_question_can_be_explicitly_ignored_without_rejecting_history(tm
     asyncio.run(SessionFacts(Model(),memory,False,'a','staging').collect([{'role':'user','content':'这个日期确定了吗？'}]))
     state=asyncio.run(memory.load_facts(False))['state']
     assert state['cursorId']=='1' and len(state['facts'])==1
+
+
+@pytest.mark.parametrize('malformed',['[]','{"operations":[null]}','{"operations":[{"sourceId":"1","action":"ignore"}],"ignoredSourceIds":["1"]}'])
+def test_invalid_model_schema_is_repaired_once_before_any_history_commit(tmp_path,malformed):
+    memory=LiteMemory(LiteStore(tmp_path),'a','s');memory.append('user','12月9日')
+    class Model:
+        calls=0
+        async def chat(self,messages,**kwargs):
+            self.calls+=1
+            if self.calls==1:return ChatResult(malformed,())
+            assert '重新提取' in messages[1]['content']
+            assert (await memory.load_facts(False))['state']['cursorId']=='0'
+            return ChatResult(json.dumps({'operations':[op('1','12月9日')],'ignoredSourceIds':['current']}),())
+    model=Model()
+    asyncio.run(SessionFacts(model,memory,False,'a','staging').collect([{'role':'user','content':'确定了吗？'}]))
+    state=asyncio.run(memory.load_facts(False))['state']
+    assert model.calls==2 and state['version']==1 and len(state['facts'])==1
