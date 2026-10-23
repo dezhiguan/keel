@@ -1561,6 +1561,44 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Envelope" }
 
+  /agents/{name}/memories/session-facts:
+    parameters:
+      - $ref: "#/components/parameters/AgentName"
+    get:
+      tags: [agents]
+      operationId: getSessionFacts
+      summary: 读取会话事实权威版本和下一批完整用户原文；真实owner授权，原文仅供generation输入
+      parameters:
+        - { name: env, in: query, required: true, schema: { type: string } }
+        - { name: sessionId, in: query, required: true, schema: { type: string, pattern: "^[a-f0-9]{64}$" } }
+      responses:
+        "200":
+          description: data含state和messages；more表示仍有待处理历史；超长消息不截断，skippedIds明确记录缺口
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+    post:
+      tags: [agents]
+      operationId: saveSessionFacts
+      summary: 只保存已提交原文的事实，CAS冲突返回saved=false和权威state
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [env, sessionId, state]
+              properties:
+                env: { type: string }
+                sessionId: { type: string }
+                state: { $ref: "#/components/schemas/SessionFactState" }
+      responses:
+        "200":
+          description: data含state及saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+
   /agents/{name}/memories/session-summary:
     parameters:
       - $ref: "#/components/parameters/AgentName"
@@ -4655,6 +4693,27 @@ components:
               atMs: { type: integer, nullable: true }
               parallel: { type: boolean }
 
+    SessionFact:
+      type: object
+      required: [id, entity, attribute, scope, value, status, sourceIds, replaces]
+      properties:
+        id: { type: string, pattern: "^[a-f0-9]{24}$" }
+        entity: { type: string, maxLength: 80 }
+        attribute: { type: string, maxLength: 80 }
+        scope: { type: string, maxLength: 80, description: 时间或条件范围，空为未限定 }
+        value: { type: string, maxLength: 300 }
+        status: { type: string, enum: [active, pending, superseded, retracted] }
+        sourceIds: { type: array, maxItems: 32, items: { type: string } }
+        replaces: { type: array, maxItems: 32, items: { type: string } }
+        resolvedBy: { type: string }
+    SessionFactState:
+      type: object
+      required: [version, cursorId, facts, gaps]
+      properties:
+        version: { type: integer, minimum: 0 }
+        cursorId: { type: string, pattern: "^[0-9]+$" }
+        facts: { type: array, maxItems: 128, items: { $ref: "#/components/schemas/SessionFact" } }
+        gaps: { type: array, maxItems: 128, items: { type: string } }
     TraceNode:
       type: object
       properties:
@@ -4692,6 +4751,10 @@ components:
               costCny: { type: number, format: float, nullable: true }
               priceVersion: { type: string }
               routeVersion: { type: string, description: primary/fallback 或 rejected:已登记错误码；rejected 表示模型未调用的零费用拒绝 }
+        memoryEvidence:
+          type: object
+          additionalProperties: { type: string }
+          description: 白名单keel.memory.*证据，仅版本/ID/哈希/计数/状态，不含用户原文；used区别于仅检索命中
         inputSummary: { type: string, description: Langfuse observation 的 input，没有时用节点名 }
         outputSummary: { type: string, description: Langfuse observation 的 output，没有时用节点名 }
         auditIds:

@@ -19,8 +19,8 @@ public class SessionHistory {
     public SessionHistory(JdbcTemplate jdbc, SessionSummaries summaries) {
         this.jdbc=jdbc; this.summaries=summaries;
     }
-    private record Scope(String id,String owner) {}
-    private Scope scope(String agent,String env,String session) {
+    record Scope(String id,String owner) {}
+    Scope scope(String agent,String env,String session) {
         var p=ConsolePrincipal.current();
         if(p==null || "PREVIEW".equals(p.mode()) || ("SERVICE".equals(p.mode()) && !agent.equals(p.userId())))
             throw new KeelException(ErrorCode.AUTH_CONSOLE_FORBIDDEN, ErrorCode.AUTH_CONSOLE_FORBIDDEN.message());

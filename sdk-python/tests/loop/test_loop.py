@@ -46,7 +46,10 @@ def context(monkeypatch, replies, functions=None, *, high=False, budget=None, ru
     responses = list(replies)
 
     def handle(request):
-        requests.append(json.loads(request.content))
+        body = json.loads(request.content)
+        if body['messages'][0].get('content', '').startswith('你是会话事实提取器'):
+            return httpx.Response(200, json=completion('{"operations":[]}'))
+        requests.append(body)
         return httpx.Response(200, json=responses.pop(0))
 
     llm = LlmClient("loop-agent", "test-model", "trace-1", tracer,

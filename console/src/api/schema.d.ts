@@ -1097,6 +1097,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agents/{name}/memories/session-facts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        /** 读取会话事实权威版本和下一批完整用户原文；真实owner授权，原文仅供generation输入 */
+        get: operations["getSessionFacts"];
+        put?: never;
+        /** 只保存已提交原文的事实，CAS冲突返回saved=false和权威state */
+        post: operations["saveSessionFacts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agents/{name}/memories/session-summary": {
         parameters: {
             query?: never;
@@ -3226,6 +3246,25 @@ export interface components {
                 parallel?: boolean;
             }[];
         };
+        SessionFact: {
+            id: string;
+            entity: string;
+            attribute: string;
+            /** @description 时间或条件范围，空为未限定 */
+            scope: string;
+            value: string;
+            /** @enum {string} */
+            status: "active" | "pending" | "superseded" | "retracted";
+            sourceIds: string[];
+            replaces: string[];
+            resolvedBy?: string;
+        };
+        SessionFactState: {
+            version: number;
+            cursorId: string;
+            facts: components["schemas"]["SessionFact"][];
+            gaps: string[];
+        };
         TraceNode: {
             id?: string;
             agentKey?: string;
@@ -3269,6 +3308,10 @@ export interface components {
                 /** @description primary/fallback 或 rejected:已登记错误码；rejected 表示模型未调用的零费用拒绝 */
                 routeVersion?: string;
             }[];
+            /** @description 白名单keel.memory.*证据，仅版本/ID/哈希/计数/状态，不含用户原文；used区别于仅检索命中 */
+            memoryEvidence?: {
+                [key: string]: string;
+            };
             /** @description Langfuse observation 的 input，没有时用节点名 */
             inputSummary?: string;
             /** @description Langfuse observation 的 output，没有时用节点名 */
@@ -5983,6 +6026,61 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description data.items为SessionHistoryItem列表，stale标识版本变化；过期/不属于当前会话的消息不返回 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getSessionFacts: {
+        parameters: {
+            query: {
+                env: string;
+                sessionId: string;
+            };
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description data含state和messages；more表示仍有待处理历史；超长消息不截断，skippedIds明确记录缺口 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    saveSessionFacts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["AgentName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    env: string;
+                    sessionId: string;
+                    state: components["schemas"]["SessionFactState"];
+                };
+            };
+        };
+        responses: {
+            /** @description data含state及saved */
             200: {
                 headers: {
                     [name: string]: unknown;

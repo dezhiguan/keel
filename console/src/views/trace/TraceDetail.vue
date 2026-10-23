@@ -9,7 +9,7 @@ import TraceTree from './TraceTree.vue'
 import { getTrace, type TraceDetail } from '@/api/traces'
 import { KeelApiError, toKeelError } from '@/api/http'
 import { fmtCny, fmtMs, nodeStatus } from '@/utils/format'
-import { agentMap, breakdownColors, humanWait, initialTab, longestStep, nodeMap, observationUrl, pickNode, showTokens, userLine, type TraceTab } from './traceView'
+import { agentMap, breakdownColors, humanWait, initialTab, longestStep, nodeMap, observationUrl, pickNode, memoryEvidenceText, showTokens, userLine, type TraceTab } from './traceView'
 
 const TABS: [TraceTab, string][] = [['graph', '协作图'], ['lanes', '泳道时间线'], ['tree', '调用树']]
 
@@ -165,6 +165,11 @@ watch(() => route.params.id, load, { immediate: true })
                 · {{ attempt.requestId }}
               </span>
             </b>
+          </div>
+          <div v-if="node.memoryEvidence" class="full">
+            <span>记忆处理证据</span>
+            <b style="white-space: pre-wrap">{{ memoryEvidenceText(node.memoryEvidence) }}</b>
+            <small class="mut">引用编号对应原始消息；检索命中不代表模型采用。实际摘要与原文片段可在后续 llm.chat 的输入中核对。</small>
           </div>
           <div class="full"><span>输入摘要</span><b style="white-space: pre-wrap">{{ node.inputSummary }}</b></div>
           <div class="full"><span>输出摘要</span><b style="white-space: pre-wrap">{{ node.outputSummary }}</b></div>

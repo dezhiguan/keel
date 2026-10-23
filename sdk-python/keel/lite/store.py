@@ -52,6 +52,11 @@ class LiteStore:
                 );
                 CREATE INDEX IF NOT EXISTS ix_session_message
                     ON session_message(agent, session_id, id);
+                CREATE TABLE IF NOT EXISTS session_fact_state (
+                    agent TEXT NOT NULL, session_id TEXT NOT NULL, version INTEGER NOT NULL,
+                    cursor_id INTEGER NOT NULL, state TEXT NOT NULL, expires_at REAL NOT NULL,
+                    PRIMARY KEY(agent,session_id)
+                );
                 CREATE TABLE IF NOT EXISTS session_summary (
                     agent TEXT NOT NULL, session_id TEXT NOT NULL, version INTEGER NOT NULL,
                     through_id INTEGER NOT NULL, content TEXT NOT NULL, expires_at REAL NOT NULL,
@@ -151,6 +156,47 @@ class LiteStore:
                 ORDER BY id DESC LIMIT ?
             """, (agent, session_id, now, limit)).fetchall()
         return [{"role": row["role"], "content": row["content"], **({"id": str(row["id"])} if include_ids else {})} for row in reversed(rows)]
+
+    def session_facts(self, agent, session, now):
+        from keel.session_facts import empty_state
+        with self._connect() as c:
+            c.execute("DELETE FROM session_fact_state WHERE expires_at<=?", (now,))
+            row = c.execute("SELECT version,cursor_id,state FROM session_fact_state WHERE agent=? AND session_id=? AND expires_at>?", (agent,session,now)).fetchone()
+            state = json.loads(row['state']) if row else empty_state()
+            if row:
+                state.update(version=row['version'], cursorId=str(row['cursor_id']))
+            rows = c.execute("SELECT id,role,content FROM session_message WHERE agent=? AND session_id=? AND role='user' AND id>? AND expires_at>? ORDER BY id LIMIT 9", (agent,session,int(state['cursorId']),now)).fetchall()
+        messages, skipped, chars, cursor = [], [], 0, state['cursorId']
+        for row in rows[:8]:
+            if len(row['content']) > 6000:
+                skipped.append(str(row['id']))
+            else:
+                if chars+len(row['content']) > 6000:
+                    break
+                chars += len(row['content'])
+                messages.append(dict(row, id=str(row['id'])))
+            cursor = str(row['id'])
+        return dict(state=state,messages=messages,skippedIds=skipped,nextCursor=cursor,
+                    more=bool(rows and str(rows[-1]['id']) != cursor))
+
+    def save_session_facts(self, agent, session, state, now, ttl):
+        with self._lock, self._connect() as c:
+            c.execute("BEGIN IMMEDIATE")
+            try:
+                c.execute("DELETE FROM session_fact_state WHERE expires_at<=?", (now,))
+                expiry = c.execute("SELECT min(expires_at) FROM session_message WHERE agent=? AND session_id=? AND role='user' AND expires_at>?", (agent,session,now)).fetchone()[0]
+                if expiry is None:
+                    c.rollback()
+                    return {'state': state, 'saved': False}
+                if state['version'] == 0:
+                    changed = c.execute("INSERT OR IGNORE INTO session_fact_state VALUES (?,?,1,?,?,?)", (agent,session,int(state['cursorId']),json.dumps(state),min(now+ttl,expiry))).rowcount
+                else:
+                    changed = c.execute("UPDATE session_fact_state SET version=version+1,cursor_id=?,state=?,expires_at=min(expires_at,?) WHERE agent=? AND session_id=? AND version=? AND cursor_id<?", (int(state['cursorId']),json.dumps(state),expiry,agent,session,state['version'],int(state['cursorId']))).rowcount
+                c.commit()
+            except Exception:
+                c.rollback()
+                raise
+        return {'state': self.session_facts(agent,session,now)['state'], 'saved': changed == 1}
 
     def session_summary(self, agent, session, now):
         with self._connect() as connection:

@@ -11,7 +11,7 @@ public final class CatalogAccess {
             return true;
         return (uri != null && (("POST".equals(method) && uri.matches("/api/v1/agents/[a-z][a-z0-9-]*/memories/session-history/search"))
                     || ("GET".equals(method) && uri.matches("/api/v1/agents/[a-z][a-z0-9-]*/memories/session-history/messages/[0-9]+"))))
-                || (uri != null && uri.matches("/api/v1/agents/[a-z][a-z0-9-]*/memories/session-summary")
+                || (uri != null && uri.matches("/api/v1/agents/[a-z][a-z0-9-]*/memories/(session-summary|session-facts)")
                     && ("GET".equals(method) || "POST".equals(method)))
                 || ("POST".equals(method) && uri != null && uri.matches("/api/v1/eval/runs/ev_[a-f0-9]{32}/(context|turns|progress)")) || readable(method, uri) || ("POST".equals(method) && uri != null
                 && uri.matches("/api/v1/tools/[a-z][a-z0-9.-]+/invoke"))

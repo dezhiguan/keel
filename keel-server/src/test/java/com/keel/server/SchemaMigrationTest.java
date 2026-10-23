@@ -22,7 +22,7 @@ class SchemaMigrationTest {
     @Test
     @Transactional
     void migratesAllPlatformTablesAndRunConstraints() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("35");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("36");
 
         List<String> tables = jdbc.queryForList("""
             SELECT tablename FROM pg_tables
@@ -40,8 +40,9 @@ class SchemaMigrationTest {
             "devflow_tool_grant",
             "usage_daily", "skill", "skill_version", "agent_skill_grant",
             "user_memory", "channel", "channel_credential", "channel_usage", "channel_feedback",
-            "agent_session", "session_message", "session_summary", "insight_snapshot", "insight_observation", "insight_trace", "insight_trace_bill");
+            "agent_session", "session_message", "session_summary", "session_fact_state", "insight_snapshot", "insight_observation", "insight_trace", "insight_trace_bill");
 
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_constraint WHERE conrelid='session_fact_state'::regclass AND contype='f'", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_constraint WHERE conrelid='session_summary'::regclass AND contype='f'", Integer.class)).isZero();
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_employee_read_scope",Integer.class)).isZero();

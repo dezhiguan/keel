@@ -641,6 +641,21 @@ public final class TraceAssembly {
                 node.put("tokens", tokens);
             }
             node.put("costCny", cost(prices));
+            var memory = meta.getOrDefault("keel.memory.evidence", "");
+            if (!memory.isBlank() && memory.length() <= 8192) {
+                try {
+                    var evidence = new com.fasterxml.jackson.databind.ObjectMapper().readTree(memory);
+                    var safe = new LinkedHashMap<String,String>();
+                    for (var key : List.of("operation","status","version","cursorId","sourceIds","count","pending","superseded","gaps","more","sha256","offset","totalChars","used","tokens","budget")) {
+                        var value = evidence.path(key);
+                        if (!value.isMissingNode() && (value.isValueNode() || value.isArray()))
+                            safe.put(key, value.isTextual() ? value.asText() : value.toString());
+                    }
+                    if (!safe.isEmpty()) node.put("memoryEvidence",safe);
+                } catch (com.fasterxml.jackson.core.JsonProcessingException ignored) {
+                    // Old or malformed optional metadata must not hide the rest of the trace.
+                }
+            }
             node.put("inputSummary", input.isBlank() ? label() : input);
             node.put("outputSummary", output.isBlank() ? label() : output);
             node.put("auditIds", auditIds);

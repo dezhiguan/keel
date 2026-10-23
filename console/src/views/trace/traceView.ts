@@ -233,3 +233,9 @@ export function displayEdges(detail: TraceDetail): Edge[] {
     parallel: false,
   }))
 }
+
+/** Render explicit evidence without mistaking a retrieval hit for context use. */
+export function memoryEvidenceText(evidence: Record<string, string>) {
+  const labels: Record<string, string> = { operation: '步骤', status: '处理状态', version: '版本', cursorId: '已处理至消息', sourceIds: '原文消息编号', count: '数量', pending: '待确认事实', superseded: '已被替代事实', gaps: '未覆盖消息数', more: '仍有待处理历史', sha256: '内容 SHA256', offset: '原文起始位置', totalChars: '原文总字符数', used: '摘要已加入模型输入', tokens: '组装后输入 token', budget: '输入上限' }
+  return Object.entries(evidence).map(([key, value]) => `${labels[key] ?? key}：${value}`).join('\n')
+}
