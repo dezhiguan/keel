@@ -133,12 +133,16 @@ public class AgentChatService {
     }
 
     public void streamChat(String name,String text,String sessionId,String owner,boolean remember,OutputStream output,String readContext,String evaluationRun,String taskContext) {
+        streamChat(name,text,sessionId,owner,remember,output,readContext,evaluationRun,taskContext,ConsolePrincipal.current());
+    }
+
+    public void streamChat(String name,String text,String sessionId,String owner,boolean remember,OutputStream output,String readContext,String evaluationRun,String taskContext,ConsolePrincipal principal) {
         var detail = ready(name, text);
         var env = detail.summary().env();
         if (remember) sessions.require(name, env, owner, sessionId);
         if ("echo".equals(name)) credentials.ensure(name);
         var endpoint = registry.invokeEndpoint(name);
-        var userId = callerLabel();
+        var userId = callerLabel(principal);
         var rag = secrets == null ? null : secrets.knowledgeCredential(name);
         var bridge = bridgeToken(name);
         var history = remember ? sessions.history(name, owner, sessionId) : List.<Map<String, String>>of();
@@ -229,8 +233,9 @@ public class AgentChatService {
     }
 
     /** Display name when the console user has one. Preview sessions are not an operator. */
-    private static String callerLabel() {
-        var principal = ConsolePrincipal.current();
+    private static String callerLabel() { return callerLabel(ConsolePrincipal.current()); }
+
+    private static String callerLabel(ConsolePrincipal principal) {
         if (principal == null || principal.readOnly() || "PREVIEW".equals(principal.mode())) {
             return null;
         }
