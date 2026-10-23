@@ -156,7 +156,7 @@ def test_loop_remembers_previous_turn_and_eval_does_not_write(monkeypatch, tmp_p
     second, requests = context(monkeypatch, [completion("你叫小明")], run_id="run-second",
                                session_id="session-a")
     assert asyncio.run(run(second, "我叫什么" )).answer == "你叫小明"
-    assert requests[0]["messages"] == [
+    assert requests[0]["messages"][-3:] == [
         {"role": "user", "content": "我叫小明"},
         {"role": "assistant", "content": "记住了"},
         {"role": "user", "content": "我叫什么"},

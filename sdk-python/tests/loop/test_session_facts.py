@@ -109,7 +109,8 @@ def test_invalid_extraction_does_not_advance_cursor_or_break_chat(tmp_path):
     memory=LiteMemory(LiteStore(tmp_path),'a','s');memory.append('user','12月9日')
     class Model:
         async def chat(self,*args,**kwargs):return ChatResult('not JSON',())
-    assert asyncio.run(SessionFacts(Model(),memory,False,'a','staging').collect([]))==[]
+    result=asyncio.run(SessionFacts(Model(),memory,False,'a','staging').collect([]))
+    assert len(result)==1 and result[0]['role']=='system' and '不能按时间最新' in result[0]['content']
     assert asyncio.run(memory.load_facts(False))['state']['cursorId']=='0'
 
 
@@ -160,4 +161,13 @@ def test_exhausted_memory_deadline_does_not_call_model_or_storage():
             if key in ('tracer', 'trace_id'):
                 return None
             raise AssertionError('deadline must precede storage and model work')
-    assert asyncio.run(SessionFacts(Forbidden(),Forbidden(),True,'a','staging').collect([],0))==[]
+    result=asyncio.run(SessionFacts(Forbidden(),Forbidden(),True,'a','staging').collect([],0))
+    assert len(result)==1 and '待确认' in result[0]['content']
+
+
+def test_session_scope_is_not_a_different_time_condition():
+    state=empty_state();sources={'1':'12月9日','2':'12月10日'}
+    apply(state,op('1','12月9日',scope='本会话'),sources)
+    apply(state,op('2','12月10日',scope=''),sources)
+    assert len(state['facts'])==2 and all(f['status']=='pending' for f in state['facts'])
+    assert all(f['scope']=='' for f in state['facts'])
