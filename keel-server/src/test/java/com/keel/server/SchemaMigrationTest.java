@@ -22,7 +22,7 @@ class SchemaMigrationTest {
     @Test
     @Transactional
     void migratesAllPlatformTablesAndRunConstraints() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("36");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("37");
 
         List<String> tables = jdbc.queryForList("""
             SELECT tablename FROM pg_tables
@@ -40,7 +40,9 @@ class SchemaMigrationTest {
             "devflow_tool_grant",
             "usage_daily", "skill", "skill_version", "agent_skill_grant",
             "user_memory", "channel", "channel_credential", "channel_usage", "channel_feedback",
-            "agent_session", "session_message", "session_summary", "session_fact_state", "insight_snapshot", "insight_observation", "insight_trace", "insight_trace_bill");
+            "agent_session", "session_message", "session_summary", "session_fact_state", "debug_chat_request", "insight_snapshot", "insight_observation", "insight_trace", "insight_trace_bill");
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_constraint WHERE conrelid='debug_chat_request'::regclass AND contype='f'", Integer.class)).isZero();
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_constraint WHERE conrelid='session_fact_state'::regclass AND contype='f'", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_constraint WHERE conrelid='session_summary'::regclass AND contype='f'", Integer.class)).isZero();
@@ -70,7 +72,8 @@ class SchemaMigrationTest {
             """, String.class);
         assertThat(indexes).contains("ix_agent_run_status_deadline", "ix_approval_request_pending",
             "ix_reconcile_finding_open", "route_snapshot_pkey",
-            "ix_console_audit_event_ts", "ix_invoke_trace_started", "ix_prompt_promotion_latest", "ix_devflow_execution_queue");
+            "ix_console_audit_event_ts", "ix_invoke_trace_started", "ix_prompt_promotion_latest", "ix_devflow_execution_queue",
+            "debug_chat_request_pkey", "debug_chat_request_expiry");
 
         jdbc.update("""
             INSERT INTO agent (name, display_name, kind, runtime, owner_org, owner_user, status, liveness)
