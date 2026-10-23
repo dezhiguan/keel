@@ -129,7 +129,7 @@ class SessionFacts:
                         if estimate_context_tokens(messages) > 7000:
                             ev.update(status='incomplete', version=state['version'], more=True)
                             return self.reference(state, True)
-                        response = await self.llm.chat(messages, tools=[], emit_tokens=False, max_tokens=1600)
+                        response = await self.llm.chat(messages, tools=[], emit_tokens=False, max_tokens=1600, purpose="memory")
                         content = getattr(response, 'content', response)
                         if not isinstance(content, str) or len(content) > 20000:
                             raise ValueError('invalid fact model output')
