@@ -62,7 +62,10 @@ def test_natural_language_tool_cycle_and_session_history(monkeypatch, tmp_path):
     requests = []
 
     def gateway(request):
-        requests.append(json.loads(request.content))
+        body = json.loads(request.content)
+        if body['messages'][0].get('content', '').startswith('你是会话事实提取器'):
+            return httpx.Response(200, json=_completion('{"operations":[]}'))
+        requests.append(body)
         response = responses.pop(0)
         calls = response["choices"][0]["message"].get("tool_calls", [])
         if calls:
