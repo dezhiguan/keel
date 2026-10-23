@@ -715,7 +715,9 @@ public final class TraceAssembly {
                 return;
             }
             var node = entry.getValue();
-            if (node.isValueNode() && !node.isNull() && !node.asText("").isBlank()) {
+            if ("keel.memory.evidence".equals(key) && node.isObject()) {
+                values.putIfAbsent(key, node.toString());
+            } else if (node.isValueNode() && !node.isNull() && !node.asText("").isBlank()) {
                 values.putIfAbsent(key, node.asText());
             }
         });
