@@ -2,292 +2,268 @@
 
 # Keel: Agent Platform Foundation
 
-A keel is the beam that runs along the bottom of a ship. Every ship carries different cargo, but they all rely on the keel to bear the load.
+Keel brings agent execution and governance into one platform: shared protocols, model access, knowledge and tool authorization, prompts, memory, tracing, audit, approvals, evaluation, and releases. Business agents declare capabilities in `agent.yaml` and access platform services through the SDK. The console manages their lifecycle from candidate versions to release, channel distribution, and retirement.
 
-Keel plays the same role for AI agents. Authentication, model access, knowledge retrieval, tracing, audit, evaluation, prompt management, and tool approval are handled by the platform. Each agent only writes its own business logic and fills in one `agent.yaml`.
+Python supports two development styles: workflows written with `@agent.entry`, and model/tool loops through `ctx.loop(...)`, bounded by step limits, tool permissions, guards, and context budgets. Existing frameworks can integrate through the standard protocol. The meta-agent and development workflow build on these capabilities to deliver independent projects through sandbox checks, evaluation, and human gates.
 
-**Goal**: a new agent can be onboarded within a day; existing agents (askdb, offshore-wind, careermate, and others) migrate one by one and delete their duplicated tracing, audit, evaluation, and quality code. Eventually all 10 agents are managed from a single console.
-
-> Keel is not an agent framework and does not dictate how an agent reasons internally. It governs how many agents are provisioned, invoked, observed, evaluated, and released safely.
+> This README describes the current code and deployment configuration. Designed capabilities are not necessarily deployed; see [Implementation and boundaries](#implementation-and-boundaries). The platform currently accepts writes for `staging` and `prod`; legacy `dev/test` remain for protocol compatibility, historical reads, and local development.
 
 ## Contents
 
-- [What the platform provides](#what-the-platform-provides)
-- [Architecture](#architecture)
+- [Platform capabilities](#platform-capabilities)
+- [Runtime architecture](#runtime-architecture)
 - [Repository layout](#repository-layout)
-- [Tech stack](#tech-stack)
-- [Status](#status)
+- [Implementation and boundaries](#implementation-and-boundaries)
 - [Local development](#local-development)
-- [Deployment](#deployment)
+- [Evaluation and releases](#evaluation-and-releases)
+- [Deployment architecture](#deployment-architecture)
 - [Contracts and conventions](#contracts-and-conventions)
 - [Documentation](#documentation)
 
-## What the platform provides
+## Platform capabilities
 
-| Capability | How an agent uses it | Owned by |
-|---|---|---|
-| Invocation protocol | Implements `/v1/invoke` (SSE), `/v1/health`, `/v1/manifest`, `/v1/feedback`; the SDK mounts them automatically | `contracts/invoke.openapi.yaml` |
-| Auth and delegation | `ctx.delegate` exchanges tokens and propagates `traceparent` | auth-gateway (JWT, JWKS, Token Exchange), admission at keel-gateway |
-| Model access | Only through `ctx.llm`; importing vendor SDKs directly is forbidden | keel-llm thin gateway: virtual keys, daily budgets in CNY, fallback |
-| Knowledge retrieval | `ctx.knowledge.search(...)` | rag-forge (shared service) |
-| Tracing | The SDK reports generation / tool / agent spans via OpenTelemetry | Langfuse Cloud, Japan region |
-| Audit | High-risk actions are written synchronously, the rest asynchronously; only `captureFields` are kept | keel-audit: append-only, one hash chain per agent |
-| Tools and approval | High-risk tool calls suspend for approval and resume once approved | keel-server: tool registry, approval requests, run lifecycle |
-| Prompts | `ctx.prompt("answer")` resolves by environment label, with a local fallback copy | Langfuse prompt management; keel-server moves labels and checks for drift |
-| Evaluation gate | `evals/seed.jsonl` + `@scorer`, `keel gate` in CI | Langfuse datasets and experiments; a release is blocked if scores regress |
-| Registration and reconciliation | `keel register` / `keel release` / `keel retire` | keel-server: provisions resources, rolls back in reverse order on failure, reconciles every 5 minutes |
+| Capability | Current use and responsibility |
+|---|---|
+| Protocol and run lifecycle | `keel/v1` defines manifests, invocation, SSE, health, and feedback; the Python SDK provides execution, cancellation, suspension, checkpoints, and resumption |
+| Models and cost | `ctx.llm` accesses `keel-llm`: virtual keys, CNY daily budgets, channel allocations, rate limits, concurrency, streaming settlement, and spend records |
+| Logical model routing | Logical names such as `chat-default` decouple agents from specific models; route-table drafts, grant checks, publishing, rollback, canary routing, and replay of the last 24 hours of requests |
+| Knowledge and tools | `ctx.knowledge` accesses rag-forge; local tools, shared HTTP/MCP tools, delegation, and platform grants; skills load by declared and authorized version and do not grant tool access |
+| Guards and approval | Input/output checks, taint and trust handling; high-risk tools suspend according to approval policy and resume afterward |
+| Layered memory | Original session messages, recent complete turns, rolling summaries, in-session history search, reference lookup, and a fact-conflict ledger; long-term user memory is separately authorized and managed |
+| Prompts and versions | Local Git copies link to managed Langfuse versions; environment labels are `staging` / `production`, with production labels moved through controlled releases |
+| Observability and audit | OTel semantic traces go to Langfuse; the console displays debug SSE, tool/guard/memory nodes, cost, and run state, with durable chat requestId deduplication, SSE heartbeats, and reconciliation of known billed usage; audit follows field allowlists and synchronous writes for high-risk actions |
+| Evaluation and release | Datasets, scorers, candidate evaluations, baselines, and regression gates; releases bind gate results to the corresponding image and prompt snapshots |
+| Development and channels | Development ledger, H1–H4 human gates, sandboxes, Git/CI tools, and holdout cases; hosted chat, web widgets, mini-programs, and channel distribution |
 
-## Architecture
+Memory preserves original messages and does not treat user statements as independently verified facts. Summary and fact maintenance calls carry a purpose marker through the governed model client; the gateway applies maintenance settings scoped to the authenticated key and actual model without changing business-call routing, grants, or budgets. Context is bounded by the default `KEEL_CONTEXT_TOKEN_BUDGET=10000` hard limit: recent complete turns are retained while older content is summarized and retrieved as reference material. A current input that exceeds the limit is still rejected. Platform session originals are retained for 7 days, and the history transport window holds up to 128 messages. Summaries, retrieval, and fact ledgers are isolated by agent, environment, user, and session; evaluation traffic does not write ordinary session memory. See [context recovery](docs/specs/p1/P1-context-window-recovery.md), [history retrieval](docs/specs/p1/P1-session-history-retrieval.md), and [fact conflicts](docs/specs/p1/P1-session-fact-conflicts.md).
+
+## Runtime architecture
 
 ```mermaid
 flowchart TB
-    subgraph CH["Channels"]
-        web["Web / App · WeCom / DingTalk · Open API · Git webhooks"]
-        console["keel-console"]
-    end
-
-    subgraph EDGE["Edge"]
-        authgw["auth-gateway<br/>JWT · JWKS · Token Exchange"]
-        gw["keel-gateway<br/>routing · admission · quota · SSE · root span"]
-    end
-
-    subgraph AG["Agents (one repo each)"]
-        py["Python agents<br/>keel-sdk"]
-        java["Java agents<br/>keel-spring-boot-starter"]
-    end
-
-    subgraph RT["Shared runtime services"]
-        llm["keel-llm thin gateway<br/>virtual keys · CNY daily budget · fallback"]
-        rag["rag-forge<br/>retrieval · MCP"]
-    end
-
-    subgraph GOV["Governance"]
-        server["keel-server<br/>registry · provisioning · reconciliation<br/>tools and approval · prompts · releases · console API"]
-        audit["keel-audit<br/>append-only · hash chain"]
-        lf["Langfuse Cloud (Japan)<br/>traces · datasets · experiments · scores · prompts"]
-    end
-
-    subgraph DATA["Data"]
-        pg[("PostgreSQL<br/>keel · keel_audit · keel_llm")]
-        redis[("Redis<br/>quota · concurrency · daily budget")]
-        mq[["RocketMQ<br/>async audit"]]
-    end
-
-    web --> gw
-    gw -. verify / exchange .-> authgw
-    gw --> py & java
-    py & java --> llm & rag
-    py & java -- OTLP/HTTP --> lf
-    py & java -- high risk, sync --> audit
-    py & java -. others, async .-> mq --> audit
-    py & java -- approval / heartbeat --> server
-    console -- /api --> server
-    server --> lf & llm & audit
-    server --> pg
-    audit --> pg
+    browser["Console / debug / channel clients"] --> edge["Edge Nginx → console Nginx"]
+    edge -- "/api/ · /a/" --> server["keel-server control plane<br/>registry · versions · sessions · channels · approvals · evaluation · devflow"]
+    auth["auth-gateway<br/>login · JWT/JWKS · delegated identity"] <--> server
+    server -- "invoke / debug SSE / resume" --> agent["Agents<br/>Python SDK / protocol adapters"]
+    agent -- "ctx.llm" --> llm["keel-llm<br/>logical routing · keys · budgets · settlement"]
+    llm --> vendor["Model vendors"]
+    agent --> shared["rag-forge / HTTP and MCP tools"]
+    agent -- "grants / approvals / platform memory" --> server
+    agent -- "OTLP/HTTP" --> lf["Langfuse Cloud Japan<br/>traces · prompts · datasets · scores"]
+    server <--> lf
+    server --> pg[("PostgreSQL<br/>registry · runs · sessions · evaluation · development ledger")]
+    server --> redis[("Redis<br/>shared gateway state · budgets · cache")]
     llm --> redis
-    gw --> redis
+    llm -. "historical spend when JDBC is configured" .-> pg
+    agent -- "audit" --> audit["keel-audit<br/>hash chains · optional PostgreSQL storage"]
+    server --> git["git-ci / trusted CI pipeline"]
+    server --> sandbox["Ephemeral sandbox Jobs<br/>test dependency sidecar"]
 ```
 
-The path of one request (an ops copilot delegating to askdb):
+This shows the main console and channel request path: browsers pass through two Nginx layers to `keel-server`, which handles authorization, sessions, and agent invocation. Model requests go through `keel-llm`. The separate `keel-gateway` is the designed unified agent entry point; its filters remain placeholders, so it is excluded from the currently usable request path.
 
-1. The frontend calls `POST /agents/ops-copilot/v1/invoke` with a JWT issued by auth-gateway (`aud=keel-api`).
-2. keel-gateway verifies the token, admits it by roles / scopes, charges quota, takes a concurrency slot, creates the root `traceparent`, then exchanges the token for `aud=ops-copilot` and forwards the request.
-3. ops-copilot plans with `ctx.llm` through the thin gateway, then uses `ctx.delegate` to exchange a token and call askdb's `/v1/invoke` directly inside the cluster.
-4. Each agent exports its spans to Langfuse over OTLP/HTTP asynchronously. A high-risk tool first creates an approval request in keel-server and suspends; once approved it resumes and writes to keel-audit synchronously.
-5. The gateway streams SSE back to the frontend, then releases the concurrency slot and records an invocation audit event.
-6. The console's trace page asks keel-server, which reads the whole trace back from Langfuse and overlays audit and approval data.
+The development workflow assigns requirement confirmation, evaluation confirmation, permission grants, and merge/release approval to H1–H4 gates. Humans maintain the meta-agent; generated code is checked in isolated sandboxes. Git/CI services handle repository and workflow operations, and the trusted release pipeline checks candidate commits, image digests, and approval bindings. See the [merged design](docs/design/Keel-智能体底座设计-20261014.html) and [trusted pipeline spec](docs/specs/r1014/R3-6-trusted-devflow-pipeline.md).
 
 ## Repository layout
 
 ```text
 keel/
-├── contracts/                  # keel/v1 contracts, the single source of truth across languages
-│   ├── manifest.schema.json    #   JSON Schema for agent.yaml
-│   ├── invoke.openapi.yaml     #   agent protocol
-│   ├── sse-events.schema.json  #   step / tool / token / final / error / suspend
-│   ├── audit-event.schema.json
-│   ├── console-api.openapi.yaml#   console API (shared by frontend, mocks, and backend)
-│   ├── trace-attributes.md     #   keel.* and langfuse.* attribute conventions
-│   ├── error-codes.yaml        #   platform-wide error codes
-│   └── tests/                  #   contract cases shared by the SDK and the starter
-├── keel-common/                # Java: contract models, error codes
-├── keel-server/                # control plane: registry / provisioning / discovery / tool / approval /
-│                               #   prompt / release / insight / auth (console login)
-├── keel-audit/                 # audit: ingest, hash chain, query, export, archive
-├── keel-gateway/               # edge gateway (Spring Cloud Gateway / WebFlux)
-├── keel-llm/                   # in-house thin gateway: OpenAI-compatible, virtual keys, CNY daily budget
-├── keel-spring-boot-starter/   # Java agent runtime
-├── sdk-python/                 # Python keel-sdk: runtime + keel CLI + keel-lite + keel-gate
-├── console/                    # Vue 3 console
-├── templates/                  # keel new templates: chat-rag / tool-agent / graph-agent / supervisor / java-spring
-├── agents/echo/                # built-in echo agent for integration and smoke tests
-├── deploy/                     # k3s manifests, Dockerfiles, edge Nginx, CD scripts
-├── ci/                         # change detection, backend and frontend gates
-├── scripts/                    # contract validation, code generation
-└── docs/                       # design doc, technical doc, console prototype, task specs
+├── contracts/                   # keel/v1: manifest, invoke, SSE, audit, console API, errors, shared cases
+├── keel-common/                 # Java contract models and error codes
+├── keel-server/                 # Control-plane modules: registry, provisioning, discovery, tasks,
+│                                # tool, approval, prompt, release, evaluation, memory,
+│                                # channel, skill, devflow, insight, auth, and others
+├── keel-llm/                    # OpenAI-compatible gateway, routing, keys/channels/budgets, spend ledger
+├── keel-audit/                  # Audit ingestion, hash chains, and storage implementations
+├── keel-gateway/                # Unified entry gateway skeleton (WebFlux)
+├── keel-spring-boot-starter/     # Java protocol endpoints and tracing; some clients remain unimplemented
+├── sdk-python/                  # Python runtime, ctx.loop, memory/guards, CLI, keel-lite, evaluation gates
+├── console/                     # Vue console, API types, development mocks, and tests
+├── templates/                   # loop-agent, chat-rag, tool-agent, graph-agent, supervisor, java-spring
+├── agents/                      # echo, chat-demo, meta-agent, lifecycle and main-flow acceptance agents
+├── examples/                    # Integration and meta-agent examples
+├── services/
+│   ├── git-ci/                  # Git/CI MCP and controlled merge operations
+│   ├── sandbox-sidecar/         # Sandbox test dependencies
+│   └── devflow-pipeline/        # Trusted development pipeline scripts
+├── deploy/                      # Per-service k3s manifests, images, Nginx, relays, and rollout scripts
+├── .github/workflows/           # Platform CI/CD, SDK releases, development pipeline, candidate checks
+├── ci/                          # Change detection, architecture, backend, and frontend gates
+├── scripts/                     # Contract validation, code generation, SDK wheel builds
+└── docs/                        # Designs, technical reference, prototypes, specs, acceptance evidence
 ```
 
-## Tech stack
+The stack uses Java 21, Spring Boot 3.5.15, MyBatis-Plus, and Flyway; Python 3.11+, Starlette, pydantic v2, httpx, and OpenTelemetry; Vue 3, TypeScript, Vite 5, Element Plus, and Pinia. Deployment uses k3s, Docker, GitHub Actions, and Alibaba Cloud ACR. Shared dependencies include PostgreSQL, Redis, auth-gateway, rag-forge, and Langfuse Cloud Japan. RocketMQ is a dependency in the asynchronous audit design; this does not imply that the current manifests wire the full messaging path.
 
-| Layer | Choice |
+## Implementation and boundaries
+
+| Module | Implementation and remaining boundaries |
 |---|---|
-| Java services | Java 21, Spring Boot 3.5.15, MyBatis-Plus, Flyway; keel-gateway on Spring Cloud Gateway (WebFlux), the rest on Spring MVC with virtual threads |
-| Python SDK | Python 3.11+, Starlette (mountable into an existing FastAPI app), pydantic v2, httpx, OpenTelemetry (OTLP/HTTP) |
-| Frontend | Vue 3, Vite 5, TypeScript, Element Plus, Pinia, MSW (mocks during development) |
-| Models | In-house thin gateway keel-llm (OpenAI-compatible), currently routing qwen-plus and deepseek-v3 |
-| Tracing / evaluation / prompts | Langfuse Cloud v4, Japan region `https://jp.cloud.langfuse.com` |
-| Middleware | PostgreSQL 16, Redis 7, RocketMQ 5 (existing cluster) |
-| Operations | k3s, Docker, GitHub Actions, Alibaba Cloud ACR |
-
-## Status
-
-P0 (contracts and SDK) and P1 (platform core) are in progress; prompt management from P2 has landed. See [docs/TASKS.md](docs/TASKS.md) for the task breakdown.
-
-| Module | Status |
-|---|---|
-| `contracts/` | keel/v1 frozen (tag `contracts/v1.0.0`) |
-| `keel-server` | Registry, reconciliation and probing, provisioning, trace list and detail, overview and cost, four-environment prompt labels, approval inbox, console login and preview mode are implemented |
-| `keel-llm` | Live: chat and embedding calls, virtual keys, daily budget in Redis. Spend records are still held in process memory and are lost when a pod restarts |
-| `console` | Overview, agents, traces, prompts, shared services, tools, model gateway, evaluation, and other pages call real APIs; endpoints not implemented yet are served by MSW mocks in development mode |
-| `sdk-python` | Runtime, tracing, keel-lite, prompts, delegation, `keel new` / `keel dev` work; the `register` / `release` / `eval` / `gate` commands are not implemented yet |
-| `keel-spring-boot-starter` | Protocol endpoints and tracing are implemented; `LlmClient`, `ToolInvoker`, `Delegator`, and guards are still empty shells |
-| `keel-audit` | Hash chain and verification logic are implemented; storage is in-process for now, PostgreSQL persistence is not wired yet |
-| `keel-gateway` | Package skeleton only; none of the filters are implemented yet (lightweight version planned for P2) |
+| `keel-server` / `console` | Provisioning, discovery, candidates and releases, debug and sessions, knowledge/tools/skills, prompts, evaluation, channels, approvals, memory, and development tasks are implemented; external services and deployment credentials require separate setup |
+| `sdk-python` | Workflows and tool loops, SSE, suspend/resume, guards, layered memory, independent templates, and `new/dev/register/eval/gate/release` are implemented; `retire` is parsed but still reports unimplemented, so retirement uses the platform API/console |
+| `keel-llm` | Shared keys, budgets, channels, and dynamic routing; recent spend uses Redis, while PostgreSQL history requires JDBC configuration. Local operation without Redis/JDBC is not a persistent multi-replica deployment |
+| `keel-audit` | Hash chains, verification, and a PostgreSQL `ChainStore` are implemented; `keel.audit.jdbc-url` enables it, otherwise storage falls back to memory. The current service manifest does not inject this setting, and query/export should not be treated as a complete persistent audit path |
+| `keel-gateway` | Builds and deploys as a service, but authentication, routing, quota, and other filters remain placeholder classes |
+| Java starter | Protocol endpoints and tracing exist; `LlmClient`, `ToolInvoker`, `Delegator`, and other classes remain placeholders, so feature parity with Python cannot be assumed |
+| Meta-agent / devflow | The repository contains the maintained meta-agent project, development ledger, sandboxes, and trusted pipeline; designed employee roles, batch scenarios, and historical acceptance results do not establish current live state |
 
 ## Local development
 
-### Console + keel-server
+### Console and control plane
 
-No Docker required. You need JDK 21, Maven 3.9, Node 20+, and a local PostgreSQL on port 5432. Scope is described in the [P1-0 spec](docs/specs/p1/P1-0-runnable-baseline.md).
+Install JDK 21, Maven 3.9+, Node.js 22, and local PostgreSQL. Run these commands from the repository root; the database credentials match the `local` profile.
 
 ```bash
-# 1. Create the database (once)
-psql -h localhost -d postgres -c "CREATE ROLE keel LOGIN PASSWORD 'keel'" -c "CREATE DATABASE keel OWNER keel"
+psql -h localhost -d postgres \
+  -c "CREATE ROLE keel LOGIN PASSWORD 'keel'" \
+  -c "CREATE DATABASE keel OWNER keel"
 
-# 2. keel-server (the local profile creates tables and loads demo data)
+# Local login values are supplied by the operator; this profile does not use auth-gateway
+export KEEL_CONSOLE_LOCAL_PASSWORD='<local login password>'
+export KEEL_CONSOLE_LOCAL_SMS_CODE='<local SMS code>'
 mvn -pl :keel-server -am package -DskipTests
-java -Xmx384m -jar keel-server/target/keel-server-0.1.0-SNAPSHOT.jar --spring.profiles.active=local
-
-# 3. console (/api is proxied to localhost:8080)
-cd console && npm install && npm run dev    # open http://localhost:5173
+java -Xmx384m -jar keel-server/target/keel-server-0.1.0-SNAPSHOT.jar \
+  --spring.profiles.active=local
 ```
 
-- Run `VITE_API_MOCK=off npm run dev` to turn mocks off and hit real APIs only.
-- Without Docker, tests that depend on Testcontainers are skipped locally and still run in CI. Do not replace PostgreSQL with H2.
-
-### Python SDK and agents
+In another terminal, start the frontend from the repository root:
 
 ```bash
-cd sdk-python && pip install -e ".[test]"
-keel new my-agent --template tool-agent     # generates agent.yaml, app.py, evals, Dockerfile
-cd my-agent && keel dev                     # hot reload; audit and approvals go to local keel-lite (SQLite)
+cd console
+npm ci
+VITE_API_MOCK=off npm run dev
+# http://localhost:5173; /api proxies to localhost:8080
 ```
 
-A minimal agent:
+The `local` profile runs Flyway and loads demo data. It does not start the model gateway, rag-forge, Langfuse, or Git/CI services; those features need additional configuration. Pages using development mocks are not evidence of a real integration.
 
-```python
-from keel import Agent, Context
+### Python SDK and independent agents
 
-agent = Agent.from_manifest("agent.yaml")
+For platform source development, install the SDK from the repository root:
 
-@agent.entry
-async def handle(req, ctx: Context):
-    rules = await ctx.knowledge.search("dev-standards", req.input["question"], top_k=8)
-    reply = await ctx.llm.chat(messages=[{"role": "user", "content": req.input["question"]}])
-    return ctx.final(reply, citations=rules.citations)
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e './sdk-python[test,eval]'
 
-app = agent.asgi()
+# Local protocol demo that requires no model service
+keel new my-agent --template hello-agent
+cd my-agent
+keel dev
 ```
 
-### What to run after a change
+`keel dev` starts the reloadable agent on port 8000 and keel-lite audit/approval on port 8001, storing local state under `.keel/`. Without Langfuse configuration it uses a local trace receiver. It may still use a local `dev` identifier; this does not reopen platform writes for `dev/test`.
 
-Run only what your change touches locally. Full test suites, integration tests, and coverage gates run in CI only.
+For a model/tool loop, use `keel new my-loop --template loop-agent`. Configure the model gateway, virtual key, and other environment variables declared by the generated `agent.yaml`, then use `ctx.loop(...)`. `keel dev` does not supply a real model or knowledge service.
 
-| Changed | Run |
+Generated projects include README, AGENTS.md, business entry points, tools, prompts, evaluation, tests, a Dockerfile, and independent CI. Released projects should download and pin the official SDK wheel from GitHub Releases using `.keel-sdk-version`; the Java starter comes from GitHub Packages. Do not copy platform source or install a namesake package from public PyPI. See the [independent project spec](docs/specs/r1017/keel-new-independent-project.md) and each generated project's README.
+
+### Validating changes
+
+Prioritize affected modules locally; integration tests require their dependencies. Testcontainers needs Docker, and skipped tests do not establish integration success.
+
+| Scope | Run from the repository root |
 |---|---|
-| Java | `mvn -o -pl :{module} test` |
-| Python | `pytest --testmon` or `pytest tests/{matching dir}` |
-| Vue | `npx vitest related {changed files}` |
+| Java module and dependencies | `mvn -pl :keel-server -am test` (replace the module name) |
+| Python SDK | `.venv/bin/python -m pytest sdk-python/tests/<matching-directory> -q` |
+| Console | `cd console && npm run typecheck && npm test` |
 | Contracts | `bash scripts/validate-contracts.sh` |
 
-## Deployment
+## Evaluation and releases
 
-All Keel workloads run in the `keel-system` namespace of the existing k3s cluster. Pushing to `main` triggers [`.github/workflows/keel-cd.yml`](.github/workflows/keel-cd.yml), which tests and releases only the services whose paths changed.
+A normal agent release proceeds through: independent project and credentials → `staging` registration → candidate and prompt synchronization → evaluation and gates → `staging` release → controlled `prod` release. The production prompt label is `production`; new writes no longer use `dev/test`.
+
+The CLI provides the commands below. This is not a setup-free deployment script: prepare the platform URL, runtime credentials, datasets and scorers, a reachable agent endpoint, and a built image, and satisfy the platform's caller identity requirements first.
+
+```bash
+keel register --env staging
+keel eval import --file evals/seed.jsonl
+keel eval run --env staging --file evals/seed.jsonl
+keel gate --env staging --endpoint "$KEEL_AGENT_ENDPOINT"
+keel release --env staging --image "$KEEL_RELEASE_IMAGE"
+```
+
+`KEEL_SERVER_URL` is the platform root URL without `/api/v1`. A successful `keel gate` saves `.keel/gate-run-id`; `release` reads it or accepts `--gate-run-id`. Development holdouts and production releases additionally require trusted CI identity, candidate commit/image bindings, and approvals. A local gate alone does not replace that release process.
+
+Platform validation and deployment use [keel-ci.yml](.github/workflows/keel-ci.yml) and [keel-cd.yml](.github/workflows/keel-cd.yml). Official SDK artifacts are built by [release-sdk.yml](.github/workflows/release-sdk.yml) on `sdk-v1.*` tags; development delivery uses [devflow-pipeline.yml](.github/workflows/devflow-pipeline.yml).
+
+## Deployment architecture
+
+This topology and its replica counts come from repository manifests; consult the cluster and deployment records for actual running instances and versions. The platform runs on the application node's k3s cluster (Server 3), with edge Nginx on Server 2. PostgreSQL, Redis, and the Cloud TLS relay run on the data node.
 
 ```mermaid
 flowchart LR
-    user(["Browser"]) -- HTTPS --> nginx["Edge Nginx<br/>keel.ragforge.net"]
-    nginx -- NodePort 31110 --> consoleSvc
-
-    subgraph K3S["k3s · namespace keel-system"]
-        consoleSvc["keel-console ×2<br/>Nginx static site"]
-        server["keel-server ×2"]
-        llm["keel-llm ×2"]
-        audit["keel-audit ×2"]
-        gw["keel-gateway ×2<br/>(skeleton)"]
-        echo["echo-agent ×1"]
-        consoleSvc -- /api --> server
-        server --> llm
-        echo --> llm
+    user["Browser"] -- "HTTPS · keel.ragforge.net" --> ingress["Server 2<br/>edge Nginx"]
+    ingress -- "NodePort 31110" --> console
+    subgraph APP["Server 3 · k3s"]
+        subgraph SYS["keel-system"]
+            console["keel-console ×2"]
+            server["keel-server ×2"]
+            llm["keel-llm ×2"]
+            aux["keel-audit ×2<br/>keel-gateway ×2 (skeleton)"]
+            git["git-ci ×1"]
+            meta["meta-agent ×2<br/>shared local persistent volume"]
+            echo["echo-agent ×1 / chat-demo"]
+            console -- "/api/ · /a/" --> server
+            server --> llm & git & meta
+        end
+        agents["agents<br/>independent / acceptance agents / evaluation Jobs"]
+        sandbox["keel-devflow-sandbox<br/>ephemeral Jobs · quotas · NetworkPolicy"]
+        server --> agents & sandbox
+        agents --> llm
+        shared["Other namespaces<br/>auth-gateway / rag-forge"]
+        server --> shared
     end
-
-    subgraph EXT["Outside the cluster"]
-        pg[("PostgreSQL<br/>database keel")]
-        redis[("Redis<br/>db 3")]
-        lf["Langfuse Cloud<br/>Japan region"]
-        vendors["Model vendors<br/>Qwen · DeepSeek"]
-    end
-
-    server --> pg
-    server -- read observations / move prompt labels --> lf
-    echo -- OTLP/HTTP --> lf
-    llm --> redis
-    llm --> vendors
+    data[("Data node<br/>PostgreSQL / Redis")]
+    relay["Data node · SNI TLS relay<br/>Langfuse Japan / GitHub API only"]
+    cloud["Langfuse Cloud Japan / GitHub API"]
+    vendor["Model vendors"]
+    server & llm --> data
+    server & git & meta --> relay --> cloud
+    llm --> vendor
 ```
 
-| Workload | Replicas | Per replica (requests / limits) | Exposure |
-|---|---|---|---|
-| keel-console | 2 | 100m · 64Mi / 200m · 128Mi | NodePort 31110, pages and `/api` |
-| keel-server | 2 | 500m · 512Mi / 1 core · 1Gi | Cluster only, reverse-proxied by the console |
-| keel-llm | 2 | 100m · 256Mi / 500m · 512Mi | Cluster only; `/admin` is never public |
-| keel-audit | 2 | 100m · 256Mi / 500m · 512Mi | Cluster only |
-| keel-gateway | 2 | 100m · 256Mi / 500m · 512Mi | Cluster only |
-| echo-agent | 1 | 100m · 256Mi / 1 core · 1Gi | Cluster only |
+| Deployment part | Current configuration and entry point |
+|---|---|
+| Console | `deploy/k3s/console.yaml`; 2 replicas, NodePort 31110; both proxy layers disable buffering for debug SSE |
+| Four backends | `deploy/k3s/services/keel-{server,llm,audit,gateway}.yaml`; 2 replicas each, ClusterIP; no separate public control-plane or model gateway admin port |
+| Git/CI and built-in agents | `deploy/k3s/services/`; `git-ci`, `meta-agent`, `echo-agent`, and others currently use `keel-system`. The meta-agent is an exception to the intended layout; do not move it to `agents` based on a design diagram |
+| Independent agents and evaluation | `agents` namespace; the platform manifest includes evaluation Job RBAC, while agent releases belong to their projects/trusted pipelines |
+| Development sandbox | `deploy/k3s/sandbox/namespace.yaml`; namespace ceiling of 4 CPU / 8Gi / 4 Pods, DNS-only egress by default; package-source networking requires separately configured restricted egress |
+| External dependencies | Reuse PostgreSQL, Redis, auth-gateway, and rag-forge; use Langfuse Cloud Japan, not the obsolete LiteLLM/Langfuse Compose drafts |
 
-Key points:
+Operational details:
 
-- **Secrets**: vendor API keys live only in the Secret `keel-llm-vendors`; neither agents nor keel-server can read them. Each agent gets its own Secret `keel-{agent}`, created by keel-server at registration and removed at retirement. A missing Secret leaves the pod in `CreateContainerConfigError`, on purpose.
-- **Prices**: defined in `keel-llm/src/main/resources/application.yaml` and shipped with the image. If a price is missing or zero, the process refuses to start, so cost is never silently recorded as 0.
-- **Daily budget**: both keel-llm replicas share one Redis database so they enforce the same budget.
-- **One Langfuse project for all four environments**: traces are separated by `keel.env`, prompts by label (dev → `dev`, test → `test`, staging → `staging`, prod → `production`).
-- **Images**: pushed to Alibaba Cloud ACR, tagged with the first 12 characters of the commit SHA. Pull requests run tests and gates only and push no images.
-
-One-time setup, Secret creation commands, verification, and rollback steps are in [deploy/README.md](deploy/README.md) (Chinese).
+- **Deployment source**: CD selects affected services by path and compares `main` pushes against the latest complete deployment snapshot to include previously undeployed changes. PRs run tests/gates; `main` builds ACR images and rolls out services. Regular image tags use the first 12 commit SHA characters.
+- **Ordering**: affected agents wait for required control-plane deployment success before rollout and smoke checks. The development pipeline also verifies deployed image digests. Rollout scripts must replace placeholder images before applying manifests.
+- **Secrets and shared state**: vendor keys live only in `keel-llm-vendors`; agents receive their own virtual keys and service identities. Gateway replicas share budgets, keys, routing, channels, and recent spend in Redis; historical spend requires additional JDBC configuration.
+- **Meta-agent storage**: both replicas share `.keel` with locking. The current single-node local volume provides process redundancy, not node failover. See the [meta-agent project](agents/meta-agent/README.md).
+- **Cloud networking**: `hostAliases` routes Langfuse Japan / GitHub API traffic through a private SNI relay while preserving end-to-end TLS. Agent Git transport and CI logs have separate controlled paths. See the [Langfuse relay](deploy/langfuse/README.md) and [Git/CI networking](deploy/git-ci/README.md).
+- **Validation and rollback**: check rollout, readiness, and channel/SSE smoke results, then verify image versions and spend records. Roll back individual services with `kubectl -n keel-system rollout undo deployment/<service>`. Read historical setup counts, four-environment descriptions, and memory-only billing notes alongside current code and manifests.
 
 ## Contracts and conventions
 
-The full rule set is in [AGENTS.md](AGENTS.md). The ones people trip over most:
+See [AGENTS.md](AGENTS.md) for the full rules. The main requirements are:
 
-- **Contracts first**: change cross-language data structures in `contracts/` first, then update the Java and Python models. v1 only accepts new optional fields; removing a field requires v2.
-- **No direct model calls**: call models only through `ctx.llm` / `ctx.llm()`. Vendor API keys must never appear in code, config, or tests.
-- **Audit never degrades**: actions with `risk: high` must write audit synchronously and refuse to run if the write fails. When the report queue is full, traces are dropped but audit never is. `audit_event` is never updated or deleted.
-- **Error codes**: format `{MODULE}_{REASON}`, all registered in `contracts/error-codes.yaml`; error body is `{code, message, trace_id, retryable}`; SSE errors are sent as `event: error` instead of dropping the connection.
-- **Logs**: every log line carries `trace_id` and `agent`. Keel's own service tracing goes to SkyWalking; agent semantic tracing goes to Langfuse.
-- **Do not write external APIs from memory**: the correct usage of Langfuse Cloud v4, the thin gateway, and auth-gateway is in [.cursor/rules/external-apis.mdc](.cursor/rules/external-apis.mdc).
-- **Spec before code**: every task has a spec under `docs/specs/`; write one first if it is missing.
-
-Open the repository root in Cursor so that `AGENTS.md`, `.cursor/rules/`, and `.cursor/hooks.json` apply to AI coding assistants.
+- Change cross-language structures in `contracts/` first, then update Java/Python. New `keel/v1` fields must be optional; breaking changes require a new version.
+- Call models through `ctx.llm` / the corresponding platform client; business code must not call vendors directly or store vendor keys.
+- Audit high-risk actions synchronously and reject execution if the write fails. Capture only `audit.captureFields`; audit tables are append-only.
+- Model input/output belongs in generation observations. Do not spread raw content into ordinary spans, logs, or audit. Keep service tracing separate from agent semantic tracing.
+- Register error codes in `contracts/error-codes.yaml`; use `{code, message, trace_id, retryable}` and emit SSE errors as `event: error`.
+- Read or write a task spec under `docs/specs/` first. Base external integrations on [.cursor/rules/external-apis.mdc](.cursor/rules/external-apis.mdc) and verified implementations.
 
 ## Documentation
 
-Documents live under `docs/`, grouped by package; the index is [docs/README.md](docs/README.md). The technical document wins when documents disagree. All documents are in Chinese.
+The linked design and operational documents are primarily in Chinese.
 
-| File | Content |
+| Document | Purpose |
 |---|---|
-| [docs/architecture/Keel-技术文档.html](docs/architecture/Keel-技术文档.html) | Implementation details, the authoritative source: packages, database, APIs, key flows, pre-build verification |
-| [docs/design/Keel-智能体底座设计.html](docs/design/Keel-智能体底座设计.html) | Design rationale and the original text of the five onboarding contracts |
-| [docs/console/Keel-控制台前端.html](docs/console/Keel-控制台前端.html) | Interactive console prototype; open it directly in a browser |
-| [docs/TASKS.md](docs/TASKS.md) | Task breakdown and progress |
-| [docs/specs/](docs/specs/) | One spec per task; read it before changing code |
-| [deploy/README.md](deploy/README.md) | Deployment, Secrets, verification, and rollback |
+| [Technical reference](docs/architecture/Keel-技术文档.html) | Technical constraints, database, APIs, and key flows; authoritative for technical design conflicts |
+| [Merged design · 2026-10-14](docs/design/Keel-智能体底座设计-20261014.html) | Platform design, agent-driven development, runtime, and lifecycle additions |
+| [Merged console prototype · 2026-10-14](docs/console/Keel-控制台前端-20261014.html) · [Optimization prototype · 2026-10-18](docs/console/Keel-优化效果-20261018.html) | Interactions, debugging, guards, model routing, and cost design |
+| [Two environments](docs/specs/r1020/two-environments.md) · [Dynamic routing](docs/specs/r1021/dynamic-model-routing.md) | Subsequent environment and model governance changes |
+| [Context recovery](docs/specs/p1/P1-context-window-recovery.md) · [History retrieval](docs/specs/p1/P1-session-history-retrieval.md) · [Fact ledger](docs/specs/p1/P1-session-fact-conflicts.md) · [Maintenance calls](contracts/llm-maintenance.md) | Current memory, consistency, and isolation boundaries |
+| [Chat and billing recovery](docs/specs/r1023/context-billing-reliability.md) | Retry deduplication, disconnect settlement, and trace token/billing reconciliation; unknown usage remains unsettled |
+| [Independent projects](docs/specs/r1017/keel-new-independent-project.md) · [Development workflow](docs/specs/devflow/README.md) | Agent project boundaries and development delivery |
+| [Document index](docs/README.md) · [Task records](docs/TASKS.md) · [Acceptance evidence](docs/qa/) | Full documentation and historical progress; past status is not current deployment state |
+| [Deployment guide](deploy/README.md) · [Per-service manifests](deploy/k3s/services/) · [CD workflow](.github/workflows/keel-cd.yml) | Setup, current configuration, and automated deployment sources |
