@@ -209,3 +209,13 @@ def test_negated_or_questioning_intent_cannot_replace_facts(text):
     proposal=op('2','12月10日','correct');proposal['quote']='12月10日'
     apply(state,proposal,sources)
     assert all(f['status']=='pending' for f in state['facts'])
+
+
+@pytest.mark.parametrize('ignored,advances', [([],False),(['1'],True),(['999'],False)])
+def test_empty_proposals_cannot_silently_skip_history(tmp_path,ignored,advances):
+    memory=LiteMemory(LiteStore(tmp_path),'a','s');memory.append('user','你好')
+    class Model:
+        async def chat(self,*args,**kwargs):return ChatResult(json.dumps({'operations':[],'ignoredSourceIds':ignored}),())
+    asyncio.run(SessionFacts(Model(),memory,False,'a','staging').collect([]))
+    state=asyncio.run(memory.load_facts(False))['state']
+    assert (state['cursorId']=='1')==advances
