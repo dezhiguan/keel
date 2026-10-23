@@ -20,6 +20,9 @@ import java.util.regex.Pattern;
 public final class Gateway {
     public static final Pattern ALIAS = Pattern.compile("^[a-z][a-z0-9-]{1,38}[a-z0-9]-(dev|test|staging|prod)$");
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static final java.util.concurrent.ScheduledExecutorService STREAM_DEADLINES =
+            java.util.concurrent.Executors.newSingleThreadScheduledExecutor(
+                    Thread.ofPlatform().daemon().name("llm-stream-deadline").factory());
 
     private final ModelCatalog catalog;
     private final BudgetCounter budget;
@@ -469,21 +472,30 @@ public final class Gateway {
                 var captured = new StringBuilder();
                 var cancelled = false;
                 var buffer = new byte[1024];
+                // HttpRequest.timeout covers headers, not subsequent InputStream reads.
+                // Keep draining after the caller disconnects, but never beyond this attempt's deadline.
+                var active = opened;
+                var remaining = Math.max(1L, timeout.toMillis() - (System.nanoTime() - started) / 1_000_000L);
+                var deadline = STREAM_DEADLINES.schedule(active::close, remaining, java.util.concurrent.TimeUnit.MILLISECONDS);
                 try (var input = opened.body()) {
                     int read;
                     while ((read = input.read(buffer)) >= 0) {
                         captured.append(new String(buffer, 0, read, java.nio.charset.StandardCharsets.UTF_8));
+                        if (captured.length() > 131072) captured.delete(0, captured.length() - 65536);
                         try {
+                            if (cancelled) continue;
                             client.write(buffer, 0, read);
                             client.flush();
                         } catch (java.io.IOException closed) {
                             cancelled = true;
-                            break;
+                            // Usage usually arrives in the last chunk. A closed caller
+                            // must not prevent the gateway from accounting for it.
                         }
                     }
                 } catch (java.io.IOException closed) {
                     cancelled = true;
                 } finally {
+                    deadline.cancel(false);
                     opened.close();
                 }
                 latencyMs = Math.max(0L, (System.nanoTime() - started) / 1_000_000L);
@@ -501,7 +513,7 @@ public final class Gateway {
                 int outputTokens = tokens(node, "completion_tokens");
                 tokensUsed = inputTokens + outputTokens;
                 return line(key.alias(), used, inputTokens, outputTokens, cost, requestId, latencyMs, false,
-                        cancelled ? "SETTLED" : "SETTLED", BigDecimal.ZERO, traceId, route(i), cacheTokens(node));
+                        "SETTLED", BigDecimal.ZERO, traceId, route(i), cacheTokens(node));
             }
             throw new GatewayException(ErrorCode.SERVER_INTERNAL_ERROR, "上游失败");
         } finally {

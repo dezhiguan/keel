@@ -139,6 +139,8 @@ public class TraceIndexStore {
                 if(bill.traceId()==null || bill.traceId().isBlank()) continue;
                 var value=totals.computeIfAbsent(bill.traceId(),k->new LinkedHashMap<>());
                 if("SETTLED".equals(bill.status()) && bill.costCny()!=null) value.merge("costCny",bill.costCny(),(a,b)->((Number)a).doubleValue()+((Number)b).doubleValue());
+                if(bill.inputTokens()!=null && bill.inputTokens()>=0 && bill.outputTokens()!=null && bill.outputTokens()>=0)
+                    value.merge("tokens",(long)bill.inputTokens()+bill.outputTokens(),(a,b)->((Number)a).longValue()+((Number)b).longValue());
                 if("PENDING".equals(bill.status())) {
                     value.putIfAbsent("costCny",null);
                     value.merge("pendingBillCount",1,(a,b)->((Number)a).intValue()+1);
