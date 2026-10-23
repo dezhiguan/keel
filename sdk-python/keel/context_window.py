@@ -74,12 +74,14 @@ class ContextWindow:
         fixed = tokens(system + current, tools)
         if fixed > budget - 128 or (self.external and not prior):
             return system + current
+        if self.summary_deadline is None:
+            self.summary_deadline = time.monotonic() + 60
         await self.load()
         evidence = []
         if not self.evaluation and self.session:
             items, self.state = await self.recall.collect(prior, current, self.state)
             evidence = self.recall.messages(items, min(2400, max(0, budget - fixed - 128)))
-            fact_messages = await self.facts.collect(current)
+            fact_messages = await self.facts.collect(current, self.summary_deadline)
             if tokens(system + evidence + fact_messages + current, tools) <= budget - 128:
                 evidence += fact_messages
         with observe(self.agent, self.env, 'summary', getattr(self.llm, 'tracer', None)) as ev:
