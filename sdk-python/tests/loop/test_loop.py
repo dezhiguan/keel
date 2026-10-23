@@ -7,6 +7,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from keel.session_facts import POLICY
 from keel.context import Context
 from keel.llm.client import LlmClient
 from keel.prompts import Prompt
@@ -156,7 +157,7 @@ def test_loop_remembers_previous_turn_and_eval_does_not_write(monkeypatch, tmp_p
     second, requests = context(monkeypatch, [completion("你叫小明")], run_id="run-second",
                                session_id="session-a")
     assert asyncio.run(run(second, "我叫什么" )).answer == "你叫小明"
-    assert requests[0]["messages"] == [
+    assert [r for r in requests[0]["messages"] if r.get("content") != POLICY] == [
         {"role": "user", "content": "我叫小明"},
         {"role": "assistant", "content": "记住了"},
         {"role": "user", "content": "我叫什么"},
@@ -301,7 +302,7 @@ def test_explicit_server_history_replaces_local_memory(monkeypatch, tmp_path, pr
         finally:
             await ctx.llm.aclose()
     asyncio.run(run())
-    assert requests[0]["messages"] == [{"role": "system", "content": "system"}] + prior + [
+    assert [r for r in requests[0]["messages"] if r.get("content") != POLICY] == [{"role": "system", "content": "system"}] + prior + [
         {"role": "user", "content": "current question"}]
 
 
