@@ -14,6 +14,8 @@ import java.io.OutputStream;
 /** Calls an agent's own /v1/health, /v1/manifest, /v1/invoke, and /v1/runs/{id}/resume. */
 @Component
 public class AgentEndpointClient {
+    private static final java.util.concurrent.ScheduledExecutorService STREAM_DEADLINES =
+            java.util.concurrent.Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform().daemon().name("agent-stream-deadline").factory());
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
     private final ObjectMapper json = new ObjectMapper();
 
@@ -83,6 +85,7 @@ public class AgentEndpointClient {
     public InputStream openStream(String endpoint,String text,String bridgeToken,String agent,String env,
                                   String userId,String ragToken,String ragKbIds,String sessionId,
                                   java.util.List<java.util.Map<String,String>> history,String readContext,String evaluationRun,String taskContext) {
+        long started=System.nanoTime();
         try {
             var payload = json.createObjectNode();
             var input=payload.putObject("input").put("text", text);
@@ -105,12 +108,24 @@ public class AgentEndpointClient {
                 response.body().close();
                 throw new IllegalStateException("智能体返回 HTTP " + response.statusCode());
             }
-            return response.body();
+            return boundedStream(response.body(),Duration.ofNanos(Math.max(1,Duration.ofMinutes(3).toNanos()-(System.nanoTime()-started))));
         } catch (IllegalStateException error) {
             throw error;
         } catch (Exception error) {
             throw new IllegalStateException("调用智能体失败");
         }
+    }
+
+    // HttpRequest.timeout alone does not bound reads after the headers arrive.
+    static InputStream boundedStream(InputStream body,Duration remaining) {
+        var deadline=STREAM_DEADLINES.schedule(() -> {
+            try { body.close(); } catch (java.io.IOException ignored) { }
+        },Math.max(1,remaining.toMillis()),java.util.concurrent.TimeUnit.MILLISECONDS);
+        return new java.io.FilterInputStream(body) {
+            @Override public void close() throws java.io.IOException {
+                deadline.cancel(false); super.close();
+            }
+        };
     }
 
     /** Relay agent SSE unchanged so token, suspend and error events retain their meaning. */

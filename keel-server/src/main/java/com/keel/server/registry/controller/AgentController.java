@@ -159,6 +159,7 @@ public class AgentController {
             body.path("requestId").asText(""),evaluationRun!=null && taskAcceptance==null,taskAcceptance==null?"user":"acceptance:"+taskAcceptance);
         if(taskContext!=null && analysisTasks.hasReceipt(taskContext,text))taskContext=taskContexts.forRequestReplay(taskContext);
         var forwardedTaskContext=taskContext;
+        var streamPrincipal=com.keel.server.auth.ConsolePrincipal.current();
         var relayTrace=com.keel.server.common.TraceIds.current();
         if(relayTrace==null || relayTrace.isBlank())relayTrace=java.util.UUID.randomUUID().toString().replace("-","");
         var errorTrace=relayTrace;
@@ -175,10 +176,10 @@ public class AgentController {
             output.write(claim.replay().getBytes(java.nio.charset.StandardCharsets.UTF_8));
             output.flush();
         };
-        return output -> {
+        return output -> com.keel.server.registry.service.DebugChatExecution.run(() -> {
             try (var guarded=new com.keel.server.registry.service.DebugStreamOutput(output)) {
                 try {
-                    chats.streamChat(name, text, sessionId, owner, remember, guarded, readContext, forwardedEvaluation, forwardedTaskContext);
+                    chats.streamChat(name, text, sessionId, owner, remember, guarded, readContext, forwardedEvaluation, forwardedTaskContext, streamPrincipal);
                 } catch (RuntimeException error) {
                     org.slf4j.LoggerFactory.getLogger(AgentController.class).warn(
                             "trace_id={} agent={} stream relay interrupted run_id={}",errorTrace,name,relayRun);
@@ -186,7 +187,7 @@ public class AgentController {
                     guarded.flush();
                 } finally { chatRequests.finish(claim,guarded.terminal()); }
             }
-        };
+        });
     }
 
     private StreamingResponseBody jsonError(HttpServletResponse response,KeelException error) {
