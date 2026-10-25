@@ -8,6 +8,33 @@ import static org.assertj.core.api.Assertions.*;
 class CodeCandidateServiceTest {
     private final ObjectMapper json = new ObjectMapper();
 
+    @Test void readCandidateUsesPutBaselineAndDoesNotWriteOrAlterFormalSnapshot() throws Exception {
+        var source=manifest();var reads=new java.util.concurrent.atomic.AtomicInteger();
+        var authorized=new java.util.ArrayList<String>();
+        var jdbc=new org.springframework.jdbc.core.JdbcTemplate() {
+            @Override public java.util.List<java.util.Map<String,Object>> queryForList(String sql,Object... args) {
+                assertThat(sql).contains("ORDER BY released_at DESC,id DESC LIMIT 1");
+                assertThat(args).containsExactly("keel-assistant","staging");reads.incrementAndGet();
+                return java.util.List.of(java.util.Map.of("manifest",source.toString(),"manifest_hash","draft-hash"));
+            }
+        };
+        var catalog=new com.keel.server.prompt.PromptCatalog(null) {
+            @Override public void authorize(String name) { authorized.add(name); }
+        };
+        var service=new CodeCandidateService(jdbc,json,null,catalog,null,null,"");
+        var result=service.read("keel-assistant","staging");
+        assertThat(result.get("manifestHash")).isEqualTo("draft-hash");
+        assertThat(result.get("manifest")).isEqualTo(source);
+        assertThat(authorized).containsExactly("keel-assistant");assertThat(reads).hasValue(1);
+        assertThatThrownBy(()->service.read("keel-assistant","prod")).isInstanceOf(com.keel.server.common.KeelException.class);
+        assertThat(reads).hasValue(1);
+        var denied=new CodeCandidateService(jdbc,json,null,new com.keel.server.prompt.PromptCatalog(null) {
+            @Override public void authorize(String name) {throw new com.keel.server.common.KeelException(com.keel.common.error.ErrorCode.AUTH_CONSOLE_FORBIDDEN,"fixture");}
+        },null,null,"");
+        assertThatThrownBy(()->denied.read("keel-assistant","staging")).isInstanceOf(com.keel.server.common.KeelException.class);
+        assertThat(reads).hasValue(1);
+    }
+
     @Test void routingAuditAlignmentIsScopedAndPreservesOtherBoundaries() throws Exception {
         var old=manifest();old.withObject("/metadata").put("name","keel-assistant");
         old.withObject("/spec/audit").putArray("captureFields").add("plan_id");
