@@ -1,0 +1,56 @@
+name: Intent routing platform task candidate
+on:
+  push:
+    branches: [feat/intent-routing-20261025]
+    paths: ['keel-server/src/main/java/com/keel/server/tasks/**', 'keel-server/src/test/java/com/keel/server/tasks/**', '.github/workflows/intent-task-candidate.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: task_fixture_owner
+          POSTGRES_PASSWORD: isolated-task-fixture
+          POSTGRES_DB: keel_assistant_platform_task_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U task_fixture_owner -d keel_assistant_platform_task_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+      KEEL_TASK_PG_URL: jdbc:postgresql://localhost:5432/keel_assistant_platform_task_test
+      KEEL_TASK_PG_USER: task_fixture_owner
+      KEEL_TASK_PG_PASSWORD: isolated-task-fixture
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Full server regression including real platform task PostgreSQL
+        run: mvn -q -pl :keel-server -am test
+      - id: registry
+        run: bash deploy/ci/resolve-image.sh keel-server
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.registry.outputs.server }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/service.Dockerfile
+          push: true
+          provenance: false
+          tags: ${{ steps.registry.outputs.push_image }}
+          build-args: |
+            MODULE=keel-server
+            SOURCE_REV=${{ github.sha }}
+            RAM_PERCENTAGE=70
+      - run: echo 'keel-server = ${{ steps.registry.outputs.pull_image }}' >> "$GITHUB_STEP_SUMMARY"

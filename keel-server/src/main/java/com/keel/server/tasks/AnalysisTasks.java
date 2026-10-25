@@ -100,6 +100,8 @@ public class AnalysisTasks {
             else if(Set.of("running","validating").contains(state))state="cancel_requested";
             db.update("UPDATE assistant_analysis_task SET state=?,updated_at=clock_timestamp() WHERE task_id=?",state,id);
         }else{
+            if(Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM assistant_analysis_command WHERE task_id=? AND operation='cancel')",Boolean.class,id)))
+                throw TaskContext.invalid("该任务已有取消请求，不能重新受理重试；此前调用及费用仍可能未确认");
             if(!Set.of("failed","unknown","waiting_authorization").contains(state)||((Number)task.get("attempt")).intValue()>=2||((String)task.get("material")).isBlank())throw TaskContext.invalid("任务当前不可重试、材料缺失或已达到两次执行上限");
             if(!args.path("acknowledge_duplicate_cost").asBoolean(false)||!text.matches("(?s).*(重试|继续|恢复).*")
                 ||!text.matches("(?s).*((确认|接受|同意|允许).{0,30}(费用|重复|计算)|(费用|重复|计算).{0,30}(确认|接受|同意|允许)).*"))throw TaskContext.invalid("重试需要明确确认可能重复计算和费用");
@@ -158,6 +160,9 @@ public class AnalysisTasks {
             "unknown".equals(row.get("state"))?"调用结果未知；不会自动重算，可能已产生计算与费用":
             "cancelled".equals(row.get("state"))?((Number)row.get("attempt")).intValue()==0?"在执行前取消，没有发起模型调用":
             "后续步骤已取消；先前调用不保证已停止，已有计算和费用不能撤回，请回查历次执行记录":null);
+        if("unknown".equals(row.get("state")) && Boolean.TRUE.equals(db.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM assistant_analysis_command WHERE task_id=? AND operation='cancel')",Boolean.class,row.get("task_id"))))
+            out.put("cancellation_note","已请求取消；此前调用结果及费用仍未知，不会自动重算，也不允许重新受理重试");
         return out;
     }
     private Map<String,Object> detail(Map<String,Object> row){
