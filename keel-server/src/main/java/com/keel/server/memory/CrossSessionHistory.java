@@ -34,7 +34,7 @@ public class CrossSessionHistory {
         var exact=args.path("exact").asBoolean(false);
         var role=args.path("role").asText("user");
         var limit=args.path("limit").asInt(4);
-        if(query.isEmpty() || query.length()>500 || !Set.of("user","all").contains(role)
+        if(!args.path("query").isTextual() || (args.has("role") && !args.get("role").isTextual()) || query.isEmpty() || query.length()>500 || !Set.of("user","all").contains(role)
            || limit<1 || limit>6 || (args.has("exact") && !args.get("exact").isBoolean())
            || (args.has("limit") && !args.get("limit").isIntegralNumber()))throw invalid();
         var terms=exact ? List.of(query.toLowerCase(Locale.ROOT)) : SessionHistory.terms(query);

@@ -107,7 +107,9 @@ public class CodeCandidateService {
 
     private JsonNode authorizedHistoryComparison(String agent,String env,JsonNode prior,JsonNode candidate) {
         var added=new java.util.HashMap<String,JsonNode>();
-        candidate.path("spec").path("tools").forEach(t->added.put(t.path("name").asText(),t));
+        candidate.path("spec").path("tools").forEach(t->{
+            if(added.put(t.path("name").asText(),t)!=null)throw invalid("工具声明重复");
+        });
         prior.path("spec").path("tools").forEach(t->added.remove(t.path("name").asText()));
         if(!added.containsKey("assistant.history.search") && !added.containsKey("keel.history.search"))return prior;
         requireReconciliationAdmin(ConsolePrincipal.current());
