@@ -141,7 +141,7 @@ public class AgentRegistryService {
     private AgentDetail readDetail(String name, boolean evidence) {
         var agent = require(name);
         var versions = versionMapper.listByAgent(name);
-        var latest = versions.isEmpty() ? null : versions.get(0);
+        var latest = VersionLifecycle.registered(versions);
         var manifest = readManifest(latest);
         var env = latest == null ? null : latest.getEnv();
         var instances = instanceMapper.selectList(new LambdaQueryWrapper<AgentInstance>()
