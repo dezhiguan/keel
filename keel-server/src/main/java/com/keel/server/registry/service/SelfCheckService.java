@@ -53,7 +53,7 @@ public class SelfCheckService {
             if (!health.passed()) throw new IllegalStateException("健康检查未通过");
             var bridgeToken = switch (agent) {
                 case "meta-agent" -> metaBridgeToken;
-                case "careermate" -> careerMateBridgeToken;
+                case "careermate", "careermate-keel" -> careerMateBridgeToken;
                 default -> null;
             };
             var actual = endpoints.manifest(endpoint, bridgeToken);

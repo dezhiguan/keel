@@ -30,3 +30,7 @@ agent.yaml 声明模型、提示词、工具风险与权限、记忆、审计、
 3. Langfuse 可查根节点、generation、tool 与提示词版本；网关账单带 trace/request ID；底座可查白名单审计。
 4. staging 全量评测门禁通过后发布，验证正式 manifest、镜像、提示词快照；原生 CareerMate 健康与关键 API 回归。
 5. 将实际执行命令、通过数、线上证据与未完成项写入验收记录，不把 mock 当成真实模型验收。
+
+## 线上身份兼容补充
+
+2026-10-25 实际控制台对 careermate 返回 404，但名称检查显示已占用；登记新运行时使用 careermate-keel，不复用已移除身份。AgentChatService 与 SelfCheckService 对新标识复用 CareerMate 独立桥接凭据；首次数据集种子按新标识提供。

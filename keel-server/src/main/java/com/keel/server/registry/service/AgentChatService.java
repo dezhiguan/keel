@@ -187,7 +187,7 @@ public class AgentChatService {
     private String bridgeToken(String name) {
         return switch (name) {
             case "meta-agent" -> metaAgentToken;
-            case "careermate" -> careerMateToken;
+            case "careermate", "careermate-keel" -> careerMateToken;
             default -> null;
         };
     }

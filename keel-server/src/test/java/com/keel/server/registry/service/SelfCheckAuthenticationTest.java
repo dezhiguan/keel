@@ -24,6 +24,7 @@ class SelfCheckAuthenticationTest {
     }
     @Test void careerMateReceivesItsOwnCredentialOnEveryProbe() throws Exception {
         check("careermate", 200, true);
+        check("careermate-keel", 200, true);
     }
     @Test void authenticationFailureIsNotReportedAsManifestMismatchOrMissingTrace() throws Exception {
         check("meta-agent", 401, false);
@@ -38,7 +39,7 @@ class SelfCheckAuthenticationTest {
             var health = path.equals("/v1/health");
             if (!health) assertThat(exchange.getRequestHeaders().getFirst("X-Keel-Bridge"))
                     .isEqualTo(agent.equals("meta-agent") ? "test-bridge-identity"
-                            : agent.equals("careermate") ? "career-bridge-identity" : null);
+                            : (agent.equals("careermate") || agent.equals("careermate-keel")) ? "career-bridge-identity" : null);
             int responseStatus = health ? 200 : status;
             String body = "{}";
             if (!health && status == 200) {
