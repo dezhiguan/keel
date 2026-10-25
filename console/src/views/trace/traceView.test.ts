@@ -118,3 +118,10 @@ it('shows memory versions and references without treating a hit as a used summar
   expect(text).toContain('原文消息编号：["17"]')
   expect(text).not.toContain('摘要已加入模型输入')
 })
+
+it('labels asynchronous memory evidence as bounds and links rather than settled spend', () => {
+  const text = memoryEvidenceText({ taskId: '9', triggerTraceId: 'source-trace', reason: 'conflict', costUpperBoundCny: '0.1' })
+  expect(text).toContain('记忆维护任务：9')
+  expect(text).toContain('触发请求链路：source-trace')
+  expect(text).toContain('本次费用保守上界（元）：0.1')
+})

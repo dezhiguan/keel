@@ -13,7 +13,9 @@ import java.nio.charset.StandardCharsets;
 public final class DebugSseRelay {
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    public record Final(String answer, String traceId, boolean rememberable) {}
+    public record Final(String answer, String traceId, boolean rememberable,long summaryThroughId) {
+        public Final(String answer,String traceId,boolean rememberable){this(answer,traceId,rememberable,0);}
+    }
 
     private DebugSseRelay() {}
 
@@ -65,7 +67,7 @@ public final class DebugSseRelay {
             var node = JSON.readTree(body);
             var trace = node.path("trace_id").asText("");
             if (!node.path(field).isTextual() || trace.isBlank()) return null;
-            return new Final(node.path(field).asText(), trace, rememberable);
+            return new Final(node.path(field).asText(), trace, rememberable, node.path("meta").path("memoryMaintenance").path("summaryThroughId").asLong(0));
         } catch (IOException error) {
             return null;
         }

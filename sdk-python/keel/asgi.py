@@ -392,9 +392,14 @@ def create_app(agent) -> Starlette:
     async def lifespan(app):
         from keel.http_pool import create_transport
         app.state.keel_transport = create_transport()
+        from keel.memory_maintenance import start
+        workers = []
         try:
+            workers = start(agent,app.state.keel_transport,tracer)
             yield
         finally:
+            for worker in workers:worker.cancel()
+            await asyncio.gather(*workers,return_exceptions=True)
             await app.state.keel_transport.aclose()
             app.state.keel_transport = None
             if provider:

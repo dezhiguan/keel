@@ -214,6 +214,8 @@ class Context:
             self._events.put_nowait(TokenEvent(text=tail))
         evidence = {**(meta or {}), "prompt_versions": dict(self._prompt_versions),
                     "prompt_fallback": self._prompt_fallback}
+        if getattr(self,'_memory_window',None) is not None and getattr(self._memory_window,'async_readonly',False):
+            evidence['memoryMaintenance']={'mode':'async','summaryThroughId':getattr(self,'_memory_summary_through','0')}
         return FinalEvent(answer=answer, citations=citations or [], meta=evidence,
                           trace_id=self.trace_id, run_id=self.run_id)
 
@@ -275,6 +277,7 @@ class Context:
             from keel.context_window import ContextWindow
             window = ContextWindow(self.llm, self.memory, self.agent, self.env, self.session_id,
                                    self.user_id, self._session_messages is not None, self.eval_run_id, self.trace_id)
+            self._memory_window = window
             history = system + [{"role": r["role"], "content": r["content"]} for r in prior] + turns
         chain_start = len(history) - len(turns) if not self.resuming else 0
         managed = not self.resuming
@@ -333,6 +336,7 @@ class Context:
                     if managed:
                         current_chain = history[chain_start:]
                         history = await window.assemble(system, prior, current_chain, tools if tools and not active_tools else active_tools)
+                        self._memory_summary_through=str(max(int(getattr(self,'_memory_summary_through','0')),int(getattr(window,'summary_through_id','0'))))
                         chain_start = len(history) - len(current_chain)
                     if tools and not active_tools:
                         result = await self.llm.chat(history, tools=tools, tool_choice="none", prompt=prompt, **({"purpose": model_purpose} if model_purpose else {}))

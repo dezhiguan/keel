@@ -59,6 +59,15 @@ class UserMemory:
             params.update(ownerUser=owner, summaryVersion=version)
         return await self._send("GET", "/session-history/messages/" + message_id + "?" + urlencode(params), None)
 
+    async def claim_maintenance(self):
+        return await self._send('POST','/maintenance/claim',{'env':self.env,'workerId':os.environ.get('HOSTNAME','')})
+
+    async def complete_maintenance(self, body):
+        return await self._send('POST','/maintenance/complete',{'env':self.env,**body})
+
+    async def fail_maintenance(self, body):
+        return await self._send('POST','/maintenance/fail',{'env':self.env,**body})
+
     async def _send(self, method: str, suffix: str, payload: dict | None) -> dict:
         base = os.environ.get("KEEL_SERVER_URL", "").rstrip("/")
         if not base:

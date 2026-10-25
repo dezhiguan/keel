@@ -23,6 +23,8 @@ public class DebugSessionService {
     static final int PAGE = 10;
     private static final SecureRandom RANDOM = new SecureRandom();
     private final JdbcTemplate jdbc;
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private com.keel.server.memory.SessionMemoryJobs memoryJobs;
 
     public DebugSessionService(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
@@ -90,8 +92,14 @@ public class DebugSessionService {
         return Map.of("id", id, "title", "", "messageCount", 0, "updatedAt", Instant.now().toString());
     }
 
+    @Transactional
     public void delete(String agent, String owner, String id) {
         require(agent, null, owner, id);
+        jdbc.queryForList("SELECT id FROM agent_session WHERE id=? AND agent_name=? AND owner_user=? FOR UPDATE",id,agent,owner);
+        jdbc.update("DELETE FROM session_memory_attempt WHERE session_id=? AND agent_name=? AND owner_user=?",id,agent,owner);
+        jdbc.update("DELETE FROM session_memory_job WHERE session_id=? AND agent_name=? AND owner_user=?",id,agent,owner);
+        var hash=jdbc.queryForObject("SELECT encode(sha256(convert_to(?||':'||?,'UTF8')),'hex')",String.class,owner,id);
+        for(var table:List.of("session_summary","session_fact_state")) jdbc.update("DELETE FROM "+table+" WHERE session_id=? AND agent_name=? AND owner_user=?",hash,agent,owner);
         jdbc.update("DELETE FROM session_message WHERE session_id = ? AND owner_user = ? AND agent_name = ?", id, owner, agent);
         jdbc.update("DELETE FROM agent_session WHERE id = ? AND owner_user = ? AND agent_name = ?", id, owner, agent);
     }
@@ -148,16 +156,22 @@ public class DebugSessionService {
 
     @Transactional
     public void appendTurn(String agent, String owner, String id, String userText, String answer, String traceId) {
+        appendTurn(agent,owner,id,userText,answer,traceId,0);
+    }
+    @Transactional
+    public void appendTurn(String agent, String owner, String id, String userText, String answer, String traceId,long summaryThrough) {
+        var scope=jdbc.queryForList("SELECT env FROM agent_session WHERE id=? AND agent_name=? AND owner_user=? FOR UPDATE",id,agent,owner);
+        if(scope.isEmpty())throw new KeelException(ErrorCode.SERVER_NOT_FOUND,"会话不存在");
         var policy=jdbc.query("SELECT p.retention_days FROM agent_history_policy p JOIN agent_session s ON s.agent_name=p.agent_name AND s.env=p.env WHERE s.id=? AND s.agent_name=? AND s.owner_user=?",
                 (rs,n)->rs.getObject(1,Integer.class),id,agent,owner);
         var days=policy.isEmpty()?Integer.valueOf(7):policy.getFirst();
         var expires = days==null ? new Timestamp(9223372036825200000L /* PostgreSQL JDBC positive infinity */) : Timestamp.from(Instant.now().plus(days, ChronoUnit.DAYS));
         var user = clip(userText);
         var reply = clip(answer);
-        jdbc.update("""
+        var userId=jdbc.queryForObject("""
                 INSERT INTO session_message (session_id, agent_name, owner_user, role, content, trace_id, expires_at)
-                VALUES (?, ?, ?, 'user', ?, NULL, ?)
-                """, id, agent, owner, user, expires);
+                VALUES (?, ?, ?, 'user', ?, NULL, ?) RETURNING id
+                """,Long.class,id,agent,owner,user,expires);
         jdbc.update("""
                 INSERT INTO session_message (session_id, agent_name, owner_user, role, content, trace_id, expires_at)
                 VALUES (?, ?, ?, 'assistant', ?, ?, ?)
@@ -167,6 +181,7 @@ public class DebugSessionService {
                 SET title = CASE WHEN title = '' THEN ? ELSE title END, updated_at = now()
                 WHERE id = ? AND owner_user = ? AND agent_name = ?
                 """, title(user), id, owner, agent);
+        if(memoryJobs!=null)memoryJobs.enqueue(agent,(String)scope.getFirst().get("env"),owner,id,userId,summaryThrough,traceId);
     }
 
     private static Map<String, Object> sessionRow(java.sql.ResultSet rs) throws java.sql.SQLException {

@@ -121,7 +121,7 @@ class SessionFacts:
         self.agent, self.env = agent, env
         self.result = None
 
-    async def collect(self, current, deadline=None):
+    async def collect(self, current, deadline=None, *, strict=False):
         if self.result is not None:
             return self.result
         self.result = [TrustedMessage({'role': 'system', 'content': POLICY})]
@@ -224,6 +224,8 @@ class SessionFacts:
                 ev['status'] = 'failed'
                 log.warning('session facts unavailable trace_id=%s agent=%s kind=%s',
                             getattr(self.llm, 'trace_id', ''), self.agent, type(error).__name__)
+                if strict:
+                    raise
         return self.result
 
     @staticmethod

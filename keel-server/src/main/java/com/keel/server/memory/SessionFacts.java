@@ -13,6 +13,7 @@ import java.util.*;
 /** Versioned derived facts. Originals and authorization remain owned by SessionHistory. */
 @Service
 public class SessionFacts {
+    @org.springframework.beans.factory.annotation.Autowired(required=false) private MemoryMaintenancePolicy policy;
     private final JdbcTemplate jdbc;
     private final SessionHistory history;
     private final ObjectMapper json;
@@ -31,12 +32,13 @@ public class SessionFacts {
             } catch(Exception e) {throw new IllegalStateException("Invalid stored facts",e);} },agent,env,scope.owner(),session);
         return rows.isEmpty()?Map.of("version",0,"cursorId","0","facts",List.of(),"gaps",List.of()):rows.getFirst();
     }
-    public Map<String,Object> get(String agent,String env,String session) {
+    public Map<String,Object> get(String agent,String env,String session) { return get(agent,env,session,Long.MAX_VALUE); }
+    public Map<String,Object> get(String agent,String env,String session,long upper) {
         var scope=history.scope(agent,env,session);
         jdbc.update("DELETE FROM session_fact_state WHERE expires_at<=now()");
         var state=state(agent,env,session,scope);
-        var rows=jdbc.query("SELECT id,content FROM session_message WHERE agent_name=? AND owner_user=? AND session_id=? AND role='user' AND id>? AND expires_at>now() ORDER BY id LIMIT 9",
-            (rs,n)->Map.<String,Object>of("id",rs.getString(1),"role","user","content",rs.getString(2)),agent,scope.owner(),scope.id(),Long.parseLong((String)state.get("cursorId")));
+        var rows=jdbc.query("SELECT id,content FROM session_message WHERE agent_name=? AND owner_user=? AND session_id=? AND role='user' AND id>? AND id<=? AND expires_at>now() ORDER BY id LIMIT 9",
+            (rs,n)->Map.<String,Object>of("id",rs.getString(1),"role","user","content",rs.getString(2)),agent,scope.owner(),scope.id(),Long.parseLong((String)state.get("cursorId")),upper);
         var messages=new ArrayList<Map<String,Object>>();var skipped=new ArrayList<String>();var cursor=(String)state.get("cursorId");int chars=0;
         for(var row:rows.subList(0,Math.min(8,rows.size()))) {
             var text=(String)row.get("content");
@@ -45,12 +47,16 @@ public class SessionFacts {
             cursor=(String)row.get("id");
         }
         boolean more=!rows.isEmpty() && !rows.getLast().get("id").equals(cursor);
-        return Map.of("state",state,"messages",messages,"skippedIds",skipped,"nextCursor",cursor,"more",more);
+        var result=new LinkedHashMap<String,Object>(Map.of("state",state,"messages",messages,"skippedIds",skipped,"nextCursor",cursor,"more",more));
+        if(policy!=null && policy.enabledSession(agent,env,session))result.put("maintenanceMode","async");return result;
     }
+    @org.springframework.transaction.annotation.Transactional
     public Map<String,Object> save(String agent,JsonNode body) {
         var env=body.path("env").asText();var session=body.path("sessionId").asText();
         var scope=history.scope(agent,env,session);var candidate=body.path("state");
-        var batch=get(agent,env,session);var canonical=json.valueToTree(batch.get("state"));
+        var locks=jdbc.queryForList("SELECT id FROM agent_session WHERE id=? AND agent_name=? AND env=? AND owner_user=? FOR UPDATE",scope.id(),agent,env,scope.owner());
+        if(locks.isEmpty())throw invalid();
+        var batch=get(agent,env,session,body.path("maintenanceThroughId").asLong(Long.MAX_VALUE));var canonical=json.valueToTree(batch.get("state"));
         long expected=candidate.path("version").asLong(-1);
         if(expected<0 || !body.path("evalRunId").asText("").isBlank()) throw invalid();
         if(canonical.path("version").asLong()!=expected) return Map.of("state",batch.get("state"),"saved",false);
