@@ -25,6 +25,8 @@ class AgentChatServiceTest {
     private int detailReads;
     private String auditEnv;
     private String forwardedSession;
+    private String forwardedUser;
+    private String forwardedBridge;
     private final AgentRegistryService registry = new AgentRegistryService(null, null, null, null, null, null) {
         @Override public AgentDetail registeredDetail(String name) { detailReads++; return current; }
         @Override public String invokeEndpoint(String name) { return endpoint; }
@@ -39,6 +41,8 @@ class AgentChatServiceTest {
 
         @Override public Answer invoke(String endpoint, String text, String token, String agent, String env, String user) {
             invocations++;
+            forwardedUser = user;
+            forwardedBridge = token;
             assertThat(env).isEqualTo("test");
             return new Answer("ok", "trace-qa");
         }
@@ -113,6 +117,24 @@ class AgentChatServiceTest {
                 .isInstanceOfSatisfying(KeelException.class,error -> assertThat(error.code()).isEqualTo(ErrorCode.GW_AGENT_OFFLINE));
         assertThat(detailReads).isEqualTo(2);
         assertThat(invocations).isEqualTo(1);
+    }
+
+    @Test void askdbUsesAuthenticatedUsernameAndItsOwnCredential() {
+        detail(AgentStatus.ONLINE, "test", List.of());
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "bridgeCredentials",
+                new AgentBridgeCredentials("askdb-private", "meta-private", "career-private"));
+        var request = new org.springframework.mock.web.MockHttpServletRequest();
+        com.keel.server.auth.ConsolePrincipal.set(request, new com.keel.server.auth.ConsolePrincipal(
+                "USER", "user-54", "guandezhi", "A shared display name", "org", "ADMIN", List.of(), false));
+        org.springframework.web.context.request.RequestContextHolder.setRequestAttributes(
+                new org.springframework.web.context.request.ServletRequestAttributes(request));
+        try {
+            service.chat("askdb", "count");
+            assertThat(forwardedUser).isEqualTo("guandezhi");
+            assertThat(forwardedBridge).isEqualTo("askdb-private");
+        } finally {
+            org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
+        }
     }
 
     private void rejected() {
