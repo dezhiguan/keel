@@ -18,3 +18,5 @@ final.meta.memoryMaintenance 可选对象：`{mode:"async", summaryThroughId:"�
 summary/facts 读取响应可选 `maintenanceMode:"async"`，SDK 据此确认服务端已启用。后台提交不调用不带租约的旧写接口；事务内复用现有校验与审计。任务不存原文，只存来源范围；删除会话同步删除派生状态及任务，不得重建。
 
 后台观测独立 trace，root memory.maintenance 记录触发 trace/task ID；memory.summary、memory.facts 的 status 保持 attempted/ok/failed，并记录 skipped/conflict/timeout/retry 的 reason。不得以后台结束时间延长主请求 span。
+
+兼容说明：旧 summary API 的非控制台 session ID 继续支持已有 CAS；64位哈希控制台会话必须存在并锁定原会话行，提交不得复活删除或过期会话。

@@ -14,4 +14,3 @@ public class MemoryMaintenancePolicy {
         return !modes.isEmpty() && !"sync".equals(modes.getFirst());
     }
 }
-

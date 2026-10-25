@@ -60,8 +60,8 @@ public class SessionSummaries {
         owner=canonicalOwner(agent,env,session,owner);
         authorize(agent,env,owner,session);
         var existing=jdbc.queryForList("SELECT id FROM agent_session WHERE agent_name=? AND env=? AND owner_user=? AND encode(sha256(convert_to(owner_user||':'||id,'UTF8')),'hex')=? FOR UPDATE",agent,env,owner,session);
-        if(existing.isEmpty())throw new KeelException(ErrorCode.SERVER_NOT_FOUND,"会话不存在");
-        var expiry=jdbc.queryForObject("SELECT min(expires_at) FROM session_message WHERE session_id=? AND agent_name=? AND owner_user=? AND expires_at>now()",java.sql.Timestamp.class,existing.getFirst().get("id"),agent,owner);
+        if(existing.isEmpty() && session.matches("[a-f0-9]{64}"))throw new KeelException(ErrorCode.SERVER_NOT_FOUND,"会话不存在");
+        var expiry=existing.isEmpty()?java.sql.Timestamp.from(java.time.Instant.now().plus(7,java.time.temporal.ChronoUnit.DAYS)):jdbc.queryForObject("SELECT min(expires_at) FROM session_message WHERE session_id=? AND agent_name=? AND owner_user=? AND expires_at>now()",java.sql.Timestamp.class,existing.getFirst().get("id"),agent,owner);
         if(expiry==null)throw new KeelException(ErrorCode.SERVER_NOT_FOUND,"会话原文已过期");
         long version=body.path("version").asLong(-1),through;
         try { through=Long.parseLong(body.path("throughId").asText()); }
