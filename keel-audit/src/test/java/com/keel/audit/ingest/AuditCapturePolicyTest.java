@@ -43,4 +43,11 @@ class AuditCapturePolicyTest {
         assertThrows(IllegalArgumentException.class,()->new AuditCapturePolicy("[]"));
         assertThrows(IllegalArgumentException.class,()->new AuditCapturePolicy("{\"keel-assistant\":{\"staging\":{\"captureFields\":[\"route_mode\"],\"tokenSha256\":\"bad\"}}}"));
     }
+    @Test void nonObjectCannotBypassMaskingOrEnterTheLog() throws Exception {
+        var chain = new HashChainService(new MemoryChainStore());
+        var log = new AuditLog();
+        var controller = new AuditIngestController(chain, new AuditMqConsumer(chain), log, policy());
+        assertEquals(400, controller.post(json.readTree("[\"must-not-store\"]"), "Bearer fixture-only").getStatusCode().value());
+        assertEquals(0, log.total(null,null,null,null,null,null));
+    }
 }

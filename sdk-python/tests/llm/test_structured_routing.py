@@ -82,3 +82,13 @@ def test_dependency_graph_is_validated_before_execution(kind):
 def test_nonexecuting_decision_cannot_name_executor():
     value=route();value['plan']['mode']='deny'
     with pytest.raises(ValueError):validate_routing(value)
+
+
+def test_error_metadata_preserves_validated_route_without_arbitrary_exception_data():
+    from keel.protocol.errors import ErrorCode
+    error=KeelError(ErrorCode.TOOL_NOT_GRANTED,meta={'routing':route(),'secret':'must-drop'})
+    assert error.meta['routing']['plan']['mode']=='local_fast'
+    assert 'secret' not in error.meta
+    bad=route();bad['intent']['slots']['authorization']='must-drop'
+    error=KeelError(ErrorCode.TOOL_NOT_GRANTED,meta={'routing':bad})
+    assert error.meta=={} and error.code==ErrorCode.TOOL_NOT_GRANTED

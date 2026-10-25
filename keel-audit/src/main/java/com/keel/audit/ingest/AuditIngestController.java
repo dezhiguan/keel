@@ -32,6 +32,11 @@ public class AuditIngestController {
     @PostMapping
     public ResponseEntity<Map<String, Object>> post(@RequestBody JsonNode event,
             @RequestHeader(value = "Authorization", required = false) String authorization) {
+        if (!event.isObject()) {
+            var code = com.keel.common.error.ErrorCode.SERVER_INVALID_PARAM;
+            return ResponseEntity.status(code.http()).body(Map.of("code", code.name(), "message", code.message(),
+                    "trace_id", "", "retryable", code.retryable()));
+        }
         boolean sync = "high".equals(event.path("risk").asText());
         JsonNode masked;
         try { masked = mask(event, authorization); }

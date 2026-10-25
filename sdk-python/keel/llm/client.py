@@ -240,6 +240,8 @@ class LlmClient:
                 logger.warning("LiteLLM reported zero cost for nonzero tokens trace_id=%s agent=%s",
                                self.trace_id, self.agent)
             reply = response.choices[0].message.content or ""
+            if self.guard is not None:
+                reply = self.guard.redact(reply)
             if response_schema is not None:
                 message = response.choices[0].message
                 try:
@@ -252,8 +254,6 @@ class LlmClient:
                 except (ValueError, jsonschema.ValidationError) as exc:
                     span.set_attribute(attrs.STATUS, "failed")
                     raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型分类结果未通过结构验证") from exc
-            if self.guard is not None:
-                reply = self.guard.redact(reply)
             span.set_attribute(attrs.OBSERVATION_OUTPUT, reply)
             if tools is None:
                 return reply
