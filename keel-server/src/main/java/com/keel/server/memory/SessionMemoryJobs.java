@@ -154,7 +154,7 @@ public class SessionMemoryJobs {
         jdbc.update("UPDATE session_memory_job SET status=?,lease_token=NULL,lease_until=NULL,attempts=?,reserved_cny=?,calls=calls+?,cost_upper_bound=cost_upper_bound+?,worker_trace_id=?,reason=?,next_attempt_at=now(),updated_at=now() WHERE id=?",
             more?"pending":"done",ok?0:job.get("attempts"),ok?BigDecimal.ZERO:job.get("reserved_cny"),body.path("calls").asInt(),body.path("costUpperBoundCny").decimalValue(),body.path("traceId").asText(""),ok?null:"conflict",job.get("id"));
         jdbc.update("UPDATE session_memory_attempt SET status=?,reason=?,finished_at=now(),through_id=?,more=?,calls=?,input_tokens=?,output_tokens=?,cost_upper_bound=?,worker_trace_id=? WHERE lease_token=?",
-            ok?"committed":"conflict",ok?null:"conflict",through,more,body.path("calls").asInt(),body.path("inputTokens").asInt(),body.path("outputTokens").asInt(),body.path("costUpperBoundCny").decimalValue(),body.path("traceId").asText(""),body.path("leaseToken").asText());
+            ok?"committed":"conflict",ok?null:"conflict",through,more,body.path("calls").asInt(),body.path("inputTokens").isIntegralNumber()?body.path("inputTokens").asInt():null,body.path("outputTokens").isIntegralNumber()?body.path("outputTokens").asInt():null,body.path("costUpperBoundCny").decimalValue(),body.path("traceId").asText(""),body.path("leaseToken").asText());
         return Map.of("saved",ok,"more",more);
     }
     @Transactional
@@ -165,7 +165,7 @@ public class SessionMemoryJobs {
         jdbc.update("UPDATE session_memory_job SET status=?,reason=?,lease_token=NULL,lease_until=NULL,next_attempt_at=now()+interval '2 seconds',calls=calls+?,cost_upper_bound=cost_upper_bound+?,worker_trace_id=?,updated_at=now() WHERE id=?",
             terminal?"failed":"pending",reason,body.path("calls").asInt(),body.path("costUpperBoundCny").decimalValue(),body.path("traceId").asText(""),job.get("id"));
         jdbc.update("UPDATE session_memory_attempt SET status='failed',reason=?,finished_at=now(),calls=?,input_tokens=?,output_tokens=?,cost_upper_bound=?,worker_trace_id=? WHERE lease_token=?",
-            reason,body.path("calls").asInt(),body.path("inputTokens").asInt(),body.path("outputTokens").asInt(),body.path("costUpperBoundCny").decimalValue(),body.path("traceId").asText(""),body.path("leaseToken").asText());
+            reason,body.path("calls").asInt(),body.path("inputTokens").isIntegralNumber()?body.path("inputTokens").asInt():null,body.path("outputTokens").isIntegralNumber()?body.path("outputTokens").asInt():null,body.path("costUpperBoundCny").decimalValue(),body.path("traceId").asText(""),body.path("leaseToken").asText());
         if(terminal)log.error("trace_id={} agent={} memory_maintenance_failed task={} reason={}",body.path("traceId").asText("background"),agent,job.get("id"),reason);
         return Map.of("accepted",true);
     }

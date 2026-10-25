@@ -36,8 +36,9 @@ class BoundedModel:
     def __init__(self,llm,job,input_price,output_price):
         self.llm,self.job=llm,job
         self.input_price,self.output_price=Decimal(input_price),Decimal(output_price)
-        if self.input_price<=0 or self.output_price<=0:raise ValueError('Missing memory price bounds')
+        if not self.input_price.is_finite() or not self.output_price.is_finite() or self.input_price<=0 or self.output_price<=0:raise ValueError('Missing memory price bounds')
         self.last_error=None
+        self.usage_known=True
         self.calls=0;self.reserved=Decimal(0);self.input_tokens=0;self.output_tokens=0
         self.tracer,self.trace_id=llm.tracer,llm.trace_id
     async def chat(self,messages,**options):
@@ -50,11 +51,12 @@ class BoundedModel:
         try:
             result=await self.llm.chat(messages,**{**options,'max_tokens':output,'emit_tokens':False,'purpose':'memory'})
         except Exception as error:
-            self.last_error=error;raise
+            self.last_error=error;self.usage_known=False;raise
+        if not getattr(result,'input_tokens',0):self.usage_known=False
         self.input_tokens+=getattr(result,'input_tokens',0);self.output_tokens+=getattr(result,'output_tokens',0)
         return result
     def usage(self):
-        return dict(calls=self.calls,costUpperBoundCny=float(self.reserved),inputTokens=self.input_tokens,outputTokens=self.output_tokens)
+        return dict(calls=self.calls,costUpperBoundCny=float(self.reserved),inputTokens=self.input_tokens if self.usage_known else None,outputTokens=self.output_tokens if self.usage_known else None)
 
 
 class FactBatch:
@@ -157,7 +159,8 @@ def start(agent,transport,tracer):
     if not agent.manifest.spec.models:raise ValueError('Memory workers require managed model configuration')
     # Fail startup rather than silently run jobs without a valid paid-call ceiling.
     for name in ('KEEL_MEMORY_MAX_INPUT_CNY_PER_TOKEN','KEEL_MEMORY_MAX_OUTPUT_CNY_PER_TOKEN'):
-        if Decimal(os.environ.get(name,'0'))<=0:raise ValueError('Configure '+name)
+        price=Decimal(os.environ.get(name,'0'))
+        if not price.is_finite() or price<=0:raise ValueError('Configure '+name)
     concurrency=int(os.environ.get('KEEL_MEMORY_WORKERS','4'))
     if not 1<=concurrency<=32:raise ValueError('KEEL_MEMORY_WORKERS must be 1..32')
     async def poll():
