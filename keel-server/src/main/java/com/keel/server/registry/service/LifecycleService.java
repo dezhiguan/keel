@@ -79,6 +79,12 @@ public class LifecycleService {
         }
         if (existing == null) {
             insertAgent(manifest);
+        } else {
+            // A legacy protocol bridge may now be a governed runtime in another language.
+            // Metadata must follow the validated manifest for evaluation image selection.
+            jdbc.update("UPDATE agent SET runtime=?, language=?, updated_at=now() WHERE name=?",
+                    manifest.path("spec").path("runtime").path("type").asText("code"),
+                    manifest.path("spec").path("runtime").path("language").asText("python"), name);
         }
         if (approvedGrants != null) {
             jdbc.update("UPDATE agent SET devflow_job_id=?, layer='DEV' WHERE name=?",

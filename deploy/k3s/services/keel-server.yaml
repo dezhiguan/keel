@@ -155,7 +155,9 @@ spec:
                   key: LANGFUSE_PROJECT_ID
                   optional: true
             - name: KEEL_CAREERMATE_ENDPOINT
-              value: http://careermate-backend.careermate.svc.cluster.local:18080
+              # CareerMate now uses standard registration and governed releases.
+              # Disable the legacy bootstrap registrar so restarts cannot restore v1.
+              value: ""
             - name: KEEL_CAREERMATE_TOKEN
               valueFrom:
                 secretKeyRef:

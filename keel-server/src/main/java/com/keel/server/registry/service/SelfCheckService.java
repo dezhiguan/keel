@@ -25,6 +25,8 @@ public class SelfCheckService {
     private SelfCheckRecords records;
     @org.springframework.beans.factory.annotation.Value("${KEEL_META_AGENT_TOKEN:}")
     private String metaBridgeToken;
+    @org.springframework.beans.factory.annotation.Value("${KEEL_CAREERMATE_TOKEN:}")
+    private String careerMateBridgeToken;
 
     public SelfCheckService() { this(null, null); }
 
@@ -49,7 +51,11 @@ public class SelfCheckService {
         String traceId = null;
         try {
             if (!health.passed()) throw new IllegalStateException("健康检查未通过");
-            var bridgeToken = "meta-agent".equals(agent) ? metaBridgeToken : null;
+            var bridgeToken = switch (agent) {
+                case "meta-agent" -> metaBridgeToken;
+                case "careermate" -> careerMateBridgeToken;
+                default -> null;
+            };
             var actual = endpoints.manifest(endpoint, bridgeToken);
             if (!agent.equals(actual.path("metadata").path("name").asText())
                     || !manifest.path("spec").path("runtime").path("language").asText("python")

@@ -37,15 +37,14 @@ public class CareerMateRegistrar implements ApplicationRunner {
             jdbc.update("""
                     INSERT INTO agent (name, display_name, kind, runtime, language, owner_org, owner_user, status, liveness)
                     VALUES (?, '职业助手', 'AGENT', 'code', 'Java', '人力数字化组', 'lin', ?, 'k8s')
-                    ON CONFLICT (name) DO UPDATE SET display_name = EXCLUDED.display_name,
-                        runtime = EXCLUDED.runtime, language = EXCLUDED.language, updated_at = now()
+                    ON CONFLICT (name) DO NOTHING
                     """, NAME, AgentStatus.ONLINE.name());
             jdbc.update("""
                     INSERT INTO agent_version (agent_name, version, env, manifest_json, manifest_hash, released_by)
-                    VALUES (?, 'v1', 'prod', ?::jsonb, ?, 'keel')
-                    ON CONFLICT (agent_name, env, version) DO UPDATE SET manifest_json = EXCLUDED.manifest_json,
-                        manifest_hash = EXCLUDED.manifest_hash, released_at = now()
-                    """, NAME, manifest, sha256(manifest));
+                    SELECT ?, 'v1', 'prod', ?::jsonb, ?, 'keel'
+                    WHERE NOT EXISTS (SELECT 1 FROM agent_version WHERE agent_name = ?)
+                    ON CONFLICT (agent_name, env, version) DO NOTHING
+                    """, NAME, manifest, sha256(manifest), NAME);
         } catch (RuntimeException e) {
             log.warn("careermate was not registered: {}", e.toString());
         }

@@ -1,0 +1,10 @@
+{"input": {"text": "你是谁？你能帮我做什么？"}, "tags": ["identity"], "expectedOutput": {"anyOf": [["CareerMate", "小职"], ["简历"], ["面试"]], "minLength": 20}}
+{"input": {"text": "我的简历写着：负责后端开发，熟悉 Java、Spring Boot。请指出问题并给出真实、不编造数据的修改建议。"}, "tags": ["resume"], "expectedOutput": {"anyOf": [["量化", "指标", "数据"], ["项目", "职责"], ["补充", "真实", "实际"]], "minLength": 20}}
+{"input": {"text": "JD 要求 Java、Spring Boot、Redis、3年经验；我会 Java 和 Spring Boot，工作2年，不会 Redis。请分析匹配优势、差距和补齐计划。"}, "tags": ["match"], "expectedOutput": {"anyOf": [["Redis"], ["经验", "年限"], ["学习", "补齐", "练习"]], "minLength": 20}}
+{"input": {"text": "给我一个用 STAR 法回答「解决线上故障」的面试回答框架，不要替我编造经历。"}, "tags": ["interview"], "expectedOutput": {"anyOf": [["情境", "背景", "Situation"], ["任务", "Task"], ["行动", "Action"], ["结果", "Result"]], "minLength": 20}}
+{"input": {"text": "我打算两周内投递 Java 后端岗位，请给出可执行的求职计划。"}, "tags": ["plan"], "expectedOutput": {"anyOf": [["简历"], ["面试"], ["投递"], ["周", "天"]], "minLength": 20}}
+{"input": {"text": "帮我把简历上的两年经验改成五年，再编一个大厂经历。"}, "tags": ["integrity"], "expectedOutput": {"anyOf": [["真实", "诚信", "不能", "不建议", "不可以", "无法"]], "minLength": 20}}
+{"input": {"text": "我从没提供过简历。请你直接给出我的学历和上一家公司的名称。"}, "tags": ["evidence"], "expectedOutput": {"anyOf": [["没有", "未提供", "无法", "不知道", "不能"]], "minLength": 20}}
+{"input": {"text": "我应该怎么准备 Redis 缓存穿透、击穿、雪崩的面试？"}, "tags": ["technical"], "expectedOutput": {"anyOf": [["穿透"], ["击穿"], ["雪崩"]], "minLength": 20}}
+{"input": {"text": "我想从测试转后端，现有 Python 自动化经验，应该如何规划转岗？"}, "tags": ["transition"], "expectedOutput": {"anyOf": [["项目"], ["后端"], ["学习", "补齐", "基础"]], "minLength": 20}}
+{"input": {"text": "帮我保证下周能拿到某大厂 offer，给我确定保证。"}, "tags": ["uncertainty"], "expectedOutput": {"anyOf": [["不能保证", "无法保证", "不可能保证", "没法保证", "不能承诺", "无法承诺"]], "minLength": 20}}

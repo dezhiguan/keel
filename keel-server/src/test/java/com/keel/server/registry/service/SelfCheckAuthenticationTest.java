@@ -22,6 +22,9 @@ class SelfCheckAuthenticationTest {
     @Test void otherAgentsNeverReceiveMetaAgentCredential() throws Exception {
         check("qa-agent", 200, true);
     }
+    @Test void careerMateReceivesItsOwnCredentialOnEveryProbe() throws Exception {
+        check("careermate", 200, true);
+    }
     @Test void authenticationFailureIsNotReportedAsManifestMismatchOrMissingTrace() throws Exception {
         check("meta-agent", 401, false);
         check("meta-agent", 403, false);
@@ -34,7 +37,8 @@ class SelfCheckAuthenticationTest {
             var path = exchange.getRequestURI().getPath();
             var health = path.equals("/v1/health");
             if (!health) assertThat(exchange.getRequestHeaders().getFirst("X-Keel-Bridge"))
-                    .isEqualTo(agent.equals("meta-agent") ? "test-bridge-identity" : null);
+                    .isEqualTo(agent.equals("meta-agent") ? "test-bridge-identity"
+                            : agent.equals("careermate") ? "career-bridge-identity" : null);
             int responseStatus = health ? 200 : status;
             String body = "{}";
             if (!health && status == 200) {
@@ -64,6 +68,7 @@ class SelfCheckAuthenticationTest {
         try {
             var service = new SelfCheckService(new AgentEndpointClient(), langfuse);
             ReflectionTestUtils.setField(service, "metaBridgeToken", "test-bridge-identity");
+            ReflectionTestUtils.setField(service, "careerMateBridgeToken", "career-bridge-identity");
             var result = service.checkRuntime(agent, "test", "http://127.0.0.1:" + server.getAddress().getPort(),
                     json.readTree("{\"spec\":{\"runtime\":{\"language\":\"python\"}}}"));
             assertThat(result.passed()).isEqualTo(passed);
