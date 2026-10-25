@@ -11,12 +11,25 @@ import java.util.Objects;
 final class VersionLifecycle {
     private VersionLifecycle() {}
 
+    /** Newest formal snapshot when one exists; otherwise the newest row (draft-only agents). */
+    static AgentVersion registered(List<AgentVersion> versions) {
+        if (versions == null || versions.isEmpty()) return null;
+        for (var version : versions) {
+            if (!draft(version)) return version;
+        }
+        return versions.getFirst();
+    }
+
+    static boolean draft(AgentVersion version) {
+        return version != null && "v0".equals(version.getVersion()) && blank(version.getGateRunId());
+    }
+
     static List<AgentDetail.VersionRow> attach(List<AgentVersion> versions, List<AgentDetail.VersionRow> rows,
                                                List<Publication> publications) {
         var out = new ArrayList<AgentDetail.VersionRow>();
         for (int i = 0; i < versions.size(); i++) {
             var version = versions.get(i);
-            boolean draft = "v0".equals(version.getVersion()) && blank(version.getGateRunId());
+            boolean draft = draft(version);
             boolean archived = draft && versions.stream().anyMatch(snapshot ->
                     !"v0".equals(snapshot.getVersion()) && Objects.equals(snapshot.getEnv(), version.getEnv())
                     && !blank(version.getManifestHash()) && version.getManifestHash().equals(snapshot.getManifestHash())

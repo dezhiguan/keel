@@ -8,6 +8,15 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class VersionLifecycleTest {
+    @Test void registeredPrefersNewestFormalSnapshotOverLaterDraft() {
+        var draft = version("v0", "staging", "draft", 5);
+        var formal = version("v3", "staging", "formal", 3);
+        formal.setGateRunId("ev_v3");
+        assertThat(VersionLifecycle.registered(List.of(draft, formal)).getVersion()).isEqualTo("v3");
+        assertThat(VersionLifecycle.registered(List.of(draft)).getVersion()).isEqualTo("v0");
+        assertThat(VersionLifecycle.registered(List.of())).isNull();
+    }
+
     @Test void archivesOnlyAnOlderCandidateMatchingItsOwnSourceEnvironment() {
         var draft = version("v0", "dev", "same", 1);
         var snapshot = version("v3", "dev", "same", 2);
