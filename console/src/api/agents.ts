@@ -122,7 +122,7 @@ export interface DebugMessageRow {
 }
 
 export function listDebugSessions(name: string, cursor?: string | null) {
-  return get<{ items?: DebugSessionSummary[]; total?: number; nextCursor?: string | null }>(
+  return get<{ items?: DebugSessionSummary[]; total?: number; nextCursor?: string | null; retention?: string; crossSessionHistory?: boolean }>(
     `/agents/${encodeURIComponent(name)}/sessions`,
     { params: cursor ? { cursor } : {} },
   )

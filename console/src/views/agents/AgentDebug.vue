@@ -79,6 +79,8 @@ const current = computed(() => sessions.value.find((item) => item.id === current
 const combinedEvents = computed(() => [...(current.value?.events ?? []), ...pendingEvents.value])
 const visibleEvents = computed(() => visibleTail(combinedEvents.value, shown.events))
 const sseLabel = computed(() => SSE_LABEL[sse.value])
+const historyRetention = ref("7 天")
+const crossSessionHistory = ref(false)
 const sessionTotal = ref(0)
 const sessionCursor = ref<string | null>(null)
 
@@ -120,6 +122,8 @@ async function loadSessions() {
   try {
     const page = await listDebugSessions(name.value)
     if (!alive) return
+    historyRetention.value = page.retention ?? "7 天"
+    crossSessionHistory.value = page.crossSessionHistory ?? false
     let items = page.items ?? []
     sessionTotal.value = page.total ?? items.length
     sessionCursor.value = page.nextCursor ?? null
@@ -132,6 +136,17 @@ async function loadSessions() {
     }
     sessions.value = items.map(asSession)
     currentId.value = sessions.value[0]?.id ?? null
+    const source = route.query.session
+    if (typeof source === 'string' && /^ss_[a-f0-9]+$/.test(source)) {
+      let target = sessions.value.find(item => item.id === source)
+      if (!target) {
+        target = asSession({ id: source, title: '历史来源会话', messageCount: 0, updatedAt: new Date().toISOString() })
+        // Loading messages uses the normal owner-checked endpoint even beyond the first list page.
+        await loadMessages(target)
+        sessions.value.push(target)
+      }
+      currentId.value = source
+    }
     if (current.value) await loadMessages(current.value)
   } catch (error) {
     if (!alive) return
@@ -515,7 +530,7 @@ watch(name, async (agent) => {
           <div class="store">
             <span>会话 <b class="mono">{{ current?.id }}</b></span>
             <span>存储 <b>keel-server PG · session_message</b></span>
-            <span>保留 <b>7 天</b></span>
+            <span>原文 <b>{{ historyRetention }}</b><template v-if="crossSessionHistory"> · 支持跨会话回查</template></span>
           </div>
           <div ref="threadEl" class="thread" @scroll="onThreadScroll">
             <div v-if="!current" class="mut empty-thread">还没有会话。点「新会话」开始。</div>

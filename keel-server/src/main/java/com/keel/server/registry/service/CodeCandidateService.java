@@ -79,6 +79,7 @@ public class CodeCandidateService {
         }
         if (hasNewAnalysisTools(comparison,candidate))
             comparison=authorizedAnalysisComparison(comparison,candidate,analysisScopeGranted(name,env));
+        comparison=authorizedHistoryComparison(name,env,comparison,candidate);
         requireCompatible(comparison, candidate);
         if (candidate.equals(prior)) return Map.of("env", env, "manifestHash", body.path("expectedHash").asText());
         var declaredTools = new HashSet<String>();
@@ -102,6 +103,38 @@ public class CodeCandidateService {
         audit.append(name, env, "config.change", "mid", "allowed", "agent:" + name, null, actor,
                 Map.of("version", "v0"));
         return Map.of("env", env, "manifestHash", hash);
+    }
+
+    private JsonNode authorizedHistoryComparison(String agent,String env,JsonNode prior,JsonNode candidate) {
+        var added=new java.util.HashMap<String,JsonNode>();
+        candidate.path("spec").path("tools").forEach(t->added.put(t.path("name").asText(),t));
+        prior.path("spec").path("tools").forEach(t->added.remove(t.path("name").asText()));
+        if(!added.containsKey("assistant.history.search") && !added.containsKey("keel.history.search"))return prior;
+        requireReconciliationAdmin(ConsolePrincipal.current());
+        if(!"keel-assistant".equals(agent) || !"staging".equals(env)
+            || !added.keySet().equals(java.util.Set.of("assistant.history.search","keel.history.search")))
+            throw invalid("只允许本助理staging完整接入两项历史只读工具");
+        var actor=ConsolePrincipal.current();
+        if(!Boolean.TRUE.equals(jdbc.queryForObject("""
+            SELECT EXISTS(SELECT 1 FROM agent_history_policy p JOIN agent a ON a.name=p.agent_name
+              WHERE p.agent_name=? AND p.env=? AND a.owner_org=?)
+              AND EXISTS(SELECT 1 FROM agent_tool_grant WHERE agent_name=? AND tool_name='keel.history.search'
+                AND version_range='1.0.0' AND status='ACTIVE')
+            """,Boolean.class,agent,env,actor.org(),agent)))throw invalid("须先授权共享历史工具");
+        for(var tool:added.values())
+            if(tool.size()!=4 || !"read".equals(tool.path("access").asText()) || !"low".equals(tool.path("risk").asText())
+                || !"none".equals(tool.path("approval").asText()))throw invalid("历史工具必须为低风险只读");
+        ObjectNode aligned=prior.deepCopy();var tools=aligned.withObject("/spec").withArray("tools");
+        // Preserve prior definitions: requireCompatible still rejects edits to any existing tool.
+        for(var tool:added.values())tools.add(tool.deepCopy());
+        // Tool order is significant to the existing compatibility contract; match only their positions.
+        var ordered=aligned.withObject("/spec").putArray("tools");
+        for(var tool:candidate.path("spec").path("tools")) {
+            var key=tool.path("name").asText();JsonNode original=null;
+            for(var old:prior.path("spec").path("tools"))if(key.equals(old.path("name").asText()))original=old;
+            ordered.add(original==null?added.get(key):original);
+        }
+        return aligned;
     }
 
     static void requireReconciliationAdmin(ConsolePrincipal principal) {

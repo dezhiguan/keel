@@ -29,6 +29,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class AgentRegistryService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
     private final AgentMapper agentMapper;
     private final AgentVersionMapper versionMapper;
     private final AgentInstanceMapper instanceMapper;
@@ -162,6 +164,16 @@ public class AgentRegistryService {
         if (evidence && memories != null && manifest != null) {
             var counts = memories.counts(name);
             detail = detail.withMemory(AgentDetail.memoryStatus(agent, manifest, counts.user(), counts.task(), counts.experience()));
+            var policies=jdbc.query("SELECT retention_days FROM agent_history_policy WHERE agent_name=? AND env=?",
+                (rs,n)->rs.getObject(1,Integer.class),name,detail.summary().env());
+            if(!policies.isEmpty() && detail.memory()!=null) {
+                var enabled=false;
+                for(var tool:manifest.path("spec").path("tools"))if("keel.history.search".equals(tool.path("name").asText()))enabled=true;
+                enabled=enabled && Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM agent_tool_grant WHERE agent_name=? AND tool_name='keel.history.search' AND status='ACTIVE')",Boolean.class,name));
+                var memory=detail.memory();
+                detail=detail.withMemory(new AgentDetail.Memory("开启 · "+(policies.getFirst()==null?"保留至删除":policies.getFirst()+" 天"),
+                    enabled?"跨会话原文回查":"跨会话回查未接入",memory.task(),memory.experience()));
+            }
         }
         if (evidence && elementEvidence != null) detail = elementEvidence.apply(detail);
         return selfCheckRecords == null ? detail : selfCheckRecords.apply(detail);

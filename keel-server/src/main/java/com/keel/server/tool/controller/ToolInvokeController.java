@@ -22,6 +22,8 @@ import java.time.Duration;
 public class ToolInvokeController {
     @org.springframework.beans.factory.annotation.Autowired
     private com.keel.server.tool.service.EmployeeReadService employeeReads;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.keel.server.memory.CrossSessionHistory history;
     private final JdbcTemplate jdbc;
     private final AgentRegistryService registry;
     private final AuditStore audit;
@@ -72,6 +74,18 @@ public class ToolInvokeController {
                         java.util.Map.of("count",result.get("items") instanceof java.util.List<?> items ? items.size() : 0));
                 return R.ok(json.valueToTree(result));
             } catch (KeelException error) {
+                audit.append(agent,env,"tool.call","low","denied",name,validTrace(traceId),agent,java.util.Map.of());
+                throw error;
+            }
+        }
+        if("keel.history.search".equals(name)) {
+            try {
+                var result=history.search(agent,env,body);
+                var actor=String.valueOf(result.remove("_actor"));
+                audit.append(agent,env,"tool.call","low","allowed",name,validTrace(traceId),actor,
+                    java.util.Map.of("count",((java.util.List<?>)result.get("items")).size()));
+                return R.ok(json.valueToTree(result));
+            } catch(KeelException error) {
                 audit.append(agent,env,"tool.call","low","denied",name,validTrace(traceId),agent,java.util.Map.of());
                 throw error;
             }
