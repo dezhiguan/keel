@@ -38,7 +38,10 @@ public class DebugSessionService {
 
     public Map<String, Object> list(String agent, String env, String owner, String cursor) {
         jdbc.update("DELETE FROM session_message WHERE expires_at <= now()");
-        var since = Timestamp.from(Instant.now().minus(7, ChronoUnit.DAYS));
+        var policy=jdbc.query("SELECT retention_days FROM agent_history_policy WHERE agent_name=? AND env=?",
+                (rs,n)->rs.getObject(1,Integer.class),agent,env);
+        var days=policy.isEmpty()?Integer.valueOf(7):policy.getFirst();
+        var since = Timestamp.from(days==null?Instant.parse("1970-01-01T00:00:00Z"):Instant.now().minus(days, ChronoUnit.DAYS));
         var total = jdbc.queryForObject("""
                 SELECT count(*) FROM agent_session
                 WHERE owner_user = ? AND agent_name = ? AND env = ? AND updated_at >= ?
@@ -68,6 +71,8 @@ public class DebugSessionService {
                     """, (rs, n) -> sessionRow(rs), owner, agent, env, since, mark.at(), mark.at(), mark.id(), PAGE);
         }
         var body = new LinkedHashMap<String, Object>();
+        body.put("retention",days==null?"保留至删除":days+" 天");
+        body.put("crossSessionHistory",!policy.isEmpty());
         body.put("items", rows);
         body.put("total", total == null ? 0 : total);
         body.put("nextCursor", rows.size() < PAGE ? null : cursorOf(rows.get(rows.size() - 1)));
@@ -143,7 +148,10 @@ public class DebugSessionService {
 
     @Transactional
     public void appendTurn(String agent, String owner, String id, String userText, String answer, String traceId) {
-        var expires = Timestamp.from(Instant.now().plus(7, ChronoUnit.DAYS));
+        var policy=jdbc.query("SELECT p.retention_days FROM agent_history_policy p JOIN agent_session s ON s.agent_name=p.agent_name AND s.env=p.env WHERE s.id=? AND s.agent_name=? AND s.owner_user=?",
+                (rs,n)->rs.getObject(1,Integer.class),id,agent,owner);
+        var days=policy.isEmpty()?Integer.valueOf(7):policy.getFirst();
+        var expires = days==null ? new Timestamp(9223372036825200000L /* PostgreSQL JDBC positive infinity */) : Timestamp.from(Instant.now().plus(days, ChronoUnit.DAYS));
         var user = clip(userText);
         var reply = clip(answer);
         jdbc.update("""

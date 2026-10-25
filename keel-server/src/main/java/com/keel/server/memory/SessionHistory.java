@@ -91,7 +91,7 @@ public class SessionHistory {
             (rs,n)->Map.<String,Object>of("id",rs.getString(1),"role",rs.getString(2),"content",rs.getString(3)),scope.id(),agent,scope.owner(),positive(id));
         return Map.of("stale",false,"items",rows.stream().map(r->excerpt(r,offset,limit)).toList());
     }
-    private static Map<String,Object> excerpt(Map<String,Object> row,int offset,int limit) {
+    static Map<String,Object> excerpt(Map<String,Object> row,int offset,int limit) {
         var text=(String)row.get("content");var total=text.codePointCount(0,text.length());
         var start=Math.min(offset,total);var end=Math.min(total,start+limit);String digest;
         try {digest=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)));}
