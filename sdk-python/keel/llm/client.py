@@ -225,11 +225,14 @@ class LlmClient:
                 return reply
             raw_calls = response.choices[0].message.tool_calls or []
             if raw_calls:
-                span.set_attribute(attrs.OBSERVATION_OUTPUT, json.dumps({
+                structured_output = json.dumps({
                     "content": reply,
                     "tool_calls": [{"id": call.id, "name": original_names.get(call.function.name, call.function.name),
                                     "arguments": call.function.arguments} for call in raw_calls],
-                }, ensure_ascii=False))
+                }, ensure_ascii=False)
+                if self.guard is not None:
+                    structured_output = self.guard.redact(structured_output)
+                span.set_attribute(attrs.OBSERVATION_OUTPUT, structured_output)
             calls = []
             for call in raw_calls:
                 try:
