@@ -11,7 +11,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
 import java.util.*;
 
 @SpringBootTest
@@ -22,19 +21,19 @@ class CrossSessionHistoryFlowTest {
     @Autowired DebugSessionService sessions;
     final ObjectMapper json=new ObjectMapper();
     CrossSessionHistory history;
-    String current,old;
+    String current,old,token;
     @BeforeEach void setup() {
         for(var table:List.of("session_message","agent_session"))db.update("DELETE FROM "+table+" WHERE agent_name='cross-test'");
         db.update("INSERT INTO agent_history_policy(agent_name,env,retention_days) VALUES('cross-test','staging',NULL) ON CONFLICT DO NOTHING");
         current=(String)sessions.create("cross-test","staging","u1").get("id");
         old=(String)sessions.create("cross-test","staging","u1").get("id");
-        var contexts=mock(UserReadContext.class);
-        when(contexts.verify("signed","cross-test","staging")).thenReturn(new UserReadContext.Actor("u1","tester","org",hash(current)));
+        var contexts=new UserReadContext(new com.keel.server.auth.ConsoleSigningKey(),new com.keel.server.auth.ConsoleUsers("tester"));
+        token=contexts.issue(new com.keel.server.auth.ConsolePrincipal("USER","u1","tester","测试","org","ADMIN",List.of(),false),"cross-test","staging",current);
         history=new CrossSessionHistory(db,contexts);
     }
     String hash(String session){return UserReadContext.sessionHash("u1",session);}
     Map<String,Object> search(String query,boolean exact) {
-        return history.search("cross-test","staging",json.valueToTree(Map.of("query",query,"exact",exact,"_authorization","signed","_session",hash(current))));
+        return history.search("cross-test","staging",json.valueToTree(Map.of("query",query,"exact",exact,"_authorization",token,"_session",hash(current))));
     }
     @SuppressWarnings("unchecked") List<Map<String,Object>> items(Map<String,Object> result){return (List<Map<String,Object>>)result.get("items");}
     @Test void retrievesOriginalInAnotherWindowButExcludesCurrentOtherOwnerEnvironmentAndExpired() {
@@ -68,9 +67,9 @@ class CrossSessionHistoryFlowTest {
         var hit=items(search("UNICODE-7419",true)).getFirst();
         assertThat(hit.get("content").toString()).contains("🦉 UNICODE-7419");
         assertThat(hit.get("offset")).isEqualTo(4842);
-        var args=json.valueToTree(Map.of("query","UNICODE-7419","_authorization","signed","_session",hash(current),"ownerUser","u2"));
+        var args=json.valueToTree(Map.of("query","UNICODE-7419","_authorization",token,"_session",hash(current),"ownerUser","u2"));
         assertThatThrownBy(()->history.search("cross-test","staging",args)).isInstanceOf(KeelException.class);
-        var mismatch=json.valueToTree(Map.of("query","UNICODE-7419","_authorization","signed","_session",hash(old)));
+        var mismatch=json.valueToTree(Map.of("query","UNICODE-7419","_authorization",token,"_session",hash(old)));
         assertThatThrownBy(()->history.search("cross-test","staging",mismatch)).isInstanceOf(KeelException.class);
     }
 }
