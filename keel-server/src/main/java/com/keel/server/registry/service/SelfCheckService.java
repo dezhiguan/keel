@@ -17,6 +17,8 @@ import java.util.Set;
 
 @Service
 public class SelfCheckService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private AgentBridgeCredentials bridgeCredentials;
     private static final Set<String> EVENTS = Set.of("guardrail", "step", "tool", "token", "final", "error", "suspend");
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private final AgentEndpointClient endpoints;
@@ -49,7 +51,8 @@ public class SelfCheckService {
         String traceId = null;
         try {
             if (!health.passed()) throw new IllegalStateException("健康检查未通过");
-            var bridgeToken = "meta-agent".equals(agent) ? metaBridgeToken : null;
+            var bridgeToken = bridgeCredentials != null ? bridgeCredentials.token(agent)
+                    : "meta-agent".equals(agent) ? metaBridgeToken : null;
             var actual = endpoints.manifest(endpoint, bridgeToken);
             if (!agent.equals(actual.path("metadata").path("name").asText())
                     || !manifest.path("spec").path("runtime").path("language").asText("python")

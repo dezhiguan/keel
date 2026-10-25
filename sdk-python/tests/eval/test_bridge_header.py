@@ -28,6 +28,10 @@ def test_eval_invoke_forwards_the_meta_agent_bridge_token(monkeypatch):
         monkeypatch.setenv("KEEL_META_AGENT_TOKEN", "bridge-secret")
         assert invoke_text(f"http://127.0.0.1:{server.server_port}", "hi", eval_run_id="ev", env="dev") == "ok"
         assert Handler.bridge == "bridge-secret"
+        monkeypatch.setenv("KEEL_BRIDGE_TOKEN", "askdb-private")
+        assert invoke_text(f"http://127.0.0.1:{server.server_port}", "hi", eval_run_id="ev", env="staging") == "ok"
+        assert Handler.bridge == "askdb-private"
+        monkeypatch.delenv("KEEL_BRIDGE_TOKEN")
         monkeypatch.delenv("KEEL_META_AGENT_TOKEN")
         Handler.bridge = "unset"
         assert invoke_text(f"http://127.0.0.1:{server.server_port}", "hi", eval_run_id="ev", env="dev") == "ok"

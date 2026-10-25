@@ -153,3 +153,5 @@
 - R1022 助理门禁修复：SDK错误证据可选meta保持既有错误显示，授权环境证据仅供评测复核；100条分页/阈值/critical阻断不变。SDK及业务修复已测试，正式发布、部署与真实回归待验收；见r1020/assistant-gate-sdk-remediation.md。
 
 - R1023-session-fact-conflicts：已部署并验证。节点详情展示记忆版本/原文消息编号/哈希/状态/采用标记，兼容Langfuse真实对象与字符串metadata；真实摘要回查与最终generation输入核对通过。浏览器登录点击未复测（测试凭据失效），生产映射及部署静态资源已验证。见 [验收](../r1023/session-fact-conflicts-acceptance.md)。
+
+- R1025 AskDB 生命周期：复用现有注册、调试、提示词、测评、追踪、审计与版本页面；SDK 接入与底座独立内部凭据已实现，专项回归通过，真实控制台及 staging 全生命周期验收待有效登录态。见 ../r1025/askdb-lifecycle.md。
