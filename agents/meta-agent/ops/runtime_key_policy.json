@@ -1,0 +1,10 @@
+{
+  "alias": "meta-agent-dev",
+  "models": ["chat-default"],
+  "fallback": [],
+  "dailyBudgetCny": 10,
+  "allowFallback": false,
+  "rpm": null,
+  "tpm": null,
+  "concurrency": null
+}

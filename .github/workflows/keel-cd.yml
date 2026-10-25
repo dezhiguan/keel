@@ -907,7 +907,8 @@ jobs:
       - name: 准备元智能体逻辑网关与服务身份
         run: |
           scp -F ~/.ssh/config agents/meta-agent/ops/bootstrap_runtime.py keel-app:/tmp/keel-meta-bootstrap-runtime.py
-          ssh -T -o BatchMode=yes -o ConnectTimeout=15 keel-app python3 /tmp/keel-meta-bootstrap-runtime.py --apply
+          scp -F ~/.ssh/config agents/meta-agent/ops/runtime_key_policy.json keel-app:/tmp/keel-meta-runtime-key-policy.json
+          ssh -T -o BatchMode=yes -o ConnectTimeout=15 keel-app python3 /tmp/keel-meta-bootstrap-runtime.py --apply --missing-key-policy /tmp/keel-meta-runtime-key-policy.json
       - name: 发布 meta-agent
         env:
           ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
