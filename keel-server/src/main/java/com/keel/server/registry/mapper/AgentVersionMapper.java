@@ -30,7 +30,16 @@ public interface AgentVersionMapper extends BaseMapper<AgentVersion> {
             FROM agent_version
             WHERE (#{env} = 'all' OR env = #{env})
             ORDER BY agent_name,
-                     CASE WHEN version = 'v0' AND coalesce(gate_run_id, '') = '' THEN 1 ELSE 0 END,
+                     CASE WHEN version = 'v0' AND coalesce(gate_run_id, '') = '' THEN 1
+                          WHEN agent_name = 'careermate' AND version = 'v1' AND released_by = 'keel'
+                               AND coalesce(gate_run_id, '') = '' AND coalesce(image, '') = ''
+                               AND coalesce(manifest_json #>> '{spec,capabilities,loop}', 'false') <> 'true'
+                               AND EXISTS (SELECT 1 FROM agent_version candidate
+                                   WHERE candidate.agent_name = agent_version.agent_name AND candidate.version = 'v0'
+                                     AND candidate.manifest_json #>> '{spec,capabilities,loop}' = 'true'
+                                     AND candidate.manifest_json #>> '{spec,prompts,source}' = 'langfuse'
+                                     AND jsonb_array_length(coalesce(candidate.manifest_json #> '{spec,tools}', '[]'::jsonb)) > 0)
+                          THEN 2 ELSE 0 END,
                      released_at DESC, id DESC
             """)
     List<AgentVersion> latestByAgent(String env);

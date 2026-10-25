@@ -8,6 +8,21 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class VersionLifecycleTest {
+    @Test void governedCareerCandidateCanReplaceSyntheticLegacyBridgeWithoutFakingARelease() {
+        var legacy = version("v1", "prod", "legacy", 5);
+        legacy.setAgentName("careermate"); legacy.setReleasedBy("keel"); legacy.setManifestJson("{\"spec\":{}}");
+        var candidate = version("v0", "staging", "sdk", 4);
+        candidate.setAgentName("careermate");
+        candidate.setManifestJson("{\"spec\":{\"capabilities\":{\"loop\":true},\"prompts\":{\"source\":\"langfuse\"},\"tools\":[{\"name\":\"resume\"}]}}");
+        assertThat(VersionLifecycle.registered(List.of(legacy, candidate))).isSameAs(candidate);
+        assertThat(VersionLifecycle.draft(candidate)).isTrue();
+        assertThat(VersionLifecycle.registered(List.of(legacy))).isSameAs(legacy);
+        legacy.setGateRunId("ev_actual_release");
+        assertThat(VersionLifecycle.registered(List.of(legacy, candidate))).isSameAs(legacy);
+        legacy.setGateRunId(null); legacy.setImage("immutable:released");
+        assertThat(VersionLifecycle.registered(List.of(legacy, candidate))).isSameAs(legacy);
+    }
+
     @Test void registeredPrefersNewestFormalSnapshotOverLaterDraft() {
         var draft = version("v0", "staging", "draft", 5);
         var formal = version("v3", "staging", "formal", 3);

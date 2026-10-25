@@ -21,6 +21,7 @@ agent.yaml 声明模型、提示词、工具风险与权限、记忆、审计、
 - 使用既有 keel/v1 结构，不新增跨语言公共字段；内部服务 JSON 属 CareerMate 自有契约，记录于项目接入说明。
 - 接入发现的底座缺口一并修复：SelfCheckService 对 CareerMate 探针携带已有桥接凭据；LifecycleService 的存量桥接升级刷新语言元数据；SDK 评测支持通用 KEEL_BRIDGE_TOKEN 并兼容旧元智能体变量。
 - 底座首次开通种子增加 `keel-server/src/main/resources/evals/careermate.jsonl`，内容与独立项目的 10 条用例一致；使用导入器识别的 expectedOutput，避免误导入通用用例或丢失预期。
+- 存量最小桥接的合成 v1 没有评测或镜像证据，会遮住新注册的 v0。VersionLifecycle 与 AgentVersionMapper 只在存在 CareerMate 完整治理候选时忽略这个已确认的合成桥接版本；真实正式版本仍优先、历史记录不修改。
 
 ## 验收
 

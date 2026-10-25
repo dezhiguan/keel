@@ -14,10 +14,31 @@ final class VersionLifecycle {
     /** Newest formal snapshot when one exists; otherwise the newest row (draft-only agents). */
     static AgentVersion registered(List<AgentVersion> versions) {
         if (versions == null || versions.isEmpty()) return null;
+        boolean careerMigration = versions.stream().anyMatch(VersionLifecycle::governedCareerCandidate);
         for (var version : versions) {
-            if (!draft(version)) return version;
+            if (!draft(version) && !(careerMigration && legacyCareerBridge(version))) return version;
         }
+        if (careerMigration) return versions.stream().filter(VersionLifecycle::governedCareerCandidate).findFirst().orElseThrow();
         return versions.getFirst();
+    }
+
+    private static com.fasterxml.jackson.databind.JsonNode manifest(AgentVersion version) {
+        try { return new com.fasterxml.jackson.databind.ObjectMapper().readTree(version.getManifestJson()); }
+        catch (Exception ignored) { return com.fasterxml.jackson.databind.node.MissingNode.getInstance(); }
+    }
+
+    private static boolean governedCareerCandidate(AgentVersion version) {
+        if (!"careermate".equals(version.getAgentName()) || !draft(version)) return false;
+        var spec = manifest(version).path("spec");
+        return spec.path("capabilities").path("loop").asBoolean(false)
+                && "langfuse".equals(spec.path("prompts").path("source").asText())
+                && !spec.path("tools").isEmpty();
+    }
+
+    private static boolean legacyCareerBridge(AgentVersion version) {
+        return "careermate".equals(version.getAgentName()) && "v1".equals(version.getVersion())
+                && "keel".equals(version.getReleasedBy()) && blank(version.getGateRunId()) && blank(version.getImage())
+                && !manifest(version).path("spec").path("capabilities").path("loop").asBoolean(false);
     }
 
     static boolean draft(AgentVersion version) {
