@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keel.local/contracts/routing-context.schema.json",
+  "title": "RoutingContext",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "keel/v1"
+    },
+    "principal_ref": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_.:-]{1,160}$"
+    },
+    "org_ref": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_.:-]{1,160}$"
+    },
+    "session_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_.:-]{1,160}$"
+    },
+    "input_digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_.:-]{1,160}$"
+    },
+    "authorization_ref": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_.:-]{1,160}$"
+    },
+    "caller_agent": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,62}$"
+    },
+    "env": {
+      "type": "string",
+      "enum": [
+        "staging",
+        "prod"
+      ]
+    },
+    "policy_version": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_.:-]{1,160}$"
+    },
+    "capability_revision": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_.:-]{1,160}$"
+    },
+    "deadline_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "grant_expiry": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "budget_cap_cny": {
+      "type": "number",
+      "minimum": 0
+    },
+    "traceparent": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{2}-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}$"
+    },
+    "parent_task_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_.:-]{1,160}$"
+    },
+    "parent_run_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_.:-]{1,160}$"
+    }
+  },
+  "required": [
+    "schema_version",
+    "principal_ref",
+    "session_id",
+    "input_digest",
+    "request_id",
+    "authorization_ref",
+    "caller_agent",
+    "env",
+    "policy_version",
+    "capability_revision",
+    "deadline_at"
+  ]
+}

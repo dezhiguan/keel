@@ -13,13 +13,16 @@ from keel._generated.events import (ErrorEvent, FinalEvent, GuardrailEvent, Step
                                     SuspendEvent, TokenEvent, ToolEvent)
 from keel._generated.manifest import AgentManifest
 from keel._generated.routing import IntentRouting
+from keel._generated.intent_packet import IntentPacket
+from keel._generated.route_plan import RoutePlan
+from keel._generated.routing_context import RoutingContext
 
 ROOT = Path(__file__).resolve().parents[3] / "contracts"
 SUITE = ROOT / "tests"
 CASES = yaml.safe_load((SUITE / "cases.yaml").read_text(encoding="utf-8"))
 SCHEMAS = {
     name: json.loads((ROOT / f"{name}.schema.json").read_text(encoding="utf-8"))
-    for name in ("manifest", "sse-events", "audit-event", "intent-routing")
+    for name in ("manifest", "sse-events", "audit-event", "intent-routing", "intent-packet", "route-plan", "routing-context")
 }
 EVENTS = {
     "guardrail": GuardrailEvent, "step": StepEvent, "tool": ToolEvent, "token": TokenEvent,
@@ -105,6 +108,8 @@ def test_contract(case):
             AgentManifest.model_validate(document)
         elif family == "intent-routing":
             IntentRouting.model_validate(document)
+        elif family in ("intent-packet", "route-plan", "routing-context"):
+            {"intent-packet": IntentPacket, "route-plan": RoutePlan, "routing-context": RoutingContext}[family].model_validate(document)
         elif family == "sse-events":
             EVENTS[document["event"]].model_validate(document["data"])
     if case["expect"] == "reject":

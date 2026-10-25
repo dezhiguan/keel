@@ -29,4 +29,7 @@ packages = ["keel"]
 "../contracts/invoke.openapi.yaml" = "keel/_schemas/invoke.openapi.yaml"
 "../contracts/error-codes.yaml" = "keel/_schemas/error-codes.yaml"
 "../contracts/intent-routing.schema.json" = "keel/_schemas/intent-routing.schema.json"
+"../contracts/intent-packet.schema.json" = "keel/_schemas/intent-packet.schema.json"
+"../contracts/route-plan.schema.json" = "keel/_schemas/route-plan.schema.json"
+"../contracts/routing-context.schema.json" = "keel/_schemas/routing-context.schema.json"
 "../templates" = "keel/_templates"

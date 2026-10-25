@@ -95,5 +95,5 @@ class AuditEventActor(KeelModel):
     role: Optional[str] = None
 
 
-for _model in (AuditEvent, AuditEventActor):
+for _model in (AuditEvent, AuditEventActor,):
     _model.model_rebuild()

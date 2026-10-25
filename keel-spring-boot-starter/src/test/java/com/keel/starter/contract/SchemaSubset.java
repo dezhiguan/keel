@@ -15,7 +15,7 @@ public final class SchemaSubset {
     private static final Set<String> SUPPORTED = Set.of(
             "$schema", "$id", "$defs", "$comment", "$ref", "title", "description", "default",
             "type", "required", "properties", "items", "additionalProperties", "enum", "const",
-            "minLength", "pattern", "format", "minimum", "maximum", "minItems", "maxItems",
+            "minLength", "maxLength", "pattern", "format", "minimum", "maximum", "exclusiveMinimum", "minItems", "maxItems",
             "allOf", "oneOf", "if", "then", "else");
 
     private SchemaSubset() {}
@@ -72,6 +72,7 @@ public final class SchemaSubset {
             if (!found) errors.add(path);
         }
         if (value.isTextual()) {
+            if (schema.has("maxLength") && value.asText().codePointCount(0, value.asText().length()) > schema.get("maxLength").asInt()) errors.add(path);
             String text = value.asText();
             if (schema.has("minLength") && text.codePointCount(0, text.length()) < schema.get("minLength").asInt()) errors.add(path);
             if (schema.has("pattern") && !Pattern.compile(schema.get("pattern").asText()).matcher(text).find()) errors.add(path);
@@ -90,6 +91,7 @@ public final class SchemaSubset {
             }
         }
         if (value.isNumber()) {
+            if (schema.has("exclusiveMinimum") && value.decimalValue().compareTo(schema.get("exclusiveMinimum").decimalValue()) <= 0) errors.add(path);
             if (schema.has("minimum") && value.decimalValue().compareTo(schema.get("minimum").decimalValue()) < 0) errors.add(path);
             if (schema.has("maximum") && value.decimalValue().compareTo(schema.get("maximum").decimalValue()) > 0) errors.add(path);
         }

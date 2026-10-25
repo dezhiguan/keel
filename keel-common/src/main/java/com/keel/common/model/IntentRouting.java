@@ -17,7 +17,9 @@ public record IntentRouting(
     @JsonProperty("rule_id") String rule_id,
     @JsonProperty("intent") IntentRoutingIntent intent,
     @JsonProperty("plan") IntentRoutingPlan plan,
-    @JsonProperty("actual_calls") List<IntentRoutingActualCallsItem> actual_calls
+    @JsonProperty("actual_calls") List<IntentRoutingActualCallsItem> actual_calls,
+    @JsonProperty("context") IntentRoutingContext context,
+    @JsonProperty("classification") IntentRoutingClassification classification
 ) {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -30,7 +32,11 @@ public record IntentRouting(
         @JsonProperty("side_effect_hint") IntentRoutingIntentSideEffectHintValue side_effect_hint,
         @JsonProperty("clarity") IntentRoutingIntentClarityValue clarity,
         @JsonProperty("slots") IntentRoutingIntentSlots slots,
-        @JsonProperty("missing_slots") List<IntentRoutingIntentMissingSlotsItemValue> missing_slots
+        @JsonProperty("missing_slots") List<IntentRoutingIntentMissingSlotsItemValue> missing_slots,
+        @JsonProperty("schema_version") IntentRoutingIntentSchemaVersionValue schema_version,
+        @JsonProperty("confidence") Double confidence,
+        @JsonProperty("reason_brief") String reason_brief,
+        @JsonProperty("slot_sources") IntentRoutingIntentSlotSources slot_sources
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -41,7 +47,20 @@ public record IntentRouting(
         @JsonProperty("executor") String executor,
         @JsonProperty("partial_policy") IntentRoutingPlanPartialPolicyValue partial_policy,
         @JsonProperty("reason_code") String reason_code,
-        @JsonProperty("steps") List<IntentRoutingPlanStepsItem> steps
+        @JsonProperty("steps") List<IntentRoutingPlanStepsItem> steps,
+        @JsonProperty("schema_version") IntentRoutingPlanSchemaVersionValue schema_version,
+        @JsonProperty("request_id") String request_id,
+        @JsonProperty("revision") Integer revision,
+        @JsonProperty("policy_version") String policy_version,
+        @JsonProperty("capability_revision") String capability_revision,
+        @JsonSerialize(using = ToStringSerializer.class) @JsonProperty("deadline_at") Instant deadline_at,
+        @JsonProperty("max_attempts") Integer max_attempts,
+        @JsonProperty("retry_policy") IntentRoutingPlanRetryPolicyValue retry_policy,
+        @JsonProperty("budget_cap_cny") Double budget_cap_cny,
+        @JsonProperty("parent_task_id") String parent_task_id,
+        @JsonProperty("parent_run_id") String parent_run_id,
+        @JsonProperty("traceparent") String traceparent,
+        @JsonProperty("executor_ref") IntentRoutingPlanExecutorRef executor_ref
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -49,7 +68,41 @@ public record IntentRouting(
     public record IntentRoutingActualCallsItem(
         @JsonProperty("tool") String tool,
         @JsonProperty("operation") String operation,
-        @JsonProperty("status") IntentRoutingActualCallsItemStatusValue status
+        @JsonProperty("status") IntentRoutingActualCallsItemStatusValue status,
+        @JsonProperty("step_id") String step_id
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record IntentRoutingContext(
+        @JsonProperty("schema_version") IntentRoutingContextSchemaVersionValue schema_version,
+        @JsonProperty("principal_ref") String principal_ref,
+        @JsonProperty("org_ref") String org_ref,
+        @JsonProperty("session_id") String session_id,
+        @JsonProperty("input_digest") String input_digest,
+        @JsonProperty("request_id") String request_id,
+        @JsonProperty("authorization_ref") String authorization_ref,
+        @JsonProperty("caller_agent") String caller_agent,
+        @JsonProperty("env") IntentRoutingContextEnvValue env,
+        @JsonProperty("policy_version") String policy_version,
+        @JsonProperty("capability_revision") String capability_revision,
+        @JsonSerialize(using = ToStringSerializer.class) @JsonProperty("deadline_at") Instant deadline_at,
+        @JsonSerialize(using = ToStringSerializer.class) @JsonProperty("grant_expiry") Instant grant_expiry,
+        @JsonProperty("budget_cap_cny") Double budget_cap_cny,
+        @JsonProperty("traceparent") String traceparent,
+        @JsonProperty("parent_task_id") String parent_task_id,
+        @JsonProperty("parent_run_id") String parent_run_id
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record IntentRoutingClassification(
+        @JsonProperty("mode") IntentRoutingClassificationModeValue mode,
+        @JsonProperty("status") IntentRoutingClassificationStatusValue status,
+        @JsonProperty("calls") Integer calls,
+        @JsonProperty("latency_ms") Double latency_ms,
+        @JsonProperty("reason_code") String reason_code,
+        @JsonProperty("model_applied") Boolean model_applied
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -59,7 +112,30 @@ public record IntentRouting(
         @JsonProperty("agent_id") String agent_id,
         @JsonProperty("task_id") String task_id,
         @JsonProperty("material_ref") IntentRoutingIntentSlotsMaterialRefValue material_ref,
-        @JsonProperty("material_digest") String material_digest
+        @JsonProperty("material_digest") String material_digest,
+        @JsonProperty("query_ref") IntentRoutingIntentSlotsQueryRefValue query_ref,
+        @JsonProperty("goal_ref") IntentRoutingIntentSlotsGoalRefValue goal_ref,
+        @JsonProperty("duplicate_cost_confirmed") Boolean duplicate_cost_confirmed,
+        @JsonProperty("page") Integer page,
+        @JsonProperty("size") Integer size,
+        @JsonProperty("exact") Boolean exact,
+        @JsonProperty("role") IntentRoutingIntentSlotsRoleValue role
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record IntentRoutingIntentSlotSources(
+        @JsonProperty("env") IntentRoutingIntentSlotSourcesEnvValue env,
+        @JsonProperty("agent_id") IntentRoutingIntentSlotSourcesAgentIdValue agent_id,
+        @JsonProperty("task_id") IntentRoutingIntentSlotSourcesTaskIdValue task_id,
+        @JsonProperty("material_ref") IntentRoutingIntentSlotSourcesMaterialRefValue material_ref,
+        @JsonProperty("query_ref") IntentRoutingIntentSlotSourcesQueryRefValue query_ref,
+        @JsonProperty("duplicate_cost_confirmed") IntentRoutingIntentSlotSourcesDuplicateCostConfirmedValue duplicate_cost_confirmed,
+        @JsonProperty("goal_ref") IntentRoutingIntentSlotSourcesGoalRefValue goal_ref,
+        @JsonProperty("page") IntentRoutingIntentSlotSourcesPageValue page,
+        @JsonProperty("size") IntentRoutingIntentSlotSourcesSizeValue size,
+        @JsonProperty("exact") IntentRoutingIntentSlotSourcesExactValue exact,
+        @JsonProperty("role") IntentRoutingIntentSlotSourcesRoleValue role
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -72,7 +148,34 @@ public record IntentRouting(
         @JsonProperty("executor") String executor,
         @JsonProperty("depends_on") List<String> depends_on,
         @JsonProperty("status") IntentRoutingPlanStepsItemStatusValue status,
-        @JsonProperty("reason_code") String reason_code
+        @JsonProperty("reason_code") String reason_code,
+        @JsonProperty("input_refs") List<String> input_refs,
+        @JsonProperty("output_contract") IntentRoutingPlanStepsItemOutputContractValue output_contract,
+        @JsonProperty("precondition") IntentRoutingPlanStepsItemPrecondition precondition,
+        @JsonProperty("required_grants") List<IntentRoutingPlanStepsItemRequiredGrantsItemValue> required_grants,
+        @JsonProperty("approval_ref") String approval_ref,
+        @JsonProperty("evidence_requirements") List<IntentRoutingPlanStepsItemEvidenceRequirementsItemValue> evidence_requirements,
+        @JsonProperty("budget_cap_cny") Double budget_cap_cny,
+        @JsonProperty("timeout_seconds") Double timeout_seconds,
+        @JsonProperty("max_attempts") Integer max_attempts,
+        @JsonProperty("on_failure") IntentRoutingPlanStepsItemOnFailureValue on_failure
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record IntentRoutingPlanExecutorRef(
+        @JsonProperty("agent_id") String agent_id,
+        @JsonProperty("env") IntentRoutingPlanExecutorRefEnvValue env,
+        @JsonProperty("version") String version,
+        @JsonProperty("capability_id") String capability_id
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record IntentRoutingPlanStepsItemPrecondition(
+        @JsonProperty("kind") IntentRoutingPlanStepsItemPreconditionKindValue kind,
+        @JsonProperty("step_id") String step_id,
+        @JsonProperty("capability_id") String capability_id
     ) {}
 
     public enum IntentRoutingSchemaVersionValue {
@@ -163,6 +266,17 @@ public record IntentRouting(
         }
     }
 
+    public enum IntentRoutingIntentSchemaVersionValue {
+        KEEL_V1("keel/v1");
+        private final String value;
+        IntentRoutingIntentSchemaVersionValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingIntentSchemaVersionValue fromValue(String value) {
+            for (IntentRoutingIntentSchemaVersionValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
     public enum IntentRoutingPlanModeValue {
         LOCAL_FAST("local_fast"), LOCAL_SLOW("local_slow"), REMOTE("remote"), QUEUE("queue"), CLARIFY("clarify"), DENY("deny"), APPROVAL("approval");
         private final String value;
@@ -185,6 +299,28 @@ public record IntentRouting(
         }
     }
 
+    public enum IntentRoutingPlanSchemaVersionValue {
+        KEEL_V1("keel/v1");
+        private final String value;
+        IntentRoutingPlanSchemaVersionValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingPlanSchemaVersionValue fromValue(String value) {
+            for (IntentRoutingPlanSchemaVersionValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingPlanRetryPolicyValue {
+        NEVER("never"), QUERY_ONLY("query_only");
+        private final String value;
+        IntentRoutingPlanRetryPolicyValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingPlanRetryPolicyValue fromValue(String value) {
+            for (IntentRoutingPlanRetryPolicyValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
     public enum IntentRoutingActualCallsItemStatusValue {
         STARTED("started"), OK("ok"), FAILED("failed"), DENIED("denied");
         private final String value;
@@ -192,6 +328,50 @@ public record IntentRouting(
         @JsonValue public String value() { return value; }
         @JsonCreator public static IntentRoutingActualCallsItemStatusValue fromValue(String value) {
             for (IntentRoutingActualCallsItemStatusValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingContextSchemaVersionValue {
+        KEEL_V1("keel/v1");
+        private final String value;
+        IntentRoutingContextSchemaVersionValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingContextSchemaVersionValue fromValue(String value) {
+            for (IntentRoutingContextSchemaVersionValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingContextEnvValue {
+        STAGING("staging"), PROD("prod");
+        private final String value;
+        IntentRoutingContextEnvValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingContextEnvValue fromValue(String value) {
+            for (IntentRoutingContextEnvValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingClassificationModeValue {
+        OFF("off"), SHADOW("shadow"), READ_ONLY("read_only");
+        private final String value;
+        IntentRoutingClassificationModeValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingClassificationModeValue fromValue(String value) {
+            for (IntentRoutingClassificationModeValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingClassificationStatusValue {
+        NOT_NEEDED("not_needed"), DISABLED("disabled"), OK("ok"), TIMEOUT("timeout"), INVALID("invalid"), UNAVAILABLE("unavailable"), REJECTED("rejected");
+        private final String value;
+        IntentRoutingClassificationStatusValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingClassificationStatusValue fromValue(String value) {
+            for (IntentRoutingClassificationStatusValue item : values()) if (item.value.equals(value)) return item;
             throw new IllegalArgumentException("Unknown enum value: " + value);
         }
     }
@@ -214,6 +394,160 @@ public record IntentRouting(
         @JsonValue public String value() { return value; }
         @JsonCreator public static IntentRoutingIntentSlotsMaterialRefValue fromValue(String value) {
             for (IntentRoutingIntentSlotsMaterialRefValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingIntentSlotsQueryRefValue {
+        CURRENT_MESSAGE("current_message");
+        private final String value;
+        IntentRoutingIntentSlotsQueryRefValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingIntentSlotsQueryRefValue fromValue(String value) {
+            for (IntentRoutingIntentSlotsQueryRefValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingIntentSlotsGoalRefValue {
+        CURRENT_MESSAGE("current_message");
+        private final String value;
+        IntentRoutingIntentSlotsGoalRefValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingIntentSlotsGoalRefValue fromValue(String value) {
+            for (IntentRoutingIntentSlotsGoalRefValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingIntentSlotsRoleValue {
+        USER("user"), ALL("all");
+        private final String value;
+        IntentRoutingIntentSlotsRoleValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingIntentSlotsRoleValue fromValue(String value) {
+            for (IntentRoutingIntentSlotsRoleValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingIntentSlotSourcesEnvValue {
+        CURRENT_MESSAGE("current_message"), AUTHORIZED_HISTORY("authorized_history"), RUNTIME("runtime");
+        private final String value;
+        IntentRoutingIntentSlotSourcesEnvValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingIntentSlotSourcesEnvValue fromValue(String value) {
+            for (IntentRoutingIntentSlotSourcesEnvValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingIntentSlotSourcesAgentIdValue {
+        CURRENT_MESSAGE("current_message"), AUTHORIZED_HISTORY("authorized_history"), RUNTIME("runtime");
+        private final String value;
+        IntentRoutingIntentSlotSourcesAgentIdValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingIntentSlotSourcesAgentIdValue fromValue(String value) {
+            for (IntentRoutingIntentSlotSourcesAgentIdValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingIntentSlotSourcesTaskIdValue {
+        CURRENT_MESSAGE("current_message"), AUTHORIZED_HISTORY("authorized_history"), RUNTIME("runtime");
+        private final String value;
+        IntentRoutingIntentSlotSourcesTaskIdValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingIntentSlotSourcesTaskIdValue fromValue(String value) {
+            for (IntentRoutingIntentSlotSourcesTaskIdValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingIntentSlotSourcesMaterialRefValue {
+        CURRENT_MESSAGE("current_message"), AUTHORIZED_HISTORY("authorized_history"), RUNTIME("runtime");
+        private final String value;
+        IntentRoutingIntentSlotSourcesMaterialRefValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingIntentSlotSourcesMaterialRefValue fromValue(String value) {
+            for (IntentRoutingIntentSlotSourcesMaterialRefValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingIntentSlotSourcesQueryRefValue {
+        CURRENT_MESSAGE("current_message"), AUTHORIZED_HISTORY("authorized_history"), RUNTIME("runtime");
+        private final String value;
+        IntentRoutingIntentSlotSourcesQueryRefValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingIntentSlotSourcesQueryRefValue fromValue(String value) {
+            for (IntentRoutingIntentSlotSourcesQueryRefValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingIntentSlotSourcesDuplicateCostConfirmedValue {
+        CURRENT_MESSAGE("current_message"), AUTHORIZED_HISTORY("authorized_history"), RUNTIME("runtime");
+        private final String value;
+        IntentRoutingIntentSlotSourcesDuplicateCostConfirmedValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingIntentSlotSourcesDuplicateCostConfirmedValue fromValue(String value) {
+            for (IntentRoutingIntentSlotSourcesDuplicateCostConfirmedValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingIntentSlotSourcesGoalRefValue {
+        CURRENT_MESSAGE("current_message"), AUTHORIZED_HISTORY("authorized_history"), RUNTIME("runtime");
+        private final String value;
+        IntentRoutingIntentSlotSourcesGoalRefValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingIntentSlotSourcesGoalRefValue fromValue(String value) {
+            for (IntentRoutingIntentSlotSourcesGoalRefValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingIntentSlotSourcesPageValue {
+        CURRENT_MESSAGE("current_message"), AUTHORIZED_HISTORY("authorized_history"), RUNTIME("runtime");
+        private final String value;
+        IntentRoutingIntentSlotSourcesPageValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingIntentSlotSourcesPageValue fromValue(String value) {
+            for (IntentRoutingIntentSlotSourcesPageValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingIntentSlotSourcesSizeValue {
+        CURRENT_MESSAGE("current_message"), AUTHORIZED_HISTORY("authorized_history"), RUNTIME("runtime");
+        private final String value;
+        IntentRoutingIntentSlotSourcesSizeValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingIntentSlotSourcesSizeValue fromValue(String value) {
+            for (IntentRoutingIntentSlotSourcesSizeValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingIntentSlotSourcesExactValue {
+        CURRENT_MESSAGE("current_message"), AUTHORIZED_HISTORY("authorized_history"), RUNTIME("runtime");
+        private final String value;
+        IntentRoutingIntentSlotSourcesExactValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingIntentSlotSourcesExactValue fromValue(String value) {
+            for (IntentRoutingIntentSlotSourcesExactValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingIntentSlotSourcesRoleValue {
+        CURRENT_MESSAGE("current_message"), AUTHORIZED_HISTORY("authorized_history"), RUNTIME("runtime");
+        private final String value;
+        IntentRoutingIntentSlotSourcesRoleValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingIntentSlotSourcesRoleValue fromValue(String value) {
+            for (IntentRoutingIntentSlotSourcesRoleValue item : values()) if (item.value.equals(value)) return item;
             throw new IllegalArgumentException("Unknown enum value: " + value);
         }
     }
@@ -247,6 +581,72 @@ public record IntentRouting(
         @JsonValue public String value() { return value; }
         @JsonCreator public static IntentRoutingPlanStepsItemStatusValue fromValue(String value) {
             for (IntentRoutingPlanStepsItemStatusValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingPlanStepsItemOutputContractValue {
+        TOOL_RESULT("tool_result"), TASK_RECEIPT("task_receipt"), ANSWER("answer"), NO_ACTION("no_action");
+        private final String value;
+        IntentRoutingPlanStepsItemOutputContractValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingPlanStepsItemOutputContractValue fromValue(String value) {
+            for (IntentRoutingPlanStepsItemOutputContractValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingPlanStepsItemRequiredGrantsItemValue {
+        READ_CONTEXT("read_context"), TASK_CONTEXT("task_context");
+        private final String value;
+        IntentRoutingPlanStepsItemRequiredGrantsItemValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingPlanStepsItemRequiredGrantsItemValue fromValue(String value) {
+            for (IntentRoutingPlanStepsItemRequiredGrantsItemValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingPlanStepsItemEvidenceRequirementsItemValue {
+        TOOL_RESULT("tool_result"), DURABLE_RECEIPT("durable_receipt"), CITATIONS("citations");
+        private final String value;
+        IntentRoutingPlanStepsItemEvidenceRequirementsItemValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingPlanStepsItemEvidenceRequirementsItemValue fromValue(String value) {
+            for (IntentRoutingPlanStepsItemEvidenceRequirementsItemValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingPlanStepsItemOnFailureValue {
+        ABORT("abort"), SKIP("skip"), CLARIFY("clarify");
+        private final String value;
+        IntentRoutingPlanStepsItemOnFailureValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingPlanStepsItemOnFailureValue fromValue(String value) {
+            for (IntentRoutingPlanStepsItemOnFailureValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingPlanExecutorRefEnvValue {
+        STAGING("staging"), PROD("prod");
+        private final String value;
+        IntentRoutingPlanExecutorRefEnvValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingPlanExecutorRefEnvValue fromValue(String value) {
+            for (IntentRoutingPlanExecutorRefEnvValue item : values()) if (item.value.equals(value)) return item;
+            throw new IllegalArgumentException("Unknown enum value: " + value);
+        }
+    }
+
+    public enum IntentRoutingPlanStepsItemPreconditionKindValue {
+        ALWAYS("always"), STEP_SUCCEEDED("step_succeeded"), POLICY_ALLOWED("policy_allowed"), NEVER("never"), UNKNOWN("unknown");
+        private final String value;
+        IntentRoutingPlanStepsItemPreconditionKindValue(String value) { this.value = value; }
+        @JsonValue public String value() { return value; }
+        @JsonCreator public static IntentRoutingPlanStepsItemPreconditionKindValue fromValue(String value) {
+            for (IntentRoutingPlanStepsItemPreconditionKindValue item : values()) if (item.value.equals(value)) return item;
             throw new IllegalArgumentException("Unknown enum value: " + value);
         }
     }

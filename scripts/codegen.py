@@ -231,7 +231,7 @@ def python_model(filename, main, root, event_defs=False):
         lines.append("")
     for key, fields in bodies.items():
         lines.extend(["", f"class {key}(KeelModel):", *fields, ""])
-    lines.extend(["", "for _model in (" + ", ".join(bodies) + "):", "    _model.model_rebuild()"])
+    lines.extend(["", "for _model in (" + ", ".join(bodies) + ",):", "    _model.model_rebuild()"])
     PYTHON.mkdir(parents=True, exist_ok=True)
     (PYTHON / filename).write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -282,6 +282,9 @@ def main():
     python_model("audit.py", "AuditEvent", schema("audit-event.schema.json"))
     java_model("IntentRouting", schema("intent-routing.schema.json"))
     python_model("routing.py", "IntentRouting", schema("intent-routing.schema.json"))
+    for filename, model in (("intent-packet", "IntentPacket"), ("routing-context", "RoutingContext"), ("route-plan", "RoutePlan")):
+        java_model(model, schema(filename + ".schema.json"))
+        python_model(filename.replace("-", "_") + ".py", model, schema(filename + ".schema.json"))
     error_codes()
     (PYTHON / "__init__.py").write_text("# Generated models from keel/v1 contracts.\n", encoding="utf-8")
 
