@@ -5,20 +5,20 @@ configured policies, and CAS-checks the audit image before changing deployment.
 """
 import argparse,base64,json,subprocess
 
-p=argparse.ArgumentParser();p.add_argument('--image',required=True);p.add_argument('--expected-image',required=True);p.add_argument('--apply',action='store_true');args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--image',required=True);p.add_argument('--expected-image',required=True);p.add_argument('--application-version',default='0.4.0');p.add_argument('--apply',action='store_true');args=p.parse_args()
 
 def command(argv,**options):return subprocess.run(argv,text=True,capture_output=True,check=True,**options).stdout
 
 def get(kind,name,namespace):return json.loads(command(['kubectl','-n',namespace,'get',kind,name,'-o','json']))
 
-read='''import os,json,hashlib,yaml
+read='''import os,json,hashlib,yaml,sys
 from assistant import __version__
-assert __version__=='0.4.0'
+assert __version__==json.load(sys.stdin)['version']
 m=yaml.safe_load(open('/app/agent.yaml'));assert m['metadata']['name']=='keel-assistant'
 assert os.environ['KEEL_ENV']=='staging'
 token=os.environ['KEEL_AUDIT_TOKEN'];assert token
 print(json.dumps({'captureFields':m['spec']['audit']['captureFields'],'tokenSha256':hashlib.sha256(token.encode()).hexdigest()}))'''
-policy=json.loads(command(['kubectl','-n','agents','exec','deployment/keel-assistant','--','python3','-c',read]))
+policy=json.loads(command(['kubectl','-n','agents','exec','-i','deployment/keel-assistant','--','python3','-c',read],input=json.dumps({'version':args.application_version})))
 name='keel-routing-audit-policy'
 r=subprocess.run(['kubectl','-n','keel-system','get','secret',name,'-o','json'],text=True,capture_output=True)
 if r.returncode:
