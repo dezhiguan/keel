@@ -29,6 +29,13 @@ class CodeCandidateServiceTest {
         assertThatCode(() -> CodeCandidateService.requireCompatible(old, next)).doesNotThrowAnyException();
     }
 
+    @Test void capabilitiesDeclarationsCanBeAddedWithoutChangingAuthority() throws Exception {
+        var old = manifest();
+        var next = old.deepCopy();
+        next.withObject("/spec").withObject("capabilities").put("toolCalling", true).put("loop", true).put("memory", true);
+        assertThatCode(() -> CodeCandidateService.requireCompatible(old, next)).doesNotThrowAnyException();
+    }
+
     @Test void candidateCannotReduceGateOrChangeBudgetEndpointOrPermissions() throws Exception {
         var old = manifest();
         for (var path : java.util.List.of("/spec/eval/gate", "/spec/models/budget", "/spec/runtime", "/spec/guardrails")) {

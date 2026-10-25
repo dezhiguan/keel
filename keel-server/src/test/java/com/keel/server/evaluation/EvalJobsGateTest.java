@@ -19,6 +19,12 @@ class EvalJobsGateTest {
         var failed = EvalJobs.gateItem(Map.of("scoreTotal", 0.5, "passed", false));
         assertThat(failed.passed()).isFalse();
         assertThat(failed.detail()).isEqualTo("0.50 < 0.85");
+
+        // Score cleared the threshold even if the raw run flag stayed false.
+        var scoreCleared = EvalJobs.gateItem(Map.of("scoreTotal", 0.95, "passed", false,
+                "gate", Map.of("minScore", 0.85)));
+        assertThat(scoreCleared.passed()).isTrue();
+        assertThat(scoreCleared.detail()).isEqualTo("0.95 ≥ 0.85");
     }
 
     @Test void missingRunStaysUnrun() {

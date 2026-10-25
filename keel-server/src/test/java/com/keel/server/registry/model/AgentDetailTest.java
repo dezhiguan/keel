@@ -85,6 +85,13 @@ class AgentDetailTest {
             assertThat(item.passed()).isNull();
         });
         assertThat(detail.selfCheck().passed()).isNull();
+        var aligned = detail.withGatewayBudget(110.0, 3.3);
+        assertThat(aligned.summary().dailyBudgetCny()).isEqualTo(110.0);
+        assertThat(aligned.summary().costCny()).isEqualTo(3.3);
+        assertThat(aligned.selfCheck().items()).anySatisfy(item -> {
+            assertThat(item.name()).isEqualTo("薄网关 虚拟 Key 已发放");
+            assertThat(item.detail()).isEqualTo("1 个模型 · ¥110/天");
+        });
     }
 
     @Test void versionRowKeepsTheReleaseTime() {
@@ -158,6 +165,14 @@ class AgentDetailTest {
         var workflowOnly = json.readTree("""
                 {"spec":{"kind":"workflow"}}
                 """);
+        var workflowTools = json.readTree("""
+                {"spec":{"kind":"workflow","tools":[{"name":"echo"}]}}
+                """);
+        var provedUndeclared = AgentDetail.of(agent(), null, null, List.of(), workflowTools, List.of()).elements()
+                .withRuntime(true, true, true, true, true);
+        assertThat(provedUndeclared.items().getFirst().passed()).isTrue();
+        assertThat(provedUndeclared.items().get(1).passed()).isTrue();
+        assertThat(provedUndeclared.missing()).doesNotContain("模型自己调工具", "agent loop");
         var denied = AgentDetail.of(agent(), null, null, List.of(), workflowOnly, List.of()).elements()
                 .withRuntime(true, true, true, true, true);
         assertThat(denied.items().getFirst().passed()).isFalse();
