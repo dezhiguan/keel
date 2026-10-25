@@ -57,7 +57,10 @@ def estimate_context_tokens(messages: list[dict] | None, tools: list[dict] | Non
     if tools:
         body["tools"] = tools
     text = json.dumps(body, ensure_ascii=False, default=str)
-    ascii_count = sum(ord(ch) < 128 for ch in text)
+    # Count in C rather than running a Python callback per character. Window
+    # assembly and background chunking estimate the same long inputs repeatedly.
+    # ASCII ignore preserves the previous exact estimate, including non-BMP text.
+    ascii_count = len(text.encode("ascii", errors="ignore"))
     other = len(text) - ascii_count
     return (ascii_count + 3) // 4 + other + 4 * len(messages or [])
 

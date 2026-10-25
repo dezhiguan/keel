@@ -185,7 +185,8 @@ public class AgentController {
                     chats.streamPrepared(name, text, sessionId, owner, remember, guarded, readContext, forwardedEvaluation, forwardedTaskContext, streamPrincipal, detail);
                 } catch (RuntimeException error) {
                     org.slf4j.LoggerFactory.getLogger(AgentController.class).warn(
-                            "trace_id={} agent={} stream relay interrupted run_id={}",errorTrace,name,relayRun);
+                            "trace_id={} agent={} stream relay interrupted run_id={} error_type={} cause_type={}",errorTrace,name,relayRun,
+                            error.getClass().getSimpleName(),error.getCause()==null?"none":error.getCause().getClass().getSimpleName());
                     guarded.write(streamError(errorTrace,relayRun).getBytes(java.nio.charset.StandardCharsets.UTF_8));
                     guarded.flush();
                 } finally { chatRequests.finish(claim,guarded.terminal()); }
