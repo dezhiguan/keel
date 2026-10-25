@@ -133,10 +133,13 @@ public class EvalJobs {
         if (result.get("gate") instanceof Map<?, ?> gate && gate.get("minScore") instanceof Number threshold) {
             min = threshold.doubleValue();
         }
-        var passed = result.get("passed") instanceof Boolean flag ? flag : number.doubleValue() >= min;
-        var mark = number.doubleValue() >= min ? "≥" : "<";
+        // Match the list card / eval gates: this line is score vs minScore.
+        // Release still reads eval_run.passed separately and may stay stricter.
+        var score = number.doubleValue();
+        var passed = score >= min;
+        var mark = passed ? "≥" : "<";
         return new AgentDetail.CheckItem("评测门禁", passed,
-                String.format(Locale.ROOT, "%.2f %s %.2f", number.doubleValue(), mark, min));
+                String.format(Locale.ROOT, "%.2f %s %.2f", score, mark, min));
     }
 
     public Map<String,Object> latest(String agent) {
