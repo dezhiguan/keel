@@ -124,9 +124,8 @@ public class CodeCandidateService {
         for(var tool:added.values())
             if(tool.size()!=4 || !"read".equals(tool.path("access").asText()) || !"low".equals(tool.path("risk").asText())
                 || !"none".equals(tool.path("approval").asText()))throw invalid("历史工具必须为低风险只读");
-        ObjectNode aligned=prior.deepCopy();var tools=aligned.withObject("/spec").withArray("tools");
+        ObjectNode aligned=prior.deepCopy();
         // Preserve prior definitions: requireCompatible still rejects edits to any existing tool.
-        for(var tool:added.values())tools.add(tool.deepCopy());
         // Tool order is significant to the existing compatibility contract; match only their positions.
         var ordered=aligned.withObject("/spec").putArray("tools");
         for(var tool:candidate.path("spec").path("tools")) {

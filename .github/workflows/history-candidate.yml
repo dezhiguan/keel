@@ -23,11 +23,8 @@ jobs:
           cache-dependency-path: console/package-lock.json
       - run: npm ci && npm test && npm run build
         working-directory: console
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: history-verification
-          path: keel-server/target/surefire-reports/*.xml
+      - name: Record verification
+        run: echo 'Platform tests and console checks completed; reports remain in job logs.' >> "$GITHUB_STEP_SUMMARY"
   build:
     needs: verify
     runs-on: ubuntu-latest
@@ -65,8 +62,5 @@ jobs:
             MODULE=keel-server
             SOURCE_REV=${{ github.sha }}
             RAM_PERCENTAGE=70
-      - run: printf '%s\n' '${{ steps.registry.outputs.pull_image }}' > pull-image.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: history-${{ matrix.module }}-${{ github.sha }}
-          path: pull-image.txt
+      - name: Record deployable image
+        run: echo '${{ matrix.module }} = ${{ steps.registry.outputs.pull_image }}' >> "$GITHUB_STEP_SUMMARY"
