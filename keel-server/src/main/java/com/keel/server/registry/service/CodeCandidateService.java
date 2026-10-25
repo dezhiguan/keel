@@ -226,7 +226,8 @@ public class CodeCandidateService {
     private static JsonNode boundary(JsonNode manifest) {
         ObjectNode copy = manifest.deepCopy();
         ObjectNode spec = copy.withObject("/spec");
-        spec.remove(List.of("prompts", "skills"));
+        // capabilities are declarations for element checks, not authz or budget boundaries.
+        spec.remove(List.of("prompts", "skills", "capabilities"));
         spec.withObject("/eval").remove(List.of("dataset", "runner"));
         // Adding the explicit default does not turn a workflow into an autonomous agent.
         if (!spec.has("kind")) spec.put("kind", "workflow");

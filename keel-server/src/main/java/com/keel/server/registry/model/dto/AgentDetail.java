@@ -264,6 +264,24 @@ public record AgentDetail(
                 selfCheck, elements, instanceList, resources, versions, findings);
     }
 
+    /** Keep the virtual-key self-check amount on the same gateway budget the list card uses. */
+    public AgentDetail withGatewayBudget(Double dailyBudgetCny, Double costCny) {
+        var enriched = summary.withUsage(summary.calls24h(), summary.callsTotal(), summary.p95Seconds(),
+                costCny != null ? costCny : summary.costCny(), dailyBudgetCny, summary.score());
+        if (selfCheck == null || selfCheck.items().isEmpty()) return withSummary(enriched);
+        var items = new ArrayList<CheckItem>();
+        for (var item : selfCheck.items()) {
+            if ("薄网关 虚拟 Key 已发放".equals(item.name()) && Boolean.TRUE.equals(item.passed())) {
+                items.add(keyCheck(models, enriched.dailyBudgetCny(), resources));
+            } else {
+                items.add(item);
+            }
+        }
+        return new AgentDetail(enriched, manifestYaml, manifestHash, execution, memory, knowledgeBases, tools, models,
+                delegates, new CheckReport(selfCheck.passed(), List.copyOf(items), selfCheck.checkedAt()),
+                elements, instanceList, resources, versions, findings);
+    }
+
     public AgentDetail withSelfCheck(CheckReport report) {
         return new AgentDetail(summary, manifestYaml, manifestHash, execution, memory, knowledgeBases, tools, models, delegates,
                 report, elements, instanceList, resources, versions, findings);

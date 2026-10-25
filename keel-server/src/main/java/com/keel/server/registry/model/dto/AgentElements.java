@@ -13,7 +13,9 @@ public record AgentElements(String kind, List<Item> items, List<String> missing)
         if (manifest == null || manifest.isMissingNode() || manifest.isNull()) return null;
         var spec = manifest.path("spec");
         var capabilities = spec.path("capabilities");
-        boolean toolCalling = capabilities.path("toolCalling").asBoolean(false) && !spec.path("tools").isEmpty();
+        boolean hasTools = !spec.path("tools").isEmpty();
+        boolean toolCapability = capabilities.path("toolCalling").asBoolean(false);
+        boolean toolCalling = toolCapability && hasTools;
         boolean loop = capabilities.path("loop").asBoolean(false);
         boolean prompts = "langfuse".equals(spec.path("prompts").path("source").asText())
                 && !spec.path("prompts").path("items").isEmpty();
@@ -24,8 +26,13 @@ public record AgentElements(String kind, List<Item> items, List<String> missing)
         if (!prompts) missing.add("有版本的提示词");
         if (!eval) missing.add("评测");
         var items = new ArrayList<Item>();
-        items.add(core("模型自己调工具", toolCalling));
-        items.add(core("agent loop", loop));
+        // Tools without capabilities stay pending so Langfuse proof can clear them, like memory.
+        items.add(toolCalling ? core("模型自己调工具", true)
+                : hasTools ? new Item("模型自己调工具", null, "已声明工具；模型自行调用待验证")
+                : core("模型自己调工具", false));
+        items.add(loop ? core("agent loop", true)
+                : hasTools ? new Item("agent loop", null, "运行行为待验证")
+                : core("agent loop", false));
         items.add(new Item("记忆", null, "会话记忆与长期记忆待验证"));
         items.add(core("有版本的提示词", prompts));
         items.add(declared("模型接入", !spec.path("models").path("default").asText("").isBlank()));
@@ -60,13 +67,16 @@ public record AgentElements(String kind, List<Item> items, List<String> missing)
         prove(next, "可观测与审计", audit, "已有审计事件");
         prove(next, "有版本的提示词", versionedPrompt, "真实模型调用关联了提示词版本");
         prove(next, "知识检索", retrieval, "真实运行出现知识检索节点");
-        return new AgentElements(kind, List.copyOf(next), missing);
+        var remain = missing.stream().filter(name -> next.stream()
+                .noneMatch(item -> name.equals(item.name()) && Boolean.TRUE.equals(item.passed()))).toList();
+        return new AgentElements(kind, List.copyOf(next), List.copyOf(remain));
     }
 
     private static void prove(List<Item> items, String name, boolean present, String detail) {
         if (!present) return;
         for (var i = 0; i < items.size(); i++) {
             var item = items.get(i);
+            // Pending (null) can be proved; hard-false undeclared items stay missing.
             if (name.equals(item.name()) && !Boolean.FALSE.equals(item.passed())) {
                 items.set(i, new Item(name, true, detail));
             }
