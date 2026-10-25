@@ -24,12 +24,13 @@ public class AuditConfiguration {
     @ConditionalOnProperty(prefix = "keel.audit", name = "jdbc-url")
     DataSource auditDataSource(@Value("${keel.audit.jdbc-url}") String url,
                                @Value("${keel.audit.jdbc-user:}") String user,
-                               @Value("${keel.audit.jdbc-password:}") String password) {
+                               @Value("${keel.audit.jdbc-password:}") String password,
+                               @Value("${keel.audit.migrate:true}") boolean migrate) {
         var source = new HikariDataSource();
         source.setJdbcUrl(url);
         source.setUsername(user);
         source.setPassword(password);
-        Flyway.configure().dataSource(source).locations("classpath:db/migration").load().migrate();
+        if (migrate) Flyway.configure().dataSource(source).locations("classpath:db/migration").load().migrate();
         return source;
     }
 
@@ -41,7 +42,8 @@ public class AuditConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(ChainStore.class)
-    ChainStore memoryChainStore() {
+    ChainStore memoryChainStore(@Value("${keel.audit.require-durable:false}") boolean requireDurable) {
+        if (requireDurable) throw new IllegalStateException("Production audit requires persistent JDBC storage");
         return new MemoryChainStore();
     }
 

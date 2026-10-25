@@ -22,6 +22,9 @@ spec:
         - name: keel-audit
           image: PLACEHOLDER_AUDIT_IMAGE
           imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef: { name: keel-audit-database }
+            - secretRef: { name: keel-routing-audit-policy, optional: true }
           ports:
             - containerPort: 8080
           readinessProbe:

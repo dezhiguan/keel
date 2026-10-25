@@ -26,6 +26,13 @@ public class AuditEventMapper {
 
     public void ensurePartition(Connection connection, Instant ts) throws SQLException {
         String name = partitionName(ts);
+        // Restricted runtime roles need no DDL for an administrator-created partition.
+        try (var existing = connection.prepareStatement("SELECT to_regclass(?)")) {
+            existing.setString(1, name);
+            try (var row = existing.executeQuery()) {
+                if (row.next() && row.getString(1) != null) return;
+            }
+        }
         var month = ts.atZone(ZoneOffset.UTC).toLocalDate().withDayOfMonth(1);
         String from = month.toString();
         String to = month.plusMonths(1).toString();

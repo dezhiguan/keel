@@ -38,3 +38,7 @@ agent.yaml 声明模型、提示词、工具风险与权限、记忆、审计、
 线上工具验收发现显示名不能作为业务主体：CareerMate 的 context.user_id 必须传已验证 ConsolePrincipal.userId；AskDB 用户名及其他智能体显示名语义保持原协议。SDK 暂停恢复须保留原调用的用户和会话上下文，不接受恢复请求覆盖身份。
 
 审计验收补充：运行时审计已落 keel-audit，但控制台默认只读 console_audit_event。新增可选 KEEL_RUNTIME_AUDIT_URL 聚合查询，保留控制面事件并按时间分页合并运行时事件，映射既有控制台契约；查询失败明确失败，不伪装空数据。keel-audit 查询直接读取现有 append-only 链存储，返回实际哈希及逐条校验，重启不丢查询记录。不改审计写入表结构或已有事件。
+
+线上审计原使用内存且两个副本互不共享。为 keel-audit 配置独立 PostgreSQL 审计库，管理员迁移与应用角色分离，部署 KEEL_AUDIT_MIGRATE=false；应用对 audit_event/分区仅 SELECT/INSERT，不授予 UPDATE/DELETE 或所有权。ensurePartition 先查询已建分区，当前季度由管理员预建；缺分区导致同步审计失败并拒绝业务。验证真实受限角色写入和 UPDATE 拒绝，以及服务滚动后可查询同一事件。旧内存审计不能追溯恢复，保留控制面原有审计并如实记录。
+
+保留线上 aaa75f1 的 AuditCapturePolicy 与带鉴权的审计接收逻辑，源码同步既有实现，避免后续完整构建丢失线上字段白名单绑定。CareerMate staging 的部署策略仅允许 toolName/outcome，tokenHash 来自标准开通的审计凭据，不接受调用方自行扩大字段。
