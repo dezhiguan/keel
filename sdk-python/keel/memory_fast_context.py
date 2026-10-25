@@ -39,17 +39,43 @@ async def assemble(window, system, prior, current, tools, budget):
         removed.extend(groups.pop(0))
     # Recall also searches the newly clipped prefix, not just messages outside the transport window.
     kept=[r for g in groups for r in g]
+    read_version=window.state.get('version',0)
     items, window.state = await window.recall.collect(kept or prior, current, window.state)
+    if window.state.get('version',0)!=read_version:
+        summary=window.state.get('content','');through=int(window.state.get('throughId','0'))
+        groups=turns([r for r in prior if not r.get('id') or int(r['id'])>through])
+        removed=[r for r in removed if not r.get('id') or int(r['id'])>through]
     recalled=window.recall.messages(items,min(2400,max(0,budget-fixed-128)))
     evidence_rows=recalled+ledger
-    # Prefer the newest full user/assistant turn over a stale derived representation.
+    # Relevant original evidence must survive budget adaptation. Trim older full
+    # turns first; otherwise a successful recall could be silently thrown away.
+    extra=[]
+    while len(groups)>1 and tokens(compose(),tools)>target:
+        group=groups.pop(0);removed.extend(group);extra.extend(group)
+    if extra and groups:
+        before=groups[0][0].get('id')
+        old_before=getattr(window,'_fast_recall_before',0)
+        if before and int(before)>old_before:
+            window.recall.items=None
+            read_version=window.state.get('version',0)
+            items,window.state=await window.recall.collect([r for g in groups for r in g],current,window.state)
+            if window.state.get('version',0)!=read_version:
+                summary=window.state.get('content','');through=int(window.state.get('throughId','0'))
+                groups=turns([r for r in prior if not r.get('id') or int(r['id'])>through])
+                removed=[r for r in removed if not r.get('id') or int(r['id'])>through]
+            recalled=window.recall.messages(items,min(2400,max(0,budget-fixed-128)))
+            window._fast_recall_before=int(before)
+            evidence_rows=recalled+ledger
     if tokens(compose(),tools)>budget-128:summary=''
     if tokens(compose(),tools)>budget-128:evidence_rows=recalled
-    if tokens(compose(),tools)>budget-128:evidence_rows=[]
     while groups and tokens(compose(),tools)>budget-128:
         removed.extend(groups.pop(0))
     if tokens(compose(),tools)>budget-128:
-        return system+current  # The unchanged hard gate rejects an oversized current tool chain.
+        # A long current input retains the original hard-gate behavior. Select a
+        # smaller evidence subset rather than a partial or invalid tool exchange.
+        recalled=window.recall.messages(items,max(0,budget-tokens(system+policy+current,tools)-128))
+        evidence_rows=recalled
+    if tokens(compose(),tools)>budget-128:return system+current
     if removed:
         last=removed[-1].get('id','0')
         window.summary_through_id=str(max(int(getattr(window,'summary_through_id','0')),int(last)))
