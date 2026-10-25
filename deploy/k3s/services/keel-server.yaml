@@ -156,6 +156,12 @@ spec:
                   optional: true
             - name: KEEL_CAREERMATE_ENDPOINT
               value: http://careermate-backend.careermate.svc.cluster.local:18080
+            - name: KEEL_ASKDB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: keel-server
+                  key: KEEL_ASKDB_TOKEN
+                  optional: true
             - name: KEEL_CAREERMATE_TOKEN
               valueFrom:
                 secretKeyRef:

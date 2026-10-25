@@ -25,6 +25,8 @@ import java.util.List;
 /** Reads the registered manifest and recent guardrail observations for the console guard page. */
 @Service
 public class GuardrailService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private AgentBridgeCredentials bridgeCredentials;
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
@@ -56,7 +58,7 @@ public class GuardrailService {
         if (endpoint.isBlank()) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "智能体尚未配置运行服务，无法验证护栏");
         }
-        return probe(json, endpoint, source, text == null ? "" : text, name, metaBridgeToken);
+        return probe(json, endpoint, source, text == null ? "" : text, name, bridgeCredentials != null ? bridgeCredentials.token(name) : metaBridgeToken);
     }
 
     static java.util.Map<String, Object> probe(ObjectMapper json, String endpoint, String source, String text) {
@@ -72,7 +74,7 @@ public class GuardrailService {
             var body = json.createObjectNode().put("source", source).put("text", text);
             var request = HttpRequest.newBuilder(URI.create(endpoint.replaceAll("/+$", "") + "/v1/guard/check"))
                     .timeout(Duration.ofSeconds(8)).header("Content-Type", "application/json");
-            if ("meta-agent".equals(agent) && metaBridgeToken != null && !metaBridgeToken.isBlank()) {
+            if (java.util.Set.of("meta-agent", "askdb", "careermate").contains(agent == null ? "" : agent) && metaBridgeToken != null && !metaBridgeToken.isBlank()) {
                 request.header("X-Keel-Bridge", metaBridgeToken);
             }
             var response = HTTP.send(request.POST(HttpRequest.BodyPublishers.ofString(body.toString())).build(),
