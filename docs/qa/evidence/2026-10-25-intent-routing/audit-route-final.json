@@ -1,0 +1,469 @@
+{
+  "scope": "Real smoke route events from both memory-backed receivers; no durability claim",
+  "results": [
+    {
+      "id": "IR-01",
+      "traceId": "e688599eadcac4c9852ae2cc51f767d1",
+      "checks": {
+        "planned_pending": true,
+        "terminal_decision": true,
+        "safe_payload": true
+      },
+      "passed": true,
+      "events": [
+        {
+          "event_id": "1e2e8a37d3d140589723ead985a8797b",
+          "ts": "2026-10-25T07:53:54.420228Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "pending",
+          "payload": {
+            "intent_primary": "chat",
+            "operation": "reply",
+            "route_mode": "local_fast",
+            "executor": "self",
+            "plan_id": "plan_06fb61c8da6447eab20fa3a2c0c8e09e",
+            "rule_id": "common_chat",
+            "policy_version": "assistant-staging-1",
+            "source": "rule",
+            "decision_reason": "no_business_tools"
+          },
+          "resource": "intent.route.planned",
+          "trace_id": "e688599eadcac4c9852ae2cc51f767d1",
+          "run_id": "f495a9285a41468889c3168f472267db"
+        },
+        {
+          "event_id": "4baf5d965fd645dc8d8aa72d02de3e4f",
+          "ts": "2026-10-25T07:53:57.645880Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "allowed",
+          "payload": {
+            "intent_primary": "chat",
+            "operation": "reply",
+            "route_mode": "local_fast",
+            "executor": "self",
+            "plan_id": "plan_06fb61c8da6447eab20fa3a2c0c8e09e",
+            "rule_id": "common_chat",
+            "policy_version": "assistant-staging-1",
+            "source": "rule",
+            "decision_reason": "no_business_tools"
+          },
+          "resource": "intent.route.completed",
+          "trace_id": "e688599eadcac4c9852ae2cc51f767d1",
+          "run_id": "f495a9285a41468889c3168f472267db"
+        }
+      ]
+    },
+    {
+      "id": "IR-04",
+      "traceId": "aa659e8801b2ee880c395518271ae0e9",
+      "checks": {
+        "planned_pending": true,
+        "terminal_decision": true,
+        "safe_payload": true
+      },
+      "passed": true,
+      "events": [
+        {
+          "event_id": "2d65d592847d40de87150b951a968f6e",
+          "ts": "2026-10-25T07:53:58.485413Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "pending",
+          "payload": {
+            "intent_primary": "retrieve_state",
+            "operation": "detail",
+            "route_mode": "clarify",
+            "executor": "",
+            "plan_id": "plan_4ed3518fba7643adbee097cb5428936f",
+            "rule_id": "employee_reference",
+            "policy_version": "assistant-staging-1",
+            "source": "rule",
+            "decision_reason": "missing_employee_scope"
+          },
+          "resource": "intent.route.planned",
+          "trace_id": "aa659e8801b2ee880c395518271ae0e9",
+          "run_id": "bf9e263991ef4cc393437809e9e608df"
+        },
+        {
+          "event_id": "75b745556893422993c81109dcf106ad",
+          "ts": "2026-10-25T07:53:58.498659Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "pending",
+          "payload": {
+            "intent_primary": "retrieve_state",
+            "operation": "detail",
+            "route_mode": "clarify",
+            "executor": "",
+            "plan_id": "plan_4ed3518fba7643adbee097cb5428936f",
+            "rule_id": "employee_reference",
+            "policy_version": "assistant-staging-1",
+            "source": "rule",
+            "decision_reason": "missing_employee_scope"
+          },
+          "resource": "intent.route.completed",
+          "trace_id": "aa659e8801b2ee880c395518271ae0e9",
+          "run_id": "bf9e263991ef4cc393437809e9e608df"
+        }
+      ]
+    },
+    {
+      "id": "IR-08",
+      "traceId": "c8e3a83a57b662461270f32ae334cec8",
+      "checks": {
+        "planned_pending": true,
+        "terminal_decision": true,
+        "safe_payload": true
+      },
+      "passed": true,
+      "events": [
+        {
+          "event_id": "bef5240f4acc4cb4a0a09e88450880cf",
+          "ts": "2026-10-25T07:53:59.112796Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "denied",
+          "payload": {
+            "intent_primary": "action_request",
+            "operation": "execute",
+            "route_mode": "deny",
+            "executor": "",
+            "plan_id": "plan_c43d52593bef44318422cae4e09edda9",
+            "rule_id": "unsupported_action",
+            "policy_version": "assistant-staging-1",
+            "source": "rule",
+            "decision_reason": "capability_not_enabled"
+          },
+          "resource": "intent.route.planned",
+          "trace_id": "c8e3a83a57b662461270f32ae334cec8",
+          "run_id": "508afd268fdc4bf8a88f601a54939c67"
+        },
+        {
+          "event_id": "0ee61cd95ade455cb50557700612fa6b",
+          "ts": "2026-10-25T07:54:02.858165Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "denied",
+          "payload": {
+            "intent_primary": "action_request",
+            "operation": "execute",
+            "route_mode": "deny",
+            "executor": "",
+            "plan_id": "plan_c43d52593bef44318422cae4e09edda9",
+            "rule_id": "unsupported_action",
+            "policy_version": "assistant-staging-1",
+            "source": "rule",
+            "decision_reason": "capability_not_enabled"
+          },
+          "resource": "intent.route.completed",
+          "trace_id": "c8e3a83a57b662461270f32ae334cec8",
+          "run_id": "508afd268fdc4bf8a88f601a54939c67"
+        }
+      ]
+    },
+    {
+      "id": "IR-10-A",
+      "traceId": "0f38a2cdbb06b83f1c1d12046402b866",
+      "checks": {
+        "planned_pending": true,
+        "terminal_decision": true,
+        "safe_payload": true
+      },
+      "passed": true,
+      "events": [
+        {
+          "event_id": "68596df07ba24b68926133e4d95eb0fa",
+          "ts": "2026-10-25T07:54:03.398184Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "denied",
+          "payload": {
+            "intent_primary": "delegate_work",
+            "operation": "delegate",
+            "route_mode": "deny",
+            "executor": "",
+            "plan_id": "plan_f1de22e69f8d48d4971ba774800afafa",
+            "rule_id": "remote_disabled",
+            "policy_version": "assistant-staging-1",
+            "source": "rule",
+            "decision_reason": "remote_runtime_disabled"
+          },
+          "resource": "intent.route.planned",
+          "trace_id": "0f38a2cdbb06b83f1c1d12046402b866",
+          "run_id": "1e89cf7dafcc4869839b8d912848045e"
+        },
+        {
+          "event_id": "86ee0b1d8cc04b19be3c5a937215cb79",
+          "ts": "2026-10-25T07:54:06.445595Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "denied",
+          "payload": {
+            "intent_primary": "delegate_work",
+            "operation": "delegate",
+            "route_mode": "deny",
+            "executor": "",
+            "plan_id": "plan_f1de22e69f8d48d4971ba774800afafa",
+            "rule_id": "remote_disabled",
+            "policy_version": "assistant-staging-1",
+            "source": "rule",
+            "decision_reason": "remote_runtime_disabled"
+          },
+          "resource": "intent.route.completed",
+          "trace_id": "0f38a2cdbb06b83f1c1d12046402b866",
+          "run_id": "1e89cf7dafcc4869839b8d912848045e"
+        }
+      ]
+    },
+    {
+      "id": "IR-22",
+      "traceId": "3b91bc18e0d412355a2f2f96957b37d8",
+      "checks": {
+        "planned_pending": true,
+        "terminal_decision": true,
+        "safe_payload": true
+      },
+      "passed": true,
+      "events": [
+        {
+          "event_id": "074d4b1b82d14321975f6b720c7d73ae",
+          "ts": "2026-10-25T07:54:06.986563Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "denied",
+          "payload": {
+            "intent_primary": "mixed",
+            "operation": "coordinate",
+            "route_mode": "deny",
+            "executor": "",
+            "plan_id": "plan_f97c967dd59f41169b28db6580587343",
+            "rule_id": "conditional_request",
+            "policy_version": "assistant-staging-1",
+            "source": "rule",
+            "decision_reason": "condition_not_satisfied"
+          },
+          "resource": "intent.route.planned",
+          "trace_id": "3b91bc18e0d412355a2f2f96957b37d8",
+          "run_id": "b3fb6fad39ba4d35aa3ee2e47f3231c0"
+        },
+        {
+          "event_id": "cd82db778d5b4f138698856f54a202cf",
+          "ts": "2026-10-25T07:54:06.995110Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "denied",
+          "payload": {
+            "intent_primary": "mixed",
+            "operation": "coordinate",
+            "route_mode": "deny",
+            "executor": "",
+            "plan_id": "plan_f97c967dd59f41169b28db6580587343",
+            "rule_id": "conditional_request",
+            "policy_version": "assistant-staging-1",
+            "source": "rule",
+            "decision_reason": "condition_not_satisfied"
+          },
+          "resource": "intent.route.completed",
+          "trace_id": "3b91bc18e0d412355a2f2f96957b37d8",
+          "run_id": "b3fb6fad39ba4d35aa3ee2e47f3231c0"
+        }
+      ]
+    },
+    {
+      "id": "IR-14",
+      "traceId": "baba7a6dcdb9ee4ea692fe0369f6fa9f",
+      "checks": {
+        "planned_pending": true,
+        "terminal_decision": true,
+        "safe_payload": true
+      },
+      "passed": true,
+      "events": [
+        {
+          "event_id": "72de200db735423f8f478b8952d1a30e",
+          "ts": "2026-10-25T07:54:07.672527Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "pending",
+          "payload": {
+            "intent_primary": "chat",
+            "operation": "reply",
+            "route_mode": "local_fast",
+            "executor": "self",
+            "plan_id": "plan_7f2bdb576cd448559348a0556258318c",
+            "rule_id": "discussion_or_negation",
+            "policy_version": "assistant-staging-1",
+            "source": "rule",
+            "decision_reason": "no_execution_intent"
+          },
+          "resource": "intent.route.planned",
+          "trace_id": "baba7a6dcdb9ee4ea692fe0369f6fa9f",
+          "run_id": "c57a142722ad4d8ca76b227652c4e1ce"
+        },
+        {
+          "event_id": "6bc94406fe724887a1e43982dc2f0dd2",
+          "ts": "2026-10-25T07:54:11.745618Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "allowed",
+          "payload": {
+            "intent_primary": "chat",
+            "operation": "reply",
+            "route_mode": "local_fast",
+            "executor": "self",
+            "plan_id": "plan_7f2bdb576cd448559348a0556258318c",
+            "rule_id": "discussion_or_negation",
+            "policy_version": "assistant-staging-1",
+            "source": "rule",
+            "decision_reason": "no_execution_intent"
+          },
+          "resource": "intent.route.completed",
+          "trace_id": "baba7a6dcdb9ee4ea692fe0369f6fa9f",
+          "run_id": "c57a142722ad4d8ca76b227652c4e1ce"
+        }
+      ]
+    },
+    {
+      "id": "IR-07-no-user",
+      "traceId": "cea248f8cf15d5d3e341765891a5dc93",
+      "checks": {
+        "planned_pending": true,
+        "terminal_decision": true,
+        "safe_payload": true
+      },
+      "passed": true,
+      "events": [
+        {
+          "event_id": "ad328ae04d1e40e4b902014979f937ba",
+          "ts": "2026-10-25T07:54:12.284743Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "pending",
+          "payload": {
+            "intent_primary": "analyze_document",
+            "operation": "create",
+            "route_mode": "queue",
+            "executor": "self",
+            "plan_id": "plan_9da7c7aeacc545f4a114f12cf7c00687",
+            "rule_id": "task.create",
+            "policy_version": "assistant-staging-1",
+            "source": "gate",
+            "decision_reason": "explicit_command"
+          },
+          "resource": "intent.route.planned",
+          "trace_id": "cea248f8cf15d5d3e341765891a5dc93",
+          "run_id": "e4aad4e8e31e42db9a02889df3fd3ea9"
+        },
+        {
+          "event_id": "229873f386284871b9ee7b587a930a82",
+          "ts": "2026-10-25T07:54:12.301700Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "denied",
+          "payload": {
+            "intent_primary": "analyze_document",
+            "operation": "create",
+            "route_mode": "queue",
+            "executor": "self",
+            "plan_id": "plan_9da7c7aeacc545f4a114f12cf7c00687",
+            "rule_id": "task.create",
+            "policy_version": "assistant-staging-1",
+            "source": "gate",
+            "decision_reason": "explicit_command"
+          },
+          "resource": "intent.route.denied",
+          "trace_id": "cea248f8cf15d5d3e341765891a5dc93",
+          "run_id": "e4aad4e8e31e42db9a02889df3fd3ea9"
+        }
+      ]
+    },
+    {
+      "id": "IR-24-forged-meta",
+      "traceId": "ebc0b4729906e1d0c901e98b7e6809ca",
+      "checks": {
+        "planned_pending": true,
+        "terminal_decision": true,
+        "safe_payload": true
+      },
+      "passed": true,
+      "events": [
+        {
+          "event_id": "7c5e1efe72fc4cb3955217bf3ec9e333",
+          "ts": "2026-10-25T07:54:12.913203Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "pending",
+          "payload": {
+            "intent_primary": "chat",
+            "operation": "reply",
+            "route_mode": "local_fast",
+            "executor": "self",
+            "plan_id": "plan_5287d760582c4454b33c771a4d2b6237",
+            "rule_id": "common_chat",
+            "policy_version": "assistant-staging-1",
+            "source": "rule",
+            "decision_reason": "no_business_tools"
+          },
+          "resource": "intent.route.planned",
+          "trace_id": "ebc0b4729906e1d0c901e98b7e6809ca",
+          "run_id": "9545aeede5a846769edc2cf212aaca17"
+        },
+        {
+          "event_id": "516b487670494a32b424e1f6db7690fc",
+          "ts": "2026-10-25T07:54:14.201182Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "allowed",
+          "payload": {
+            "intent_primary": "chat",
+            "operation": "reply",
+            "route_mode": "local_fast",
+            "executor": "self",
+            "plan_id": "plan_5287d760582c4454b33c771a4d2b6237",
+            "rule_id": "common_chat",
+            "policy_version": "assistant-staging-1",
+            "source": "rule",
+            "decision_reason": "no_business_tools"
+          },
+          "resource": "intent.route.completed",
+          "trace_id": "ebc0b4729906e1d0c901e98b7e6809ca",
+          "run_id": "9545aeede5a846769edc2cf212aaca17"
+        }
+      ]
+    }
+  ]
+}

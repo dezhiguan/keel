@@ -153,3 +153,5 @@
 - R1022 助理门禁修复：SDK错误证据可选meta保持既有错误显示，授权环境证据仅供评测复核；100条分页/阈值/critical阻断不变。SDK及业务修复已测试，正式发布、部署与真实回归待验收；见r1020/assistant-gate-sdk-remediation.md。
 
 - R1023-session-fact-conflicts：已部署并验证。节点详情展示记忆版本/原文消息编号/哈希/状态/采用标记，兼容Langfuse真实对象与字符串metadata；真实摘要回查与最终generation输入核对通过。浏览器登录点击未复测（测试凭据失效），生产映射及部署静态资源已验证。见 [验收](../r1023/session-fact-conflicts-acceptance.md)。
+
+- R1025-intent-routing：复用链路节点既有 outputSummary 展示 intent.route / intent.route.result，包含意图、模式、规则、执行者与结果，不改原型布局或控制台字段。staging 双副本及真实语义节点已核对，8 项服务冒烟通过；有效 USER 登录缺失，页面点击与授权业务仍待验收。见 [记录](../../qa/2026-10-25-intent-routing.md)。
