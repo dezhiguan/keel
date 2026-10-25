@@ -4,12 +4,20 @@ import base64
 import json
 import time
 import uuid
+from functools import lru_cache
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 
 ASSERTION_TYPE = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
 MAX_TTL_SECONDS = 600
+
+
+@lru_cache(maxsize=2)
+def _signing_key(private_key_pem: str):
+    # Validate once per PEM version. Keep only two in-process key objects for
+    # rotation; assertions/claims are never cached or shared across requests.
+    return serialization.load_pem_private_key(private_key_pem.encode(), password=None)
 
 
 def sign_client_assertion(client_id: str, audience: str, private_key_pem: str, *,
@@ -29,7 +37,7 @@ def sign_client_assertion(client_id: str, audience: str, private_key_pem: str, *
         "exp": issued + ttl_seconds,
     })
     signing_input = f"{header}.{payload}".encode()
-    key = serialization.load_pem_private_key(private_key_pem.encode(), password=None)
+    key = _signing_key(private_key_pem)
     signature = key.sign(signing_input, padding.PKCS1v15(), hashes.SHA256())
     return f"{header}.{payload}.{_b64_bytes(signature)}"
 
