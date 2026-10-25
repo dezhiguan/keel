@@ -2,6 +2,7 @@
 import asyncio
 import json
 import logging
+import os
 import re
 import time
 
@@ -77,6 +78,10 @@ class ContextWindow:
         if self.summary_deadline is None:
             self.summary_deadline = time.monotonic() + 60
         await self.load()
+        if self.external and not self.evaluation and os.environ.get('KEEL_MEMORY_MAINTENANCE_MODE','sync')=='async' and self.state.get('maintenanceMode')=='async':
+            from keel.memory_fast_context import assemble
+            self.async_readonly = True
+            return await assemble(self,system,prior,current,tools,budget)
         evidence = []
         if not self.evaluation and self.session:
             items, self.state = await self.recall.collect(prior, current, self.state)

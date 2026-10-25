@@ -170,7 +170,7 @@ public class AgentChatService {
             var traceId = fin == null ? null : fin.traceId();
             audits.append(name, env, "invoke", "low", fin == null ? "error" : "allowed", name, traceId);
             if (fin != null && fin.rememberable() && remember) {
-                sessions.appendTurn(name, owner, sessionId, text, fin.answer(), traceId);
+                sessions.appendTurn(name, owner, sessionId, text, fin.answer(), traceId,fin.summaryThroughId());
             }
             if (traceId != null && !traceId.isBlank()) {
                 saved.save(name, env, traceId, "", (int) ((System.nanoTime() - started) / 1_000_000));

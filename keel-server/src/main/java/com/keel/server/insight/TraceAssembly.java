@@ -656,7 +656,7 @@ public final class TraceAssembly {
                 try {
                     var evidence = new com.fasterxml.jackson.databind.ObjectMapper().readTree(memory);
                     var safe = new LinkedHashMap<String,String>();
-                    for (var key : List.of("operation","status","version","cursorId","sourceIds","count","pending","superseded","gaps","more","sha256","offset","totalChars","used","tokens","budget")) {
+                    for (var key : List.of("operation","status","version","cursorId","sourceIds","count","pending","superseded","gaps","more","sha256","offset","totalChars","used","tokens","budget","taskId","triggerTraceId","targetId","attempt","reason","calls","costUpperBoundCny","inputTokens","outputTokens")) {
                         var value = evidence.path(key);
                         if (!value.isMissingNode() && (value.isValueNode() || value.isArray()))
                             safe.put(key, value.isTextual() ? value.asText() : value.toString());

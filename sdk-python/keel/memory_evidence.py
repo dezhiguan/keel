@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from opentelemetry import trace
 from keel.tracing.attrs import MEMORY_EVIDENCE
 
-KEYS = frozenset('operation status version cursorId sourceIds count pending superseded gaps more sha256 offset totalChars used tokens budget'.split())
+KEYS = frozenset('operation status version cursorId sourceIds count pending superseded gaps more sha256 offset totalChars used tokens budget taskId triggerTraceId targetId attempt reason calls costUpperBoundCny inputTokens outputTokens clippedFrom clippedThrough'.split())
 
 
 @contextmanager

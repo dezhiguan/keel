@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>记忆摘要与事实维护异步化优化方案 · 2026-10-26</title>
+<style>
+:root{--paper:#f6f3ec;--ink:#202e37;--muted:#61707a;--line:#d6dad6;--accent:#b64a27;--blue:#365f73;--sage:#758c7a;--white:#fffefb}*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;color:var(--ink);background:var(--paper);font:16px/1.8 "PingFang SC","Microsoft YaHei",sans-serif}a{color:var(--blue);text-underline-offset:4px}header,main,footer{max-width:1100px;margin:auto;padding:32px 44px}header{padding-top:64px;border-bottom:2px solid var(--ink)}.eyebrow{font:12px/1.5 "SFMono-Regular",Consolas,monospace;letter-spacing:2px;color:var(--accent)}h1{font-family:"Songti SC","Noto Serif CJK SC",serif;font-size:clamp(30px,4.5vw,49px);line-height:1.35;max-width:850px;margin:18px 0}h2{font-family:"Songti SC",serif;font-size:28px;margin:0 0 18px}h3{font-size:18px;margin:24px 0 8px}p{margin:10px 0 16px}.lead{font-size:19px;max-width:850px}.meta{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:26px 0}.badge{padding:2px 10px;border:1px solid var(--line);border-radius:3px;background:var(--white)}nav{display:flex;flex-wrap:wrap;gap:12px 24px;padding:14px 0;font-size:14px}nav a{text-decoration:none}section{padding:36px 0;border-bottom:1px solid var(--line)}.section-no{color:var(--accent);font:13px "SFMono-Regular",Consolas,monospace;margin-bottom:8px}.note{border-left:3px solid var(--accent);padding:12px 18px;background:#eee8dd;margin:20px 0}.subtle{color:var(--muted);font-size:14px}.table-wrap{overflow-x:auto;margin:18px 0}table{border-collapse:collapse;width:100%;font-size:14px;background:var(--white)}th,td{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:#e8ece8;font-weight:600}td:first-child{font-weight:550}code{font:13px/1.6 "SFMono-Regular",Consolas,monospace;overflow-wrap:anywhere}pre{padding:20px;background:#22343e;color:#f0f1e9;overflow-x:auto;border-radius:3px;font:14px/1.85 "SFMono-Regular",Consolas,monospace}.bar{display:flex;height:42px;overflow:hidden;border-radius:3px;margin-top:24px}.bar span{display:block}.facts{background:var(--accent)}.summary{background:#ce9b50}.answer{background:var(--blue)}.other{background:#bdc7c1}.legend{display:flex;flex-wrap:wrap;gap:10px 24px;margin:10px 0;font-size:13px}.dot{display:inline-block;width:9px;height:9px;margin-right:7px}.flow{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:24px 0}.flow article{background:var(--white);padding:24px;border-top:3px solid var(--blue)}.flow article:last-child{border-color:var(--accent)}.flow h3{margin:0 0 12px}.flow ol{padding-left:22px}li{margin:6px 0}.check{color:var(--blue);font-weight:600}footer{font-size:13px;color:var(--muted);padding-bottom:50px}button{border:1px solid var(--ink);padding:9px 14px;background:transparent;color:var(--ink);font:inherit;cursor:pointer;border-radius:3px;float:right}button:hover{background:var(--ink);color:white}a:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:4px}.nowrap{white-space:nowrap}@media(max-width:720px){header,main,footer{padding:24px 20px}header{padding-top:36px}.flow{grid-template-columns:1fr}h2{font-size:24px}th,td{padding:10px}button{float:none;margin-bottom:16px}}@media print{body{background:#fff;font-size:11px}header,main,footer{max-width:none;padding:16px 0}header{padding-top:0}h1{font-size:28px}h2{font-size:20px}section{padding:20px 0}.flow{gap:12px}nav,button{display:none}a{color:inherit}thead{display:table-header-group}tr,.note,.flow article{break-inside:avoid}h2,h3{break-after:avoid}.bar,.dot,th,pre{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style>
+</head>
+<body>
+<header>
+<button type="button" onclick="window.print()">打印 / 保存 PDF</button>
+<div class="eyebrow">KEEL / MEMORY LATENCY / OPTIMIZATION PLAN</div>
+<h1>记忆摘要与事实维护<br>异步化优化方案</h1>
+<p class="lead">回答前只读记忆、组装与裁剪上下文；答案持久化后异步维护摘要和事实。把常规记忆模型调用移出主回答前的串行链路。</p>
+<div class="meta"><span class="badge">2026-10-26 · Asia/Shanghai</span><span class="badge">状态：待实施与对照验收</span><span class="badge">范围：summary / facts 调度</span></div>
+<nav aria-label="文档目录"><a href="#baseline">01 现状依据</a><a href="#changes">02 本次改法</a><a href="#bounds">03 一致性约束</a><a href="#delivery">04 实施顺序</a><a href="#acceptance">05 验收方案</a><a href="#cases">06 验收用例</a></nav>
+</header>
+<main>
+<section id="baseline">
+<div class="section-no">01 / OBSERVED BASELINE</div><h2>本次要解决的等待</h2>
+<p>样本：<a href="https://keel.ragforge.net/traces/7207a7d8437de0416d7aef02e5342788" target="_blank" rel="noopener noreferrer">Trace 7207a7d8437de0416d7aef02e5342788</a>。整条请求 12.763 秒，主回答模型直到第 7.130 秒才开始。facts 与摘要都在主回答启动前同步执行。</p>
+<div class="bar" role="img" aria-label="总耗时12.763秒：事实维护1.778秒，摘要3.896秒，主回答5.622秒，其他1.467秒"><span class="facts" style="width:13.93%"></span><span class="summary" style="width:30.53%"></span><span class="answer" style="width:44.05%"></span><span class="other" style="width:11.49%"></span></div>
+<div class="legend"><span><i class="dot facts"></i>facts 1.778s</span><span><i class="dot summary"></i>摘要 3.896s</span><span><i class="dot answer"></i>主回答 5.622s</span><span><i class="dot other"></i>其他 1.467s</span></div>
+<div class="table-wrap"><table><thead><tr><th>环节</th><th>观测耗时</th><th>问题</th></tr></thead><tbody><tr><td>memory.facts</td><td>1.778 秒；包含 0.972 秒、0.665 秒两次模型调用</td><td>与摘要串行，且本次状态为 conflict / fallback。</td></tr><tr><td>memory.summary</td><td>3.896 秒</td><td>生成摘要阻塞主回答；0ms 的另一 summary 节点只是读取/状态观测。</td></tr><tr><td>合计</td><td>5.674 秒，占请求约 44.5%</td><td>只优化摘要仍会留下约 1.78 秒 facts 等待。</td></tr></tbody></table></div>
+<p class="subtle">父 span 与其内部 llm.chat 是包含关系，不重复相加。5.674 秒是本样本拟后移的串行工作量，不是已验证的首字提速承诺；主模型耗时也包含输出生成时间。</p>
+<div class="note"><strong>范围只限本次优化：</strong>调整摘要与 facts 的读写时机、后台任务可靠性和验收。沿用现有历史检索、权限边界、上下文硬上限和原文存储，不扩展其他业务模块，也不承诺新增永久记忆。</div>
+</section>
+<section id="changes">
+<div class="section-no">02 / TARGET FLOW</div><h2>回答优先，记忆随后更新</h2>
+<div class="flow"><article><h3>回答前 · 轻量读取</h3><ol><li>读取已有摘要、已有事实账本及各自的版本/处理进度。</li><li>保留当前问题、近期完整轮次、当前相关原文和关键决定。</li><li>超过输入预算约 85% 的目标线时，按完整轮次裁剪；系统规则和当前问题不能被历史裁剪。</li><li>以已组装上下文进入主 <code>llm.chat</code>。常规路径不调用 <code>purpose=memory</code>。</li></ol></article><article><h3>回答后 · 有界维护</h3><ol><li>用户输入与最终答案持久化成功，可靠登记记忆维护任务。</li><li>后台 worker 读取一个有界、连续、完整的待处理历史前缀。</li><li>执行摘要、事实抽取及输出验证；通过版本校验后提交。</li><li>成功推进对应游标；失败保留原状态，按策略重试或报警。</li></ol></article></div>
+<pre aria-label="优化前后时序">当前：读历史 → 抽 facts → 写摘要 → 主回答 → 持久化
+目标：读已有记忆 → 组装/裁剪 → 主回答 → 持久化
+                                            └→ 可靠任务 → 更新 facts / 摘要</pre>
+<h3>summary：把失败兜底升级为常规快路径</h3>
+<p>本轮优先使用已有摘要与能放下的近期完整轮次，不等待新摘要。被裁剪的未摘要消息仍保留在原文存储，标记当前上下文存在裁剪区间，需要时按现有授权回查。重要上下文无法安全保留时允许小范围同步兜底，不把“永不同步压缩”设为绝对规则。</p>
+<h3>facts：先读账本，抽取后移</h3>
+<p>常规路径只加载已有账本。后台按进度处理新增用户事实、纠正与撤回。最新用户原话必须保留并优先于旧账本；明确纠正立即作用于当前回答，冲突不明确则澄清。不能因为后台尚未更新，就把旧事实描述成已确认的最新事实。</p>
+<p><strong>摘要与 facts 合并调用作为第二阶段实验：</strong>只有结构化输出验证、费用和事实准确性均通过对照后才启用；即使共用一次模型调用，也分别验证、记录各自的成功进度，不能用摘要成功掩盖事实抽取失败。</p>
+</section>
+<section id="bounds">
+<div class="section-no">03 / CORRECTNESS BOUNDARIES</div><h2>让异步更新可恢复、可并发</h2>
+<div class="table-wrap"><table><thead><tr><th>约束</th><th>本次落地要求</th></tr></thead><tbody>
+<tr><td>可靠投递</td><td>不能只依赖进程内 <code>create_task</code>。优先在答案持久化事务内写任务/outbox，再异步分发；若现有存储不能同事务，必须补偿扫描，覆盖“答案保存成功但任务未入队”的窗口。客户端断开不等于后台任务成功。</td></tr>
+<tr><td>隔离与任务范围</td><td>任务绑定 <code>agent / env / owner / session</code>，包含目标消息上界、任务类型及预期版本。worker 重新确认会话存在、保留期和可处理范围；不沿用可能过期的用户短期票据绕过权限。</td></tr>
+<tr><td>版本与游标</td><td>任务中的 expected version 只用于乐观并发校验。成功才 CAS 更新内容与对应 <code>throughId</code>；冲突后重新读取权威状态、重新计算未处理区间，不强行覆盖或倒退游标。facts 与 summary 的进度分别管理。</td></tr>
+<tr><td>去重与幂等</td><td>相同会话、类型和目标区间的重复投递可合并。CAS 避免重复提交，但不能单独避免重复付费调用；需配合会话级任务合并、领取租约或等价互斥机制。</td></tr>
+<tr><td>分批与重试</td><td>每次最多处理四个 chunk，且每段输入也必须满足 token 上限；超过容量时选择能完成的连续前缀，而非把全部积压反复判失败。整批验证成功后只推进到实际完成的前缀末尾。限制超时、重试次数和费用；失败不推进本批游标。</td></tr>
+<tr><td>过期与删除</td><td>会话被删除或消息过期后，排队任务应失效；执行中也需在提交时再次校验，不能重新创建已删除的摘要或事实。</td></tr>
+<tr><td>上下文完整性</td><td>保留完整 user/assistant/tool 协议组；不留下孤立 tool 消息。旧摘要覆盖区间与近期原文之间有缺口时明确记录，关键事实不能被静默裁掉。保留原有输入硬上限，不为快路径放宽。</td></tr>
+<tr><td>可观测性</td><td>继续使用 <code>memory.summary</code> / <code>memory.facts</code>，标记 attempted / ok / failed；另记录冲突、跳过、超时、重试、处理区间及版本。后台使用独立 trace 并关联触发请求，不把原 trace 拉长到队列完成；普通日志/span 不写用户原文。</td></tr>
+</tbody></table></div>
+</section>
+<section id="delivery">
+<div class="section-no">04 / IMPLEMENTATION ORDER</div><h2>分两步实施，先验证最直接的收益</h2>
+<ol><li><strong>基线与契约：</strong>固化触发摘要/facts 的长会话样本，记录实际模型、提示词、输入预算、输出长度与版本。明确任务数据、各自进度及 CAS 行为；若变更跨语言字段，先更新契约。</li><li><strong>第一阶段：</strong>常规路径只读记忆并裁剪；可靠投递后台任务；摘要与 facts 可分别更新。先把串行调用后移，不同时重写检索和记忆内容算法。</li><li><strong>灰度与对照：</strong>先在个人助理 staging 开启；通过下方性能、正确性和故障用例。保留切回现有同步策略的开关；回滚不删除已提交的有效记忆。</li><li><strong>第二阶段：</strong>实验合并摘要和 facts 的单次 <code>purpose=memory</code> 调用。若质量或费用未达标，保留分开维护。</li></ol>
+</section>
+<section id="acceptance">
+<div class="section-no">05 / ACCEPTANCE PLAN</div><h2>同时验收速度、记忆质量与后台可靠性</h2>
+<p>所有数值均为<strong>待验证的验收目标</strong>，不是已完成结果。对照组与候选组使用隔离但等价的会话，保持同一真实模型路由、提示词、输入预算、问句和输出长度要求；均通过正式授权入口执行，不用固定回答或假模型证明性能。</p>
+<div class="table-wrap"><table><thead><tr><th>验收项</th><th>执行方法</th><th>通过标准</th></tr></thead><tbody>
+<tr><td>热路径调用</td><td>覆盖无摘要、旧摘要、85% 阈值上下、facts 有新增四类输入；检查主回答启动前的完整调用链。</td><td>常规路径主回答前 <code>purpose=memory</code> 模型调用为 0。明确触发同步兜底的样本单独统计。</td></tr>
+<tr><td>首字与总耗时</td><td>长会话对照组/候选组各至少 30 次，交替执行；统计首个非空 token、主模型启动、最终答案持久化时间。</td><td>触发记忆维护的样本，候选首字 P95 比对照降低至少 30%；普通短会话首字及完成 P95 不恶化超过 10%。输出完整性与约定长度同时核对。</td></tr>
+<tr><td>持续负载</td><td>在同一资源配置下，以 2 QPS、4 QPS 分别持续 5 分钟，覆盖会触发维护的长会话；监测回答与后台任务。</td><td>无因本次变更造成的 HTTP/SSE 错误、OOM 或重启；完成吞吐跟上到达率，在途数不持续增长。模型限额或故障导致未完成时不能记通过。</td></tr>
+<tr><td>记忆收敛</td><td>记录队列等待、执行、CAS 提交和 backlog；停止流量后继续观察。</td><td>4 QPS 场景下目标为 95% 任务在 60 秒内完成对应进度更新，测试积压在停止流量后 5 分钟内清空；无过期/删除任务被重新写入。未达标则调整 worker、合并策略或阈值后重测。</td></tr>
+<tr><td>正确性与隔离</td><td>按下方用例，分别在后台未完成、完成后、跨副本时检查答案与持久化状态。</td><td>关键事实、纠正、撤回、隔离和删除用例全部通过；无错误确认、丢事实或跨用户泄露。任何关键失败均阻断推广，不能被性能均值抵消。</td></tr>
+<tr><td>额外成本</td><td>对相同历史范围统计摘要/facts 模型调用数、token、重试和已结算费用。</td><td>常态每轮维护平均成本不高于对照；冲突与重试费用单列，达到任务费用上限后停止并报警。合并调用必须单独通过质量对照。</td></tr>
+</tbody></table></div>
+<p class="subtle">验收记录至少包含：代码/SDK/镜像版本、配置、用例 ID、输入范围、trace 与后台 task ID、前后版本/游标、答案核对、首字/完成耗时、token/费用、资源与清理结果。凭据不写入报告。测试只清理本次创建的数据。</p>
+</section>
+<section id="cases">
+<div class="section-no">06 / TEST CASES</div><h2>可执行验收用例</h2>
+<p>统一使用独立测试会话。示例事实为虚构测试材料：<strong>青岚项目代号 LOTUS-9813，检查日期 11 月 26 日</strong>。并发、进程退出及模型故障应在隔离的 staging 验收范围内注入并标明，不能冒充自然故障。</p>
+<div class="table-wrap"><table><thead><tr><th class="nowrap">编号</th><th>准备与操作</th><th>预期结果与必查证据</th></tr></thead><tbody>
+<tr><td>M01<br>短会话</td><td>新会话，一次普通问答；历史低于目标线。</td><td>无不必要的摘要模型调用；回答与基线一致，后台不产生空范围任务。</td></tr>
+<tr><td>M02<br>超阈值</td><td>构造超过 budget×85% 的多轮历史，已有摘要；追问近期事实。</td><td>先读旧摘要并裁剪完整轮次，主回答前无 memory 模型调用，输入不超过原硬上限；答案正确，后台随后推进进度。</td></tr>
+<tr><td>M03<br>无旧摘要</td><td>历史已超阈值但摘要为空，问题依赖近期轮次。</td><td>使用可容纳的近期完整轮次正常回答；无虚构摘要，后台按连续前缀开始维护。</td></tr>
+<tr><td>M04<br>旧事实回查</td><td>早期写入示例代号/日期，追加填充对话使该轮离开近期窗口；在旧摘要尚未覆盖时提问。</td><td>通过相关原文回查或明确兜底取得事实；不能凭空猜测，也不能把“本轮裁掉”说成“用户从未提供”。核对原文引用。</td></tr>
+<tr><td>M05<br>当前纠正</td><td>旧账本预算 20 万；阻塞后台，本轮说“更正为 30 万”，立即问预算并连续追问。</td><td>当前回答与下一轮均采用明确纠正的 30 万，保留原话；后台提交后账本收敛，不复活旧值。</td></tr>
+<tr><td>M06<br>撤回与冲突</td><td>先明确撤回旧日期；另建案例输入两个未明确取舍的日期。</td><td>撤回后不把旧日期当有效事实；未明确取舍的冲突需要澄清，不能按最新时间自行确认。</td></tr>
+<tr><td>M07<br>连续快问</td><td>后台延迟期间，在同会话快速追加 10 轮，包含两次事实更正。</td><td>回答可用新增原文；合并任务的目标上界不丢最后更正，游标单调推进，积压最终收敛。</td></tr>
+<tr><td>M08<br>多副本 CAS</td><td>两 worker 从相同版本读取，重叠处理同一会话区间并竞争提交。</td><td>只接受合法 CAS；失败者重新读取，不覆盖获胜结果、不倒退游标；重复模型付费受到领取/合并机制约束。</td></tr>
+<tr><td>M09<br>崩溃与重复投递</td><td>分别在答案提交后、任务领取后、记忆提交后模拟 worker 退出；重复投递同一任务。</td><td>无任务永久丢失；租约到期可恢复；重复任务不重复推进、不重复写入有效事实。核对答案/outbox、任务与记忆状态。</td></tr>
+<tr><td>M10<br>超时及坏输出</td><td>注入模型超时、空输出、无效引用和无效结构化 facts。</td><td>已完成的主回答不受影响；失败批次不推进对应游标；有限重试后可定位失败，不无界消耗费用。</td></tr>
+<tr><td>M11<br>超过四块</td><td>准备需要至少六个 chunk 的未处理历史。</td><td>先处理一个不超过四块且完整连续的前缀，成功推进到其末尾；后续任务继续处理剩余部分，不永久卡在“超限”。</td></tr>
+<tr><td>M12<br>删除与隔离</td><td>准备不同 owner/env/agent/session 的相同问题；再于排队和执行中分别删除测试会话或使消息过期。</td><td>只读写任务所属作用域；无串记忆。删除/过期校验阻止提交，不重建已删除数据。</td></tr>
+<tr><td>M13<br>协议与兜底</td><td>构造含工具调用的超长历史，关键决定处于裁剪边界；另测当前问题本身超硬上限。</td><td>无孤立工具消息；关键上下文无法保留时明确回查、同步兜底或澄清；当前输入超限仍按原规则拒绝，不能被裁剪偷偷放行。</td></tr>
+<tr><td>M14<br>回归与负载</td><td>执行长会话配对样本、2/4 QPS 持续测试；停止请求后检查后台积压。</td><td>达到第 05 节性能、资源、收敛与成本标准；保存全部失败，不以短会话性能替代长会话验收。</td></tr>
+</tbody></table></div>
+<div class="note"><strong>推广条件：</strong>先通过 M01–M14 的对应证据和性能对照，再扩大灰度。性能达标但关键事实、CAS、可靠投递或隔离失败，仍判定本次优化未通过。</div>
+</section>
+</main>
+<footer>Keel · 本次优化设计文档 · 2026-10-26<br>本文仅描述待实施方案与验收要求；不代表已经修改代码或完成部署。来源：上述真实 Trace 与本轮方案讨论。</footer>
+</body>
+</html>

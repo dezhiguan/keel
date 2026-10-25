@@ -9,6 +9,8 @@ public final class CatalogAccess {
                 || ("POST".equals(method) && (uri.equals("/api/v1/devflow/holdout-results")
                     || uri.matches("/api/v1/devflow/ci/jobs/DF-[0-9]+/(context|prepare|ready|complete|status)")))))
             return true;
+        if(uri!=null && (("POST".equals(method) && uri.matches("/api/v1/agents/[a-z][a-z0-9-]*/memories/maintenance/(claim|complete|fail)"))
+                || ("GET".equals(method) && uri.matches("/api/v1/agents/[a-z][a-z0-9-]*/memories/maintenance/status"))))return true;
         return (uri != null && (("POST".equals(method) && uri.matches("/api/v1/agents/[a-z][a-z0-9-]*/memories/session-history/search"))
                     || ("GET".equals(method) && uri.matches("/api/v1/agents/[a-z][a-z0-9-]*/memories/session-history/messages/[0-9]+"))))
                 || (uri != null && uri.matches("/api/v1/agents/[a-z][a-z0-9-]*/memories/(session-summary|session-facts)")

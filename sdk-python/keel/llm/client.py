@@ -98,7 +98,7 @@ def _observation_input(messages: list[dict]) -> str:
 
 class LlmClient:
     def __init__(self, agent: str, default_model: str | None, trace_id: str,
-                 tracer=None, http_client: httpx.AsyncClient | None = None, on_token=None, guard=None):
+                 tracer=None, http_client: httpx.AsyncClient | None = None, on_token=None, guard=None, retry_status_errors=True):
         from keel.runtime import standalone
 
         base_url = _openai_base(os.environ.get("KEEL_LLM_BASE_URL"))
@@ -108,6 +108,7 @@ class LlmClient:
             api_key = "standalone"
         if not base_url or not api_key:
             raise RuntimeError("KEEL_LLM_BASE_URL and KEEL_LLM_KEY are required")
+        self.retry_status_errors = retry_status_errors
         self.agent = agent
         self.default_model = default_model
         self.trace_id = trace_id
@@ -196,7 +197,7 @@ class LlmClient:
                     response = await self.client.chat.completions.create(
                         model=chosen, messages=wire_messages, **options)
                 except openai.APIStatusError as first:
-                    if first.status_code not in (500, 502, 503, 504):
+                    if not self.retry_status_errors or first.status_code not in (500, 502, 503, 504):
                         raise
                     await asyncio.sleep(0.2)
                     response = await self.client.chat.completions.create(
@@ -293,7 +294,7 @@ class LlmClient:
             stream = await self.client.chat.completions.create(
                 model=model, messages=messages, **stream_options)
         except openai.APIStatusError as first:
-            if first.status_code not in (500, 502, 503, 504):
+            if not self.retry_status_errors or first.status_code not in (500, 502, 503, 504):
                 raise
             await asyncio.sleep(0.2)
             stream = await self.client.chat.completions.create(
