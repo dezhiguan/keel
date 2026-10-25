@@ -8,6 +8,23 @@ import static org.assertj.core.api.Assertions.*;
 class CodeCandidateServiceTest {
     private final ObjectMapper json = new ObjectMapper();
 
+    @Test void routingAuditAlignmentIsScopedAndPreservesOtherBoundaries() throws Exception {
+        var old=manifest();old.withObject("/metadata").put("name","keel-assistant");
+        old.withObject("/spec/audit").putArray("captureFields").add("plan_id");
+        var next=old.deepCopy();next.withObject("/spec/audit").withArray("captureFields").add("step_id");
+        var aligned=CodeCandidateService.authorizedRoutingAuditComparison("keel-assistant","staging",old,next);
+        assertThatCode(()->CodeCandidateService.requireCompatible(aligned,next)).doesNotThrowAnyException();
+        for(var field:java.util.List.of("cookie","authorization","material")) {
+            var bad=next.deepCopy();bad.withObject("/spec/audit").withArray("captureFields").add(field);
+            assertThatThrownBy(()->CodeCandidateService.authorizedRoutingAuditComparison("keel-assistant","staging",old,bad)).isInstanceOf(com.keel.server.common.KeelException.class);
+        }
+        assertThatThrownBy(()->CodeCandidateService.authorizedRoutingAuditComparison("keel-assistant","prod",old,next)).isInstanceOf(com.keel.server.common.KeelException.class);
+        next.withObject("/spec/models/budget").put("dailyCny",999);
+        assertThatThrownBy(()->CodeCandidateService.requireCompatible(aligned,next)).isInstanceOf(com.keel.server.common.KeelException.class);
+        next.withObject("/spec/audit").putArray("captureFields").add("step_id");
+        assertThatThrownBy(()->CodeCandidateService.authorizedRoutingAuditComparison("keel-assistant","staging",old,next)).isInstanceOf(com.keel.server.common.KeelException.class);
+    }
+
     private ObjectNode manifest() throws Exception {
         return (ObjectNode) json.readTree("""
                 {"apiVersion":"keel/v1","metadata":{"name":"meta-agent"},"spec":{
