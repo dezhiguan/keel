@@ -9,15 +9,15 @@ import io.lettuce.core.api.sync.RedisCommands;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
 import java.util.Map;
 
 /** One published routing objective. Rollback drops the latest version. */
 public final class RoutePolicy {
     private final List<Version> versions = new ArrayList<>();
-    private final Map<String, Breaker> channels = new HashMap<>();
-    private final Map<String, Long> latency = new HashMap<>();
+    private final Map<String, Breaker> channels = new ConcurrentHashMap<>();
+    private final Map<String, Long> latency = new ConcurrentHashMap<>();
     private final RedisCommands<String, String> redis;
     private final java.util.function.LongSupplier clock;
     final RouteTable table;
@@ -120,19 +120,21 @@ public final class RoutePolicy {
             return;
         }
         var breaker = channels.computeIfAbsent(upstream, ignored -> new Breaker());
-        long now = now();
-        if (breaker.openUntil > now) {
-            return;
-        }
-        if (!failed) {
-            breaker.failures = 0;
-            breaker.openUntil = 0;
-            return;
-        }
-        breaker.failures++;
-        if (breaker.failures >= 2) {
-            breaker.openUntil = now + 60_000;
-            breaker.failures = 0;
+        synchronized (breaker) {
+            long now = now();
+            if (breaker.openUntil > now) {
+                return;
+            }
+            if (!failed) {
+                breaker.failures = 0;
+                breaker.openUntil = 0;
+                return;
+            }
+            breaker.failures++;
+            if (breaker.failures >= 2) {
+                breaker.openUntil = now + 60_000;
+                breaker.failures = 0;
+            }
         }
     }
 
@@ -233,6 +235,6 @@ public final class RoutePolicy {
 
     private static final class Breaker {
         private int failures;
-        private long openUntil;
+        private volatile long openUntil;
     }
 }
