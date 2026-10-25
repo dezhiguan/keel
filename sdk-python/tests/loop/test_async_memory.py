@@ -131,3 +131,16 @@ def test_background_timeout_is_reported_as_timeout_without_advancing_facts():
         with pytest.raises(TimeoutError):await extract_facts(model,j)
         assert j['state']['cursorId']=='0' and model.calls==1
     asyncio.run(run())
+
+
+def test_cancelled_paid_call_keeps_a_positive_bound_and_unknown_usage():
+    async def run():
+        class Blocking(Model):
+            async def chat(self,*args,**kwargs):await asyncio.Event().wait()
+        model=BoundedModel(Blocking(''),job(),'.000002','.000005')
+        task=asyncio.create_task(model.chat([{'role':'user','content':'材料'}],tools=[],max_tokens=512))
+        await asyncio.sleep(.01);task.cancel();await asyncio.gather(task,return_exceptions=True)
+        usage=model.usage()
+        assert usage['calls']==1 and usage['costUpperBoundCny']>0
+        assert usage['inputTokens'] is None and usage['outputTokens'] is None
+    asyncio.run(run())

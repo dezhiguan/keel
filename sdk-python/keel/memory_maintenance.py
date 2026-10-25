@@ -50,6 +50,9 @@ class BoundedModel:
         self.calls+=1;self.reserved+=bound
         try:
             result=await self.llm.chat(messages,**{**options,'max_tokens':output,'emit_tokens':False,'purpose':'memory'})
+        except asyncio.CancelledError:
+            self.usage_known=False
+            raise
         except Exception as error:
             self.last_error=error;self.usage_known=False;raise
         if not getattr(result,'input_tokens',0):self.usage_known=False
