@@ -12,7 +12,7 @@
 
 | 页面（原型路由） | 区块 / tab | 要做的 | 任务 | 状态 |
 |---|---|---|---|---|
-| 智能体列表 / 调试 / 提示词 / 测评 / 链路 / 审计 / 网关 | CareerMate 生命周期 | 复用现有控制台入口展示 SDK 真实能力及证据，不增加静态占位 | R1025-careermate-lifecycle | 接入代码、本地 SDK/底座回归与 PostgreSQL 版本选择通过；管理员测试会话失效，线上页面尚未验收 |
+| 智能体列表 / 调试 / 提示词 / 测评 / 链路 / 审计 / 网关 | CareerMate 生命周期 | 复用现有控制台入口展示 SDK 真实能力及证据，不增加静态占位 | R1025-careermate-lifecycle | staging v2 已发布；五份托管提示词、10 条真实测评得分 1.00、浏览器多轮及任务写入读回、实际网关账单、工具追踪与审计页面通过；24 项审计回归含真实 PostgreSQL，持久化审计重启后保留；原生生产主站未切换，旧内存审计历史限制见验收记录 |
 | 智能体调试聊天 | 跨会话原文记忆 | 按策略显示保留至删除，来源链接打开有归属校验的旧会话；列表包含长期会话 | P1-cross-session-history | 完成 · 0429ff1；三个目标2/2 Ready，真实账号原话/关键词/删除/来源跳转通过，见r1025/cross-session-history-acceptance.md |
 | 智能体调试聊天 | 性能及历史回查 | 入口快照复用、低首字延迟、相邻历史原文及有界补查；保持同一入口和来源链接 | P1-assistant-performance-fix | 已部署并复测；26次历史查询、585次真实请求通过；64突发入口排队仍保留，见p1/P1-assistant-performance-acceptance-20261025.md |
 | 智能体调试 / 链路追踪 | 计量及异常恢复 | token随已结算账单回补；稳定requestId去重；长等待心跳和真实终态；断流结算 | R1023-context-billing-reliability | 部分完成 · a7477de、385e763、409ab9f修复已部署；历史计量/去重/终态/真实断流恢复通过，未知usage预占仍待供应商对账，见r1023/context-billing-acceptance.md |
