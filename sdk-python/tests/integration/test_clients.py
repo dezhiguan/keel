@@ -131,7 +131,7 @@ def test_chat_forwards_tools_and_returns_structured_calls(monkeypatch, arguments
                 assert error.value.code is ErrorCode.SERVER_INTERNAL_ERROR
             else:
                 result = await client.chat([{"role": "user", "content": "天气"}], tools=tools)
-                assert result == ChatResult("", (ToolCall("call-1", "weather.lookup", expected),))
+                assert result == ChatResult("", (ToolCall("call-1", "weather.lookup", expected),), 4, 3)
         finally:
             await client.aclose()
 

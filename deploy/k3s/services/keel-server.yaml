@@ -156,8 +156,14 @@ spec:
                   optional: true
             - name: KEEL_CAREERMATE_ENDPOINT
               # CareerMate now uses standard registration and governed releases.
-              # Disable the legacy bootstrap registrar so restarts cannot restore v1.
+              # Disable legacy bootstrap registration for the archived identity.
               value: ""
+            - name: KEEL_ASKDB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: keel-server
+                  key: KEEL_ASKDB_TOKEN
+                  optional: true
             - name: KEEL_CAREERMATE_TOKEN
               valueFrom:
                 secretKeyRef:

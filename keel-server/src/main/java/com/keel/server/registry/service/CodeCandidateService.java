@@ -23,6 +23,8 @@ import java.util.Map;
 /** Candidate configuration is mutable; released version snapshots are immutable. */
 @Service
 public class CodeCandidateService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private AgentBridgeCredentials bridgeCredentials;
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
     private final ManifestValidator validator;
@@ -60,7 +62,8 @@ public class CodeCandidateService {
         if (body.path("reconcileRuntime").asBoolean(false)) {
             requireReconciliationAdmin(ConsolePrincipal.current());
             var endpoint = prior.path("spec").path("runtime").path("endpoint").asText();
-            var actual = endpoints.manifest(endpoint, "meta-agent".equals(name) ? metaBridgeToken : null);
+            var actual = endpoints.manifest(endpoint, bridgeCredentials != null ? bridgeCredentials.token(name)
+                    : "meta-agent".equals(name) ? metaBridgeToken : null);
             var unavailable = new HashSet<>(jdbc.queryForList(
                     "SELECT name FROM tool WHERE scope<>'PRIVATE' OR owner_agent IS DISTINCT FROM ?", String.class, name));
             comparison = CodeRuntimeReconciliation.align(prior, candidate, actual, unavailable);

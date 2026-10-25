@@ -21,6 +21,8 @@ import java.io.OutputStream;
 /** Forwards one user turn to the registered agent process and records the invoke. */
 @Service
 public class AgentChatService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private AgentBridgeCredentials bridgeCredentials;
     private final AgentRegistryService registry;
     private final AgentEndpointClient endpoints;
     private final AuditStore audits;
@@ -85,7 +87,7 @@ public class AgentChatService {
         AgentEndpointClient.Answer answer;
         long started = System.nanoTime();
         try {
-            var userId = callerLabel();
+            var userId = "askdb".equals(name) ? callerUsername(ConsolePrincipal.current()) : callerLabel();
             var rag = secrets == null ? null : secrets.knowledgeCredential(name);
             var bridge = bridgeToken(name);
             if (sessionId != null) {
@@ -146,7 +148,7 @@ public class AgentChatService {
         var env = detail.summary().env();
         if ("echo".equals(name)) credentials.ensure(name);
         var endpoint = registry.invokeEndpoint(name);
-        var userId = callerLabel(principal);
+        var userId = "askdb".equals(name) ? callerUsername(principal) : callerLabel(principal);
         var rag = secrets == null ? null : secrets.knowledgeCredential(name);
         var bridge = bridgeToken(name);
         var history = remember ? sessions.history(name, owner, sessionId) : List.<Map<String, String>>of();
@@ -185,6 +187,7 @@ public class AgentChatService {
     }
 
     private String bridgeToken(String name) {
+        if (bridgeCredentials != null) return bridgeCredentials.token(name);
         return switch (name) {
             case "meta-agent" -> metaAgentToken;
             case "careermate", "careermate-keel" -> careerMateToken;
@@ -237,6 +240,10 @@ public class AgentChatService {
     }
 
     /** Display name when the console user has one. Preview sessions are not an operator. */
+    private static String callerUsername(ConsolePrincipal principal) {
+        return principal == null || principal.readOnly() ? null : principal.username();
+    }
+
     private static String callerLabel() { return callerLabel(ConsolePrincipal.current()); }
 
     private static String callerLabel(ConsolePrincipal principal) {

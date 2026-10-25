@@ -59,6 +59,8 @@ class ToolCall:
 class ChatResult:
     content: str
     tool_calls: tuple[ToolCall, ...]
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 def _openai_base(url: str | None) -> str:
@@ -161,7 +163,9 @@ class LlmClient:
                     span.set_attribute(attrs.OBSERVATION_OUTPUT, reply)
                     if tools is None:
                         return reply
-                    return ChatResult(reply, tuple(calls))
+                    return ChatResult(reply, tuple(calls),
+                                      usage.prompt_tokens if usage else 0,
+                                      usage.completion_tokens if usage else 0)
                 try:
                     response = await self.client.chat.completions.create(
                         model=chosen, messages=wire_messages, **options)
@@ -219,8 +223,18 @@ class LlmClient:
             span.set_attribute(attrs.OBSERVATION_OUTPUT, reply)
             if tools is None:
                 return reply
+            raw_calls = response.choices[0].message.tool_calls or []
+            if raw_calls:
+                structured_output = json.dumps({
+                    "content": reply,
+                    "tool_calls": [{"id": call.id, "name": original_names.get(call.function.name, call.function.name),
+                                    "arguments": call.function.arguments} for call in raw_calls],
+                }, ensure_ascii=False)
+                if self.guard is not None:
+                    structured_output = self.guard.redact(structured_output)
+                span.set_attribute(attrs.OBSERVATION_OUTPUT, structured_output)
             calls = []
-            for call in response.choices[0].message.tool_calls or []:
+            for call in raw_calls:
                 try:
                     arguments = json.loads(call.function.arguments)
                 except (TypeError, ValueError) as exc:
@@ -230,7 +244,9 @@ class LlmClient:
                     span.set_attribute(attrs.STATUS, "failed")
                     raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型工具参数必须是 JSON 对象")
                 calls.append(ToolCall(call.id, original_names.get(call.function.name, call.function.name), arguments))
-            return ChatResult(reply, tuple(calls))
+            return ChatResult(reply, tuple(calls),
+                                      usage.prompt_tokens if usage else 0,
+                                      usage.completion_tokens if usage else 0)
 
     async def _stream(self, model: str, messages: list[dict], options: dict, span, original_names=None):
         """Read the gateway SSE and emit each content delta before the call returns. """
