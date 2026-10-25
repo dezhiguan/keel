@@ -12,8 +12,9 @@ log = logging.getLogger(__name__)
 STOP = {'之前','什么','帮我','让我','记得','曾经','我们','你说','我说','那个','这个','时候','一下','会话','聊天','记录','请问','可以','原文','摘要'}
 
 
-def source_ids(content):
-    return list(dict.fromkeys(re.findall(r'\[m:([0-9]{1,18})\]', content)))[:16]
+def source_ids(content, *, limit=16):
+    refs = list(dict.fromkeys(re.findall(r'\[m:([0-9]{1,18})\]', content)))
+    return refs if limit is None else refs[:limit]
 
 
 def terms(query):
