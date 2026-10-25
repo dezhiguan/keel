@@ -51,9 +51,13 @@ public class SessionSummaries {
     }
 
     static List<String> sourceIds(String content) {
+        return allSourceIds(content).stream().limit(16).toList();
+    }
+
+    static List<String> allSourceIds(String content) {
         var found=new java.util.LinkedHashSet<String>();
         var matcher=java.util.regex.Pattern.compile("\\[m:([0-9]{1,18})\\]").matcher(content);
-        while(matcher.find() && found.size()<16) found.add(matcher.group(1));
+        while(matcher.find()) found.add(matcher.group(1));
         return List.copyOf(found);
     }
 
@@ -72,6 +76,15 @@ public class SessionSummaries {
         var content=body.path("content").asText("");
         if(version<0 || through<=0 || content.isBlank() || content.length()>8192 || !body.path("evalRunId").asText("").isBlank())
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM,"会话摘要无效或评测流量禁止写入");
+        // The lease target can still be live after an older referenced source expires.
+        // Console summaries must validate every referenced row, beyond the UI cap.
+        var refs=allSourceIds(content);
+        if(!existing.isEmpty() && !refs.isEmpty()) {
+            var count=new org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate(jdbc).queryForObject(
+                    "SELECT count(*) FROM session_message WHERE session_id=:raw AND agent_name=:agent AND owner_user=:owner AND id IN (:ids) AND id<=:through AND expires_at>now()",
+                    Map.of("raw",existing.getFirst().get("id"),"agent",agent,"owner",owner,"ids",refs.stream().map(Long::parseLong).toList(),"through",through),Integer.class);
+            if(count==null || count!=refs.size())throw new KeelException(ErrorCode.MEMORY_WRITE_DENIED,"摘要引用原文已过期或不属于本会话前缀");
+        }
         jdbc.update("DELETE FROM session_summary WHERE expires_at<=now()");
         int changed;
         if(version==0) changed=jdbc.update("""

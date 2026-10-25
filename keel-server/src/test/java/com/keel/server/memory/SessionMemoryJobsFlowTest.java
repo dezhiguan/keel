@@ -121,4 +121,34 @@ assertThat(recovered.path("leaseToken")).isNotEqualTo(abandoned.path("leaseToken
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.version").value(1));
     }
 
+    @Test void expiredOlderReferenceCannotCommitThroughALiveNewerTarget() throws Exception {
+        enqueueSummary();var history=sessions.history("async-agent","u_1",session);
+        jdbc.update("UPDATE session_memory_job SET desired_id=? WHERE agent_name='async-agent' AND kind='summary'",Long.parseLong(history.getLast().get("id")));
+        var job=claim();var body=completion(job);
+        jdbc.update("UPDATE session_message SET expires_at=now()-interval '1 second' WHERE session_id=? AND id<=?",session,Long.parseLong(history.get(1).get("id")));
+        mvc.perform(post(root+"/complete").with(identity("SERVICE","async-agent")).contentType("application/json").content(body.toString())).andExpect(status().isForbidden());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM session_summary WHERE agent_name='async-agent'",Integer.class)).isZero();
+        jdbc.update("UPDATE session_memory_job SET lease_until=now()-interval '1 second' WHERE id=?",job.path("id").asLong());
+        var fresh=claim();assertThat(fresh.path("messages").size()).isEqualTo(2);
+        mvc.perform(post(root+"/complete").with(identity("SERVICE","async-agent")).contentType("application/json").content(completion(fresh).toString())).andExpect(status().isOk()).andExpect(jsonPath("$.data.saved").value(true));
+    }
+
+    @Test void seventeenthReferenceIsCheckedForScopeAndValidReferencesStillCommit() throws Exception {
+        for(int i=0;i<9;i++)sessions.appendTurn("async-agent","u_1",session,"第"+i+"轮","收到","fixture");
+        var history=sessions.history("async-agent","u_1",session);
+        sessions.appendTurn("async-agent","u_1",session,"继续","收到","fixture",Long.parseLong(history.getLast().get("id")));
+        jdbc.update("UPDATE session_memory_job SET status='done' WHERE agent_name='async-agent' AND kind='facts'");
+        var other=(String)sessions.create("async-agent","staging","u_1").get("id");
+        sessions.appendTurn("async-agent","u_1",other,"另一个会话","收到","fixture");
+        jdbc.update("UPDATE session_memory_job SET status='done' WHERE agent_name='async-agent' AND kind='facts'");
+        var job=claim();var body=completion(job);var content=new StringBuilder("合法来源 ");
+        for(int i=0;i<16;i++)content.append("[m:").append(history.get(i).get("id")).append("]");
+        var foreign=sessions.history("async-agent","u_1",other).getFirst().get("id");
+        ((com.fasterxml.jackson.databind.node.ObjectNode)body.path("state")).put("content",content+"[m:"+foreign+"]");
+        mvc.perform(post(root+"/complete").with(identity("SERVICE","async-agent")).contentType("application/json").content(body.toString())).andExpect(status().isForbidden());
+        ((com.fasterxml.jackson.databind.node.ObjectNode)body.path("state")).put("content",content+"[m:"+history.get(16).get("id")+"]");
+        mvc.perform(post(root+"/complete").with(identity("SERVICE","async-agent")).contentType("application/json").content(body.toString())).andExpect(status().isOk()).andExpect(jsonPath("$.data.saved").value(true));
+        assertThat(SessionSummaries.sourceIds(content+"[m:"+history.get(16).get("id")+"]")).hasSize(16);
+    }
+
 }
