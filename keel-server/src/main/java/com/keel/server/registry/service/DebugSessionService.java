@@ -96,6 +96,7 @@ public class DebugSessionService {
     public void delete(String agent, String owner, String id) {
         require(agent, null, owner, id);
         jdbc.queryForList("SELECT id FROM agent_session WHERE id=? AND agent_name=? AND owner_user=? FOR UPDATE",id,agent,owner);
+        jdbc.update("DELETE FROM session_memory_attempt WHERE session_id=? AND agent_name=? AND owner_user=?",id,agent,owner);
         jdbc.update("DELETE FROM session_memory_job WHERE session_id=? AND agent_name=? AND owner_user=?",id,agent,owner);
         var hash=jdbc.queryForObject("SELECT encode(sha256(convert_to(?||':'||?,'UTF8')),'hex')",String.class,owner,id);
         for(var table:List.of("session_summary","session_fact_state")) jdbc.update("DELETE FROM "+table+" WHERE session_id=? AND agent_name=? AND owner_user=?",hash,agent,owner);

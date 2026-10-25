@@ -33,7 +33,7 @@ class SessionMemoryJobsFlowTest {
     String session;
     final String root="/api/v1/agents/async-agent/memories/maintenance";
     @BeforeEach void reset(){
-        for(var table:List.of("session_memory_job","session_message","agent_session","session_summary","session_fact_state"))jdbc.update("DELETE FROM "+table+" WHERE agent_name='async-agent'");
+        for(var table:List.of("session_memory_attempt","session_memory_job","session_message","agent_session","session_summary","session_fact_state"))jdbc.update("DELETE FROM "+table+" WHERE agent_name='async-agent'");
         jdbc.update("DELETE FROM agent WHERE name='async-agent'");
         jdbc.update("INSERT INTO agent(name,display_name,kind,runtime,language,owner_org,owner_user,status,liveness,layer) VALUES ('async-agent','异步测试','AGENT','code','python','org','u_1','ONLINE','k8s','BIZ')");
         session=(String)sessions.create("async-agent","staging","u_1").get("id");
@@ -71,7 +71,9 @@ class SessionMemoryJobsFlowTest {
         enqueueSummary();var abandoned=claim();assertThat(abandoned.path("kind").asText()).isEqualTo("summary");
         assertThat(claim().isNull()).isTrue();
         jdbc.update("UPDATE session_memory_job SET lease_until=now()-interval '1 second' WHERE id=?",abandoned.path("id").asLong());
-        var recovered=claim();assertThat(recovered.path("leaseToken")).isNotEqualTo(abandoned.path("leaseToken"));
+        var recovered=claim();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM session_memory_attempt WHERE agent_name='async-agent' AND status='abandoned'",Integer.class)).isEqualTo(1);
+assertThat(recovered.path("leaseToken")).isNotEqualTo(abandoned.path("leaseToken"));
         mvc.perform(post(root+"/complete").with(identity("SERVICE","async-agent")).contentType("application/json").content(completion(abandoned).toString())).andExpect(status().isForbidden());
         mvc.perform(post(root+"/complete").with(identity("SERVICE","async-agent")).contentType("application/json").content(completion(recovered).toString()))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.saved").value(true));

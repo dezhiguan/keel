@@ -8,7 +8,7 @@ import java.util.Map;
 public class SessionMemoryController {
     private final SessionMemoryJobs jobs;
     public SessionMemoryController(SessionMemoryJobs jobs){this.jobs=jobs;}
-    @PostMapping("/claim") public R<Map<String,Object>> claim(@PathVariable String name,@RequestBody JsonNode b){return R.ok(jobs.claim(name,b.path("env").asText()));}
+    @PostMapping("/claim") public R<Map<String,Object>> claim(@PathVariable String name,@RequestBody JsonNode b){return R.ok(jobs.claim(name,b.path("env").asText(),b.path("workerId").asText("")));}
     @PostMapping("/complete") public R<Map<String,Object>> complete(@PathVariable String name,@RequestBody JsonNode b){return R.ok(jobs.complete(name,b.path("env").asText(),b));}
     @PostMapping("/fail") public R<Map<String,Object>> fail(@PathVariable String name,@RequestBody JsonNode b){return R.ok(jobs.fail(name,b.path("env").asText(),b));}
     @GetMapping("/status") public R<Map<String,Object>> status(@PathVariable String name,@RequestParam String env){return R.ok(jobs.status(name,env));}

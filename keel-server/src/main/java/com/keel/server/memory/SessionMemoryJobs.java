@@ -66,8 +66,12 @@ public class SessionMemoryJobs {
         return rows.isEmpty()?null:rows.getFirst();
     }
     @Transactional
-    public Map<String,Object> claim(String agent,String env) {
+    public Map<String,Object> claim(String agent,String env) { return claim(agent,env,""); }
+    @Transactional
+    public Map<String,Object> claim(String agent,String env,String worker) {
         service(agent,env);
+        if(!worker.matches("[A-Za-z0-9_.:-]{0,128}"))throw denied();
+        jdbc.update("UPDATE session_memory_attempt a SET status='abandoned',reason='lease_expired',finished_at=now() FROM session_memory_job j WHERE a.lease_token=j.lease_token AND a.status='running' AND j.agent_name=? AND j.env=? AND j.lease_until<now()",agent,env);
         // Exhausted abandoned attempts become visible terminal failures, not invisible pending work.
         int exhausted=jdbc.update("UPDATE session_memory_job SET status='failed',reason='attempts_exhausted',updated_at=now() WHERE agent_name=? AND env=? AND status IN ('pending','running') AND attempts>=3 AND (lease_until IS NULL OR lease_until<now())",agent,env);
         if(exhausted>0)log.error("trace_id=background agent={} memory_maintenance_failed reason=attempts_exhausted count={}",agent,exhausted);
@@ -107,7 +111,10 @@ public class SessionMemoryJobs {
         var lease=UUID.randomUUID().toString();long version=((Number)state.get("version")).longValue();
         jdbc.update("UPDATE session_memory_job SET status='running',lease_token=?,lease_until=now()+interval '75 seconds',target_id=?,expected_version=?,attempts=attempts+1,reserved_cny=reserved_cny+0.5,updated_at=now() WHERE id=?",
             lease,target,version,job.get("id"));
+        jdbc.update("INSERT INTO session_memory_attempt(lease_token,job_id,agent_name,env,owner_user,session_id,kind,target_id,expected_version,attempt,worker_instance,trigger_trace_id,queued_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            lease,job.get("id"),agent,env,job.get("owner_user"),job.get("session_id"),kind,target,version,((Number)job.get("attempts")).intValue()+1,worker,job.get("trigger_trace_id"),job.get("created_at"));
         var result=new LinkedHashMap<String,Object>();
+        result.put("queuedAt",((java.sql.Timestamp)job.get("created_at")).toInstant().toString());
         result.put("id",job.get("id"));result.put("kind",kind);result.put("env",env);result.put("ownerUser",job.get("owner_user"));
         result.put("sessionId",scope);result.put("targetId",Long.toString(target));result.put("expectedVersion",version);
         result.put("leaseToken",lease);result.put("triggerTraceId",Objects.toString(job.get("trigger_trace_id"),""));
@@ -146,6 +153,8 @@ public class SessionMemoryJobs {
         boolean more=!ok || desired>through;
         jdbc.update("UPDATE session_memory_job SET status=?,lease_token=NULL,lease_until=NULL,attempts=?,reserved_cny=?,calls=calls+?,cost_upper_bound=cost_upper_bound+?,worker_trace_id=?,reason=?,next_attempt_at=now(),updated_at=now() WHERE id=?",
             more?"pending":"done",ok?0:job.get("attempts"),ok?BigDecimal.ZERO:job.get("reserved_cny"),body.path("calls").asInt(),body.path("costUpperBoundCny").decimalValue(),body.path("traceId").asText(""),ok?null:"conflict",job.get("id"));
+        jdbc.update("UPDATE session_memory_attempt SET status=?,reason=?,finished_at=now(),through_id=?,more=?,calls=?,input_tokens=?,output_tokens=?,cost_upper_bound=?,worker_trace_id=? WHERE lease_token=?",
+            ok?"committed":"conflict",ok?null:"conflict",through,more,body.path("calls").asInt(),body.path("inputTokens").asInt(),body.path("outputTokens").asInt(),body.path("costUpperBoundCny").decimalValue(),body.path("traceId").asText(""),body.path("leaseToken").asText());
         return Map.of("saved",ok,"more",more);
     }
     @Transactional
@@ -155,6 +164,8 @@ public class SessionMemoryJobs {
         boolean terminal=((Number)job.get("attempts")).intValue()>=3 || Set.of("source_too_large","budget").contains(reason);
         jdbc.update("UPDATE session_memory_job SET status=?,reason=?,lease_token=NULL,lease_until=NULL,next_attempt_at=now()+interval '2 seconds',calls=calls+?,cost_upper_bound=cost_upper_bound+?,worker_trace_id=?,updated_at=now() WHERE id=?",
             terminal?"failed":"pending",reason,body.path("calls").asInt(),body.path("costUpperBoundCny").decimalValue(),body.path("traceId").asText(""),job.get("id"));
+        jdbc.update("UPDATE session_memory_attempt SET status='failed',reason=?,finished_at=now(),calls=?,input_tokens=?,output_tokens=?,cost_upper_bound=?,worker_trace_id=? WHERE lease_token=?",
+            reason,body.path("calls").asInt(),body.path("inputTokens").asInt(),body.path("outputTokens").asInt(),body.path("costUpperBoundCny").decimalValue(),body.path("traceId").asText(""),body.path("leaseToken").asText());
         if(terminal)log.error("trace_id={} agent={} memory_maintenance_failed task={} reason={}",body.path("traceId").asText("background"),agent,job.get("id"),reason);
         return Map.of("accepted",true);
     }

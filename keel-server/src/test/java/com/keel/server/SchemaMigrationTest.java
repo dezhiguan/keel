@@ -40,9 +40,9 @@ class SchemaMigrationTest {
             "devflow_tool_grant",
             "usage_daily", "skill", "skill_version", "agent_skill_grant",
             "user_memory", "channel", "channel_credential", "channel_usage", "channel_feedback",
-            "agent_history_policy", "agent_session", "session_message", "session_summary", "session_fact_state", "session_memory_job", "debug_chat_request", "insight_snapshot", "insight_observation", "insight_trace", "insight_trace_bill");
+            "agent_history_policy", "agent_session", "session_message", "session_summary", "session_fact_state", "session_memory_job", "session_memory_attempt", "debug_chat_request", "insight_snapshot", "insight_observation", "insight_trace", "insight_trace_bill");
 
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_constraint WHERE conrelid='session_memory_job'::regclass AND contype='f'", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_constraint WHERE conrelid IN ('session_memory_job'::regclass,'session_memory_attempt'::regclass) AND contype='f'", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_name='agent_session' AND column_name='memory_maintenance_mode'", Integer.class)).isEqualTo(1);
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_grant WHERE tool_name='keel.history.search'", Integer.class)).isZero();

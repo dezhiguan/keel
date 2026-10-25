@@ -60,7 +60,7 @@ class UserMemory:
         return await self._send("GET", "/session-history/messages/" + message_id + "?" + urlencode(params), None)
 
     async def claim_maintenance(self):
-        return await self._send('POST','/maintenance/claim',{'env':self.env})
+        return await self._send('POST','/maintenance/claim',{'env':self.env,'workerId':os.environ.get('HOSTNAME','')})
 
     async def complete_maintenance(self, body):
         return await self._send('POST','/maintenance/complete',{'env':self.env,**body})

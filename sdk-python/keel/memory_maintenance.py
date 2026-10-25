@@ -119,7 +119,7 @@ async def summarize(model,job):
 async def execute(agent,remote,job,tracer):
     with tracer.start_as_current_span('memory.maintenance',context=trace.Context(),attributes={
         'langfuse.observation.type':'agent','keel.agent':agent.name,'keel.env':job['env'],
-        'keel.memory.trigger_trace_id':job['triggerTraceId'],'keel.memory.task_id':str(job['id']),
+        'service.instance.id':os.environ.get('HOSTNAME',''),'keel.memory.trigger_trace_id':job['triggerTraceId'],'keel.memory.task_id':str(job['id']),
         'keel.status':'ok','langfuse.session.id':job['sessionId'],
     }) as root:
         trace_id=f'{root.get_span_context().trace_id:032x}' if root.get_span_context().is_valid else uuid.uuid4().hex
