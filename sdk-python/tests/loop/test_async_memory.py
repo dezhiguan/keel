@@ -119,3 +119,15 @@ def test_lease_contract_rejects_wrong_scope_and_unbounded_model_work():
     assert MaintenanceJob.model_validate(valid).model_dump(by_alias=True)['maxCalls']==4
     for change in ({'maxCalls':5},{'maxCostCny':float('nan')},{'sessionId':'another-session'},{'expectedVersion':True},{'kind':'other'}):
         with pytest.raises(ValidationError):MaintenanceJob.model_validate({**valid,**change})
+
+
+def test_background_timeout_is_reported_as_timeout_without_advancing_facts():
+    async def run():
+        j=job('facts');j.update(state=empty_state(),skippedIds=[],nextCursor='1',more=False)
+        j['messages']=j['messages'][:1]
+        class TimeoutModel(Model):
+            async def chat(self,*args,**kwargs):raise TimeoutError('controlled timeout')
+        model=BoundedModel(TimeoutModel(''),j,'.000002','.000005')
+        with pytest.raises(TimeoutError):await extract_facts(model,j)
+        assert j['state']['cursorId']=='0' and model.calls==1
+    asyncio.run(run())

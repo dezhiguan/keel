@@ -71,7 +71,7 @@ class FactBatch:
 async def extract_facts(model,job):
     memory=FactBatch(job)
     collector=SessionFacts(model,memory,True,model.llm.agent,job['env'])
-    await collector.collect([],time.monotonic()+55)
+    await collector.collect([],time.monotonic()+55,strict=True)
     if memory.candidate is None:
         if isinstance(model.last_error,(WorkLimit,TimeoutError)):raise model.last_error
         raise ValueError('invalid_output')
