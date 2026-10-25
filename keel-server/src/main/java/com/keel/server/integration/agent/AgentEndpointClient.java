@@ -16,7 +16,8 @@ import java.io.OutputStream;
 public class AgentEndpointClient {
     private static final java.util.concurrent.ScheduledExecutorService STREAM_DEADLINES =
             java.util.concurrent.Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform().daemon().name("agent-stream-deadline").factory());
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
+    // ASGI agent endpoints speak HTTP/1.1; avoid unsupported h2c upgrades on paid POSTs.
+    private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(2)).build();
     private final ObjectMapper json = new ObjectMapper();
 
     public boolean healthy(String endpoint) {
@@ -106,13 +107,16 @@ public class AgentEndpointClient {
                     HttpResponse.BodyHandlers.ofInputStream());
             if (response.statusCode() >= 300) {
                 response.body().close();
+                org.slf4j.LoggerFactory.getLogger(AgentEndpointClient.class).warn("trace_id=relay agent={} invoke_stream_http={}",agent,response.statusCode());
                 throw new IllegalStateException("智能体返回 HTTP " + response.statusCode());
             }
             return boundedStream(response.body(),Duration.ofNanos(Math.max(1,Duration.ofMinutes(3).toNanos()-(System.nanoTime()-started))));
         } catch (IllegalStateException error) {
             throw error;
         } catch (Exception error) {
-            throw new IllegalStateException("调用智能体失败");
+            org.slf4j.LoggerFactory.getLogger(AgentEndpointClient.class).warn("trace_id=relay agent={} invoke_stream_failure={}",agent,error.getClass().getSimpleName());
+            if (error instanceof InterruptedException) Thread.currentThread().interrupt();
+            throw new IllegalStateException("调用智能体失败",error);
         }
     }
 

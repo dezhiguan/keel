@@ -78,6 +78,10 @@ class AgentEndpointClientTest {
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/v1/invoke", exchange -> {
             headers.set(exchange.getRequestHeaders());
+            // Match ASGI deployments that do not implement cleartext HTTP/2 upgrades.
+            if (exchange.getRequestHeaders().containsKey("Upgrade")) {
+                exchange.sendResponseHeaders(400,-1);exchange.close();return;
+            }
             seen.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             var body = """
                     event: final
