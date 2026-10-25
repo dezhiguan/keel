@@ -86,6 +86,35 @@ class ElementEvidenceTest {
         assertThat(result.elements().items().getFirst().passed()).isFalse();
     }
 
+    @Test void declaredToolsWithoutCapabilitiesAreProvedByLoopAndToolObservations() throws Exception {
+        var client = new LangfuseClient("", "", "") {
+            @Override public JsonNode elementObservations(java.time.Instant from) {
+                var body = json.createObjectNode();
+                var rows = body.putArray("data");
+                for (var id : java.util.List.of("1", "2")) {
+                    var step = json.createObjectNode().put("traceId","t1").put("id",id).put("name","agent.loop.step").put("type","AGENT");
+                    step.putObject("metadata").put("attributes.keel.agent","qa").put("attributes.keel.env","dev");
+                    rows.add(step);
+                }
+                var tool = json.createObjectNode().put("traceId","t1").put("id","3").put("name","lookup").put("type","TOOL");
+                tool.putObject("metadata").put("attributes.keel.agent","qa").put("attributes.keel.env","dev")
+                        .put("attributes.langfuse.observation.type","tool");
+                rows.add(tool);
+                return body;
+            }
+        };
+        var agent = new Agent(); agent.setName("qa");
+        var version = new AgentVersion(); version.setEnv("dev"); version.setVersion("v1"); version.setManifestHash("hash");
+        var manifest = json.readTree("""
+                {"spec":{"kind":"workflow","tools":[{"name":"lookup"}],
+                 "prompts":{"source":"langfuse","items":[{"name":"answer"}]}}}
+                """);
+        var result = new ElementEvidence(jdbc, client).report(AgentDetail.of(agent, version, null, List.of(), manifest, List.of()));
+        assertThat(result.elements().items().get(0).passed()).isTrue();
+        assertThat(result.elements().items().get(1).passed()).isTrue();
+        assertThat(result.elements().missing()).doesNotContain("模型自己调工具", "agent loop");
+    }
+
     @Test void userMemoryAndAbsentEvidenceAreReportedSeparately() throws Exception {
         var database = new JdbcTemplate() {
             @Override public <T> T queryForObject(String sql, Class<T> type, Object... args) {

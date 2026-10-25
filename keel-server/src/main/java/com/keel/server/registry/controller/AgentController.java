@@ -93,8 +93,11 @@ public class AgentController {
     @GetMapping("/{name}")
     public R<AgentDetail> detail(@PathVariable String name,
             @RequestParam(defaultValue = "true") boolean includeRuntimeEvidence) {
-        return R.ok(evaluations.withGate(includeRuntimeEvidence
-                ? agentRegistryService.detail(name) : agentRegistryService.registeredDetail(name)));
+        var detail = includeRuntimeEvidence
+                ? agentRegistryService.detail(name) : agentRegistryService.registeredDetail(name);
+        var env = detail.summary() == null ? null : detail.summary().env();
+        var enriched = usage.apply(detail.summary(), env == null ? "all" : env);
+        return R.ok(evaluations.withGate(detail.withGatewayBudget(enriched.dailyBudgetCny(), enriched.costCny())));
     }
 
     @GetMapping("/{name}/elements")
