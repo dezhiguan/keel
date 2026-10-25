@@ -35,7 +35,7 @@ final class RequestDefaults {
                 case "thinking_budget" -> value.isIntegralNumber() && value.canConvertToInt() && value.intValue()>0;
                 case "thinking" -> value.isObject() && value.size()==1 && value.path("type").isTextual()
                         && (value.path("type").asText().equals("enabled") || value.path("type").asText().equals("disabled"));
-                case "memory" -> allowMemory && valid(value, false);
+                case "memory", "interactive" -> allowMemory && valid(value, false);
                 default -> false;
             };
             if (!accepted) return false;
@@ -48,15 +48,16 @@ final class RequestDefaults {
         if ("/v1/chat/completions".equals(path)) {
             var options=scopes.path(alias).path(model);
             options.fields().forEachRemaining(field -> {
-                if (!field.getKey().equals("memory") && !body.has(field.getKey())
+                if (!java.util.Set.of("memory","interactive").contains(field.getKey()) && !body.has(field.getKey())
                         && !(field.getKey().equals("thinking_budget") && body.has("reasoning_effort")))
                     body.set(field.getKey(), field.getValue());
             });
-            boolean maintenance="memory".equals(body.path("metadata").path("keel_task").asText());
+            var purpose=body.path("metadata").path("keel_task").asText();
+            boolean scoped=java.util.Set.of("memory","interactive").contains(purpose);
             if(body.path("metadata") instanceof ObjectNode metadata) metadata.remove("keel_task");
-            if(maintenance && options.path("memory").isObject()) {
+            if(scoped && options.path(purpose).isObject()) {
                 for(var key:java.util.List.of("enable_thinking","preserve_thinking","thinking_budget","thinking","reasoning_effort","reasoning")) body.remove(key);
-                options.path("memory").fields().forEachRemaining(field->body.set(field.getKey(),field.getValue()));
+                options.path(purpose).fields().forEachRemaining(field->body.set(field.getKey(),field.getValue()));
             }
         }
         return body.toString();

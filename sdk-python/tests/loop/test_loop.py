@@ -411,3 +411,13 @@ def test_bounded_refinement_keeps_approval_round_spent_after_resume(monkeypatch,
     assert requests[0]['tools'] == TOOLS
     assert requests[0]['tool_choice'] == 'none'
     assert json.loads(requests[0]['messages'][-1]['content']) == {'value': 1}
+
+
+def test_interactive_purpose_is_forwarded_for_main_call_only(monkeypatch):
+    ctx,seen=context(monkeypatch,[completion('真实协议夹具')])
+    async def run():
+        try:return await ctx.loop([{'role':'user','content':'hello'}],tools=[],model_purpose='interactive')
+        finally:await ctx.aclose()
+    asyncio.run(run())
+    assert seen[0]['metadata']['keel_task']=='interactive'
+    assert seen[0]['metadata']['caller_agent']=='loop-agent'

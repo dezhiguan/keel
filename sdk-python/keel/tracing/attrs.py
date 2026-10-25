@@ -42,3 +42,5 @@ def askdb_status(value: str) -> str:
     if value in ("fallback", "degraded", "empty"):
         return "fallback"
     return "failed"
+
+LLM_PURPOSE = "keel.llm.purpose"

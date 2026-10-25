@@ -111,12 +111,13 @@ public class AgentChatService {
     }
 
     /** Reject a debug stream before the response is committed. */
-    public void prepareStream(String name, String text, String sessionId, String owner, boolean remember) {
+    public AgentDetail prepareStream(String name, String text, String sessionId, String owner, boolean remember) {
         if (sessionId == null || !sessionId.matches("[A-Za-z0-9_-]{1,128}")) {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "sessionId 格式不正确");
         }
         var detail = ready(name, text);
         if (remember) sessions.require(name, detail.summary().env(), owner, sessionId);
+        return detail;
     }
 
     /** Copy the agent SSE stream. A finished final is stored for this console user. */
@@ -137,9 +138,12 @@ public class AgentChatService {
     }
 
     public void streamChat(String name,String text,String sessionId,String owner,boolean remember,OutputStream output,String readContext,String evaluationRun,String taskContext,ConsolePrincipal principal) {
-        var detail = ready(name, text);
+        var detail = prepareStream(name,text,sessionId,owner,remember);
+        streamPrepared(name,text,sessionId,owner,remember,output,readContext,evaluationRun,taskContext,principal,detail);
+    }
+
+    public void streamPrepared(String name,String text,String sessionId,String owner,boolean remember,OutputStream output,String readContext,String evaluationRun,String taskContext,ConsolePrincipal principal,AgentDetail detail) {
         var env = detail.summary().env();
-        if (remember) sessions.require(name, env, owner, sessionId);
         if ("echo".equals(name)) credentials.ensure(name);
         var endpoint = registry.invokeEndpoint(name);
         var userId = callerLabel(principal);

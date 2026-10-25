@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
+from keel.http_pool import new_async_client
 import openai
 from opentelemetry import trace
 
@@ -99,13 +100,13 @@ class LlmClient:
         self.tracer = tracer or trace.get_tracer("keel.llm")
         headers = {"X-Trace-Id": trace_id} if trace_id else None
         self.client = openai.AsyncOpenAI(base_url=base_url, api_key=api_key, max_retries=0,
-                                         http_client=http_client, default_headers=headers)
+                                         http_client=http_client if http_client is not None else new_async_client(pooled_only=True, timeout=openai.DEFAULT_TIMEOUT, follow_redirects=True), default_headers=headers)
 
     async def chat(self, messages: list[dict], model: str | None = None, prompt=None,
                    tools: list[dict] | None = None, tool_choice: str | dict | None = None,
                    emit_tokens: bool = True, max_tokens: int | None = None,
                    purpose: str | None = None) -> str | ChatResult:
-        if purpose not in (None, "memory"):
+        if purpose not in (None, "memory", "interactive"):
             raise ValueError("Unsupported model call purpose")
         chosen = model or self.default_model
         if not chosen:
@@ -117,6 +118,8 @@ class LlmClient:
             attrs.MODEL: chosen, attrs.STATUS: "ok",
             attrs.OBSERVATION_INPUT: _observation_input(messages),
         }
+        if purpose:
+            attributes[attrs.LLM_PURPOSE] = purpose
         if prompt is not None and getattr(prompt, "fallback", False):
             attributes[attrs.PROMPT_FALLBACK] = True
         elif prompt is not None and getattr(prompt, "version", None) is not None:

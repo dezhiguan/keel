@@ -72,4 +72,31 @@ class CrossSessionHistoryFlowTest {
         var mismatch=json.valueToTree(Map.of("query","UNICODE-7419","_authorization",token,"_session",hash(old)));
         assertThatThrownBy(()->history.search("cross-test","staging",mismatch)).isInstanceOf(KeelException.class);
     }
+    @Test void repeatedQuestionsKeepAdjacentHistoricalRepliesWithoutMixingRolesOrGrowingBudget() {
+        for(int i=0;i<8;i++) {
+            var id=(String)sessions.create("cross-test","staging","u1").get("id");
+            sessions.appendTurn("cross-test","u1",id,"松鹤项目的代号和日期是什么？","历史助理回复：ORCHID-7419，12月17日。"+"长".repeat(1800),"fixture");
+        }
+        var hits=items(search("松鹤项目的代号和日期是什么？",false));assertThat(hits).hasSize(4);
+        for(var hit:hits) {
+            assertThat(hit.get("role")).isEqualTo("user");
+            var reply=(Map<?,?>)hit.get("followingMessage");
+            assertThat(reply.get("role")).isEqualTo("assistant");
+            assertThat(reply.get("content").toString()).contains("ORCHID-7419");
+            assertThat(reply.get("sessionId")).isEqualTo(hit.get("sessionId"));
+            assertThat(reply.get("hasMore")).isEqualTo(true);
+            assertThat(hit.get("content").toString().codePointCount(0,hit.get("content").toString().length())
+                +reply.get("content").toString().codePointCount(0,reply.get("content").toString().length())).isLessThanOrEqualTo(1200);
+        }
+        assertThat(items(search("松鹤项目",true))).allMatch(hit->!hit.containsKey("followingMessage"));
+        var id=(String)hits.getFirst().get("sessionId");sessions.delete("cross-test","u1",id);
+        assertThat(items(search("松鹤项目",false))).noneMatch(hit->id.equals(hit.get("sessionId")));
+    }
+    @Test void contextDoesNotSkipAnInterveningUserMessageOrReadOtherOwners() {
+        db.update("INSERT INTO session_message(session_id,agent_name,owner_user,role,content,expires_at) VALUES (?, 'cross-test','u1','user','NEIGHBOR-7419',now()+interval '1 day')",old);
+        db.update("INSERT INTO session_message(session_id,agent_name,owner_user,role,content,expires_at) VALUES (?, 'cross-test','u1','user','next user',now()+interval '1 day')",old);
+        db.update("INSERT INTO session_message(session_id,agent_name,owner_user,role,content,expires_at) VALUES (?, 'cross-test','u1','assistant','not the adjacent reply',now()+interval '1 day')",old);
+        assertThat(items(search("NEIGHBOR-7419",false)).getFirst()).doesNotContainKey("followingMessage");
+    }
+
 }

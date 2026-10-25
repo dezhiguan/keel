@@ -4,6 +4,7 @@ import os
 from urllib.parse import urlencode
 
 import httpx
+from keel.http_pool import new_async_client
 from keel.auth.client_assertion import ASSERTION_TYPE, sign_client_assertion
 
 from keel.protocol.errors import ErrorCode, KeelError
@@ -69,7 +70,7 @@ class UserMemory:
             raise KeelError(ErrorCode.AUTH_UNAUTHENTICATED, "记忆服务需要智能体服务身份")
         headers = {"X-Client-Id": self.agent, "X-Client-Assertion-Type": ASSERTION_TYPE,
                    "X-Client-Assertion": sign_client_assertion(self.agent, audience, key)}
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with new_async_client(timeout=10) as client:
             response = await client.request(method, url, json=payload, headers=headers)
         if response.status_code == 403:
             raise KeelError(ErrorCode.MEMORY_WRITE_DENIED)

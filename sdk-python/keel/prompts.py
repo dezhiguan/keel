@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 import httpx
+from keel.http_pool import new_async_client
 
 from keel.protocol.errors import ErrorCode, KeelError
 
@@ -142,7 +143,7 @@ async def _langfuse(full_name: str, label: str) -> dict:
     if not host or not public or not secret:
         raise KeelError(ErrorCode.PROMPT_UNAVAILABLE, "Langfuse 未配置")
     url = f"{host}/api/public/v2/prompts/{quote(full_name, safe='')}?label={quote(label, safe='')}"
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with new_async_client(timeout=10) as client:
         response = await client.get(url, auth=(public, secret))
         response.raise_for_status()
         return response.json()

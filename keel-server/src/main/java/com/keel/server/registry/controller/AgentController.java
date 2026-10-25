@@ -147,12 +147,12 @@ public class AgentController {
         if(taskAcceptance!=null && !taskAcceptance.matches("[A-Za-z0-9_-]{1,64}"))throw com.keel.server.tasks.TaskContext.invalid("专项验收标记无效");
         var remember = evaluationRun == null && taskAcceptance == null;
         var forwardedEvaluation=taskAcceptance==null?evaluationRun:"task-"+taskAcceptance;
+        com.keel.server.registry.model.dto.AgentDetail detail;
         try {
-            chats.prepareStream(name, text, sessionId, owner, remember);
+            detail=chats.prepareStream(name, text, sessionId, owner, remember);
         } catch (KeelException error) {
             return jsonError(response,error);
         }
-        var detail=agentRegistryService.registeredDetail(name);
         // Capture trusted identity on the authenticated servlet thread, before async streaming.
         var readContext=readContexts.issue(com.keel.server.auth.ConsolePrincipal.current(),name,detail.summary().env(),sessionId);
         var taskContext=taskContexts.issueUser(com.keel.server.auth.ConsolePrincipal.current(),name,detail.summary().env(),sessionId,text,
@@ -179,7 +179,7 @@ public class AgentController {
         return output -> com.keel.server.registry.service.DebugChatExecution.run(() -> {
             try (var guarded=new com.keel.server.registry.service.DebugStreamOutput(output)) {
                 try {
-                    chats.streamChat(name, text, sessionId, owner, remember, guarded, readContext, forwardedEvaluation, forwardedTaskContext, streamPrincipal);
+                    chats.streamPrepared(name, text, sessionId, owner, remember, guarded, readContext, forwardedEvaluation, forwardedTaskContext, streamPrincipal, detail);
                 } catch (RuntimeException error) {
                     org.slf4j.LoggerFactory.getLogger(AgentController.class).warn(
                             "trace_id={} agent={} stream relay interrupted run_id={}",errorTrace,name,relayRun);

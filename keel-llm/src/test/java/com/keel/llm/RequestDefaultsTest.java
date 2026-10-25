@@ -148,4 +148,20 @@ class RequestDefaultsTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test void interactiveProfileDoesNotAffectAnalysisMemoryOtherAliasesOrModels() throws Exception {
+        var defaults=new RequestDefaults("""
+          {"keel-assistant-staging":{"qwen3.8-flash":{"interactive":{"enable_thinking":false},"memory":{"thinking_budget":32}}}}
+          """);
+        var request=(ObjectNode)JSON.readTree("{\"messages\":[]}");
+        assertThat(JSON.readTree(defaults.apply(request,"keel-assistant-staging","qwen3.8-flash","/v1/chat/completions")).has("enable_thinking")).isFalse();
+        request.putObject("metadata").put("keel_task","interactive");
+        var chat=JSON.readTree(defaults.apply(request,"keel-assistant-staging","qwen3.8-flash","/v1/chat/completions"));
+        assertThat(chat.path("enable_thinking").asBoolean(true)).isFalse();
+        assertThat(chat.has("interactive")).isFalse();assertThat(chat.path("metadata").has("keel_task")).isFalse();
+        assertThat(JSON.readTree(defaults.apply(request,"other-staging","qwen3.8-flash","/v1/chat/completions")).has("enable_thinking")).isFalse();
+        request.withObject("/metadata").put("keel_task","memory");
+        var memory=JSON.readTree(defaults.apply(request,"keel-assistant-staging","qwen3.8-flash","/v1/chat/completions"));
+        assertThat(memory.path("thinking_budget").asInt()).isEqualTo(32);assertThat(memory.has("enable_thinking")).isFalse();
+    }
+
 }

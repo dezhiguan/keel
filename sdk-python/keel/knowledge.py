@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass
 
 import httpx
+from keel.http_pool import new_async_client
 from opentelemetry import trace
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
@@ -26,7 +27,7 @@ class KnowledgeClient:
         self.agent = agent
         self.guard = guard
         self.tracer = tracer or trace.get_tracer("keel.knowledge")
-        self.client = http_client or httpx.AsyncClient(
+        self.client = http_client or new_async_client(
             base_url=base_url, headers={"X-API-Key": token}, timeout=10)
 
     async def _kb_id(self, kb: str | int) -> int:

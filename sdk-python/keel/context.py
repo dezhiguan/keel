@@ -253,7 +253,9 @@ class Context:
 
     async def loop(self, messages: list[dict], tools: list[dict], *,
                    max_steps: int | None = None, max_tool_rounds: int | None = None,
-                   prompt=None) -> FinalEvent | SuspendEvent:
+                   prompt=None, model_purpose: str | None = None) -> FinalEvent | SuspendEvent:
+        if model_purpose not in (None, "interactive"):
+            raise ValueError("Unsupported loop model purpose")
         if max_tool_rounds is not None and (type(max_tool_rounds) is not int or max_tool_rounds < 0):
             raise ValueError("max_tool_rounds 必须为非负整数")
         configured = getattr(getattr(getattr(self.manifest.spec, "models", None), "budget", None),
@@ -333,9 +335,9 @@ class Context:
                         history = await window.assemble(system, prior, current_chain, tools if tools and not active_tools else active_tools)
                         chain_start = len(history) - len(current_chain)
                     if tools and not active_tools:
-                        result = await self.llm.chat(history, tools=tools, tool_choice="none", prompt=prompt)
+                        result = await self.llm.chat(history, tools=tools, tool_choice="none", prompt=prompt, **({"purpose": model_purpose} if model_purpose else {}))
                     else:
-                        result = await self.llm.chat(history, tools=active_tools, prompt=prompt)
+                        result = await self.llm.chat(history, tools=active_tools, prompt=prompt, **({"purpose": model_purpose} if model_purpose else {}))
                     if not isinstance(result, ChatResult):
                         raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型没有返回结构化工具结果")
                     if not result.tool_calls:

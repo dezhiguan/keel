@@ -8,6 +8,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import httpx
+from keel.http_pool import new_async_client
 
 from keel.audit.masking import capture_fields
 from keel.protocol.errors import ErrorCode, KeelError
@@ -33,7 +34,7 @@ class AuditReporter:
         self.spool_path = Path(chosen_spool_path)
         self.queue = asyncio.Queue(maxsize=queue_size)
         self._lock = asyncio.Lock()
-        self.client = http_client or httpx.AsyncClient(
+        self.client = http_client or new_async_client(
             base_url=url, headers={"Authorization": f"Bearer {token}"}, timeout=5)
 
     async def record(self, action: str, risk: str, decision: str, *,

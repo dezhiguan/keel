@@ -22,13 +22,21 @@ class AgentChatServiceTest {
     private AgentDetail current;
     private String endpoint = "http://qa-agent.agents.svc:8000";
     private int invocations;
+    private int detailReads;
     private String auditEnv;
     private String forwardedSession;
     private final AgentRegistryService registry = new AgentRegistryService(null, null, null, null, null, null) {
-        @Override public AgentDetail registeredDetail(String name) { return current; }
+        @Override public AgentDetail registeredDetail(String name) { detailReads++; return current; }
         @Override public String invokeEndpoint(String name) { return endpoint; }
     };
     private final AgentEndpointClient endpoints = new AgentEndpointClient() {
+        @Override public java.io.InputStream openStream(String endpoint,String text,String bridge,String agent,String env,
+                String user,String rag,String kbs,String session,List<Map<String,String>> history,String read,String eval,String task) {
+            invocations++;
+            assertThat(env).isEqualTo("test");
+            return new java.io.ByteArrayInputStream("event: final\ndata: {\"answer\":\"ok\",\"trace_id\":\"trace-fixture\"}\n\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+
         @Override public Answer invoke(String endpoint, String text, String token, String agent, String env, String user) {
             invocations++;
             assertThat(env).isEqualTo("test");
@@ -90,6 +98,21 @@ class AgentChatServiceTest {
         assertThat(forwardedSession).isEqualTo(same);
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.chat("qa-agent", "bad", "../other"))
                 .isInstanceOf(KeelException.class);
+    }
+
+
+    @Test void preparedStreamUsesOneRequestSnapshotButNextRequestRechecksRetirement() {
+        detail(AgentStatus.ONLINE, "test", List.of());
+        var snapshot=service.prepareStream("qa-agent","hello","ss_fixture","owner",false);
+        service.streamPrepared("qa-agent","hello","ss_fixture","owner",false,
+                new java.io.ByteArrayOutputStream(),null,null,null,null,snapshot);
+        assertThat(detailReads).isEqualTo(1);
+        assertThat(invocations).isEqualTo(1);
+        detail(AgentStatus.RETIRED,"test",List.of());
+        assertThatThrownBy(() -> service.prepareStream("qa-agent","next","ss_fixture","owner",false))
+                .isInstanceOfSatisfying(KeelException.class,error -> assertThat(error.code()).isEqualTo(ErrorCode.GW_AGENT_OFFLINE));
+        assertThat(detailReads).isEqualTo(2);
+        assertThat(invocations).isEqualTo(1);
     }
 
     private void rejected() {

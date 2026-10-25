@@ -118,7 +118,7 @@ def create_app(agent) -> Starlette:
                           user_id=(data.get("context") or {}).get("user_id"))
         entry_request = SimpleNamespace(**data)
 
-        async def execute():
+        async def execute_inner():
             try:
                 with trace.use_span(root, end_on_exit=False):
                     context.guard.inspect("user", json.dumps(data["input"], ensure_ascii=False))
@@ -179,6 +179,11 @@ def create_app(agent) -> Starlette:
                 finally:
                     root.end()
                     events.put_nowait(_END)
+
+        async def execute():
+            from keel.http_pool import use_transport
+            with use_transport(getattr(request.app.state, "keel_transport", None)):
+                await execute_inner()
 
         async def stream():
             worker = asyncio.create_task(execute())
@@ -310,7 +315,7 @@ def create_app(agent) -> Starlette:
         entry_request = SimpleNamespace(**data, resume=True)
         _stamp_call(root, data, request.headers.get("X-Keel-Env") or os.environ.get("KEEL_ENV"))
 
-        async def execute():
+        async def execute_inner():
             try:
                 with trace.use_span(root, end_on_exit=False):
                     context.guard.inspect("user", json.dumps(data["input"], ensure_ascii=False))
@@ -344,6 +349,11 @@ def create_app(agent) -> Starlette:
                 await context.aclose()
                 root.end()
                 events.put_nowait(_END)
+
+        async def execute():
+            from keel.http_pool import use_transport
+            with use_transport(getattr(request.app.state, "keel_transport", None)):
+                await execute_inner()
 
         async def stream():
             worker = asyncio.create_task(execute())
@@ -380,9 +390,13 @@ def create_app(agent) -> Starlette:
 
     @asynccontextmanager
     async def lifespan(app):
+        from keel.http_pool import create_transport
+        app.state.keel_transport = create_transport()
         try:
             yield
         finally:
+            await app.state.keel_transport.aclose()
+            app.state.keel_transport = None
             if provider:
                 provider.shutdown()
 

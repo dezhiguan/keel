@@ -45,22 +45,41 @@ public class CrossSessionHistory {
             params.addAll(List.of(agent,env,actor.userId(),current.getFirst()));
             var roleFilter="user".equals(role)?" AND m.role='user'":"";
             params.add(limit);
-            var rows=jdbc.query("SELECT * FROM (SELECT m.id,m.role,m.content,m.created_at,m.session_id,s.title,"+score+" AS score "
+            params.addAll(List.of(!exact,agent,actor.userId()));
+            var rows=jdbc.query("SELECT hit.*,following.id AS following_id,following.role AS following_role,"
+                +"following.content AS following_content,following.created_at AS following_at FROM ("
+                +"SELECT * FROM (SELECT m.id,m.role,m.content,m.created_at,m.session_id,s.title,"+score+" AS score "
                 +"FROM session_message m JOIN agent_session s ON s.id=m.session_id AND s.agent_name=m.agent_name AND s.owner_user=m.owner_user "
                 +"WHERE s.agent_name=? AND s.env=? AND s.owner_user=? AND s.id<>? AND m.expires_at>now()"+roleFilter
-                +") hits WHERE score>0 ORDER BY score DESC,id DESC LIMIT ?",(rs,n)->{
+                +") hits WHERE score>0 ORDER BY score DESC,id DESC LIMIT ?) hit "
+                +"LEFT JOIN LATERAL (SELECT n.id,n.role,n.content,n.created_at FROM session_message n "
+                +"WHERE ? AND hit.role='user' AND n.agent_name=? AND n.owner_user=? "
+                +"AND n.session_id=hit.session_id AND n.id>hit.id AND n.expires_at>now() ORDER BY n.id LIMIT 1) following "
+                +"ON following.role='assistant' ORDER BY hit.score DESC,hit.id DESC",(rs,n)->{
                     var row=new LinkedHashMap<String,Object>();row.put("id",rs.getString("id"));
                     row.put("role",rs.getString("role"));row.put("content",rs.getString("content"));
                     row.put("sessionId",rs.getString("session_id"));row.put("title",rs.getString("title"));
-                    row.put("createdAt",rs.getTimestamp("created_at").toInstant().toString());return row;
+                    row.put("createdAt",rs.getTimestamp("created_at").toInstant().toString());
+                    if(rs.getString("following_id")!=null) {
+                        row.put("following",Map.<String,Object>of("id",rs.getString("following_id"),"role",rs.getString("following_role"),
+                            "content",rs.getString("following_content"),"createdAt",rs.getTimestamp("following_at").toInstant().toString()));
+                    }
+                    return row;
                 },params.toArray());
             for(var row:rows) {
                 var text=(String)row.get("content");var lower=text.toLowerCase(Locale.ROOT);int at=Integer.MAX_VALUE;
                 for(var term:terms){int pos=lower.indexOf(term);if(pos>=0)at=Math.min(at,pos);}
                 int offset=Math.max(0,text.codePointCount(0,Math.min(at,text.length()))-160);
-                var item=new LinkedHashMap<>(SessionHistory.excerpt(row,offset,1200));
+                var item=new LinkedHashMap<>(SessionHistory.excerpt(row,offset,row.containsKey("following")?800:1200));
                 for(var key:List.of("sessionId","title","createdAt"))item.put(key,row.get(key));
-                item.put("url","/agents/"+agent+"/debug?session="+row.get("sessionId"));items.add(item);
+                item.put("url","/agents/"+agent+"/debug?session="+row.get("sessionId"));
+                if(row.get("following") instanceof Map<?,?> following) {
+                    var original=new LinkedHashMap<String,Object>();following.forEach((k,v)->original.put(String.valueOf(k),v));
+                    var context=new LinkedHashMap<>(SessionHistory.excerpt(original,0,400));
+                    for(var key:List.of("sessionId","title","url"))context.put(key,item.get(key));
+                    context.put("createdAt",original.get("createdAt"));item.put("followingMessage",context);
+                }
+                items.add(item);
             }
         }
         var result=new LinkedHashMap<String,Object>();result.put("items",items);
