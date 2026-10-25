@@ -108,7 +108,7 @@ def summary_prefix(job,budget):
 
 async def summarize(model,job):
     chunks,last=summary_prefix(job,job['maxInputTokens'])
-    content=job['state']['content'];allowed=set(source_ids(content))
+    content=job['state']['content'];allowed=set(source_ids(content,limit=None))
     for chunk in chunks:
         allowed.update(str(r['id']) for r in chunk)
         response=await model.chat([TrustedMessage({'role':'system','content':SUMMARY_PROMPT}),
@@ -116,7 +116,7 @@ async def summarize(model,job):
         content=getattr(response,'content',response)
         if not isinstance(content,str) or not content.strip() or estimate_context_tokens([{'role':'user','content':content}])>1200:
             raise ValueError('invalid_output')
-        refs=source_ids(content)
+        refs=source_ids(content,limit=None)
         if not refs or any(ref not in allowed for ref in refs):raise ValueError('invalid_output')
     return {'version':job['expectedVersion'],'throughId':last,'content':content}
 

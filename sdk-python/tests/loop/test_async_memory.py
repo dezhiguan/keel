@@ -172,3 +172,17 @@ def test_fast_path_uses_the_winning_summary_after_reference_version_change(monke
     assert w.state['version']==2
     assert any('新摘要' in r.get('content','') for r in result)
     assert not any('旧摘要' in r.get('content','') for r in result)
+
+
+def test_summary_validates_every_reference_beyond_the_display_limit():
+    from keel.session_history import source_ids
+    async def run():
+        j=job();j['state']['content']='旧事实 '+''.join('[m:'+str(i)+']' for i in range(1,21))
+        j['messages']=[{'role':'user','content':'没有新增结论','id':'101'},{'role':'assistant','content':'收到','id':'102'}]
+        assert len(source_ids(j['state']['content']))==16
+        good=BoundedModel(Model('合法旧事实 [m:1][m:20]'),j,'.000002','.000005')
+        assert (await summarize(good,j))['throughId']=='102'
+        forged='已有事实 '+''.join('[m:'+str(i)+']' for i in range(1,17))+'伪造 [m:999]'
+        bad=BoundedModel(Model(forged),j,'.000002','.000005')
+        with pytest.raises(ValueError,match='invalid_output'):await summarize(bad,j)
+    asyncio.run(run())
