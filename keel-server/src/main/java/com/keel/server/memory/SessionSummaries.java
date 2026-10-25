@@ -22,6 +22,9 @@ public class SessionSummaries {
     private String canonicalOwner(String agent,String env,String session,String requested) {
         var owners=jdbc.query("SELECT owner_user FROM agent_session WHERE agent_name=? AND env=? AND encode(sha256(convert_to(owner_user||':'||id,'UTF8')),'hex')=?",
                 (rs,n)->rs.getString(1),agent,env,session);
+        var principal=ConsolePrincipal.current();
+        if(!owners.isEmpty() && principal!=null && !"SERVICE".equals(principal.mode()) && !owners.getFirst().equals(principal.userId()))
+            throw new KeelException(ErrorCode.AUTH_CONSOLE_FORBIDDEN,"只能读取本人控制台会话记忆");
         // Existing tests and non-console local summaries retain explicit owner semantics on reads.
         return owners.isEmpty()?requested:owners.getFirst();
     }

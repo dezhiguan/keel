@@ -144,3 +144,31 @@ def test_cancelled_paid_call_keeps_a_positive_bound_and_unknown_usage():
         assert usage['calls']==1 and usage['costUpperBoundCny']>0
         assert usage['inputTokens'] is None and usage['outputTokens'] is None
     asyncio.run(run())
+
+
+def test_budget_pressure_preserves_recalled_fact_instead_of_filler(monkeypatch):
+    monkeypatch.setenv('KEEL_MEMORY_MAINTENANCE_MODE','async')
+    class Loaded(Memory):
+        async def search_session(self,*args):
+            return {'items':[{'id':'1','role':'user','content':'青岚项目代号LOTUS-9813，预算20万元，检查日期11月26日。','offset':0,'totalChars':40,'sha256':'fixture','hasMore':False},
+                             {'id':'3','role':'user','content':'填充'*500,'offset':0,'totalChars':1000,'sha256':'fixture','hasMore':False}]}
+    w=ContextWindow(Model('unused'),Loaded(),'a','staging','s','u',True,None,'t')
+    prior=[]
+    for i in range(10):prior.extend([{'id':str(2*i+1),'role':'user','content':'背景'*450},{'id':str(2*i+2),'role':'assistant','content':'收到'}])
+    result=asyncio.run(w.assemble([{'role':'system','content':'规则'*1000}],prior,[{'role':'user','content':'青岚项目的代号和预算？'}],[]))
+    assert tokens(result,[])<=10000
+    assert any('LOTUS-9813' in m.get('content','') for m in result)
+    assert any(m.get('content')=='收到' for m in result)
+
+
+def test_fast_path_uses_the_winning_summary_after_reference_version_change(monkeypatch):
+    monkeypatch.setenv('KEEL_MEMORY_MAINTENANCE_MODE','async')
+    class Changing(Memory):
+        async def load_summary(self,owner):return {'version':1,'throughId':'2','content':'旧摘要 [m:1]','maintenanceMode':'async'}
+        async def read_session(self,*args):return {'stale':True,'summary':{'version':2,'throughId':'2','content':'新摘要 [m:1]','maintenanceMode':'async'},'items':[]}
+    w=ContextWindow(Model('unused'),Changing(),'a','staging','s','u',True,None,'t')
+    prior=[{'id':'1','role':'user','content':'旧消息'},{'id':'2','role':'assistant','content':'收到'},{'id':'3','role':'user','content':'近期'},{'id':'4','role':'assistant','content':'近期答复'}]
+    result=asyncio.run(w.assemble([],prior,[{'role':'user','content':'继续'}],[]))
+    assert w.state['version']==2
+    assert any('新摘要' in r.get('content','') for r in result)
+    assert not any('旧摘要' in r.get('content','') for r in result)

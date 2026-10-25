@@ -112,4 +112,13 @@ assertThat(recovered.path("leaseToken")).isNotEqualTo(abandoned.path("leaseToken
         mvc.perform(post(root+"/complete").with(identity("SERVICE","async-agent")).contentType("application/json").content(completion(job).toString())).andExpect(status().isForbidden());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM session_summary WHERE agent_name='async-agent'",Integer.class)).isZero();
     }
+    @Test void consoleSummaryCannotBeReadByAnotherOwnerEvenInSameOrganization() throws Exception {
+        enqueueSummary();var job=claim();
+        mvc.perform(post(root+"/complete").with(identity("SERVICE","async-agent")).contentType("application/json").content(completion(job).toString())).andExpect(status().isOk());
+        var path="/api/v1/agents/async-agent/memories/session-summary";
+        mvc.perform(get(path).with(identity("USER","u_2")).param("env","staging").param("sessionId",job.path("sessionId").asText()).param("ownerUser","u_1")).andExpect(status().isForbidden());
+        mvc.perform(get(path).with(identity("USER","u_1")).param("env","staging").param("sessionId",job.path("sessionId").asText()).param("ownerUser","display-label"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.version").value(1));
+    }
+
 }
