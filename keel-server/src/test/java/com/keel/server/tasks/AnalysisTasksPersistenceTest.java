@@ -166,6 +166,39 @@ class AnalysisTasksPersistenceTest {
         assertThat(tasks.command(get(id),"t").get("state")).isEqualTo("failed");
         assertThat(db.queryForObject("SELECT report FROM assistant_analysis_attempt",String.class)).isEqualTo("bad artifact");
     }
+    @Test void cancellationSurvivesAmbiguousWorkerFailureAndRestart(){
+        var id=(String)create().get("task_id");var task=tasks.start(tasks.claim("a"));
+        tasks.command(args("cancel","取消任务 "+id,"cancel1","user").put("task_id",id),"t");
+        tasks.finish(task,null,null,"模型调用结果未确认");
+        var restarted=new AnalysisTasks(db,json,contexts);
+        var result=restarted.command(get(id),"t");
+        assertThat(result.get("state")).isEqualTo("unknown");
+        assertThat((String)result.get("cancellation_note")).contains("已请求取消","不允许重新受理重试");
+        assertThatThrownBy(()->restarted.command(args("retry","我确认重复计算和费用，重试 "+id,"retry1","user")
+            .put("task_id",id).put("acknowledge_duplicate_cost",true),"t")).isInstanceOf(com.keel.server.common.KeelException.class);
+        assertThat(restarted.claim("b")).isNull();
+        assertThat(db.queryForObject("SELECT attempt FROM assistant_analysis_task",Integer.class)).isEqualTo(1);
+    }
+    @Test void cancellationSurvivesExpiredLeaseWithUnconfirmedExecution(){
+        var id=(String)create().get("task_id");var task=tasks.start(tasks.claim("a"));
+        tasks.command(args("cancel","取消任务 "+id,"cancel1","user").put("task_id",id),"t");
+        db.update("UPDATE assistant_analysis_task SET lease_until=now()-interval '1 second'");
+        assertThat(tasks.claim("b")).isNull();
+        assertThat(tasks.command(get(id),"t").get("state")).isEqualTo("unknown");
+        assertThatThrownBy(()->tasks.command(args("retry","我确认重复计算和费用，重试 "+id,"retry1","user")
+            .put("task_id",id).put("acknowledge_duplicate_cost",true),"t")).isInstanceOf(com.keel.server.common.KeelException.class);
+        assertThatThrownBy(()->tasks.finish(task,null,null,"旧 Worker 返回")).isInstanceOf(RuntimeException.class);
+        assertThat(db.queryForObject("SELECT count(*) FROM assistant_analysis_attempt",Integer.class)).isEqualTo(1);
+    }
+    @Test void cancellationAfterUnknownAlsoBlocksConsentedRetry(){
+        var id=(String)create().get("task_id");var task=tasks.start(tasks.claim("a"));
+        tasks.finish(task,null,null,"调用结果未确认");
+        tasks.command(args("cancel","取消任务 "+id,"cancel1","user").put("task_id",id),"t");
+        assertThat(tasks.command(get(id),"t").get("state")).isEqualTo("unknown");
+        assertThatThrownBy(()->tasks.command(args("retry","我确认重复计算和费用，重试 "+id,"retry1","user")
+            .put("task_id",id).put("acknowledge_duplicate_cost",true),"t")).isInstanceOf(com.keel.server.common.KeelException.class);
+        assertThat(tasks.claim("b")).isNull();
+    }
     @Test void expirationAndRevocationWaitForAuthorizationWithoutDispatch(){
         create();db.update("UPDATE assistant_analysis_task SET authorized_until=now()-interval '1 second'");
         assertThat(tasks.claim("worker")).isNull();

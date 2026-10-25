@@ -1,0 +1,671 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keel.local/contracts/intent-packet.schema.json",
+  "title": "IntentPacket",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "intent_primary",
+    "operation",
+    "complexity",
+    "needs_evidence",
+    "side_effect_hint",
+    "clarity",
+    "slots",
+    "schema_version",
+    "missing_slots",
+    "slot_sources"
+  ],
+  "properties": {
+    "intent_primary": {
+      "type": "string",
+      "enum": [
+        "chat",
+        "retrieve_knowledge",
+        "retrieve_state",
+        "retrieve_history",
+        "task_manage",
+        "analyze_document",
+        "delegate_work",
+        "action_request",
+        "mixed",
+        "unknown"
+      ]
+    },
+    "intent_secondary": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "string",
+        "enum": [
+          "chat",
+          "retrieve_knowledge",
+          "retrieve_state",
+          "retrieve_history",
+          "task_manage",
+          "analyze_document",
+          "delegate_work",
+          "action_request",
+          "mixed",
+          "unknown"
+        ]
+      }
+    },
+    "operation": {
+      "type": "string",
+      "pattern": "^[a-z][a-z_]{0,47}$"
+    },
+    "complexity": {
+      "type": "string",
+      "enum": [
+        "trivial",
+        "simple",
+        "complex"
+      ]
+    },
+    "needs_evidence": {
+      "type": "boolean"
+    },
+    "side_effect_hint": {
+      "type": "string",
+      "enum": [
+        "none",
+        "read",
+        "write"
+      ]
+    },
+    "clarity": {
+      "type": "string",
+      "enum": [
+        "clear",
+        "need_clarify"
+      ]
+    },
+    "slots": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "env": {
+          "type": "string",
+          "enum": [
+            "staging",
+            "prod"
+          ]
+        },
+        "agent_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,62}$"
+        },
+        "task_id": {
+          "type": "string",
+          "pattern": "^task_[a-f0-9]{32}$"
+        },
+        "material_ref": {
+          "type": "string",
+          "enum": [
+            "current_message"
+          ]
+        },
+        "material_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "query_ref": {
+          "type": "string",
+          "enum": [
+            "current_message"
+          ]
+        },
+        "goal_ref": {
+          "type": "string",
+          "enum": [
+            "current_message"
+          ]
+        },
+        "duplicate_cost_confirmed": {
+          "type": "boolean"
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "exact": {
+          "type": "boolean"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "user",
+            "all"
+          ]
+        }
+      }
+    },
+    "missing_slots": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "string",
+        "enum": [
+          "env",
+          "agent_id",
+          "task_id",
+          "material",
+          "goal",
+          "capability"
+        ]
+      }
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "keel/v1"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "reason_brief": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "slot_sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "env": {
+          "type": "string",
+          "enum": [
+            "current_message",
+            "authorized_history",
+            "runtime"
+          ]
+        },
+        "agent_id": {
+          "type": "string",
+          "enum": [
+            "current_message",
+            "authorized_history",
+            "runtime"
+          ]
+        },
+        "task_id": {
+          "type": "string",
+          "enum": [
+            "current_message",
+            "authorized_history",
+            "runtime"
+          ]
+        },
+        "material_ref": {
+          "type": "string",
+          "enum": [
+            "current_message",
+            "authorized_history",
+            "runtime"
+          ]
+        },
+        "query_ref": {
+          "type": "string",
+          "enum": [
+            "current_message",
+            "authorized_history",
+            "runtime"
+          ]
+        },
+        "duplicate_cost_confirmed": {
+          "type": "string",
+          "enum": [
+            "current_message",
+            "authorized_history",
+            "runtime"
+          ]
+        },
+        "goal_ref": {
+          "type": "string",
+          "enum": [
+            "current_message",
+            "authorized_history",
+            "runtime"
+          ]
+        },
+        "page": {
+          "type": "string",
+          "enum": [
+            "current_message",
+            "authorized_history",
+            "runtime"
+          ]
+        },
+        "size": {
+          "type": "string",
+          "enum": [
+            "current_message",
+            "authorized_history",
+            "runtime"
+          ]
+        },
+        "exact": {
+          "type": "string",
+          "enum": [
+            "current_message",
+            "authorized_history",
+            "runtime"
+          ]
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "current_message",
+            "authorized_history",
+            "runtime"
+          ]
+        }
+      },
+      "required": []
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "intent_primary": {
+            "const": "chat"
+          }
+        },
+        "required": [
+          "intent_primary"
+        ]
+      },
+      "then": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "reply"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "intent_primary": {
+            "const": "retrieve_knowledge"
+          }
+        },
+        "required": [
+          "intent_primary"
+        ]
+      },
+      "then": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "search"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "intent_primary": {
+            "const": "retrieve_state"
+          }
+        },
+        "required": [
+          "intent_primary"
+        ]
+      },
+      "then": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "list",
+              "detail"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "intent_primary": {
+            "const": "retrieve_history"
+          }
+        },
+        "required": [
+          "intent_primary"
+        ]
+      },
+      "then": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "search"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "intent_primary": {
+            "const": "task_manage"
+          }
+        },
+        "required": [
+          "intent_primary"
+        ]
+      },
+      "then": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "prepare",
+              "create",
+              "supply",
+              "get",
+              "list",
+              "cancel",
+              "retry",
+              "receipt"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "intent_primary": {
+            "const": "analyze_document"
+          }
+        },
+        "required": [
+          "intent_primary"
+        ]
+      },
+      "then": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "create",
+              "submit",
+              "execute"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "intent_primary": {
+            "const": "delegate_work"
+          }
+        },
+        "required": [
+          "intent_primary"
+        ]
+      },
+      "then": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "delegate"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "intent_primary": {
+            "const": "action_request"
+          }
+        },
+        "required": [
+          "intent_primary"
+        ]
+      },
+      "then": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "execute",
+              "release"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "intent_primary": {
+            "const": "mixed"
+          }
+        },
+        "required": [
+          "intent_primary"
+        ]
+      },
+      "then": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "coordinate"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "intent_primary": {
+            "const": "unknown"
+          }
+        },
+        "required": [
+          "intent_primary"
+        ]
+      },
+      "then": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "coordinate"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "intent_primary": {
+            "enum": [
+              "retrieve_state"
+            ]
+          },
+          "operation": {
+            "enum": [
+              "detail"
+            ]
+          },
+          "clarity": {
+            "const": "clear"
+          }
+        },
+        "required": [
+          "intent_primary",
+          "operation",
+          "clarity"
+        ]
+      },
+      "then": {
+        "properties": {
+          "slots": {
+            "required": [
+              "env",
+              "agent_id"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "intent_primary": {
+            "enum": [
+              "retrieve_state"
+            ]
+          },
+          "operation": {
+            "enum": [
+              "list"
+            ]
+          },
+          "clarity": {
+            "const": "clear"
+          }
+        },
+        "required": [
+          "intent_primary",
+          "operation",
+          "clarity"
+        ]
+      },
+      "then": {
+        "properties": {
+          "slots": {
+            "required": [
+              "env"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "intent_primary": {
+            "enum": [
+              "task_manage"
+            ]
+          },
+          "operation": {
+            "enum": [
+              "get",
+              "supply",
+              "cancel",
+              "retry"
+            ]
+          },
+          "clarity": {
+            "const": "clear"
+          }
+        },
+        "required": [
+          "intent_primary",
+          "operation",
+          "clarity"
+        ]
+      },
+      "then": {
+        "properties": {
+          "slots": {
+            "required": [
+              "task_id"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "intent_primary": {
+            "enum": [
+              "analyze_document",
+              "task_manage"
+            ]
+          },
+          "operation": {
+            "enum": [
+              "create",
+              "submit",
+              "supply"
+            ]
+          },
+          "clarity": {
+            "const": "clear"
+          }
+        },
+        "required": [
+          "intent_primary",
+          "operation",
+          "clarity"
+        ]
+      },
+      "then": {
+        "properties": {
+          "slots": {
+            "required": [
+              "material_ref",
+              "material_digest"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "intent_primary": {
+            "enum": [
+              "task_manage"
+            ]
+          },
+          "operation": {
+            "enum": [
+              "retry"
+            ]
+          },
+          "clarity": {
+            "const": "clear"
+          }
+        },
+        "required": [
+          "intent_primary",
+          "operation",
+          "clarity"
+        ]
+      },
+      "then": {
+        "properties": {
+          "slots": {
+            "required": [
+              "duplicate_cost_confirmed"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

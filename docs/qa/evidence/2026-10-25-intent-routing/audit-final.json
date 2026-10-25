@@ -1,0 +1,28 @@
+{
+  "scope": "audit token/whitelist receiver integration; persistence not asserted",
+  "expectedImage": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-audit:aaa75f1c1422",
+  "results": [
+    {
+      "pod": "keel-audit-54d886685f-qjvt8",
+      "trace": "d59089df5fd74757b9bd05c0ae138ccb",
+      "checks": {
+        "denied_status": true,
+        "allowed_status": true,
+        "one_event": true,
+        "whitelist": true
+      },
+      "passed": true
+    },
+    {
+      "pod": "keel-audit-54d886685f-vqt6p",
+      "trace": "51e8fdfe5e9c46e681078dc0d1628fd3",
+      "checks": {
+        "denied_status": true,
+        "allowed_status": true,
+        "one_event": true,
+        "whitelist": true
+      },
+      "passed": true
+    }
+  ]
+}

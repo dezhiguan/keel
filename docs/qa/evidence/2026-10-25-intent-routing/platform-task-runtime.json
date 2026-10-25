@@ -1,0 +1,20 @@
+[
+  {
+    "pod": "keel-server-7fd559fcfc-dbx6x",
+    "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-server:fb20e24bd81d",
+    "imageID": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-server@sha256:d3da36a51a35f485f18a3fe6d03c1e65835b3d42f2c21a350579ccec4b77a157",
+    "jarSha256": "bc8a4b9c36855225aa4b48bdf4fcff52447bae41322af5a0674266628057b389",
+    "matchesCiJar": true,
+    "cancellationCheckPresent": true,
+    "mainAskdbSupportPresent": true
+  },
+  {
+    "pod": "keel-server-7fd559fcfc-dt25h",
+    "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-server:fb20e24bd81d",
+    "imageID": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-server@sha256:d3da36a51a35f485f18a3fe6d03c1e65835b3d42f2c21a350579ccec4b77a157",
+    "jarSha256": "bc8a4b9c36855225aa4b48bdf4fcff52447bae41322af5a0674266628057b389",
+    "matchesCiJar": true,
+    "cancellationCheckPresent": true,
+    "mainAskdbSupportPresent": true
+  }
+]

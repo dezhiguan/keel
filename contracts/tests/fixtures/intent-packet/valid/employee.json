@@ -1,0 +1,18 @@
+{
+  "schema_version": "keel/v1",
+  "intent_primary": "retrieve_state",
+  "operation": "detail",
+  "complexity": "simple",
+  "needs_evidence": true,
+  "side_effect_hint": "read",
+  "clarity": "clear",
+  "slots": {
+    "env": "staging",
+    "agent_id": "keel-assistant"
+  },
+  "missing_slots": [],
+  "slot_sources": {
+    "env": "current_message",
+    "agent_id": "current_message"
+  }
+}

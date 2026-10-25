@@ -19,7 +19,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 C = ROOT / "contracts"
 EX = C / "examples"
 
-SCHEMAS = ["manifest.schema.json", "sse-events.schema.json", "audit-event.schema.json"]
+SCHEMAS = [name + ".schema.json" for name in ("manifest", "sse-events", "audit-event", "intent-routing", "intent-packet", "route-plan", "routing-context")]
 YAMLS = ["error-codes.yaml", "invoke.openapi.yaml"]
 
 failures: list[str] = []

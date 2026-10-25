@@ -24,6 +24,10 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: keel-routing-audit-policy
+                optional: true
           readinessProbe:
             tcpSocket: { port: 8080 }
             periodSeconds: 10

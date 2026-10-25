@@ -9,6 +9,29 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class RoutePolicyTest {
+    @Test void concurrentObservationsRetainEveryChannelAndAtomicFailureCounts() throws Exception {
+        var policy = new RoutePolicy();
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(50)) {
+            var calls = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+            for (int i = 0; i < 500; i++) {
+                final int channel = i / 2;
+                calls.add(pool.submit(() -> {
+                    start.await();
+                    policy.observe("channel-" + channel, true);
+                    policy.observe("success-" + channel, false, channel);
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (var call : calls) call.get(10, java.util.concurrent.TimeUnit.SECONDS);
+        }
+        for (int channel = 0; channel < 250; channel++) {
+            assertThat(policy.open("channel-" + channel)).isTrue();
+            assertThat(policy.latencyFor("success-" + channel)).isEqualTo(channel);
+        }
+    }
+
     @Test void twoFailuresOpenTheChannelAndTheNextPlanSkipsIt() {
         var policy = new RoutePolicy();
         var catalog = new ModelCatalog(Map.of(

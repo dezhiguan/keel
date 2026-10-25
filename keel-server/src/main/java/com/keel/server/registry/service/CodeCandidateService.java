@@ -83,6 +83,10 @@ public class CodeCandidateService {
         if (hasNewAnalysisTools(comparison,candidate))
             comparison=authorizedAnalysisComparison(comparison,candidate,analysisScopeGranted(name,env));
         comparison=authorizedHistoryComparison(name,env,comparison,candidate);
+        if (!comparison.path("spec").path("audit").equals(candidate.path("spec").path("audit"))) {
+            requireReconciliationAdmin(ConsolePrincipal.current());
+            comparison=authorizedRoutingAuditComparison(name,env,comparison,candidate);
+        }
         requireCompatible(comparison, candidate);
         if (candidate.equals(prior)) return Map.of("env", env, "manifestHash", body.path("expectedHash").asText());
         var declaredTools = new HashSet<String>();
@@ -140,6 +144,28 @@ public class CodeCandidateService {
         }
         return aligned;
     }
+
+    static JsonNode authorizedRoutingAuditComparison(String name,String env,JsonNode prior,JsonNode candidate) {
+        if (!"keel-assistant".equals(name) || !"staging".equals(env))
+            throw invalid("路由审计字段仅允许本助理 staging 对齐");
+        var before=prior.path("spec").path("audit");
+        var after=candidate.path("spec").path("audit");
+        if (!after.isObject() || !after.path("captureFields").isArray()) throw invalid("审计字段声明无效");
+        var allowed=java.util.Set.of("intent_primary","operation","route_mode","executor","plan_id","rule_id",
+                "policy_version","source","decision_reason","step_id","request_ref","capability_revision","step_status");
+        var fields=new HashSet<String>();
+        for(var field:after.path("captureFields"))
+            if(!field.isTextual() || !allowed.contains(field.asText()) || !fields.add(field.asText()))
+                throw invalid("仅允许固定路由审计白名单");
+        for(var field:before.path("captureFields"))
+            if(!fields.contains(field.asText()))throw invalid("不能移除已有审计字段");
+        ObjectNode oldOther=before.isObject() ? before.deepCopy() : jsonObject();
+        ObjectNode newOther=after.deepCopy();oldOther.remove("captureFields");newOther.remove("captureFields");
+        if(!oldOther.equals(newOther))throw invalid("不可变更其他审计策略");
+        ObjectNode aligned=prior.deepCopy();aligned.withObject("/spec").set("audit",after.deepCopy());return aligned;
+    }
+
+    private static ObjectNode jsonObject() { return new ObjectMapper().createObjectNode(); }
 
     static void requireReconciliationAdmin(ConsolePrincipal principal) {
         if (principal == null || principal.readOnly() || !"USER".equals(principal.mode())

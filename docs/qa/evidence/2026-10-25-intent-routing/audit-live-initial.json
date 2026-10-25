@@ -1,0 +1,27 @@
+{
+  "scope": "audit token/whitelist receiver integration; persistence not asserted",
+  "results": [
+    {
+      "pod": "keel-audit-68d9f6d988-jdfb4",
+      "trace": "2d606ec39f86429480d724136172f999",
+      "checks": {
+        "denied_status": false,
+        "allowed_status": true,
+        "one_event": false,
+        "whitelist": false
+      },
+      "passed": false
+    },
+    {
+      "pod": "keel-audit-68d9f6d988-t56q8",
+      "trace": "c1b2d62f6c1b42509d641791cdd08d9c",
+      "checks": {
+        "denied_status": false,
+        "allowed_status": true,
+        "one_event": false,
+        "whitelist": false
+      },
+      "passed": false
+    }
+  ]
+}

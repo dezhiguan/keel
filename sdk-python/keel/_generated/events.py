@@ -120,5 +120,5 @@ class SuspendEvent(KeelModel):
         return value.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
 
 
-for _model in (GuardrailEvent, StepEvent, ToolEvent, TokenEvent, FinalEvent, ErrorEvent, SuspendEvent):
+for _model in (GuardrailEvent, StepEvent, ToolEvent, TokenEvent, FinalEvent, ErrorEvent, SuspendEvent,):
     _model.model_rebuild()

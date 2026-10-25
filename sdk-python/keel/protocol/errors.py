@@ -16,6 +16,13 @@ def _safe_meta(meta):
         return {}
     import re
     out = {k: meta[k] for k in ('prompt_fallback', 'tool_attempts_complete') if type(meta.get(k)) is bool}
+    if isinstance(meta.get('routing'), dict):
+        from jsonschema import ValidationError
+        from keel.routing import validate_routing
+        try:
+            out['routing'] = validate_routing(meta['routing'])
+        except (ValueError, TypeError, ValidationError):
+            pass  # Invalid diagnostics must not mask the original business error.
     if isinstance(meta.get('prompt_versions'), dict):
         out['prompt_versions'] = {k:v for k,v in meta['prompt_versions'].items()
                                   if isinstance(k,str) and re.fullmatch(r'[a-zA-Z0-9_/-]{1,120}',k) and type(v) is int and v>0}

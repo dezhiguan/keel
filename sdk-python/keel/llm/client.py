@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 from keel.http_pool import new_async_client
 import openai
+import jsonschema
 from opentelemetry import trace
 
 from keel.protocol.errors import ErrorCode, KeelError
@@ -22,6 +23,19 @@ from keel.llm.tool_names import wire_tools
 logger = logging.getLogger(__name__)
 
 _DEFAULT_CONTEXT_BUDGET = 10_000
+
+
+def _finite_json(value):
+    raise ValueError("Non-finite JSON number")
+
+
+def _unique_json_object(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError("Duplicate JSON field")
+        value[key] = item
+    return value
 
 
 def context_token_budget() -> int | None:
@@ -107,7 +121,13 @@ class LlmClient:
     async def chat(self, messages: list[dict], model: str | None = None, prompt=None,
                    tools: list[dict] | None = None, tool_choice: str | dict | None = None,
                    emit_tokens: bool = True, max_tokens: int | None = None,
-                   purpose: str | None = None) -> str | ChatResult:
+                   purpose: str | None = None, response_schema: dict | None = None) -> str | ChatResult:
+        if response_schema is not None:
+            if tools is not None or tool_choice is not None:
+                raise ValueError("Structured classification cannot use business tools")
+            jsonschema.Draft202012Validator.check_schema(response_schema)
+            # Classification is internal even when the caller forgets this flag.
+            emit_tokens = False
         if purpose not in (None, "memory", "interactive"):
             raise ValueError("Unsupported model call purpose")
         chosen = model or self.default_model
@@ -130,7 +150,10 @@ class LlmClient:
         wire_messages, wire_definitions, original_names = wire_tools(messages, tools)
         budget = context_token_budget()
         if budget is not None:
-            used = estimate_context_tokens(wire_messages, wire_definitions if tools else None)
+            estimated_messages = wire_messages
+            if response_schema is not None:
+                estimated_messages = [*wire_messages, {"role": "system", "content": json.dumps(response_schema)}]
+            used = estimate_context_tokens(estimated_messages, wire_definitions if tools else None)
             if used > budget:
                 logger.warning("context window exceeded trace_id=%s agent=%s tokens=%s budget=%s",
                                self.trace_id, self.agent, used, budget)
@@ -138,6 +161,9 @@ class LlmClient:
         with self.tracer.start_as_current_span("llm.chat", attributes=attributes) as span:
             try:
                 options = {}
+                if response_schema is not None:
+                    options["response_format"] = {"type": "json_schema", "json_schema": {
+                        "name": "keel_structured_output", "strict": True, "schema": response_schema}}
                 config = getattr(prompt, "config", None) or {}
                 if "temperature" in config:
                     options["temperature"] = config["temperature"]
@@ -220,6 +246,18 @@ class LlmClient:
             reply = response.choices[0].message.content or ""
             if self.guard is not None:
                 reply = self.guard.redact(reply)
+            if response_schema is not None:
+                message = response.choices[0].message
+                try:
+                    if message.tool_calls or getattr(message, "refusal", None):
+                        raise ValueError("Classification refused or returned a tool call")
+                    if response.choices[0].finish_reason != "stop":
+                        raise ValueError("Incomplete classification")
+                    parsed = json.loads(reply, parse_constant=_finite_json, object_pairs_hook=_unique_json_object)
+                    jsonschema.Draft202012Validator(response_schema).validate(parsed)
+                except (ValueError, jsonschema.ValidationError) as exc:
+                    span.set_attribute(attrs.STATUS, "failed")
+                    raise KeelError(ErrorCode.SERVER_INTERNAL_ERROR, "模型分类结果未通过结构验证") from exc
             span.set_attribute(attrs.OBSERVATION_OUTPUT, reply)
             if tools is None:
                 return reply

@@ -31,8 +31,8 @@
 - file: manifest/invalid/undeclared-delegate.yaml
   expect: reject
   reason: /spec/delegates/0
-  registered_agents: [caller-agent]
-
+  registered_agents:
+  - caller-agent
 - file: sse-events/valid/step.json
   expect: accept
 - file: sse-events/valid/guardrail.json
@@ -58,7 +58,6 @@
 - file: sse-events/invalid/final-missing-run-id.json
   expect: reject
   reason: /data/run_id
-
 - file: audit-event/valid/basic.json
   expect: accept
 - file: audit-event/valid/with-unknown-field.json
@@ -69,8 +68,8 @@
 - file: audit-event/invalid/payload-not-whitelisted.json
   expect: reject
   reason: /payload/secret
-  capture_fields: [allowed]
-
+  capture_fields:
+  - allowed
 - file: canonical/key-order.json
   expect: accept
   canonical_sha256: 2e17a03b26c452b8e85e1b9c6cb1d1a59874cbb54f25101f95b0fc9a7962d37e
@@ -92,3 +91,44 @@
 - file: canonical/float-rejected.json
   expect: reject
   reason: /payload/amount
+- file: intent-routing/valid/task-query.json
+  expect: accept
+- file: intent-routing/invalid/mode.json
+  expect: reject
+  reason: /plan/mode
+- file: intent-routing/invalid/authority.json
+  expect: reject
+  reason: /intent/slots/authorization
+- file: intent-routing/invalid/operation.json
+  expect: reject
+  reason: /intent/operation
+- file: intent-routing/invalid/source.json
+  expect: reject
+  reason: /source
+- file: intent-packet/valid/employee.json
+  expect: accept
+- file: intent-packet/invalid/missing-env.json
+  expect: reject
+  reason: /slots/env
+- file: intent-packet/invalid/operation.json
+  expect: reject
+  reason: /operation
+- file: intent-packet/invalid/authority.json
+  expect: reject
+  reason: /slots/token
+- file: intent-packet/invalid/confidence.json
+  expect: reject
+  reason: /confidence
+- file: routing-context/valid/local.json
+  expect: accept
+- file: routing-context/invalid/raw-credential.json
+  expect: reject
+  reason: /cookie
+- file: route-plan/valid/local-read.json
+  expect: accept
+- file: route-plan/invalid/zero-timeout.json
+  expect: reject
+  reason: /steps/0/timeout_seconds
+- file: route-plan/invalid/version.json
+  expect: reject
+  reason: /schema_version

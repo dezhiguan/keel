@@ -1,0 +1,42 @@
+{
+  "schema_version": "keel/v1",
+  "plan_id": "plan_fixture",
+  "request_id": "request_fixture",
+  "revision": 1,
+  "mode": "local_fast",
+  "executor": "self",
+  "partial_policy": "independent_only",
+  "reason_code": "explicit_employee_query",
+  "policy_version": "assistant-staging-2",
+  "capability_revision": "capability:fixture",
+  "deadline_at": "2099-01-01T00:00:00Z",
+  "max_attempts": 1,
+  "retry_policy": "never",
+  "steps": [
+    {
+      "step_id": "read",
+      "intent": "retrieve_state",
+      "operation": "detail",
+      "mode": "local_fast",
+      "executor": "self",
+      "depends_on": [],
+      "status": "planned",
+      "input_refs": [
+        "current_message"
+      ],
+      "output_contract": "tool_result",
+      "precondition": {
+        "kind": "always"
+      },
+      "required_grants": [
+        "read_context"
+      ],
+      "evidence_requirements": [
+        "tool_result"
+      ],
+      "timeout_seconds": 0,
+      "max_attempts": 1,
+      "on_failure": "abort"
+    }
+  ]
+}

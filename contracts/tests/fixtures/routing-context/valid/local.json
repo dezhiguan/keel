@@ -1,0 +1,13 @@
+{
+  "schema_version": "keel/v1",
+  "principal_ref": "principal:fixture",
+  "session_id": "session:fixture",
+  "input_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "request_id": "request_fixture",
+  "authorization_ref": "authorization:reference",
+  "caller_agent": "keel-assistant",
+  "env": "staging",
+  "policy_version": "assistant-staging-2",
+  "capability_revision": "capability:fixture",
+  "deadline_at": "2099-01-01T00:00:00Z"
+}

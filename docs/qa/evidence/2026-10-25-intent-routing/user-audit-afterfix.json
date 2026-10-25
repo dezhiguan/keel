@@ -1,0 +1,315 @@
+{
+  "scope": "Five actual authenticated regression traces on memory-backed receivers; no durability assertion",
+  "results": [
+    {
+      "id": "IR-19-20-unknown-cancel-retained",
+      "traceId": "fc315ed755b45ea44dac6c64ecec61ec",
+      "terminal": "final",
+      "mode": "local_fast",
+      "planId": "plan_0f4bd1c7509c47baaa6ea317a0e5116b",
+      "checks": {
+        "planned": true,
+        "outcome": true,
+        "matching_plan": true,
+        "safe_fields": true
+      },
+      "passed": true,
+      "events": [
+        {
+          "event_id": "79d7bb2726d34afc89c76c29916653ac",
+          "ts": "2026-10-25T09:20:37.655491Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "pending",
+          "payload": {
+            "intent_primary": "task_manage",
+            "operation": "get",
+            "route_mode": "local_fast",
+            "executor": "self",
+            "plan_id": "plan_0f4bd1c7509c47baaa6ea317a0e5116b",
+            "rule_id": "task.get",
+            "policy_version": "assistant-staging-1",
+            "source": "gate",
+            "decision_reason": "explicit_command"
+          },
+          "resource": "intent.route.planned",
+          "trace_id": "fc315ed755b45ea44dac6c64ecec61ec",
+          "run_id": "421fcea286144a58942446eab1fb1ae6"
+        },
+        {
+          "event_id": "4488cbff6ad24167b8ee004fd3e8deb8",
+          "ts": "2026-10-25T09:20:38.308746Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "allowed",
+          "payload": {
+            "intent_primary": "task_manage",
+            "operation": "get",
+            "route_mode": "local_fast",
+            "executor": "self",
+            "plan_id": "plan_0f4bd1c7509c47baaa6ea317a0e5116b",
+            "rule_id": "task.get",
+            "policy_version": "assistant-staging-1",
+            "source": "gate",
+            "decision_reason": "explicit_command"
+          },
+          "resource": "intent.route.completed",
+          "trace_id": "fc315ed755b45ea44dac6c64ecec61ec",
+          "run_id": "421fcea286144a58942446eab1fb1ae6"
+        }
+      ]
+    },
+    {
+      "id": "IR-20-afterfix-retry",
+      "traceId": "ae1b2b08ab9429a8b9725effa13ea9cd",
+      "terminal": "error",
+      "mode": "local_fast",
+      "planId": "plan_f3121a36d1704c109ccc724fd9158d44",
+      "checks": {
+        "planned": true,
+        "outcome": true,
+        "matching_plan": true,
+        "safe_fields": true
+      },
+      "passed": true,
+      "events": [
+        {
+          "event_id": "3ab0acbb4c50416fb48603b3cd2ef863",
+          "ts": "2026-10-25T09:20:38.481802Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "pending",
+          "payload": {
+            "intent_primary": "task_manage",
+            "operation": "retry",
+            "route_mode": "local_fast",
+            "executor": "self",
+            "plan_id": "plan_f3121a36d1704c109ccc724fd9158d44",
+            "rule_id": "task.retry",
+            "policy_version": "assistant-staging-1",
+            "source": "gate",
+            "decision_reason": "explicit_command"
+          },
+          "resource": "intent.route.planned",
+          "trace_id": "ae1b2b08ab9429a8b9725effa13ea9cd",
+          "run_id": "8e4b80c259be44329984b2d49272d97e"
+        },
+        {
+          "event_id": "786b997608d7484eac01601a97d2eab1",
+          "ts": "2026-10-25T09:20:39.241701Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "denied",
+          "payload": {
+            "intent_primary": "task_manage",
+            "operation": "retry",
+            "route_mode": "local_fast",
+            "executor": "self",
+            "plan_id": "plan_f3121a36d1704c109ccc724fd9158d44",
+            "rule_id": "task.retry",
+            "policy_version": "assistant-staging-1",
+            "source": "gate",
+            "decision_reason": "explicit_command"
+          },
+          "resource": "intent.route.denied",
+          "trace_id": "ae1b2b08ab9429a8b9725effa13ea9cd",
+          "run_id": "8e4b80c259be44329984b2d49272d97e"
+        }
+      ]
+    },
+    {
+      "id": "IR-20-afterfix-no-new-attempt",
+      "traceId": "52e28f14e632551ac5b746366f5422b5",
+      "terminal": "final",
+      "mode": "local_fast",
+      "planId": "plan_d37eda36a38b44cfb0cf1a21c5b1993d",
+      "checks": {
+        "planned": true,
+        "outcome": true,
+        "matching_plan": true,
+        "safe_fields": true
+      },
+      "passed": true,
+      "events": [
+        {
+          "event_id": "bc17a66b5231467daff7bdd235baa7bd",
+          "ts": "2026-10-25T09:20:39.504653Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "pending",
+          "payload": {
+            "intent_primary": "task_manage",
+            "operation": "get",
+            "route_mode": "local_fast",
+            "executor": "self",
+            "plan_id": "plan_d37eda36a38b44cfb0cf1a21c5b1993d",
+            "rule_id": "task.get",
+            "policy_version": "assistant-staging-1",
+            "source": "gate",
+            "decision_reason": "explicit_command"
+          },
+          "resource": "intent.route.planned",
+          "trace_id": "52e28f14e632551ac5b746366f5422b5",
+          "run_id": "3685f8c4fc7d4fdab7c5daf2dd1bb674"
+        },
+        {
+          "event_id": "c06c27e4655245f6acdb3ddfc8ae4270",
+          "ts": "2026-10-25T09:20:39.639097Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "allowed",
+          "payload": {
+            "intent_primary": "task_manage",
+            "operation": "get",
+            "route_mode": "local_fast",
+            "executor": "self",
+            "plan_id": "plan_d37eda36a38b44cfb0cf1a21c5b1993d",
+            "rule_id": "task.get",
+            "policy_version": "assistant-staging-1",
+            "source": "gate",
+            "decision_reason": "explicit_command"
+          },
+          "resource": "intent.route.completed",
+          "trace_id": "52e28f14e632551ac5b746366f5422b5",
+          "run_id": "3685f8c4fc7d4fdab7c5daf2dd1bb674"
+        }
+      ]
+    },
+    {
+      "id": "IR-33-afterfix-original-report",
+      "traceId": "2c7675603fadb0d2f73ab9951bd00ecf",
+      "terminal": "final",
+      "mode": "local_fast",
+      "planId": "plan_044bdaee03134ee4b817f304263d7035",
+      "checks": {
+        "planned": true,
+        "outcome": true,
+        "matching_plan": true,
+        "safe_fields": true
+      },
+      "passed": true,
+      "events": [
+        {
+          "event_id": "4f9ec48ca3a642ac8e5d19f572cf97b8",
+          "ts": "2026-10-25T09:20:39.764006Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "pending",
+          "payload": {
+            "intent_primary": "task_manage",
+            "operation": "get",
+            "route_mode": "local_fast",
+            "executor": "self",
+            "plan_id": "plan_044bdaee03134ee4b817f304263d7035",
+            "rule_id": "task.get",
+            "policy_version": "assistant-staging-1",
+            "source": "gate",
+            "decision_reason": "explicit_command"
+          },
+          "resource": "intent.route.planned",
+          "trace_id": "2c7675603fadb0d2f73ab9951bd00ecf",
+          "run_id": "185c4b6beb77475e92543671365b6526"
+        },
+        {
+          "event_id": "2db1762880cc43ca8a74129ef8fc5103",
+          "ts": "2026-10-25T09:20:39.924243Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "allowed",
+          "payload": {
+            "intent_primary": "task_manage",
+            "operation": "get",
+            "route_mode": "local_fast",
+            "executor": "self",
+            "plan_id": "plan_044bdaee03134ee4b817f304263d7035",
+            "rule_id": "task.get",
+            "policy_version": "assistant-staging-1",
+            "source": "gate",
+            "decision_reason": "explicit_command"
+          },
+          "resource": "intent.route.completed",
+          "trace_id": "2c7675603fadb0d2f73ab9951bd00ecf",
+          "run_id": "185c4b6beb77475e92543671365b6526"
+        }
+      ]
+    },
+    {
+      "id": "IR-03-afterfix",
+      "traceId": "c0be670fbc2f573e0f1fdc02c7d4ccad",
+      "terminal": "final",
+      "mode": "local_fast",
+      "planId": "plan_479143f239b744d3b2aded3e6e4efb94",
+      "checks": {
+        "planned": true,
+        "outcome": true,
+        "matching_plan": true,
+        "safe_fields": true
+      },
+      "passed": true,
+      "events": [
+        {
+          "event_id": "7873494fcba74167a84d309370efbdad",
+          "ts": "2026-10-25T09:20:40.034126Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "pending",
+          "payload": {
+            "intent_primary": "retrieve_state",
+            "operation": "detail",
+            "route_mode": "local_fast",
+            "executor": "self",
+            "plan_id": "plan_479143f239b744d3b2aded3e6e4efb94",
+            "rule_id": "read.employees",
+            "policy_version": "assistant-staging-1",
+            "source": "rule",
+            "decision_reason": "bounded_read_tools"
+          },
+          "resource": "intent.route.planned",
+          "trace_id": "c0be670fbc2f573e0f1fdc02c7d4ccad",
+          "run_id": "90193ea9d76047eb9c7829e3d8d05f15"
+        },
+        {
+          "event_id": "7dc88b4c0dfd4fed8e8e686f74f4bd84",
+          "ts": "2026-10-25T09:20:44.595117Z",
+          "agent": "keel-assistant",
+          "env": "staging",
+          "action": "invoke",
+          "risk": "low",
+          "decision": "allowed",
+          "payload": {
+            "intent_primary": "retrieve_state",
+            "operation": "detail",
+            "route_mode": "local_fast",
+            "executor": "self",
+            "plan_id": "plan_479143f239b744d3b2aded3e6e4efb94",
+            "rule_id": "read.employees",
+            "policy_version": "assistant-staging-1",
+            "source": "rule",
+            "decision_reason": "bounded_read_tools"
+          },
+          "resource": "intent.route.completed",
+          "trace_id": "c0be670fbc2f573e0f1fdc02c7d4ccad",
+          "run_id": "90193ea9d76047eb9c7829e3d8d05f15"
+        }
+      ]
+    }
+  ]
+}

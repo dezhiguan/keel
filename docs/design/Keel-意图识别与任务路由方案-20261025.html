@@ -406,6 +406,7 @@ retry：仅允许状态 + 用户明确请求与重复费用确认 + 当前授权
 <section class="sec" id="s10"><div class="sec-h reveal"><div class="no">10</div><h2>依据与待核实项</h2><p>结论有源码与官方资料可查；未知项明确阻断相应功能。</p></div>
 <h3 class="sub reveal">仓库事实来源</h3>
 <ol class="refs reveal">
+<li>2026-10-25 实施状态：Phase A 已提交并部署 staging 候选，SDK 1.0.20、助理 0.4.0，双副本源码核对与 8 项服务冒烟通过。真实 USER 及链路页面已补测；运行中取消转 unknown 后仍可重试的缺陷已修复部署，5 项复测通过。B/C、远端与慢分类未启用，审计仍非数据库持久化。详见 <a href="../qa/2026-10-25-intent-routing.md">实施与验收记录</a>，不等于全部 35 项或正式发布完成。</li>
 <li><a href="../../AGENTS.md">AGENTS.md</a>：契约优先、模型调用路径、审计白名单与高风险同步写入、追踪约束。</li>
 <li><a href="../architecture/Keel-技术文档.html">Keel 技术文档</a> 与 <a href="../../README.md">项目 README</a>：架构目标与当前模块边界；现状仍以本地源码和部署证据核实。</li>
 <li><a href="../../contracts/manifest.schema.json">manifest</a>、<a href="../../contracts/invoke.openapi.yaml">invoke</a>、<a href="../../contracts/assistant-tasks.openapi.yaml">assistant tasks</a>、<a href="../../contracts/employee-read.schema.json">employee read</a>、<a href="../../contracts/audit-event.schema.json">audit event</a>：已有授权、任务与审计契约。</li>
@@ -414,7 +415,7 @@ retry：仅允许状态 + 用户明确请求与重复费用确认 + 当前授权
 <li>同级独立仓库 <code>keel-assistant/docs/spec-v0.3-single-agent.md</code>、<code>assistant/conversation.py</code>、<code>assistant/tasks/commands.py</code>、<code>assistant/tasks/receipts.py</code>：当前个人助理的单 Agent 任务规范及入口，不作为底座跨仓源码依赖。</li>
 </ol><h3 class="sub reveal">待核实项与阻断范围</h3>
 <div class="table-scroll reveal"><table class="doc"><thead><tr><th>待核实 / 待实施</th><th>启用前需要的证据</th><th>未完成时</th></tr></thead><tbody>
-<tr><td>线上版本及能力开关</td><td>实际部署镜像、SDK、策略、授权与任务 scope；本次文档编辑未查询集群。</td><td>不得以本地源码推断线上已有能力。</td></tr>
+<tr><td>线上版本及能力开关</td><td>Phase A staging 候选已核对镜像、SDK 1.0.20、assistant-staging-1 策略及双副本源文件；已补真实 USER、多轮、任务与路由页面，平台修复镜像 fb20e24 的双副本 JAR 与 CI 一致。</td><td>共享故障注入、第二个真实 USER 及正式发布门禁仍分别记录，不以单账号冒充全量验收。</td></tr>
 <tr><td>分类模型 / 网关兼容性</td><td>目标模型支持的结构化格式、受控 SDK 参数及失败语义；遵守 external-apis.mdc 核实规则。</td><td>慢分类开关关闭，保留当前受限路径。</td></tr>
 <tr><td>远端身份与长任务授权</td><td>现行 auth-gateway 换票/委托规范、撤销与恢复验证；不凭本文推定外部接口。</td><td>remote 关闭，不缓存旧票据当长期授权。</td></tr>
 <tr><td>持久化目录 / 任务与账本协议</td><td>按 env/version 的能力索引、去重事务、查询取消及费用对账共享契约和故障证据。</td><td>不开放真实远端受理和自动重试。</td></tr>
