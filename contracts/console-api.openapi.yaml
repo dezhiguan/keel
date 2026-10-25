@@ -389,6 +389,33 @@ paths:
           $ref: "#/components/responses/Error"
 
   /agents/{name}/candidate:
+    get:
+      tags: [agents]
+      summary: 读取候选更新使用的清单基线
+      description: 返回与候选PUT一致的最新staging行。与正式详情快照分离，使用已有智能体访问权限，不返回Secret；PUT仍须校验expectedHash。
+      parameters:
+        - $ref: '#/components/parameters/AgentName'
+        - in: query
+          name: env
+          schema: {type: string, enum: [staging], default: staging}
+      responses:
+        '200':
+          description: 候选修改基线
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: {type: string}
+                  data:
+                    type: object
+                    required: [env, manifestHash, manifest]
+                    properties:
+                      env: {type: string}
+                      manifestHash: {type: string}
+                      manifest: {type: object, additionalProperties: true}
+        '400': {$ref: '#/components/responses/Error'}
+        '403': {$ref: '#/components/responses/Error'}
     put:
       tags: [agents]
       summary: 更新代码智能体的未发布候选配置

@@ -11,6 +11,11 @@ public class CodeCandidateController {
     private final CodeCandidateService candidates;
     public CodeCandidateController(CodeCandidateService candidates) { this.candidates = candidates; }
 
+    @GetMapping("/api/v1/agents/{name}/candidate")
+    public R<Map<String,Object>> read(@PathVariable String name,@RequestParam(defaultValue="staging") String env) {
+        return R.ok(candidates.read(name,env));
+    }
+
     @PutMapping("/api/v1/agents/{name}/candidate")
     public R<Map<String, String>> update(@PathVariable String name, @RequestBody JsonNode body) {
         return R.ok(candidates.update(name, body));

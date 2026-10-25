@@ -41,6 +41,17 @@ public class CodeCandidateService {
         this.endpoints = endpoints; this.metaBridgeToken = metaBridgeToken;
     }
 
+    public Map<String,Object> read(String name,String env) {
+        catalog.authorize(name);
+        if(!"staging".equals(env))throw invalid("候选环境须为 staging；dev/test 已停用");
+        var rows=jdbc.queryForList("SELECT manifest_json::text AS manifest,manifest_hash FROM agent_version WHERE agent_name=? AND env=? ORDER BY released_at DESC,id DESC LIMIT 1",name,env);
+        if(rows.isEmpty())throw invalid("当前环境尚无候选基线");
+        try {
+            return Map.of("env",env,"manifestHash",rows.getFirst().get("manifest_hash"),
+                    "manifest",json.readTree((String)rows.getFirst().get("manifest")));
+        } catch(com.fasterxml.jackson.core.JsonProcessingException error) {throw invalid("当前智能体清单无效");}
+    }
+
     @Transactional
     public Map<String, String> update(String name, JsonNode body) {
         var actor = ConsolePrincipal.requireUsername();
