@@ -137,6 +137,16 @@ class AgentChatServiceTest {
         }
     }
 
+    @Test void careerMateUsesAuthenticatedSubjectInsteadOfDisplayName() {
+        var user = new com.keel.server.auth.ConsolePrincipal(
+                "USER", "54", "account", "Shared name", "org", "ADMIN", List.of(), false);
+        assertThat(AgentChatService.callerIdentity("careermate-keel", user)).isEqualTo("54");
+        assertThat(AgentChatService.callerIdentity("careermate", user)).isEqualTo("54");
+        assertThat(AgentChatService.callerIdentity("careermate-keel", null)).isNull();
+        assertThat(AgentChatService.callerIdentity("careermate-keel", com.keel.server.auth.ConsolePrincipal.preview())).isNull();
+        assertThat(AgentChatService.callerIdentity("careermate-keel", com.keel.server.auth.ConsolePrincipal.service("service"))).isNull();
+    }
+
     private void rejected() {
         assertThatThrownBy(() -> service.chat("qa-agent", "hello"))
                 .isInstanceOfSatisfying(KeelException.class, error -> org.assertj.core.api.Assertions.assertThat(error.code())

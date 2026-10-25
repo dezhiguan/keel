@@ -34,3 +34,5 @@ agent.yaml 声明模型、提示词、工具风险与权限、记忆、审计、
 ## 线上身份兼容补充
 
 2026-10-25 实际控制台对 careermate 返回 404，但名称检查显示已占用；登记新运行时使用 careermate-keel，不复用已移除身份。AgentChatService 与 SelfCheckService 对新标识复用 CareerMate 独立桥接凭据；首次数据集种子按新标识提供。
+
+线上工具验收发现显示名不能作为业务主体：CareerMate 的 context.user_id 必须传已验证 ConsolePrincipal.userId；AskDB 用户名及其他智能体显示名语义保持原协议。SDK 暂停恢复须保留原调用的用户和会话上下文，不接受恢复请求覆盖身份。

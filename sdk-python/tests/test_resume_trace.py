@@ -29,11 +29,13 @@ def test_resume_uses_real_trace_for_protocol_checkpoint_and_model_client(tmp_pat
     path.write_text('apiVersion: keel/v1\nmetadata:\n  name: resume-trace-agent\nspec:\n  runtime:\n    endpoint: http://localhost:8000\n  models:\n    default: chat-default\n')
     agent=Agent.from_manifest(path)
     seen=[]
+    identities=[]
 
     @agent.entry
     async def handle(request, ctx):
         actual=f'{trace.get_current_span().get_span_context().trace_id:032x}'
         seen.append((actual,ctx.trace_id,ctx.llm.trace_id))
+        identities.append(ctx.user_id)
         if not getattr(request,'resume',False) or terminal=='suspend':
             return ctx.suspend('input_required',ref=ctx.run_id,prompt='需要反馈')
         if terminal=='error': raise KeelError(ErrorCode.SERVER_INVALID_PARAM)
@@ -46,8 +48,9 @@ def test_resume_uses_real_trace_for_protocol_checkpoint_and_model_client(tmp_pat
         assert response.status_code==200
         events=[json.loads(line[6:]) for line in response.text.splitlines() if line.startswith('data: ')]
         return events[-1]
-    first=asyncio.run(post('/v1/invoke',{'input':{'text':'开始'}}))
-    resumed=asyncio.run(post('/v1/runs/'+first['run_id']+'/resume',{'resume_token':first['resume_token'],'input':{'text':'继续'}}))
+    first=asyncio.run(post('/v1/invoke',{'input':{'text':'开始'}, 'context':{'user_id':'54'}}))
+    resumed=asyncio.run(post('/v1/runs/'+first['run_id']+'/resume',{'resume_token':first['resume_token'],'input':{'text':'继续'}, 'context':{'user_id':'other-user'}}))
+    assert identities == ['54', '54']
     assert all(actual==protocol==model for actual,protocol,model in seen)
     assert resumed['trace_id']==seen[-1][0]
     assert seen[0][0]!=seen[-1][0]

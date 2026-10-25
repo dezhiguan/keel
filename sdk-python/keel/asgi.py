@@ -134,7 +134,7 @@ def create_app(agent) -> Starlette:
                                 if isinstance(event, SuspendEvent):
                                     root.set_attribute(attrs.RUN_SUSPENDED, True)
                                     _remember(agent.name, run_id, trace_id, data.get("input"), event, context.pending,
-                                              context.session_id, context.eval_run_id)
+                                              context.session_id, context.eval_run_id, data.get("context"))
                                 if isinstance(event, ErrorEvent):
                                     root.set_attribute(attrs.STATUS, "failed")
                                 terminal = True
@@ -149,7 +149,7 @@ def create_app(agent) -> Starlette:
                         if isinstance(result, SuspendEvent):
                             root.set_attribute(attrs.RUN_SUSPENDED, True)
                             _remember(agent.name, run_id, trace_id, data.get("input"), result, context.pending,
-                                      context.session_id, context.eval_run_id)
+                                      context.session_id, context.eval_run_id, data.get("context"))
                         if isinstance(result, ErrorEvent):
                             root.set_attribute(attrs.STATUS, "failed")
                         events.put_nowait(result)
@@ -288,7 +288,8 @@ def create_app(agent) -> Starlette:
             resumed["text"] = reply
         elif record.get("input_text"):
             resumed["text"] = record["input_text"]
-        return await invoke_resume(request, {"input": resumed, "session_id": record.get("session_id")},
+        return await invoke_resume(request, {"input": resumed, "session_id": record.get("session_id"),
+                                             "context": record.get("context")},
                                    record["run_id"], original, delegation_token=delegation_token,
                                    eval_run_id=record.get("eval_run_id"))
 
@@ -327,7 +328,7 @@ def create_app(agent) -> Starlette:
                         if isinstance(result, SuspendEvent):
                             root.set_attribute(attrs.RUN_SUSPENDED, True)
                             _remember(agent.name, run_id, trace_id, original, result, context.pending,
-                                      context.session_id, context.eval_run_id)
+                                      context.session_id, context.eval_run_id, data.get("context"))
                         events.put_nowait(result)
                     elif result is not None:
                         events.put_nowait(context.final(str(result)))
@@ -424,7 +425,7 @@ def _budget(request: Request) -> dict:
 
 def _remember(agent: str, run_id: str, trace_id: str, payload: dict | None,
               event: SuspendEvent, pending: dict | None, session_id: str | None,
-              eval_run_id: str | None) -> None:
+              eval_run_id: str | None, invocation_context: dict | None = None) -> None:
     pending = pending or {}
     save_run({
         "run_id": run_id, "agent": agent, "status": "SUSPENDED",
@@ -433,6 +434,8 @@ def _remember(agent: str, run_id: str, trace_id: str, payload: dict | None,
         "input": payload or {}, "checkpoint_ref": pending.get("checkpoint_ref") or event.ref,
         "approval_id": pending.get("approval_id"), "input_text": pending.get("input_text"),
         "session_id": session_id, "eval_run_id": eval_run_id,
+        "context": {key: value for key, value in (invocation_context or {}).items()
+                    if key in ("user_id", "session_messages")},
     })
 
 

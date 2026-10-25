@@ -87,7 +87,7 @@ public class AgentChatService {
         AgentEndpointClient.Answer answer;
         long started = System.nanoTime();
         try {
-            var userId = "askdb".equals(name) ? callerUsername(ConsolePrincipal.current()) : callerLabel();
+            var userId = callerIdentity(name, ConsolePrincipal.current());
             var rag = secrets == null ? null : secrets.knowledgeCredential(name);
             var bridge = bridgeToken(name);
             if (sessionId != null) {
@@ -148,7 +148,7 @@ public class AgentChatService {
         var env = detail.summary().env();
         if ("echo".equals(name)) credentials.ensure(name);
         var endpoint = registry.invokeEndpoint(name);
-        var userId = "askdb".equals(name) ? callerUsername(principal) : callerLabel(principal);
+        var userId = callerIdentity(name, principal);
         var rag = secrets == null ? null : secrets.knowledgeCredential(name);
         var bridge = bridgeToken(name);
         var history = remember ? sessions.history(name, owner, sessionId) : List.<Map<String, String>>of();
@@ -240,6 +240,15 @@ public class AgentChatService {
     }
 
     /** Display name when the console user has one. Preview sessions are not an operator. */
+    /** CareerMate resolves the authenticated subject, never a mutable display name. */
+    static String callerIdentity(String name, ConsolePrincipal principal) {
+        if ("careermate".equals(name) || "careermate-keel".equals(name)) {
+            return principal == null || principal.readOnly() || !"USER".equals(principal.mode())
+                    ? null : principal.userId();
+        }
+        return "askdb".equals(name) ? callerUsername(principal) : callerLabel(principal);
+    }
+
     private static String callerUsername(ConsolePrincipal principal) {
         return principal == null || principal.readOnly() ? null : principal.username();
     }
