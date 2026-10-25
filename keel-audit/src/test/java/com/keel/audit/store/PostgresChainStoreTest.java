@@ -69,6 +69,10 @@ class PostgresChainStoreTest {
             }
         }
         assertThat(new ChainVerifyJob(chain, store).verify("askdb")).isEmpty();
+        assertThat(new ChainVerifyJob(chain, store).verify("")).isEmpty();
+        var persisted = new com.keel.audit.query.AuditLog(new PostgresChainStore(dataSource));
+        assertThat(persisted.filter("askdb",null,null,null,null,null,1,20)).hasSize(3);
+        assertThat(persisted.total(null,null,null,null,null,null)).isGreaterThanOrEqualTo(3);
         var tampered = List.of(rows.get(0),
                 new ChainStore.Link("pg2", "askdb", rows.get(1).prevHash(), rows.get(1).hash(), "{\"tampered\":true}"));
         assertThat(chain.brokenAt(tampered)).contains("pg2");

@@ -8,10 +8,30 @@ import java.util.List;
 
 /** Queryable copy of events after masking. The chain store remains the hash source. */
 public class AuditLog {
-    private final List<JsonNode> events = new ArrayList<>();
+    private final List<JsonNode> events = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private final com.keel.audit.chain.ChainStore store;
+    public AuditLog() { this(null); }
+    public AuditLog(com.keel.audit.chain.ChainStore store) { this.store = store; }
+
+    private List<JsonNode> snapshot(String agent) {
+        if (store == null) return List.copyOf(events);
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        return store.list(agent == null ? "" : agent).stream().map(link -> {
+            try {
+                var event = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(link.canonicalJson());
+                event.put("hash", link.hash());
+                event.put("prevHash", link.prevHash());
+                event.put("hashVerified", com.keel.audit.chain.CanonicalHash.sha256(link.canonicalJson(),
+                        link.prevHash() == null ? "" : link.prevHash()).equals(link.hash())
+                        && event.path("prev_hash").asText("").equals(link.prevHash() == null ? "" : link.prevHash()));
+                return (JsonNode) event;
+            } catch (java.io.IOException error) { throw new IllegalStateException("Invalid persisted audit event", error); }
+        }).sorted(java.util.Comparator.comparing((JsonNode e) -> java.time.Instant.parse(e.path("ts").asText())).reversed()
+                .thenComparing(e -> e.path("event_id").asText())).toList();
+    }
 
     public void add(JsonNode event) {
-        events.add(event);
+        if (store == null) events.add(event);
     }
 
     public List<JsonNode> filter(String agent, String action, String risk, String traceId, Instant from, Instant to, int page, int size) {
@@ -19,7 +39,7 @@ public class AuditLog {
     }
 
     public List<JsonNode> filter(String env, String agent, String action, String risk, String traceId, Instant from, Instant to, int page, int size) {
-        var matched = events.stream().filter(event -> matches(event, env, agent, action, risk, traceId, from, to)).toList();
+        var matched = snapshot(agent).stream().filter(event -> matches(event, env, agent, action, risk, traceId, from, to)).toList();
         int start = Math.max(0, (page - 1) * size);
         if (start >= matched.size()) {
             return List.of();
@@ -32,7 +52,7 @@ public class AuditLog {
     }
 
     public int total(String env, String agent, String action, String risk, String traceId, Instant from, Instant to) {
-        return (int) events.stream().filter(event -> matches(event, env, agent, action, risk, traceId, from, to)).count();
+        return (int) snapshot(agent).stream().filter(event -> matches(event, env, agent, action, risk, traceId, from, to)).count();
     }
 
     private static boolean matches(JsonNode event, String env, String agent, String action, String risk, String traceId, Instant from, Instant to) {

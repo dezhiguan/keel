@@ -83,6 +83,11 @@ class HashChainTest {
                 store.list("askdb").get(0),
                 new ChainStore.Link("e2", "askdb", store.list("askdb").get(1).prevHash(), store.list("askdb").get(1).hash(), "{\"tampered\":true}"));
         assertThat(chain.brokenAt(broken)).contains("e2");
+        var tamperedStore = new MemoryChainStore() {
+            @Override public List<ChainStore.Link> list(String agent) { return broken; }
+        };
+        assertThat(new ChainVerifyJob(chain,tamperedStore).verify("askdb")).contains("e2");
+        assertThat(new ChainVerifyJob(chain,new MemoryChainStore()).verify("")).isEmpty();
         assertThat(chain.brokenAt(List.of())).isEmpty();
         assertThat(chain.brokenAt(List.of(new ChainStore.Link("e9", "askdb", "ffff", "abcd", "{}")))).contains("e9");
         assertThat(chain.brokenAt(List.of(new ChainStore.Link("e8", "askdb", null, "abcd", "{}")))).contains("e8");

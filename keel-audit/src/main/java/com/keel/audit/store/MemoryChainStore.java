@@ -12,7 +12,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class MemoryChainStore implements ChainStore {
     private final ConcurrentHashMap<String, ReentrantLock> locks = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Head> heads = new ConcurrentHashMap<>();
-    private final List<Link> rows = new ArrayList<>();
+    private final List<Link> rows = new java.util.concurrent.CopyOnWriteArrayList<>();
     private final ThreadLocal<Link> pending = new ThreadLocal<>();
     private boolean failInsert;
     private boolean failAsAudit;
@@ -75,6 +75,6 @@ public class MemoryChainStore implements ChainStore {
 
     @Override
     public List<Link> list(String agent) {
-        return rows.stream().filter(row -> row.agent().equals(agent)).toList();
+        return rows.stream().filter(row -> agent == null || agent.isBlank() || row.agent().equals(agent)).toList();
     }
 }

@@ -97,9 +97,10 @@ public class AuditEventMapper {
     public List<ChainStore.Link> listEvents(Connection connection, String agent) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("""
                 SELECT event_id, agent, prev_hash, hash, canonical_json
-                FROM audit_event WHERE agent = ?
+                FROM audit_event WHERE (? = '' OR agent = ?) ORDER BY ts, event_id
                 """)) {
             statement.setString(1, agent);
+            statement.setString(2, agent);
             try (ResultSet rows = statement.executeQuery()) {
                 var links = new java.util.ArrayList<ChainStore.Link>();
                 while (rows.next()) {

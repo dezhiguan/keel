@@ -61,8 +61,8 @@ public class AuditConfiguration {
     }
 
     @Bean
-    AuditLog auditLog() {
-        return new AuditLog();
+    AuditLog auditLog(ChainStore store) {
+        return new AuditLog(store);
     }
 
     @Bean

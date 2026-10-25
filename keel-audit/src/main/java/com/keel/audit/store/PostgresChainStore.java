@@ -116,7 +116,10 @@ public class PostgresChainStore implements ChainStore {
     @Override
     public List<Link> list(String agent) {
         try (Connection connection = dataSource.getConnection()) {
-            return order(mapper.listEvents(connection, agent));
+            return mapper.listEvents(connection, agent).stream()
+                    .collect(java.util.stream.Collectors.groupingBy(Link::agent, LinkedHashMap::new,
+                            java.util.stream.Collectors.toList())).values().stream()
+                    .flatMap(rows -> order(rows).stream()).toList();
         } catch (SQLException e) {
             throw new IllegalStateException(e);
         }

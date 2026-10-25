@@ -100,6 +100,8 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            - name: KEEL_RUNTIME_AUDIT_URL
+              value: http://keel-audit.keel-system.svc.cluster.local:8080
             - name: KEEL_REDIS_URL
               valueFrom:
                 secretKeyRef:

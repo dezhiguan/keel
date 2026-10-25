@@ -20,6 +20,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/audit")
 public class AuditConsoleController {
+    @org.springframework.beans.factory.annotation.Autowired
+    private RuntimeAuditQuery runtime;
     private final AuditStore store;
     private final String auditUrl;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
@@ -42,7 +44,8 @@ public class AuditConsoleController {
                     + "&env=" + value(env) + "&action=" + value(action) + "&kind=" + value(kind)
                     + "&page=" + page + "&size=" + size);
         }
-        return R.ok(store.page(agent, risk, env, action, kind, page, size));
+        return R.ok(runtime != null && runtime.enabled() ? runtime.page(agent,risk,env,action,kind,page,size)
+                : store.page(agent, risk, env, action, kind, page, size));
     }
 
     @PostMapping("/verify")
@@ -50,7 +53,7 @@ public class AuditConsoleController {
         if (!auditUrl.isBlank()) {
             return forward("/api/v1/audit/verify?agent=" + value(agent));
         }
-        return R.ok(store.verify(agent));
+        return R.ok(runtime != null && runtime.enabled() ? runtime.verify(agent) : store.verify(agent));
     }
 
     @PostMapping("/exports")

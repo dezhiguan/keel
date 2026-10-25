@@ -12,6 +12,11 @@ public class ChainVerifyJob {
     }
 
     public Optional<String> verify(String agent) {
-        return chain.brokenAt(store.list(agent));
+        var groups = store.list(agent).stream().collect(java.util.stream.Collectors.groupingBy(ChainStore.Link::agent));
+        for (var links : groups.values()) {
+            var broken = chain.brokenAt(links);
+            if (broken.isPresent()) return broken;
+        }
+        return Optional.empty();
     }
 }

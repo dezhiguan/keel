@@ -52,7 +52,7 @@ public class AuditQueryController {
         long started = System.currentTimeMillis();
         var broken = verifyJob.verify(agent == null ? "" : agent);
         var data = new LinkedHashMap<String, Object>();
-        data.put("checked", broken.isPresent() ? 1 : 0);
+        data.put("checked", log.total(agent, null, null, null, null, null));
         data.put("intact", broken.isEmpty());
         data.put("brokenAt", broken.orElse(null));
         data.put("elapsedMs", System.currentTimeMillis() - started);
