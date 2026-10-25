@@ -1,0 +1,7 @@
+{
+  "oldImage": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-server:aa107ee5b23e",
+  "newImage": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-server:fb20e24bd81d",
+  "onlyImageChanged": true,
+  "priorMainRevision": "aa107ee5b23e939cb3bbdac5e2cbdd26f31ea071",
+  "sourceRevision": "fb20e24bd81dd61b4e837b1bb8db46e2642e2ed1"
+}
