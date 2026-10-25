@@ -3,7 +3,7 @@
 Run on the application node after the routing image is Ready. Preserves other
 configured policies, and CAS-checks the audit image before changing deployment.
 """
-import argparse,base64,json,subprocess
+import argparse,base64,hashlib,json,subprocess
 
 p=argparse.ArgumentParser();p.add_argument('--image',required=True);p.add_argument('--expected-image',required=True);p.add_argument('--application-version',default='0.4.0');p.add_argument('--apply',action='store_true');args=p.parse_args()
 
@@ -37,6 +37,9 @@ assert container['image']==args.expected_image,'Audit image changed; inspect bef
 refs=container.get('envFrom',[])
 patch=[{'op':'test','path':'/spec/template/spec/containers/0/image','value':args.expected_image},
        {'op':'replace','path':'/spec/template/spec/containers/0/image','value':args.image}]
+annotations=dict(deployment['spec']['template']['metadata'].get('annotations') or {})
+annotations['keel.routing/audit-policy-sha256']=hashlib.sha256(json.dumps(policies,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+patch.append({'op':'add','path':'/spec/template/metadata/annotations','value':annotations})
 if not any(ref.get('secretRef',{}).get('name')==name for ref in refs):
     patch.append({'op':'add','path':'/spec/template/spec/containers/0/envFrom',
                   'value':refs+[{'secretRef':{'name':name}}]})
