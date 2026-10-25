@@ -15,3 +15,5 @@
 实现范围包括 contracts、codegen、SDK、必要平台审核/审计/任务及部署文件，独立助手 intent/入口/工具观测/提示词/评测/测试/部署，以及设计和QA/UI清单。新增展示使用已有TraceDetail节点输出，先对照控制台原型；不引入无关页面或直接修改运行容器。
 
 部署核查补充：正式详情有意返回已发布快照，而候选更新以最新 staging 行校验 expectedHash。补充同权限的 GET candidate 接口，返回与 PUT 相同选择规则的 manifest/hash/env，不改变正式详情语义，不读取凭据或运行 Secret；后续 PUT 仍以 CAS 拒绝并发修改。用此接口正常补齐候选审计声明，不直接写数据库，也不改正式版本。
+
+A阶段的等价路径：analyze_document.submit可由原任务命令create表达；当前不支持的release动作以action_request.execute通用拒绝，不表示发布能力已启用。任务引用必须完整匹配合法ID，不能从更长ASCII标识截取32位前缀来执行取消。

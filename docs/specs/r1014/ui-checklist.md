@@ -156,3 +156,5 @@
 
 - R1025-intent-routing：复用链路节点既有 outputSummary 展示 intent.route / intent.route.result，包含意图、模式、规则、执行者与结果，不改原型布局或控制台字段。已补真实 USER 及独立浏览器点击验收：调用树、路由输出摘要、两个路由节点及无页面错误通过；真实业务补测发现的取消后 unknown 重试问题已修复并部署，5 项复测通过。完整阶段及未完成项见 [记录](../../qa/2026-10-25-intent-routing.md)。
 - R1025 AskDB 生命周期：复用现有注册、调试、提示词、测评、追踪、审计与版本页面；SDK 接入与底座独立内部凭据已实现，专项回归通过，真实控制台及 staging 全生命周期验收待有效登录态。见 ../r1025/askdb-lifecycle.md。
+
+- R1026-intent-local-plan：复用TraceDetail调用树/节点详情显示intent.route、intent.step与intent.route.result；真实浏览器验证plan/step/request/policy/能力修订及终态，无页面错误，状态事件不冒充步骤耗时。设计第08节35项逐条补验证状态。详见 [本地补齐验收](../../qa/2026-10-26-intent-local-completion.md)。
