@@ -1,0 +1,31 @@
+{
+  "schema_version": "keel/v1",
+  "policy_version": "assistant-staging-1",
+  "source": "user",
+  "rule_id": "task.get",
+  "intent": {
+    "intent_primary": "task_manage",
+    "operation": "get",
+    "complexity": "simple",
+    "needs_evidence": true,
+    "side_effect_hint": "read",
+    "clarity": "clear",
+    "slots": {
+      "task_id": "task_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "plan": {
+    "plan_id": "plan_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "mode": "local_fast",
+    "executor": "self",
+    "partial_policy": "independent_only",
+    "reason_code": "explicit_command",
+    "steps": []
+  },
+  "actual_calls": [
+    {
+      "tool": "assistant.tasks.get",
+      "status": "ok"
+    }
+  ]
+}

@@ -92,3 +92,22 @@
 - file: canonical/float-rejected.json
   expect: reject
   reason: /payload/amount
+
+- file: intent-routing/valid/task-query.json
+  expect: accept
+
+- file: intent-routing/invalid/mode.json
+  expect: reject
+  reason: /plan/mode
+
+- file: intent-routing/invalid/authority.json
+  expect: reject
+  reason: /intent/slots/authorization
+
+- file: intent-routing/invalid/operation.json
+  expect: reject
+  reason: /intent/operation
+
+- file: intent-routing/invalid/source.json
+  expect: reject
+  reason: /source

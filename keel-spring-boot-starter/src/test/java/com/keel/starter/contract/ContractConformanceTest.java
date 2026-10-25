@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.keel.common.model.AgentManifest;
+import com.keel.common.model.IntentRouting;
 import com.keel.common.model.AuditEvent;
 import com.keel.common.model.ErrorEvent;
 import com.keel.common.model.FinalEvent;
@@ -103,6 +104,8 @@ class ContractConformanceTest {
         if (errors.isEmpty()) {
             if (family.equals("manifest")) {
                 mapper.treeToValue(value, AgentManifest.class);
+            } else if (family.equals("intent-routing")) {
+                mapper.treeToValue(value, IntentRouting.class);
             } else if (family.equals("sse-events")) {
                 parseEvent(value);
             } else {

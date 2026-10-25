@@ -12,13 +12,14 @@ from keel._generated.audit import AuditEvent
 from keel._generated.events import (ErrorEvent, FinalEvent, GuardrailEvent, StepEvent,
                                     SuspendEvent, TokenEvent, ToolEvent)
 from keel._generated.manifest import AgentManifest
+from keel._generated.routing import IntentRouting
 
 ROOT = Path(__file__).resolve().parents[3] / "contracts"
 SUITE = ROOT / "tests"
 CASES = yaml.safe_load((SUITE / "cases.yaml").read_text(encoding="utf-8"))
 SCHEMAS = {
     name: json.loads((ROOT / f"{name}.schema.json").read_text(encoding="utf-8"))
-    for name in ("manifest", "sse-events", "audit-event")
+    for name in ("manifest", "sse-events", "audit-event", "intent-routing")
 }
 EVENTS = {
     "guardrail": GuardrailEvent, "step": StepEvent, "tool": ToolEvent, "token": TokenEvent,
@@ -37,6 +38,9 @@ def schema_errors(schema, document):
         if error.validator == "required":
             missing = next(key for key in error.validator_value if key not in error.instance)
             path.append(missing)
+        if error.validator == "additionalProperties" and error.validator_value is False:
+            result.update(pointer([*path, key]) for key in error.instance if key not in error.schema.get("properties", {}))
+            continue
         result.add(pointer(path))
     return result
 
@@ -99,6 +103,8 @@ def test_contract(case):
     elif not errors:
         if family == "manifest":
             AgentManifest.model_validate(document)
+        elif family == "intent-routing":
+            IntentRouting.model_validate(document)
         elif family == "sse-events":
             EVENTS[document["event"]].model_validate(document["data"])
     if case["expect"] == "reject":

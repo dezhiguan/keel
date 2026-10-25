@@ -280,6 +280,8 @@ def main():
     python_model("events.py", "SseEvents", schema("sse-events.schema.json"), True)
     java_model("AuditEvent", schema("audit-event.schema.json"))
     python_model("audit.py", "AuditEvent", schema("audit-event.schema.json"))
+    java_model("IntentRouting", schema("intent-routing.schema.json"))
+    python_model("routing.py", "IntentRouting", schema("intent-routing.schema.json"))
     error_codes()
     (PYTHON / "__init__.py").write_text("# Generated models from keel/v1 contracts.\n", encoding="utf-8")
 

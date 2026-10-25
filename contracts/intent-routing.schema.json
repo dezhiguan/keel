@@ -1,0 +1,322 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keel.io/contracts/v1/intent-routing.schema.json",
+  "title": "Optional trusted intent and route evidence",
+  "description": "Code-owned final/error meta.routing extension; absence preserves keel/v1 consumers. No user text, query, material, credentials or authority. Modes and slots are hints, never grants.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "policy_version",
+    "source",
+    "rule_id",
+    "intent",
+    "plan",
+    "actual_calls"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "keel/v1"
+    },
+    "policy_version": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_.:-]{1,160}$"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "gate",
+        "rule",
+        "model",
+        "worker"
+      ]
+    },
+    "rule_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_.:-]{1,160}$"
+    },
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "intent_primary",
+        "operation",
+        "complexity",
+        "needs_evidence",
+        "side_effect_hint",
+        "clarity",
+        "slots"
+      ],
+      "properties": {
+        "intent_primary": {
+          "type": "string",
+          "enum": [
+            "chat",
+            "retrieve_knowledge",
+            "retrieve_state",
+            "retrieve_history",
+            "task_manage",
+            "analyze_document",
+            "delegate_work",
+            "action_request",
+            "mixed",
+            "unknown"
+          ]
+        },
+        "intent_secondary": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "enum": [
+              "chat",
+              "retrieve_knowledge",
+              "retrieve_state",
+              "retrieve_history",
+              "task_manage",
+              "analyze_document",
+              "delegate_work",
+              "action_request",
+              "mixed",
+              "unknown"
+            ]
+          }
+        },
+        "operation": {
+          "type": "string",
+          "pattern": "^[a-z][a-z_]{0,47}$"
+        },
+        "complexity": {
+          "type": "string",
+          "enum": [
+            "trivial",
+            "simple",
+            "complex"
+          ]
+        },
+        "needs_evidence": {
+          "type": "boolean"
+        },
+        "side_effect_hint": {
+          "type": "string",
+          "enum": [
+            "none",
+            "read",
+            "write"
+          ]
+        },
+        "clarity": {
+          "type": "string",
+          "enum": [
+            "clear",
+            "need_clarify"
+          ]
+        },
+        "slots": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [],
+          "properties": {
+            "env": {
+              "type": "string",
+              "enum": [
+                "staging",
+                "prod"
+              ]
+            },
+            "agent_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{1,62}$"
+            },
+            "task_id": {
+              "type": "string",
+              "pattern": "^task_[a-f0-9]{32}$"
+            },
+            "material_ref": {
+              "type": "string",
+              "enum": [
+                "current_message"
+              ]
+            },
+            "material_digest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        "missing_slots": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "enum": [
+              "env",
+              "agent_id",
+              "task_id",
+              "material",
+              "goal",
+              "capability"
+            ]
+          }
+        }
+      }
+    },
+    "plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plan_id",
+        "mode",
+        "partial_policy",
+        "reason_code",
+        "steps"
+      ],
+      "properties": {
+        "plan_id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.:-]{1,160}$"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "local_fast",
+            "local_slow",
+            "remote",
+            "queue",
+            "clarify",
+            "deny",
+            "approval"
+          ]
+        },
+        "executor": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,62}$"
+        },
+        "partial_policy": {
+          "type": "string",
+          "enum": [
+            "independent_only",
+            "require_all"
+          ]
+        },
+        "reason_code": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.:-]{1,160}$"
+        },
+        "steps": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "step_id",
+              "intent",
+              "operation",
+              "mode",
+              "depends_on",
+              "status"
+            ],
+            "properties": {
+              "step_id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_.:-]{1,160}$"
+              },
+              "intent": {
+                "type": "string",
+                "enum": [
+                  "chat",
+                  "retrieve_knowledge",
+                  "retrieve_state",
+                  "retrieve_history",
+                  "task_manage",
+                  "analyze_document",
+                  "delegate_work",
+                  "action_request",
+                  "mixed",
+                  "unknown"
+                ]
+              },
+              "operation": {
+                "type": "string",
+                "pattern": "^[a-z][a-z_]{0,47}$"
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "local_fast",
+                  "local_slow",
+                  "remote",
+                  "queue",
+                  "clarify",
+                  "deny",
+                  "approval"
+                ]
+              },
+              "executor": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{1,62}$"
+              },
+              "depends_on": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-zA-Z0-9_.:-]{1,160}$"
+                }
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "planned",
+                  "running",
+                  "succeeded",
+                  "failed",
+                  "denied",
+                  "skipped",
+                  "pending"
+                ]
+              },
+              "reason_code": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_.:-]{1,160}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "actual_calls": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tool",
+          "status"
+        ],
+        "properties": {
+          "tool": {
+            "type": "string",
+            "pattern": "^(assistant|keel)\\.[a-z][a-z.]{0,80}$"
+          },
+          "operation": {
+            "type": "string",
+            "pattern": "^[a-z][a-z_]{0,47}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "started",
+              "ok",
+              "failed",
+              "denied"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
