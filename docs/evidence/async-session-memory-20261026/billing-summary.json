@@ -1,0 +1,417 @@
+{
+  "matchedPairs": 1,
+  "sessions": [
+    {
+      "mode": "sync",
+      "session": "ss_fd4eae33",
+      "calls": 5,
+      "complete": true,
+      "costCny": 0.011694,
+      "bills": [
+        {
+          "alias": "keel-assistant-staging",
+          "model": "qwen3.8-flash",
+          "inputTokens": 1511,
+          "outputTokens": 99,
+          "cacheTokens": 0,
+          "costCny": 0.001476,
+          "reservedCny": 0,
+          "status": "SETTLED",
+          "requestId": "2026-10-26@8a9087ab-e094-429f-9546-3238cc7feabb",
+          "attemptId": "fde61841-ace7-467a-9edc-8ec95eab95c0",
+          "traceId": "1bcd120b0f4243912f3705a8e06d0a1f",
+          "priceVersion": "2026-10-18",
+          "routeVersion": "primary",
+          "ts": "2026-10-25T23:37:11.692534065Z",
+          "latencyMs": 1578,
+          "timedOut": false
+        },
+        {
+          "alias": "keel-assistant-staging",
+          "model": "qwen3.8-flash",
+          "inputTokens": 2622,
+          "outputTokens": 37,
+          "cacheTokens": 0,
+          "costCny": 0.002198,
+          "reservedCny": 0,
+          "status": "SETTLED",
+          "requestId": "2026-10-26@ff6ff9a8-e212-4a64-b8c7-c006424d0e90",
+          "attemptId": "a52c503b-8a80-4069-b023-24d074eaa715",
+          "traceId": "1bcd120b0f4243912f3705a8e06d0a1f",
+          "priceVersion": "2026-10-18",
+          "routeVersion": "primary",
+          "ts": "2026-10-25T23:37:10.074533025Z",
+          "latencyMs": 1958,
+          "timedOut": false
+        },
+        {
+          "alias": "keel-assistant-staging",
+          "model": "qwen3.8-flash",
+          "inputTokens": 615,
+          "outputTokens": 92,
+          "cacheTokens": 0,
+          "costCny": 0.00074,
+          "reservedCny": 0,
+          "status": "SETTLED",
+          "requestId": "2026-10-26@10b798b9-2de1-4daf-91a4-6a2d9d445f44",
+          "attemptId": "51fb73be-f6c7-4857-9d9c-6f5785902d80",
+          "traceId": "c488200e2f0f55bbd765a2d1b579f648",
+          "priceVersion": "2026-10-18",
+          "routeVersion": "primary",
+          "ts": "2026-10-25T23:36:40.654526645Z",
+          "latencyMs": 1552,
+          "timedOut": false
+        },
+        {
+          "alias": "keel-assistant-staging",
+          "model": "qwen3.8-flash",
+          "inputTokens": 3635,
+          "outputTokens": 92,
+          "cacheTokens": 0,
+          "costCny": 0.003156,
+          "reservedCny": 0,
+          "status": "SETTLED",
+          "requestId": "2026-10-26@fe052857-67e4-4dbb-9bd3-1f2114c95443",
+          "attemptId": "0c5aa91d-0472-4392-95e7-b625afd1c8cd",
+          "traceId": "c488200e2f0f55bbd765a2d1b579f648",
+          "priceVersion": "2026-10-18",
+          "routeVersion": "primary",
+          "ts": "2026-10-25T23:36:39.087316137Z",
+          "latencyMs": 2023,
+          "timedOut": false
+        },
+        {
+          "alias": "keel-assistant-staging",
+          "model": "qwen3.8-flash",
+          "inputTokens": 4122,
+          "outputTokens": 306,
+          "cacheTokens": 0,
+          "costCny": 0.004124,
+          "reservedCny": 0,
+          "status": "SETTLED",
+          "requestId": "2026-10-26@90a8a76e-b842-4411-a70b-f5832733f718",
+          "attemptId": "e3d39166-d3f2-4b4d-9535-673e78175f1b",
+          "traceId": "c488200e2f0f55bbd765a2d1b579f648",
+          "priceVersion": "2026-10-18",
+          "routeVersion": "primary",
+          "ts": "2026-10-25T23:36:37.022278726Z",
+          "latencyMs": 3404,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "mode": "async",
+      "session": "ss_72766e00",
+      "calls": 5,
+      "complete": true,
+      "costCny": 0.010709,
+      "bills": [
+        {
+          "alias": "keel-assistant-staging",
+          "model": "qwen3.8-flash",
+          "inputTokens": 794,
+          "outputTokens": 37,
+          "cacheTokens": 0,
+          "costCny": 0.000735,
+          "reservedCny": 0,
+          "status": "SETTLED",
+          "requestId": "2026-10-26@5e478c9f-23db-439e-b15c-ad85cfea7a4d",
+          "attemptId": "77a69cb7-8952-4abe-9c57-8920df775800",
+          "traceId": "18ad3e6dd0e00b0e07efda6cbe10fa09",
+          "priceVersion": "2026-10-18",
+          "routeVersion": "primary",
+          "ts": "2026-10-25T23:37:35.505973843Z",
+          "latencyMs": 983,
+          "timedOut": false
+        },
+        {
+          "alias": "keel-assistant-staging",
+          "model": "qwen3.8-flash",
+          "inputTokens": 2565,
+          "outputTokens": 56,
+          "cacheTokens": 0,
+          "costCny": 0.002203,
+          "reservedCny": 0,
+          "status": "SETTLED",
+          "requestId": "2026-10-26@01ce2a6a-f4bc-4c57-a6d1-d8137ad2ee5b",
+          "attemptId": "28c1e2b6-a046-4480-803a-c6981b63169c",
+          "traceId": "b13859f20907c007d0335767d8a27ff3",
+          "priceVersion": "2026-10-18",
+          "routeVersion": "primary",
+          "ts": "2026-10-25T23:36:38.492937117Z",
+          "latencyMs": 1205,
+          "timedOut": false
+        },
+        {
+          "alias": "keel-assistant-staging",
+          "model": "qwen3.8-flash",
+          "inputTokens": 4035,
+          "outputTokens": 217,
+          "cacheTokens": 0,
+          "costCny": 0.003814,
+          "reservedCny": 0,
+          "status": "SETTLED",
+          "requestId": "2026-10-26@2ff46669-a44e-4a0e-8651-6a2e4436daf9",
+          "attemptId": "2c2f3cf9-fa83-4b6b-9ad8-795edcf1fadb",
+          "traceId": "d7e17535fa3ae3e96cb42f17d846bcac",
+          "priceVersion": "2026-10-18",
+          "routeVersion": "primary",
+          "ts": "2026-10-25T23:36:36.730894964Z",
+          "latencyMs": 3113,
+          "timedOut": false
+        },
+        {
+          "alias": "keel-assistant-staging",
+          "model": "qwen3.8-flash",
+          "inputTokens": 794,
+          "outputTokens": 37,
+          "cacheTokens": 0,
+          "costCny": 0.000735,
+          "reservedCny": 0,
+          "status": "SETTLED",
+          "requestId": "2026-10-26@d300d7d1-c9de-48aa-9aec-c09389fade3b",
+          "attemptId": "b241e236-60d3-47ce-9d72-6f078443f11f",
+          "traceId": "564a6a9530394c74a3466b5f1fb282c5",
+          "priceVersion": "2026-10-18",
+          "routeVersion": "primary",
+          "ts": "2026-10-25T23:36:35.718794494Z",
+          "latencyMs": 955,
+          "timedOut": false
+        },
+        {
+          "alias": "keel-assistant-staging",
+          "model": "qwen3.8-flash",
+          "inputTokens": 3902,
+          "outputTokens": 37,
+          "cacheTokens": 0,
+          "costCny": 0.003222,
+          "reservedCny": 0,
+          "status": "SETTLED",
+          "requestId": "2026-10-26@6055d623-2a9b-4d38-839e-60dd43cf20e2",
+          "attemptId": "1a09ab1e-a92d-44ab-88f5-2aad2b2405c4",
+          "traceId": "564a6a9530394c74a3466b5f1fb282c5",
+          "priceVersion": "2026-10-18",
+          "routeVersion": "primary",
+          "ts": "2026-10-25T23:36:34.750774307Z",
+          "latencyMs": 1133,
+          "timedOut": false
+        }
+      ]
+    }
+  ],
+  "coverage": [
+    {
+      "sync": "ss_87111af8",
+      "async": "ss_d22ba037",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_6a2beb3d",
+      "async": "ss_2c97623c",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_dd725496",
+      "async": "ss_1a8a560a",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_7c12f889",
+      "async": "ss_e2f01281",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_20a70086",
+      "async": "ss_f1776f8b",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_f74eff75",
+      "async": "ss_7a02fabd",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_b1133600",
+      "async": "ss_6e54bfac",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_fd4eae33",
+      "async": "ss_72766e00",
+      "syncPrefixRows": 18,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": true
+    },
+    {
+      "sync": "ss_8b2f9d02",
+      "async": "ss_286c6aad",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_442d03ad",
+      "async": "ss_ff4ef013",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_ad71fdf0",
+      "async": "ss_1b078c1d",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_7d36d313",
+      "async": "ss_3781e691",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    }
+  ],
+  "excluded": [
+    {
+      "sync": "ss_87111af8",
+      "async": "ss_d22ba037",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_6a2beb3d",
+      "async": "ss_2c97623c",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_dd725496",
+      "async": "ss_1a8a560a",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_7c12f889",
+      "async": "ss_e2f01281",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_20a70086",
+      "async": "ss_f1776f8b",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_f74eff75",
+      "async": "ss_7a02fabd",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_b1133600",
+      "async": "ss_6e54bfac",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_8b2f9d02",
+      "async": "ss_286c6aad",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_442d03ad",
+      "async": "ss_ff4ef013",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_ad71fdf0",
+      "async": "ss_1b078c1d",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    },
+    {
+      "sync": "ss_7d36d313",
+      "async": "ss_3781e691",
+      "syncPrefixRows": 14,
+      "asyncPrefixRowsBefore": 16,
+      "syncFactsCoversFirstQuestion": true,
+      "asyncFactsCoversFirstQuestion": true,
+      "included": false
+    }
+  ],
+  "method": "Foreground routing is chat-only, classification calls=0, tools empty and max_steps=1. In each foreground trace the final successful managed request is the interactive answer; all prior calls are synchronous maintenance. Every detached worker trace is maintenance. Exclude exactly those answer request IDs; verify each async worker call count against the durable attempt. Fees are actual SETTLED ledger rows, not ceilings.",
+  "syncMeanCny": 0.011694,
+  "asyncMeanCny": 0.010709
+}

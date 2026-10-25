@@ -1,0 +1,32 @@
+{
+  "pods": [
+    {
+      "name": "keel-assistant-65b596f865-nrcvq",
+      "createdAt": "2026-10-25T22:27:13Z",
+      "image": "docker.io/library/keel-assistant:async-memory-971b382",
+      "ready": true,
+      "restarts": 0,
+      "lastTermination": {}
+    },
+    {
+      "name": "keel-assistant-65b596f865-zjbdf",
+      "createdAt": "2026-10-25T22:27:43Z",
+      "image": "docker.io/library/keel-assistant:async-memory-971b382",
+      "ready": true,
+      "restarts": 0,
+      "lastTermination": {}
+    }
+  ],
+  "deployments": [
+    {
+      "name": "keel-server",
+      "ready": 2,
+      "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-server:889a70225e4b"
+    },
+    {
+      "name": "keel-console",
+      "ready": 2,
+      "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-console:fa8fb78e10aa"
+    }
+  ]
+}
