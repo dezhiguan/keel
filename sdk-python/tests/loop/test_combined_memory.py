@@ -66,7 +66,7 @@ def test_scope_input_and_complete_prefix_bounds():
     b['messages'].append({'id':'5','role':'user','content':'填'*8000})
     assert prepare(a,b,worker.summary_prefix) is None
     a,b=jobs();a['messages']*=1
-    for n in range(3,25,2):a['messages'] += [{'id':str(n),'role':'user','content':'填'*1800},{'id':str(n+1),'role':'assistant','content':'收到'}]
+    for n in range(5,25,2):a['messages'] += [{'id':str(n),'role':'user','content':'填'*1800},{'id':str(n+1),'role':'assistant','content':'收到'}]
     prepared=prepare(a,b,worker.summary_prefix)
     if prepared:
         assert int(prepared[-1])<24 and prepared[-2][-1]['role']=='assistant'
