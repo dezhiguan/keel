@@ -1,0 +1,11 @@
+{
+  "ingestionStatus": 403,
+  "reason": "Usage threshold exceeded",
+  "source": "keel-assistant/docs/evidence/intent-classifier-quality-20261026/langfuse-ingestion-rejected.json",
+  "memoryTraceReadStatuses": [
+    429,
+    404,
+    404
+  ],
+  "uiVerification": "not passed; SQL attempts and SETTLED gateway request pairing are separate evidence"
+}
