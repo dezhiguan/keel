@@ -161,3 +161,5 @@
 - R1026-intent-local-plan：复用TraceDetail调用树/节点详情显示intent.route、intent.step与intent.route.result；真实浏览器验证plan/step/request/policy/能力修订及终态，无页面错误，状态事件不冒充步骤耗时。设计第08节35项逐条补验证状态。详见 [本地补齐验收](../../qa/2026-10-26-intent-local-completion.md)。
 
 - R1026-intent-classifier-quality：复用既有TraceDetail调用树/节点详情，未新增接口字段或UI布局。0.5.8双副本、shadow USER7/7和read_only USER21/21、分类token隔离通过；真实缓冲OTLP含intent.classify/route/step和受管classify v3。云端页面实际显示echo占位，Langfuse拒收403 Usage threshold exceeded，故本轮云端节点点击复验标为阻塞，未冒充通过；原页面布局及前轮已通过记录保留。见[专项验收](../../qa/2026-10-26-intent-classifier-quality.md)。
+
+- R1027-intent-classifier-cloud-retry：完成。Langfuse恢复后，以真实新USER请求复验既有TraceDetail调用树及intent.classify详情，16个真实云端节点、受管classify v3/answer v13、read_only/calls=1/applied=true及route/step/result显示通过，无页面错误；旧R1026的403与echo占位保留历史，原阻塞现已解除。见[专项补验](../../qa/2026-10-26-intent-classifier-quality.md)。
