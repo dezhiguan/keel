@@ -282,5 +282,24 @@
   ],
   "requests": 3260,
   "originalReferenceTotal": 3056,
-  "originalReferencePassed": 3056
+  "originalReferencePassed": 3056,
+  "fourQpsAcceptance": {
+    "first": {
+      "n": 1200,
+      "errors": 4,
+      "errorRate": 0.0033333333333333335
+    },
+    "repeat": {
+      "n": 1200,
+      "errors": 0,
+      "errorRate": 0
+    },
+    "combined": {
+      "n": 2400,
+      "errors": 4,
+      "errorRate": 0.0016666666666666668
+    },
+    "targetMaxErrorRate": 0.001,
+    "status": "PARTIAL; repeat passes, intermittent errors remain unresolved"
+  }
 }
