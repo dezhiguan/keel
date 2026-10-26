@@ -63,7 +63,7 @@ def test_one_paid_call_two_independent_results_and_no_fee_double_count(monkeypat
 def test_scope_input_and_complete_prefix_bounds():
     a,b=jobs()
     with pytest.raises(ValueError):prepare(a,{**b,'sessionId':'b'*64},worker.summary_prefix)
-    b['messages'][0]['content']='填'*8000
+    b['messages'].append({'id':'5','role':'user','content':'填'*8000})
     assert prepare(a,b,worker.summary_prefix) is None
     a,b=jobs();a['messages']*=1
     for n in range(3,25,2):a['messages'] += [{'id':str(n),'role':'user','content':'填'*1800},{'id':str(n+1),'role':'assistant','content':'收到'}]
