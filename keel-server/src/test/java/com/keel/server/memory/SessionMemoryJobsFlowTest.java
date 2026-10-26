@@ -123,8 +123,10 @@ assertThat(recovered.path("leaseToken")).isNotEqualTo(abandoned.path("leaseToken
 
     @Test void expiredOlderReferenceCannotCommitThroughALiveNewerTarget() throws Exception {
         enqueueSummary();var history=sessions.history("async-agent","u_1",session);
-        jdbc.update("UPDATE session_memory_job SET desired_id=? WHERE agent_name='async-agent' AND kind='summary'",Long.parseLong(history.getLast().get("id")));
-        var job=claim();var body=completion(job);
+        jdbc.update("UPDATE session_memory_job SET desired_id=?,status='pending',next_attempt_at=now()-interval '1 second' WHERE agent_name='async-agent' AND kind='summary'",Long.parseLong(history.getLast().get("id")));
+        var job=claim();
+        assertThat(job.isNull()).as("jobs=%s history=%s",jdbc.queryForList("SELECT kind,status,desired_id,reason FROM session_memory_job WHERE agent_name='async-agent'"),history).isFalse();
+        var body=completion(job);
         jdbc.update("UPDATE session_message SET expires_at=now()-interval '1 second' WHERE session_id=? AND id<=?",session,Long.parseLong(history.get(1).get("id")));
         mvc.perform(post(root+"/complete").with(identity("SERVICE","async-agent")).contentType("application/json").content(body.toString())).andExpect(status().isForbidden());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM session_summary WHERE agent_name='async-agent'",Integer.class)).isZero();

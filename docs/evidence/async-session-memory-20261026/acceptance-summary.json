@@ -1,0 +1,349 @@
+{
+  "version": {
+    "sdk": "1.0.28",
+    "sdkSource": "fa8fb78e10aa6c4d7fd67ef2cb17398409cc4157",
+    "platformMain": "fd8511ad0b193145699e2074124d1d33f5344e05",
+    "applicationMain": "fea5fab654a00d7806d1fac373d4a8fd92e634b5",
+    "applicationSource": "971b382",
+    "application": "0.5.5"
+  },
+  "performance": [
+    {
+      "label": "long-ab-final-sync",
+      "n": 30,
+      "success": 30,
+      "errors": 0,
+      "elapsedSeconds": 107.45131516699621,
+      "errorCodes": {},
+      "peakActive": 3,
+      "paired": true,
+      "ttftP50": 7814.312859001802,
+      "ttftP95": 10722.316804007278,
+      "ttftP99": 10769.984467988252,
+      "totalP50": 8249.189442998613,
+      "totalP95": 11158.301864008536,
+      "totalP99": 11265.23894899583,
+      "headersP50": 83.65063001110684,
+      "headersP95": 405.96341399941593,
+      "headersP99": 425.5224630032899
+    },
+    {
+      "label": "long-ab-final-async",
+      "n": 30,
+      "success": 30,
+      "errors": 0,
+      "elapsedSeconds": 107.45194909900601,
+      "errorCodes": {},
+      "peakActive": 3,
+      "paired": true,
+      "ttftP50": 1211.88863000134,
+      "ttftP95": 1641.0809719964163,
+      "ttftP99": 2042.0441109890817,
+      "totalP50": 1648.48701399751,
+      "totalP95": 2174.366582010407,
+      "totalP99": 2455.8203349879477,
+      "headersP50": 84.53020399610978,
+      "headersP95": 131.82369200512767,
+      "headersP99": 407.90661198843736
+    },
+    {
+      "label": "short-ab-final-sync",
+      "n": 100,
+      "success": 100,
+      "errors": 0,
+      "elapsedSeconds": 144.028909886998,
+      "errorCodes": {},
+      "peakActive": 3,
+      "paired": true,
+      "ttftP50": 1106.9214919989463,
+      "ttftP95": 1596.2004010070814,
+      "ttftP99": 1850.39770900039,
+      "totalP50": 2134.4827029970475,
+      "totalP95": 2650.2626160072396,
+      "totalP99": 2775.023195994436,
+      "headersP50": 79.80745100940112,
+      "headersP95": 135.39829700312112,
+      "headersP99": 173.07351301133167
+    },
+    {
+      "label": "short-ab-final-async",
+      "n": 100,
+      "success": 100,
+      "errors": 0,
+      "elapsedSeconds": 144.03000485799566,
+      "errorCodes": {},
+      "peakActive": 3,
+      "paired": true,
+      "ttftP50": 1101.2277849949896,
+      "ttftP95": 1330.0723830034258,
+      "ttftP99": 1542.8343230014434,
+      "totalP50": 2126.804882005672,
+      "totalP95": 2462.5959020049777,
+      "totalP99": 2629.0868999931263,
+      "headersP50": 80.42917599959765,
+      "headersP95": 124.70034100988414,
+      "headersP99": 172.6490519940853
+    },
+    {
+      "label": "load-2qps-final",
+      "n": 600,
+      "success": 600,
+      "errors": 0,
+      "elapsedSeconds": 301.25160946500546,
+      "errorCodes": {},
+      "peakActive": 5,
+      "offeredQps": 2,
+      "scheduledSeconds": 300,
+      "dropped": 0,
+      "generatorMaxLagMs": 7.332490000408143,
+      "ttftP50": 1220.1771350082709,
+      "ttftP95": 1599.980120008695,
+      "ttftP99": 2125.6557909946423,
+      "totalP50": 1691.418069996871,
+      "totalP95": 2107.073604987818,
+      "totalP99": 2724.1862759983633,
+      "headersP50": 81.31126299849711,
+      "headersP95": 128.65018998854794,
+      "headersP99": 174.79178099893034
+    },
+    {
+      "label": "load-4qps-final",
+      "n": 1200,
+      "success": 1200,
+      "errors": 0,
+      "elapsedSeconds": 301.35609366100107,
+      "errorCodes": {},
+      "peakActive": 13,
+      "offeredQps": 4,
+      "scheduledSeconds": 300,
+      "dropped": 0,
+      "generatorMaxLagMs": 14.626424002926797,
+      "ttftP50": 1289.9186660069972,
+      "ttftP95": 1993.507392005995,
+      "ttftP99": 2435.9945750038605,
+      "totalP50": 1776.2416610057699,
+      "totalP95": 2478.7530879984843,
+      "totalP99": 3027.909295007703,
+      "headersP50": 92.12124600890093,
+      "headersP95": 177.00757000420708,
+      "headersP99": 560.3819999960251
+    },
+    {
+      "label": "load-4qps-final-source-guard",
+      "n": 1200,
+      "success": 1200,
+      "errors": 0,
+      "elapsedSeconds": 301.6057731460023,
+      "errorCodes": {},
+      "peakActive": 12,
+      "offeredQps": 4,
+      "scheduledSeconds": 300,
+      "dropped": 0,
+      "generatorMaxLagMs": 9.956704001524486,
+      "ttftP50": 1297.4815830093576,
+      "ttftP95": 1958.820725994883,
+      "ttftP99": 2357.567201994243,
+      "totalP50": 1765.2926570008276,
+      "totalP95": 2444.5826419978403,
+      "totalP99": 2873.0009620048804,
+      "headersP50": 93.06411400029901,
+      "headersP95": 180.93403699458577,
+      "headersP99": 587.6447250047931
+    }
+  ],
+  "longTtftP95Reduction": 0.8469471661774541,
+  "normalRequests": 2060,
+  "normalFailures": 0,
+  "quality": {
+    "longOriginalReferences": "60/60",
+    "shortCharacterCounts": {
+      "sync": {
+        "min": 76,
+        "max": 132,
+        "within80to120": 80,
+        "n": 100
+      },
+      "async": {
+        "min": 91,
+        "max": 136,
+        "within80to120": 75,
+        "n": 100
+      }
+    },
+    "shortHanCounts": {
+      "sync": {
+        "min": 68,
+        "max": 121,
+        "within80to120": 97,
+        "n": 100
+      },
+      "async": {
+        "min": 83,
+        "max": 124,
+        "within80to120": 98,
+        "n": 100
+      }
+    }
+  },
+  "memory": {
+    "jobs": 320,
+    "statuses": {
+      "done": 320
+    },
+    "attempts": 2407,
+    "attemptStatuses": {
+      "committed": 2407
+    },
+    "commitP95Seconds": 5.118619,
+    "commitMaxSeconds": 35.749568,
+    "commitWithin60": 2407,
+    "commitTotal": 2407,
+    "drainSeconds": 3.801149
+  },
+  "cases": [
+    [
+      "M01",
+      "短会话",
+      "正式入口各100次；主回答路径不调用摘要模型；检查80–120字符要求"
+    ],
+    [
+      "M02",
+      "超阈值与旧摘要",
+      "负载复用长会话，后续请求读取已提交摘要；只读/cut路径和硬上限回归通过"
+    ],
+    [
+      "M03",
+      "无旧摘要",
+      "30对等价超阈值会话，首问摘要为空；答案和原文引用核对"
+    ],
+    [
+      "M04",
+      "旧事实回查",
+      "60/60 引用初始原文ID；无“从未提供”的错误回答"
+    ],
+    [
+      "M05",
+      "当前纠正",
+      "暂停后台后20→30即时回答，随后10轮35→40；账本最终40 active、旧值superseded"
+    ],
+    [
+      "M06",
+      "撤回与冲突",
+      "独立日期撤回为retracted；两日期保持pending；单独“是”不推进确认；措辞边界见下文"
+    ],
+    [
+      "M07",
+      "连续快问",
+      "暂停后台期间10轮，恢复后目标和游标收敛，无丢最后更正"
+    ],
+    [
+      "M08",
+      "多副本/CAS",
+      "真实PostgreSQL集成：排他领取、旧租约拒绝、版本CAS；scope隔离。认证主体为测试fixture"
+    ],
+    [
+      "M09",
+      "崩溃与重复",
+      "真实staging worker SIGKILL；abandoned/lease_expired后续跑done。事务回滚/重复任务由PG场景验证"
+    ],
+    [
+      "M10",
+      "超时和坏输出",
+      "SDK模型接口故障注入：timeout、空摘要、无效引用、坏facts不推进；3次失败终止由PG验证"
+    ],
+    [
+      "M11",
+      "超过四块",
+      "55轮填充；每次摘要<=4调用，连续前缀提交；最终完成剩余部分"
+    ],
+    [
+      "M12",
+      "删除/隔离",
+      "实际排队、running中删除，6类表均0；owner/env/agent/过期提交由PG认证主体场景验证"
+    ],
+    [
+      "M13",
+      "协议/超限",
+      "完整工具轮次回归；实际12000汉字当前输入返回AGENT_CONTEXT_EXCEEDED，未绕过硬门禁"
+    ],
+    [
+      "M14",
+      "回归/负载/成本",
+      "见性能、队列、资源及费用表；所有历史失败独立保存，费用仅使用SETTLED实际记录"
+    ]
+  ],
+  "phase2": "摘要/facts合并一次模型调用是原设计第二阶段实验，本次保留分别维护，未宣称完成合并质量与费用实验。",
+  "finalServerRepeat": {
+    "requests": 1200,
+    "jobs": 80,
+    "statuses": {
+      "done": 80
+    },
+    "attempts": 1440,
+    "p95Seconds": 4.469577,
+    "maxSeconds": 7.675131
+  },
+  "shortTtftP95Change": -0.1667259435818642,
+  "shortTotalP95Change": -0.07081061056696025,
+  "billing": {
+    "matchedPairs": 1,
+    "syncMeanCny": 0.011694,
+    "asyncMeanCny": 0.010709,
+    "method": "Foreground routing is chat-only, classification calls=0, tools empty and max_steps=1. In each foreground trace the final successful managed request is the interactive answer; all prior calls are synchronous maintenance. Every detached worker trace is maintenance. Exclude exactly those answer request IDs; verify each async worker call count against the durable attempt. Fees are actual SETTLED ledger rows, not ceilings.",
+    "relativeChange": -0.0842312296904395,
+    "limitation": "十二对新样本仅一对能在不改原算法前提下匹配完整摘要前缀；按范围筛选而非费用筛选。此单对与三对早期诊断不能证明所有常态工作负载均不增费。"
+  },
+  "resources": {
+    "scope": "final server 4 QPS full repeat",
+    "start": "2026-10-25T23:18:32.776493+00:00",
+    "end": "2026-10-25T23:23:34.390142+00:00",
+    "samples": 55,
+    "maxAppCpuMillicoresPerPod": 361,
+    "maxAppMemoryMiPerPod": 255,
+    "podRestartCounts": [
+      0,
+      0
+    ]
+  },
+  "tests": {
+    "sdk": {
+      "passed": 388
+    },
+    "application": {
+      "passed": 337,
+      "skipped": 18
+    },
+    "postgresQueue": {
+      "passed": 8
+    },
+    "postgresMemory": {
+      "passed": 3
+    },
+    "ci": "all implementation PR checks green"
+  },
+  "overall": "第一阶段实现与核心性能/可靠性完成；成本为小样本观察，篇幅存在偏差，不宣称全量推广验收全部通过。",
+  "cleanup": {
+    "result": {
+      "sessions": 1170,
+      "deleted": 1163
+    },
+    "remainingScopedRows": {
+      "agent_session": 0,
+      "session_message": 0,
+      "session_memory_job": 0,
+      "session_memory_attempt": 0,
+      "session_summary": 0,
+      "session_fact_state": 0
+    },
+    "keyAfter": {
+      "alias": "keel-assistant-staging",
+      "dailyBudgetCny": 110.0,
+      "spentCny": 48.564662,
+      "reservedCny": 0.0
+    },
+    "scope": "union of this acceptance directory session manifests only",
+    "sourceManifests": 14,
+    "alreadyAbsent": 7,
+    "unexpectedDeleteStatuses": []
+  }
+}

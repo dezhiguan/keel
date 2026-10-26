@@ -1,0 +1,12 @@
+{
+  "scope": "final server 4 QPS full repeat",
+  "start": "2026-10-25T23:18:32.776493+00:00",
+  "end": "2026-10-25T23:23:34.390142+00:00",
+  "samples": 55,
+  "maxAppCpuMillicoresPerPod": 361,
+  "maxAppMemoryMiPerPod": 255,
+  "podRestartCounts": [
+    0,
+    0
+  ]
+}
