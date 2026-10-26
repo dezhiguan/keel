@@ -101,3 +101,10 @@ def test_shared_limiter_bounds_parallel_fallback_calls():
         await asyncio.gather(*(m.chat([{'role':'user','content':'test'}],max_tokens=10) for m in models))
         assert peak==1 and sum(m.calls for m in models)==4
     asyncio.run(run())
+
+
+def test_bare_confirmation_cannot_become_an_asserted_fact():
+    a,b=jobs();b['messages']=[{'id':'3','role':'user','content':'是。'}];b['nextCursor']='3'
+    proposal={'operations':[dict(sourceId='3',entity='用户',attribute='确认',scope='',value='是',quote='是',action='assert',targetIds=[])],'ignoredSourceIds':[]}
+    with pytest.raises(ValueError,match='ambiguous standalone'):validate_facts(proposal,b)
+    assert validate_facts({'operations':[],'ignoredSourceIds':['3']},b)['facts']==[]
