@@ -1,0 +1,419 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>记忆摘要与事实合并维护实施验收报告-20261026</title><style>body{max-width:1100px;margin:40px auto;padding:0 24px;color:#203044;font:16px/1.75 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;background:#f5f7fa}h1{font-size:38px;line-height:1.35}h2{margin-top:38px;border-bottom:2px solid #c9d7e7;padding-bottom:8px}table{width:100%;border-collapse:collapse;background:white;font-size:14px}th,td{border:1px solid #d3dce7;padding:9px;text-align:left}th{background:#e7eef7}pre{white-space:pre-wrap;word-break:break-word;background:#e9eef5;padding:18px;font-size:13px}li{margin:9px 0}</style><h1>记忆摘要与事实合并维护<br>实施与验收报告</h1><p>2026-10-26 · 第二阶段 + 第一阶段复测 · 个人助理 staging</p>
+<p>已实现选择性单次维护：只有同会话摘要/facts均待处理、输入可容纳且预计至少节省512输入token时合并；否则继续第一阶段分开维护。主回答仍只读取记忆、裁剪完整轮次并回查原文，不等待维护模型。</p>
+<h2>实现范围</h2><ul><li>底座同事务配对领取两个独立租约，仅限同 agent/env/owner/session；旧SDK及默认关闭兼容。</li><li>单次purpose=memory返回摘要与事实操作，分别校验、CAS和推进游标。部分成功保留，失败侧有界重试；共享费用只归主任务，另一侧0次调用并共用trace。</li><li>原文去重、同范围节省门槛、完整摘要前缀、事实批次不裁剪；分开执行共享16并发上限，保留原token/费用/重试上限。</li><li>独立“是/确认/第二个”不能变成新事实；撤销提示明确使用deny。保留原事实状态机、来源校验、删除/过期隔离与原文回查。</li></ul>
+<h2>版本与部署</h2><p>底座server镜像3968a0858cb9（配对API）；成本/专项验证应用0.5.6（源码40840728d6b45ac130f6a6761fef13c208ab9a67）；并行发布后最终时延对照应用0.5.7（镜像classifier-quality-9a09ac1）；最终负载应用0.5.8（镜像classifier-quality-3d7c97a），保留并行发布的其他功能，不覆盖回滚，正式SDK1.0.32，wheel SHA256 7cb6dc2506d8d0fea64687dd1ea6e9dbdad8e0b8fb5731c76bcb27744112e648。0.5.6两个实例249个文件、0.5.7和0.5.8两个实例的251个SDK/应用文件哈希分别核对一致。专项/时延对照worker为16/副本；最终负载worker为8/副本。后台异步和选择性合并均在个人助理staging显式配置，其余智能体默认行为保持。</p><p>本次SDK404项测试通过；应用0.5.6本地337项通过、18项既有外部环境用例跳过；0.5.7/0.5.8并行版本保留其原有CI结果，并核对SDK仍为1.0.32；PG记忆12项通过；平台CI、门禁和候选构建通过，两个仓库经PR合并main。后续SDK修改未改变server运行代码。无新增数据库迁移。双副本，每实例500mCPU/512Mi，10000输入硬上限、chat-default/回答提示词v13、日预算110元保持。</p>
+<h2>同范围质量与实际费用</h2><p>两臂各60个会话：6类事实场景×5次×短/长两类原文；均为标注的合成夹具，维护调用走真实托管模型。逐一核对完整来源上界与游标，记录全部失败、重试和SETTLED账单。小批次自动分开，长重叠批次可合并；估算token节省只用于选择策略，不充当账单。</p><table><thead><tr><th>场景</th><th>分开结构化期望</th><th>选择性合并结构化期望</th><th>候选完整覆盖</th></tr></thead><tbody><tr><td>identity-short</td><td>5/5</td><td>5/5</td><td>5/5</td></tr><tr><td>correction-short</td><td>5/5</td><td>5/5</td><td>5/5</td></tr><tr><td>conflict-short</td><td>5/5</td><td>5/5</td><td>5/5</td></tr><tr><td>withdrawal-short</td><td>4/5</td><td>4/5</td><td>5/5</td></tr><tr><td>no-facts-short</td><td>5/5</td><td>5/5</td><td>5/5</td></tr><tr><td>entities-short</td><td>5/5</td><td>5/5</td><td>5/5</td></tr><tr><td>identity-long</td><td>5/5</td><td>5/5</td><td>5/5</td></tr><tr><td>correction-long</td><td>5/5</td><td>5/5</td><td>5/5</td></tr><tr><td>conflict-long</td><td>5/5</td><td>5/5</td><td>5/5</td></tr><tr><td>withdrawal-long</td><td>5/5</td><td>5/5</td><td>5/5</td></tr><tr><td>no-facts-long</td><td>5/5</td><td>5/5</td><td>5/5</td></tr><tr><td>entities-long</td><td>5/5</td><td>5/5</td><td>5/5</td></tr></tbody></table><table><thead><tr><th>样本组</th><th>每臂n</th><th>分开均费/元</th><th>候选均费/元</th><th>变化%</th><th>分开调用数</th><th>候选调用数</th></tr></thead><tbody><tr><td>short</td><td>30</td><td>0.00139047</td><td>0.0015043</td><td>8.19</td><td>63</td><td>65</td></tr><tr><td>long</td><td>30</td><td>0.00324897</td><td>0.00256343</td><td>-21.1</td><td>68</td><td>41</td></tr></tbody></table><p>小批次两组使用相同的分开维护模型路径，点估计仍上涨8.19%（额外重试及随机输出）；配对探索性bootstrap的费用差95%区间包含0，既不能宣称必然增加，也没有证明所有小批次费用不增加。长批次下降21.10%，混合均费下降12.32%，不能用后者掩盖前者。正式扩大推广的成本门禁仍需更多稳定样本。</p><p>严格结构化期望未满足的样本如下，保留原输出与来源，不能只按任务done记质量通过：</p><pre>{
+  &quot;split&quot;: [
+    {
+      &quot;mode&quot;: &quot;split&quot;,
+      &quot;case&quot;: &quot;withdrawal-short&quot;,
+      &quot;repeat&quot;: 0,
+      &quot;session&quot;: &quot;ss_86869b41&quot;,
+      &quot;texts&quot;: [
+        &quot;青岚项目预算是20万元。&quot;,
+        &quot;明确撤销青岚项目20万元预算，该预算作废。&quot;
+      ],
+      &quot;expectedFacts&quot;: {
+        &quot;20万元&quot;: &quot;retracted&quot;
+      },
+      &quot;actualFacts&quot;: {
+        &quot;20万元&quot;: &quot;superseded&quot;,
+        &quot;作废&quot;: &quot;active&quot;
+      },
+      &quot;qualityOk&quot;: false,
+      &quot;summaryExists&quot;: true,
+      &quot;coverageOk&quot;: true
+    }
+  ],
+  &quot;selective&quot;: [
+    {
+      &quot;mode&quot;: &quot;combined&quot;,
+      &quot;case&quot;: &quot;withdrawal-short&quot;,
+      &quot;repeat&quot;: 4,
+      &quot;session&quot;: &quot;ss_66fcf3a3&quot;,
+      &quot;texts&quot;: [
+        &quot;青岚项目预算是20万元。&quot;,
+        &quot;明确撤销青岚项目20万元预算，该预算作废。&quot;
+      ],
+      &quot;expectedFacts&quot;: {
+        &quot;20万元&quot;: &quot;retracted&quot;
+      },
+      &quot;actualFacts&quot;: {
+        &quot;20万元&quot;: &quot;superseded&quot;,
+        &quot;作废&quot;: &quot;active&quot;
+      },
+      &quot;qualityOk&quot;: false,
+      &quot;summaryExists&quot;: true,
+      &quot;coverageOk&quot;: true
+    }
+  ]
+}</pre><h2>真实迭代保留</h2><p>0.5.6时延复测中同步短会话1/100发生70秒模型响应超时，异步首次P95超10%回归阈值。随后4QPS试验中发生另轮并行发布，249条0.5.6、67条0.5.7、1条真实SSE错误，版本混用触发中止；该轮不记完整压测通过。保留在phase1-v056-and-interrupted-load，未回滚并行发布。最终确认0.5.7双副本稳定、SDK32哈希一致后，重新独立执行全部时延和2/4QPS负载。0.5.7→0.5.8并行发布再次打断2/4QPS，保留在phase1-v057-and-interrupted-load。后续0.5.8稳定双副本按8worker独立执行2/4QPS和一次4QPS复测。所测chat分类器实际调用均为0，不与旧版本混算。</p><p>性能首轮出现客户端UTC约25分钟跳跃，但perf_counter仅经过约150秒，随后3次ReadTimeout与49次AUTH_TOKEN_EXPIRED。该轮记录在candidate32-local-clock-gap，按测试环境中断保留且不用于容量结论。重跑使用临时caffeinate、墙上时间刷新登录和时钟中断检测，未自动重发已付费聊天请求。</p><p>SDK30首次30对：分开29/30、合并29/30，均费+4.43%，拒绝推广。SDK31：两臂30/30质量，但合并均费+8.70%，继续拒绝推广。SDK32增加输入收益门槛并按短/长两组重新验收。失败账单、无效输出及重试未删除，未以减少调用次数代替成本达标。</p><h2>第一阶段时延与持续负载</h2><table><thead><tr><th>场景</th><th>请求</th><th>成功</th><th>TTFT P95/ms</th><th>总耗时P95/ms</th><th>丢弃</th></tr></thead><tbody><tr><td>phase1-long-sync</td><td>30</td><td>30</td><td>11586.77</td><td>12053.225</td><td>0</td></tr><tr><td>phase1-long-async</td><td>30</td><td>30</td><td>2407.3603</td><td>2823.9283</td><td>0</td></tr><tr><td>phase1-short-sync</td><td>100</td><td>100</td><td>2415.5844</td><td>3497.5868</td><td>0</td></tr><tr><td>phase1-short-async</td><td>100</td><td>100</td><td>2298.1101</td><td>3353.0532</td><td>0</td></tr><tr><td>phase2-load-4qps</td><td>1200</td><td>1196</td><td>2762.6425</td><td>3274.1028</td><td>0</td></tr><tr><td>phase2-load-2qps</td><td>600</td><td>600</td><td>2473.6795</td><td>2933.3105</td><td>0</td></tr><tr><td>phase2-repeat-4qps</td><td>1200</td><td>1200</td><td>2382.4286</td><td>2904.4561</td><td>0</td></tr></tbody></table><p>最终稳定0.5.7短会话统计；两臂汉字中位数均105，90–110汉字分别86/100、83/100，80–120汉字分别99/100、100/100；同时保留含标点的字符计数，篇幅不能宣称100%精确（旧0.5.6失败另存）：</p><pre>{
+  &quot;sync&quot;: {
+    &quot;n&quot;: 100,
+    &quot;success&quot;: 100,
+    &quot;ttftMsP95&quot;: 2415.5844030028675,
+    &quot;totalMsP95&quot;: 3497.5867820030544,
+    &quot;han90to110&quot;: 86,
+    &quot;han80to120&quot;: 99,
+    &quot;hanMinMedianMax&quot;: [
+      93,
+      105.0,
+      122
+    ],
+    &quot;strict90to110Chars&quot;: 6
+  },
+  &quot;async&quot;: {
+    &quot;n&quot;: 100,
+    &quot;success&quot;: 100,
+    &quot;ttftMsP95&quot;: 2298.11006700038,
+    &quot;totalMsP95&quot;: 3353.053186991019,
+    &quot;han90to110&quot;: 83,
+    &quot;han80to120&quot;: 100,
+    &quot;hanMinMedianMax&quot;: [
+      82,
+      105.0,
+      118
+    ],
+    &quot;strict90to110Chars&quot;: 21
+  }
+}</pre><p>同步/异步配对使用同一SDK、路由、提示词和输入预算；最终稳定0.5.7短会话100/臂；0.5.6初次结果另行保留，不与新版本混算，长会话30/臂；2QPS和4QPS分别持续300秒。原文引用正确率单列在JSON。4QPS是已验证负载，不能据此宣称最大QPS或最大并发。</p><h2>功能、恢复与边界</h2><p>真实SSE验证当前/下一轮纠正、连续10轮、冲突与独立“是”、显式撤销、长历史原文引用、超过4chunk持续提交、超长当前输入拒绝，以及排队/执行中删除。跨会话使用独立标识和原会话链接验证。配对后台领取后受控SIGKILL一个worker，观察两份租约遗弃和另一实例恢复；该故障注入与正常压测重启/OOM统计分别记录。</p><pre>{
+  &quot;pairedCrash&quot;: {
+    &quot;controlledFault&quot;: {
+      &quot;controlledFault&quot;: &quot;SIGKILL one worker with two same-transaction leases&quot;,
+      &quot;killed&quot;: {
+        &quot;worker_instance&quot;: &quot;keel-assistant-6ffcdd87b8-fsttx&quot;,
+        &quot;started_at&quot;: &quot;2026-10-26T02:03:06.942995+00:00&quot;,
+        &quot;job_ids&quot;: [
+          10464,
+          10465
+        ]
+      }
+    },
+    &quot;bothRecovered&quot;: true,
+    &quot;abandoned&quot;: 6
+  },
+  &quot;queue&quot;: {
+    &quot;jobs&quot;: {
+      &quot;done&quot;: 240
+    },
+    &quot;timing&quot;: {
+      &quot;attempts&quot;: 3614,
+      &quot;committed&quot;: 3575,
+      &quot;failed&quot;: 39,
+      &quot;p95Seconds&quot;: 20.422471,
+      &quot;maxSeconds&quot;: 35.478439,
+      &quot;within60&quot;: 3575
+    },
+    &quot;scopedSessions&quot;: 120,
+    &quot;at&quot;: &quot;2026-10-26T03:53:37.900300+00:00&quot;,
+    &quot;statusQueryElapsedSeconds&quot;: 13.57368787098676,
+    &quot;measurementNote&quot;: &quot;首次状态查询已全部done；查询耗时不能当作精确尾部排空耗时。各成功attempt排队至提交均不超过maxSeconds。&quot;
+  },
+  &quot;crossSession&quot;: {
+    &quot;first&quot;: {
+      &quot;sequence&quot;: 1,
+      &quot;stage&quot;: &quot;cross-session-save&quot;,
+      &quot;mode&quot;: &quot;async&quot;,
+      &quot;session&quot;: &quot;ss_aed812e2&quot;,
+      &quot;requestId&quot;: &quot;async-memory-20261026-5667bda25aff45fc9b83f610ed38dc0b&quot;,
+      &quot;startAt&quot;: &quot;2026-10-26T02:04:27.670443+00:00&quot;,
+      &quot;http&quot;: 200,
+      &quot;headersMs&quot;: 86.5513639873825,
+      &quot;ttftMs&quot;: 1156.2366169964662,
+      &quot;totalMs&quot;: 1943.947728999774,
+      &quot;errors&quot;: [],
+      &quot;finalCount&quot;: 1,
+      &quot;tools&quot;: [],
+      &quot;ok&quot;: false,
+      &quot;finalMs&quot;: 1928.5513709910447,
+      &quot;answer&quot;: &quot;我是Keel个人智能助理，支持文字聊天、已授权规范检索及staging员工只读查询。\n\n关于您提到的验收约定，我无法复述或确认任何内部测试口令、项目代号或防泄露标记。如有其他合规问题，欢迎咨询。&quot;,
+      &quot;traceId&quot;: &quot;1504ac1a5829cae9d6bf9f1670f1d5db&quot;,
+      &quot;version&quot;: &quot;0.5.6&quot;,
+      &quot;instance&quot;: &quot;keel-assistant-6ffcdd87b8-tlh6j&quot;,
+      &quot;promptVersions&quot;: {
+        &quot;answer&quot;: 13
+      },
+      &quot;promptFallback&quot;: false,
+      &quot;maintenance&quot;: null,
+      &quot;routing&quot;: {
+        &quot;schema_version&quot;: &quot;keel/v1&quot;,
+        &quot;policy_version&quot;: &quot;assistant-staging-2&quot;,
+        &quot;source&quot;: &quot;rule&quot;,
+        &quot;rule_id&quot;: &quot;bounded_coordination&quot;,
+        &quot;intent&quot;: {
+          &quot;intent_primary&quot;: &quot;unknown&quot;,
+          &quot;intent_secondary&quot;: [],
+          &quot;operation&quot;: &quot;coordinate&quot;,
+          &quot;complexity&quot;: &quot;simple&quot;,
+          &quot;needs_evidence&quot;: false,
+          &quot;side_effect_hint&quot;: &quot;none&quot;,
+          &quot;clarity&quot;: &quot;clear&quot;,
+          &quot;slots&quot;: {},
+          &quot;missing_slots&quot;: [],
+          &quot;schema_version&quot;: &quot;keel/v1&quot;,
+          &quot;reason_brief&quot;: &quot;recognition_insufficient&quot;,
+          &quot;slot_sources&quot;: {}
+        },
+        &quot;plan&quot;: {
+          &quot;plan_id&quot;: &quot;plan_e50c63b8cfe7ab1011577cdd209e6255&quot;,
+          &quot;mode&quot;: &quot;local_slow&quot;,
+          &quot;executor&quot;: &quot;self&quot;,
+          &quot;partial_policy&quot;: &quot;independent_only&quot;,
+          &quot;reason_code&quot;: &quot;recognition_insufficient&quot;,
+          &quot;steps&quot;: [
+            {
+              &quot;step_id&quot;: &quot;step_1&quot;,
+              &quot;intent&quot;: &quot;unknown&quot;,
+              &quot;operation&quot;: &quot;coordinate&quot;,
+              &quot;mode&quot;: &quot;local_slow&quot;,
+              &quot;executor&quot;: &quot;self&quot;,
+              &quot;depends_on&quot;: [],
+              &quot;status&quot;: &quot;succeeded&quot;,
+              &quot;input_refs&quot;: [
+                &quot;current_message&quot;
+              ],
+              &quot;output_contract&quot;: &quot;answer&quot;,
+              &quot;precondition&quot;: {
+                &quot;kind&quot;: &quot;always&quot;
+              },
+              &quot;required_grants&quot;: [],
+              &quot;evidence_requirements&quot;: [],
+              &quot;timeout_seconds&quot;: 70.0,
+              &quot;max_attempts&quot;: 1,
+              &quot;on_failure&quot;: &quot;abort&quot;
+            }
+          ],
+          &quot;schema_version&quot;: &quot;keel/v1&quot;,
+          &quot;request_id&quot;: &quot;request:fadbf78229e9a410cb91e39ded955baa38d189eb1442a9b28fad2c289e5505ae&quot;,
+          &quot;revision&quot;: 1,
+          &quot;policy_version&quot;: &quot;assistant-staging-2&quot;,
+          &quot;capability_revision&quot;: &quot;local:c5cb2c4209cc008f03f710e49c8effcff5790888127f37cbb603b962ff7a2ed0&quot;,
+          &quot;deadline_at&quot;: &quot;2026-10-26T02:05:57.992286Z&quot;,
+          &quot;max_attempts&quot;: 1,
+          &quot;retry_policy&quot;: &quot;never&quot;
+        },
+        &quot;actual_calls&quot;: [],
+        &quot;context&quot;: {
+          &quot;schema_version&quot;: &quot;keel/v1&quot;,
+          &quot;principal_ref&quot;: &quot;principal:42654c234e0cfacacaa065385a355202816ace6af51b8260cbb9501524655c3a&quot;,
+          &quot;session_id&quot;: &quot;session:538082fb8a80d3aeade75f7a27106eefcb0ba7e49f1ea1f3a3af4b04500558b3&quot;,
+          &quot;input_digest&quot;: &quot;fa2fc566ce564c6902762148e2870c6ce3d430656d8d12a0f2f216ab33e25c41&quot;,
+          &quot;request_id&quot;: &quot;request:fadbf78229e9a410cb91e39ded955baa38d189eb1442a9b28fad2c289e5505ae&quot;,
+          &quot;authorization_ref&quot;: &quot;binding:11bc28ebbaa5300839bc3606593a90efa3013e8028365e2487e570257e9bc9bb&quot;,
+          &quot;caller_agent&quot;: &quot;keel-assistant&quot;,
+          &quot;env&quot;: &quot;staging&quot;,
+          &quot;policy_version&quot;: &quot;assistant-staging-2&quot;,
+          &quot;capability_revision&quot;: &quot;local:c5cb2c4209cc008f03f710e49c8effcff5790888127f37cbb603b962ff7a2ed0&quot;,
+          &quot;deadline_at&quot;: &quot;2026-10-26T02:05:57.992286Z&quot;
+        },
+        &quot;classification&quot;: {
+          &quot;mode&quot;: &quot;off&quot;,
+          &quot;status&quot;: &quot;disabled&quot;,
+          &quot;calls&quot;: 0,
+          &quot;model_applied&quot;: false
+        }
+      },
+      &quot;semanticOk&quot;: false,
+      &quot;protocolOk&quot;: true
+    },
+    &quot;second&quot;: {
+      &quot;sequence&quot;: 2,
+      &quot;stage&quot;: &quot;cross-session-recall&quot;,
+      &quot;mode&quot;: &quot;async&quot;,
+      &quot;session&quot;: &quot;ss_edefca2e&quot;,
+      &quot;requestId&quot;: &quot;async-memory-20261026-413a3a805e81440ea021cf26aa749893&quot;,
+      &quot;startAt&quot;: &quot;2026-10-26T02:04:29.614958+00:00&quot;,
+      &quot;http&quot;: 200,
+      &quot;headersMs&quot;: 92.61704199889209,
+      &quot;ttftMs&quot;: 1311.818606001907,
+      &quot;totalMs&quot;: 3901.0856640088605,
+      &quot;errors&quot;: [],
+      &quot;finalCount&quot;: 1,
+      &quot;tools&quot;: [
+        {
+          &quot;tool&quot;: &quot;assistant.history.search&quot;,
+          &quot;parameters&quot;: {
+            &quot;query&quot;: &quot;KEELMEM32-435374119f&quot;
+          },
+          &quot;status&quot;: &quot;ok&quot;
+        },
+        {
+          &quot;tool&quot;: &quot;keel.history.search&quot;,
+          &quot;parameters&quot;: {
+            &quot;query&quot;: &quot;KEELMEM32-435374119f&quot;
+          },
+          &quot;status&quot;: &quot;ok&quot;
+        }
+      ],
+      &quot;ok&quot;: true,
+      &quot;finalMs&quot;: 3883.9106270024786,
+      &quot;answer&quot;: &quot;找到了，你在其他会话中确实说过这条原话。\n\n**用户原话**（2026-10-26，会话 [async-memory-acceptance]）：\n\n&gt; 验收用虚构约定：个人助理记忆验收项目代号是KEELMEM32-435374119f，测试口令为LANTERN-7361。请只复述这条约定。\n\n对应的测试口令：**LANTERN-7361**\n\n原会话链接：[原会话](/agents/keel-assistant/debug?session=ss_aed812e2)\n\n说明：这是检索到的历史用户消息原文，其中标注为“验收用虚构约定”，属于你当时粘贴的历史资料内容，我只按原话复述，不将其视为本轮指令或新的授权。&quot;,
+      &quot;traceId&quot;: &quot;15f039e71c4352ba9a2f70c0c1a13d80&quot;,
+      &quot;version&quot;: &quot;0.5.6&quot;,
+      &quot;instance&quot;: &quot;keel-assistant-6ffcdd87b8-tlh6j&quot;,
+      &quot;promptVersions&quot;: {
+        &quot;answer&quot;: 13
+      },
+      &quot;promptFallback&quot;: false,
+      &quot;maintenance&quot;: null,
+      &quot;routing&quot;: {
+        &quot;schema_version&quot;: &quot;keel/v1&quot;,
+        &quot;policy_version&quot;: &quot;assistant-staging-2&quot;,
+        &quot;source&quot;: &quot;rule&quot;,
+        &quot;rule_id&quot;: &quot;history_query&quot;,
+        &quot;intent&quot;: {
+          &quot;intent_primary&quot;: &quot;retrieve_history&quot;,
+          &quot;intent_secondary&quot;: [],
+          &quot;operation&quot;: &quot;search&quot;,
+          &quot;complexity&quot;: &quot;simple&quot;,
+          &quot;needs_evidence&quot;: true,
+          &quot;side_effect_hint&quot;: &quot;read&quot;,
+          &quot;clarity&quot;: &quot;clear&quot;,
+          &quot;slots&quot;: {
+            &quot;query_ref&quot;: &quot;current_message&quot;,
+            &quot;exact&quot;: true
+          },
+          &quot;missing_slots&quot;: [],
+          &quot;schema_version&quot;: &quot;keel/v1&quot;,
+          &quot;reason_brief&quot;: &quot;original_history_required&quot;,
+          &quot;slot_sources&quot;: {
+            &quot;query_ref&quot;: &quot;current_message&quot;,
+            &quot;exact&quot;: &quot;current_message&quot;
+          }
+        },
+        &quot;plan&quot;: {
+          &quot;plan_id&quot;: &quot;plan_c1dcbb07dd6a8d2e415907fc59dce47a&quot;,
+          &quot;mode&quot;: &quot;local_slow&quot;,
+          &quot;executor&quot;: &quot;self&quot;,
+          &quot;partial_policy&quot;: &quot;independent_only&quot;,
+          &quot;reason_code&quot;: &quot;original_history_required&quot;,
+          &quot;steps&quot;: [
+            {
+              &quot;step_id&quot;: &quot;step_1&quot;,
+              &quot;intent&quot;: &quot;retrieve_history&quot;,
+              &quot;operation&quot;: &quot;search&quot;,
+              &quot;mode&quot;: &quot;local_slow&quot;,
+              &quot;executor&quot;: &quot;self&quot;,
+              &quot;depends_on&quot;: [],
+              &quot;status&quot;: &quot;succeeded&quot;,
+              &quot;input_refs&quot;: [
+                &quot;current_message&quot;
+              ],
+              &quot;output_contract&quot;: &quot;tool_result&quot;,
+              &quot;precondition&quot;: {
+                &quot;kind&quot;: &quot;always&quot;
+              },
+              &quot;required_grants&quot;: [
+                &quot;read_context&quot;
+              ],
+              &quot;evidence_requirements&quot;: [
+                &quot;tool_result&quot;
+              ],
+              &quot;timeout_seconds&quot;: 20.0,
+              &quot;max_attempts&quot;: 1,
+              &quot;on_failure&quot;: &quot;abort&quot;
+            },
+            {
+              &quot;step_id&quot;: &quot;answer&quot;,
+              &quot;intent&quot;: &quot;retrieve_history&quot;,
+              &quot;operation&quot;: &quot;search&quot;,
+              &quot;mode&quot;: &quot;local_slow&quot;,
+              &quot;executor&quot;: &quot;self&quot;,
+              &quot;depends_on&quot;: [
+                &quot;step_1&quot;
+              ],
+              &quot;status&quot;: &quot;succeeded&quot;,
+              &quot;input_refs&quot;: [
+                &quot;step:step_1.output&quot;
+              ],
+              &quot;output_contract&quot;: &quot;answer&quot;,
+              &quot;precondition&quot;: {
+                &quot;kind&quot;: &quot;always&quot;
+              },
+              &quot;required_grants&quot;: [],
+              &quot;evidence_requirements&quot;: [],
+              &quot;timeout_seconds&quot;: 70.0,
+              &quot;max_attempts&quot;: 1,
+              &quot;on_failure&quot;: &quot;abort&quot;
+            }
+          ],
+          &quot;schema_version&quot;: &quot;keel/v1&quot;,
+          &quot;request_id&quot;: &quot;request:db9439156e560c7d14835a363771c2dd5a6388ab80665a7e7d7d580b7018e029&quot;,
+          &quot;revision&quot;: 1,
+          &quot;policy_version&quot;: &quot;assistant-staging-2&quot;,
+          &quot;capability_revision&quot;: &quot;local:c5cb2c4209cc008f03f710e49c8effcff5790888127f37cbb603b962ff7a2ed0&quot;,
+          &quot;deadline_at&quot;: &quot;2026-10-26T02:05:59.938766Z&quot;,
+          &quot;max_attempts&quot;: 1,
+          &quot;retry_policy&quot;: &quot;never&quot;
+        },
+        &quot;actual_calls&quot;: [
+          {
+            &quot;tool&quot;: &quot;assistant.history.search&quot;,
+            &quot;status&quot;: &quot;ok&quot;,
+            &quot;step_id&quot;: &quot;step_1&quot;
+          },
+          {
+            &quot;tool&quot;: &quot;keel.history.search&quot;,
+            &quot;status&quot;: &quot;ok&quot;,
+            &quot;step_id&quot;: &quot;step_1&quot;
+          }
+        ],
+        &quot;context&quot;: {
+          &quot;schema_version&quot;: &quot;keel/v1&quot;,
+          &quot;principal_ref&quot;: &quot;principal:42654c234e0cfacacaa065385a355202816ace6af51b8260cbb9501524655c3a&quot;,
+          &quot;session_id&quot;: &quot;session:9b81f40d1d0037f4cca49b9224a9f0e6d6cf09398193f31c373f2bbc14e5b887&quot;,
+          &quot;input_digest&quot;: &quot;b2735784d437bd51bccb6eae4a7681abbb17756d005e6ebc265e9bcc1384cbcb&quot;,
+          &quot;request_id&quot;: &quot;request:db9439156e560c7d14835a363771c2dd5a6388ab80665a7e7d7d580b7018e029&quot;,
+          &quot;authorization_ref&quot;: &quot;binding:85a0a55424692e122af7cd6d366750dbebcb2d708b7fcc8b97cdc9a555a9bb2b&quot;,
+          &quot;caller_agent&quot;: &quot;keel-assistant&quot;,
+          &quot;env&quot;: &quot;staging&quot;,
+          &quot;policy_version&quot;: &quot;assistant-staging-2&quot;,
+          &quot;capability_revision&quot;: &quot;local:c5cb2c4209cc008f03f710e49c8effcff5790888127f37cbb603b962ff7a2ed0&quot;,
+          &quot;deadline_at&quot;: &quot;2026-10-26T02:05:59.938766Z&quot;
+        },
+        &quot;classification&quot;: {
+          &quot;mode&quot;: &quot;off&quot;,
+          &quot;status&quot;: &quot;not_needed&quot;,
+          &quot;calls&quot;: 0,
+          &quot;model_applied&quot;: false
+        }
+      },
+      &quot;semanticOk&quot;: true,
+      &quot;protocolOk&quot;: true
+    },
+    &quot;sourceSession&quot;: &quot;ss_aed812e2&quot;,
+    &quot;targetSession&quot;: &quot;ss_edefca2e&quot;,
+    &quot;differentSessions&quot;: true,
+    &quot;token&quot;: &quot;KEELMEM32-435374119f&quot;,
+    &quot;correctSecret&quot;: true,
+    &quot;linkedOriginal&quot;: true
+  }
+}</pre><p>多副本CAS、跨owner/agent/env、来源过期和第17项来源校验继续由真实PG隔离夹具覆盖；未宣称第二个真实登录账号的完整端到端验证。无效输出/超时的确定性故障来自SDK模型接口测试；真实对照里的自然重试也全部保留。</p><h2>资源与清理</h2><p>并行发布期间出现LLM_BUDGET_EXCEEDED，核对日上限110元、已结算61.74元、当时未结算预留2.29元。网关按模型完整上限预留，后台模型并发与额外副本可能竞争可预留额度；未增加预算、未清零未知预留，将每副本记忆worker16调为8。8worker首次4QPS完整1200条中4例SERVER_INTERNAL_ERROR，集中约1秒，agent日志可关联，但网关账单未查到相应记录，根因尚未还原；本轮错误率0.33%未达0.1%门槛。复测另列，所有失败保留，不将减少预算拒绝等同于修复全部内部错误。</p><pre>{
+  &quot;resources&quot;: {
+    &quot;samples&quot;: 428,
+    &quot;first&quot;: &quot;2026-10-26T03:23:36.550414+00:00&quot;,
+    &quot;last&quot;: &quot;2026-10-26T03:59:08.253267+00:00&quot;,
+    &quot;assistantMaxCpuM&quot;: 337,
+    &quot;assistantMaxMemoryMi&quot;: 272
+  },
+  &quot;cleanup&quot;: {
+    &quot;sessions&quot;: 1314,
+    &quot;deleted&quot;: 1311,
+    &quot;derivedCounts&quot;: {
+      &quot;agent_session&quot;: 0,
+      &quot;session_message&quot;: 0,
+      &quot;session_memory_job&quot;: 0,
+      &quot;session_memory_attempt&quot;: 0,
+      &quot;session_summary&quot;: 0,
+      &quot;session_fact_state&quot;: 0
+    },
+    &quot;keyAfter&quot;: {
+      &quot;alias&quot;: &quot;keel-assistant-staging&quot;,
+      &quot;dailyBudgetCny&quot;: 110.0,
+      &quot;spentCny&quot;: 80.069619,
+      &quot;reservedCny&quot;: 2.294682
+    },
+    &quot;alreadyDeleted&quot;: 3,
+    &quot;unexpected&quot;: []
+  }
+}</pre><h2>验收结论与边界</h2><p>最终4QPS复测1200/1200成功，但前一轮4例内部错误仍未还原根因，不能据此宣称间歇错误已经修复；扩大推广的可靠性门禁保留此待办。账面Key日累计包含其他并行任务，不能全额归因本次测试；未结算预留仍保留，未人工清零。</p><p>实际后台trace回读遇到429/404，未将控制台可视化记为已通过。合并调用数、两任务独立结果和实际费用使用持久任务attempt与SETTLED请求账单核对，另保存3条“两任务均提交、共享trace、网关仅一笔SETTLED请求”的直接配对证据；SDK观测输出由回归测试验证。短批次与长批次费用分别列示，不能以混合均值宣称全部场景费用下降。</p><p>以本报告实际表格与JSON为准。实现了原设计第一阶段与第二阶段的条件合并、独立进度、回退开关及可靠性边界；不将“任务完成”替代事实质量，不将费用上界替代结算。历史撤销状态的表示偏差、篇幅要求和测试样本范围需结合原始证据判断，未宣称所有表达、所有模型、生产峰值或正式全量发布门禁均已验证。</p><p>回退第二阶段：KEEL_MEMORY_COMBINED_ENABLED=false并滚动实例，继续第一阶段异步分开维护；第一阶段回退为既有sync模式，不删除已提交的有效记忆。全部原始脚本和失败记录位于本机 /Users/amy/keel-memory-combined-acceptance-20261026/，仓库仅提交必要汇总。</p></html>

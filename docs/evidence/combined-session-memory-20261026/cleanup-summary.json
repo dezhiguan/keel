@@ -1,0 +1,20 @@
+{
+  "sessions": 1314,
+  "deleted": 1311,
+  "derivedCounts": {
+    "agent_session": 0,
+    "session_message": 0,
+    "session_memory_job": 0,
+    "session_memory_attempt": 0,
+    "session_summary": 0,
+    "session_fact_state": 0
+  },
+  "keyAfter": {
+    "alias": "keel-assistant-staging",
+    "dailyBudgetCny": 110.0,
+    "spentCny": 80.069619,
+    "reservedCny": 2.294682
+  },
+  "alreadyDeleted": 3,
+  "unexpected": []
+}
