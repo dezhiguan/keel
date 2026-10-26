@@ -321,5 +321,29 @@
     },
     "ci": "all implementation PR checks green"
   },
-  "overall": "第一阶段实现与核心性能/可靠性完成；成本为小样本观察，篇幅存在偏差，不宣称全量推广验收全部通过。"
+  "overall": "第一阶段实现与核心性能/可靠性完成；成本为小样本观察，篇幅存在偏差，不宣称全量推广验收全部通过。",
+  "cleanup": {
+    "result": {
+      "sessions": 1170,
+      "deleted": 1163
+    },
+    "remainingScopedRows": {
+      "agent_session": 0,
+      "session_message": 0,
+      "session_memory_job": 0,
+      "session_memory_attempt": 0,
+      "session_summary": 0,
+      "session_fact_state": 0
+    },
+    "keyAfter": {
+      "alias": "keel-assistant-staging",
+      "dailyBudgetCny": 110.0,
+      "spentCny": 48.564662,
+      "reservedCny": 0.0
+    },
+    "scope": "union of this acceptance directory session manifests only",
+    "sourceManifests": 14,
+    "alreadyAbsent": 7,
+    "unexpectedDeleteStatuses": []
+  }
 }
