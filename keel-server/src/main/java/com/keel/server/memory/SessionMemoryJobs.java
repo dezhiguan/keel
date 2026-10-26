@@ -69,19 +69,36 @@ public class SessionMemoryJobs {
     public Map<String,Object> claim(String agent,String env) { return claim(agent,env,""); }
     @Transactional
     public Map<String,Object> claim(String agent,String env,String worker) {
+        return claimOne(agent,env,worker,null);
+    }
+    @Transactional
+    public Map<String,Object> claim(String agent,String env,String worker,boolean combine) {
+        var response=claimOne(agent,env,worker,null);
+        if(!combine || response.get("job")==null)return response;
+        @SuppressWarnings("unchecked") var first=(Map<String,Object>)response.get("job");
+        var identity=jdbc.queryForMap("SELECT session_id,owner_user,kind FROM session_memory_job WHERE id=?",first.get("id"));
+        var companion=claimOne(agent,env,worker,identity).get("job");
+        var result=new LinkedHashMap<String,Object>(response);result.put("companion",companion);return result;
+    }
+    private Map<String,Object> claimOne(String agent,String env,String worker,Map<String,Object> pair) {
         service(agent,env);
         if(!worker.matches("[A-Za-z0-9_.:-]{0,128}"))throw denied();
         jdbc.update("UPDATE session_memory_attempt a SET status='abandoned',reason='lease_expired',finished_at=now() FROM session_memory_job j WHERE a.lease_token=j.lease_token AND a.status='running' AND j.agent_name=? AND j.env=? AND j.lease_until<now()",agent,env);
         // Exhausted abandoned attempts become visible terminal failures, not invisible pending work.
         int exhausted=jdbc.update("UPDATE session_memory_job SET status='failed',reason='attempts_exhausted',updated_at=now() WHERE agent_name=? AND env=? AND status IN ('pending','running') AND attempts>=3 AND (lease_until IS NULL OR lease_until<now())",agent,env);
         if(exhausted>0)log.error("trace_id=background agent={} memory_maintenance_failed reason=attempts_exhausted count={}",agent,exhausted);
+        var args=new ArrayList<Object>(List.of(agent,env));
+        String pairFilter="";
+        if(pair!=null) {
+            pairFilter=" AND j.session_id=? AND j.owner_user=? AND j.kind<>? ";
+            args.add(pair.get("session_id"));args.add(pair.get("owner_user"));args.add(pair.get("kind"));
+        }
         var jobs=jdbc.queryForList("""
             SELECT j.* FROM session_memory_job j JOIN agent_session s
             ON s.id=j.session_id AND s.agent_name=j.agent_name AND s.env=j.env AND s.owner_user=j.owner_user
             WHERE j.agent_name=? AND j.env=? AND COALESCE(s.memory_maintenance_mode,'async')='async' AND j.attempts<3 AND j.next_attempt_at<=now()
             AND (j.status='pending' OR (j.status='running' AND j.lease_until<now()))
-            ORDER BY j.updated_at,j.id FOR UPDATE OF j SKIP LOCKED LIMIT 1
-            """,agent,env);
+            """+pairFilter+" ORDER BY j.updated_at,j.id FOR UPDATE OF j SKIP LOCKED LIMIT 1",args.toArray());
         if(jobs.isEmpty()) return Collections.singletonMap("job",null);
         var job=jobs.getFirst();var scope=hash((String)job.get("owner_user"),(String)job.get("session_id"));
         String kind=(String)job.get("kind");long target=((Number)job.get("desired_id")).longValue();

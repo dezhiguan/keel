@@ -8,6 +8,7 @@ import re
 import time
 import uuid
 from decimal import Decimal
+from contextlib import ExitStack
 from types import SimpleNamespace
 from opentelemetry import trace
 
@@ -19,6 +20,7 @@ from keel.memory_evidence import evidence
 from keel.prompts import TrustedMessage
 from keel.session_facts import SessionFacts
 from keel.session_history import source_ids
+from keel.memory_combined import prepare as prepare_combined, validate_summary, validate_facts
 
 log=logging.getLogger(__name__)
 
@@ -121,6 +123,76 @@ async def summarize(model,job):
     return {'version':job['expectedVersion'],'throughId':last,'content':content}
 
 
+async def execute_combined(agent,remote,first,second,tracer):
+    try:
+        prepared=prepare_combined(first,second,summary_prefix)
+    except WorkLimit:
+        prepared=None
+    if prepared is None:
+        # No paid combined attempt occurred. Each lease keeps its original bounds.
+        await asyncio.gather(execute(agent,remote,first,tracer),execute(agent,remote,second,tracer))
+        return
+    messages,summary,facts,rows,through=prepared
+    with tracer.start_as_current_span('memory.maintenance',context=trace.Context(),attributes={
+        'langfuse.observation.type':'agent','keel.agent':agent.name,'keel.env':first['env'],
+        'service.instance.id':os.environ.get('HOSTNAME',''),'keel.memory.combined':True,
+        'keel.memory.task_id':str(first['id']),'keel.memory.trigger_trace_id':first['triggerTraceId'],
+        'langfuse.session.id':first['sessionId'],'keel.status':'ok',
+    }) as root, ExitStack() as stack:
+        trace_id=f'{root.get_span_context().trace_id:032x}' if root.get_span_context().is_valid else uuid.uuid4().hex
+        llm=LlmClient(agent.name,agent.manifest.spec.models.default_,trace_id,tracer,retry_status_errors=False)
+        limits={**first,'maxOutputTokens':min(first['maxOutputTokens'],second['maxOutputTokens'])}
+        model=BoundedModel(llm,limits,os.environ['KEEL_MEMORY_MAX_INPUT_CNY_PER_TOKEN'],os.environ['KEEL_MEMORY_MAX_OUTPUT_CNY_PER_TOKEN'])
+        events={}
+        for job in (first,second):
+            ev=stack.enter_context(evidence(agent.name,job['env'],job['kind'],tracer))
+            ev.update(status='attempted',taskId=str(job['id']),triggerTraceId=job['triggerTraceId'],
+                      targetId=job['targetId'],version=job['expectedVersion'],attempt=job['attempt'])
+            events[job['id']]=ev
+        def body(job):
+            # Shared generation is accounted once. Both attempts share the trace.
+            usage=model.usage() if job['id']==first['id'] else dict(calls=0,inputTokens=0,outputTokens=0,costUpperBoundCny=0)
+            return dict(id=job['id'],leaseToken=job['leaseToken'],traceId=trace_id,**usage)
+        async def fail(job,reason):
+            events[job['id']].update(status='failed',reason=reason)
+            root.set_attribute('keel.status','failed')
+            try:await remote.fail_maintenance({**body(job),'reason':reason})
+            except Exception:
+                log.warning('memory combined report failed trace_id=%s agent=%s task=%s',trace_id,agent.name,job['id'])
+        completed=set()
+        try:
+            async with asyncio.timeout(60):
+                response=await model.chat(messages,tools=[],max_tokens=1600)
+                content=getattr(response,'content',response)
+                if not isinstance(content,str) or len(content)>24000:raise ValueError('invalid_output')
+                parsed=json.loads(content)
+                if not isinstance(parsed,dict):raise ValueError('invalid_output')
+                # Independent validators and independent CAS. Never trust one result for the other.
+                for job in (first,second):
+                    try:
+                        state=(validate_summary(parsed.get('summary'),summary,rows,through) if job['kind']=='summary'
+                               else validate_facts(parsed.get('facts'),facts))
+                    except (ValueError,TypeError,KeyError):
+                        await fail(job,'invalid_output');completed.add(job['id']);continue
+                    result=await remote.complete_maintenance({**body(job),'state':state})
+                    events[job['id']].update(status='ok' if result['saved'] else 'failed',
+                        reason='committed' if result['saved'] else 'conflict',cursorId=state.get('throughId',state.get('cursorId')))
+                    if not result['saved']:root.set_attribute('keel.status','fallback')
+                    completed.add(job['id'])
+        except asyncio.CancelledError:
+            for job in (first,second):
+                if job['id'] not in completed:await asyncio.shield(fail(job,'cancelled'))
+            raise
+        except Exception as error:
+            reason='timeout' if isinstance(error,TimeoutError) else str(error) if isinstance(error,WorkLimit) else 'invalid_output' if isinstance(error,ValueError) else 'upstream'
+            for job in (first,second):
+                if job['id'] not in completed:await fail(job,reason)
+        finally:
+            for job in (first,second):
+                events[job['id']].update({k:v for k,v in body(job).items() if k not in ('id','leaseToken','traceId')})
+            await llm.aclose()
+
+
 async def execute(agent,remote,job,tracer):
     with tracer.start_as_current_span('memory.maintenance',context=trace.Context(),attributes={
         'langfuse.observation.type':'agent','keel.agent':agent.name,'keel.env':job['env'],
@@ -180,7 +252,10 @@ def start(agent,transport,tracer):
                         if job:
                             from keel.protocol.memory import MaintenanceJob
                             job=MaintenanceJob.model_validate(job).model_dump(by_alias=True)
-                            task=asyncio.create_task(execute(agent,remote,job,tracer))
+                            companion=response.get('companion')
+                            if companion is not None:
+                                companion=MaintenanceJob.model_validate(companion).model_dump(by_alias=True)
+                            task=asyncio.create_task(execute_combined(agent,remote,job,companion,tracer) if companion else execute(agent,remote,job,tracer))
                             # Retrieve unexpected errors as well; leased jobs recover after a crash.
                             def completed(t):
                                 if not t.cancelled() and t.exception():

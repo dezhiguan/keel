@@ -12,7 +12,7 @@
 
 | 页面（原型路由） | 区块 / tab | 要做的 | 任务 | 状态 |
 |---|---|---|---|---|
-| 链路追踪 | 记忆维护节点 | 展示异步任务、触发链路、版本游标、重试及费用上界；主请求不等待后台结束 | P1-async-session-memory-20261026 | 已部署staging；M01–M14证据和边界见docs/design/记忆摘要与事实维护异步化实施验收报告-20261026.html；费用样本与篇幅限制明确保留 |
+| 链路追踪 | 记忆维护节点 | 展示异步任务、触发链路、版本游标、重试及费用上界；合并维护仍独立展示summary/facts节点和各自结果，共享后台trace；主请求不等待后台结束 | P1-async-session-memory-20261026 | 已部署staging；M01–M14证据和边界见docs/design/记忆摘要与事实维护异步化实施验收报告-20261026.html；费用样本与篇幅限制明确保留 |
 | 智能体调试聊天 | 跨会话原文记忆 | 按策略显示保留至删除，来源链接打开有归属校验的旧会话；列表包含长期会话 | P1-cross-session-history | 完成 · 0429ff1；三个目标2/2 Ready，真实账号原话/关键词/删除/来源跳转通过，见r1025/cross-session-history-acceptance.md |
 | 智能体调试聊天 | 性能及历史回查 | 入口快照复用、低首字延迟、相邻历史原文及有界补查；保持同一入口和来源链接 | P1-assistant-performance-fix | 已部署并复测；26次历史查询、585次真实请求通过；64突发入口排队仍保留，见p1/P1-assistant-performance-acceptance-20261025.md |
 | 智能体调试 / 链路追踪 | 计量及异常恢复 | token随已结算账单回补；稳定requestId去重；长等待心跳和真实终态；断流结算 | R1023-context-billing-reliability | 部分完成 · a7477de、385e763、409ab9f修复已部署；历史计量/去重/终态/真实断流恢复通过，未知usage预占仍待供应商对账，见r1023/context-billing-acceptance.md |
