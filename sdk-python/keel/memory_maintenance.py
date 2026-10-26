@@ -8,7 +8,7 @@ import re
 import time
 import uuid
 from decimal import Decimal
-from contextlib import ExitStack
+from contextlib import ExitStack, nullcontext
 from types import SimpleNamespace
 from opentelemetry import trace
 
@@ -35,8 +35,9 @@ class BoundedModel:
     Bounds must cover all allowed route/fallback prices. This is explicitly not
     settled spend; actual request IDs remain on managed generation spans.
     """
-    def __init__(self,llm,job,input_price,output_price):
+    def __init__(self,llm,job,input_price,output_price,limiter=None):
         self.llm,self.job=llm,job
+        self.limiter=limiter
         self.input_price,self.output_price=Decimal(input_price),Decimal(output_price)
         if not self.input_price.is_finite() or not self.output_price.is_finite() or self.input_price<=0 or self.output_price<=0:raise ValueError('Missing memory price bounds')
         self.last_error=None
@@ -51,7 +52,8 @@ class BoundedModel:
             self.last_error=WorkLimit('budget');raise self.last_error
         self.calls+=1;self.reserved+=bound
         try:
-            result=await self.llm.chat(messages,**{**options,'max_tokens':output,'emit_tokens':False,'purpose':'memory'})
+            async with (self.limiter or nullcontext()):
+                result=await self.llm.chat(messages,**{**options,'max_tokens':output,'emit_tokens':False,'purpose':'memory'})
         except asyncio.CancelledError:
             self.usage_known=False
             raise
@@ -123,14 +125,14 @@ async def summarize(model,job):
     return {'version':job['expectedVersion'],'throughId':last,'content':content}
 
 
-async def execute_combined(agent,remote,first,second,tracer):
+async def execute_combined(agent,remote,first,second,tracer,limiter=None):
     try:
         prepared=prepare_combined(first,second,summary_prefix)
     except WorkLimit:
         prepared=None
     if prepared is None:
         # No paid combined attempt occurred. Each lease keeps its original bounds.
-        await asyncio.gather(execute(agent,remote,first,tracer),execute(agent,remote,second,tracer))
+        await asyncio.gather(execute(agent,remote,first,tracer,limiter),execute(agent,remote,second,tracer,limiter))
         return
     messages,summary,facts,rows,through=prepared
     with tracer.start_as_current_span('memory.maintenance',context=trace.Context(),attributes={
@@ -142,7 +144,7 @@ async def execute_combined(agent,remote,first,second,tracer):
         trace_id=f'{root.get_span_context().trace_id:032x}' if root.get_span_context().is_valid else uuid.uuid4().hex
         llm=LlmClient(agent.name,agent.manifest.spec.models.default_,trace_id,tracer,retry_status_errors=False)
         limits={**first,'maxOutputTokens':min(first['maxOutputTokens'],second['maxOutputTokens'])}
-        model=BoundedModel(llm,limits,os.environ['KEEL_MEMORY_MAX_INPUT_CNY_PER_TOKEN'],os.environ['KEEL_MEMORY_MAX_OUTPUT_CNY_PER_TOKEN'])
+        model=BoundedModel(llm,limits,os.environ['KEEL_MEMORY_MAX_INPUT_CNY_PER_TOKEN'],os.environ['KEEL_MEMORY_MAX_OUTPUT_CNY_PER_TOKEN'],limiter)
         events={}
         for job in (first,second):
             ev=stack.enter_context(evidence(agent.name,job['env'],job['kind'],tracer))
@@ -193,7 +195,7 @@ async def execute_combined(agent,remote,first,second,tracer):
             await llm.aclose()
 
 
-async def execute(agent,remote,job,tracer):
+async def execute(agent,remote,job,tracer,limiter=None):
     with tracer.start_as_current_span('memory.maintenance',context=trace.Context(),attributes={
         'langfuse.observation.type':'agent','keel.agent':agent.name,'keel.env':job['env'],
         'service.instance.id':os.environ.get('HOSTNAME',''),'keel.memory.trigger_trace_id':job['triggerTraceId'],'keel.memory.task_id':str(job['id']),
@@ -201,7 +203,7 @@ async def execute(agent,remote,job,tracer):
     }) as root:
         trace_id=f'{root.get_span_context().trace_id:032x}' if root.get_span_context().is_valid else uuid.uuid4().hex
         llm=LlmClient(agent.name,agent.manifest.spec.models.default_,trace_id,tracer,retry_status_errors=False)
-        model=BoundedModel(llm,job,os.environ['KEEL_MEMORY_MAX_INPUT_CNY_PER_TOKEN'],os.environ['KEEL_MEMORY_MAX_OUTPUT_CNY_PER_TOKEN'])
+        model=BoundedModel(llm,job,os.environ['KEEL_MEMORY_MAX_INPUT_CNY_PER_TOKEN'],os.environ['KEEL_MEMORY_MAX_OUTPUT_CNY_PER_TOKEN'],limiter)
         base={'id':job['id'],'leaseToken':job['leaseToken'],'traceId':trace_id}
         with evidence(agent.name,job['env'],job['kind'],tracer) as ev:
             ev.update(status='attempted',taskId=str(job['id']),triggerTraceId=job['triggerTraceId'],
@@ -240,6 +242,7 @@ def start(agent,transport,tracer):
     if not 1<=concurrency<=32:raise ValueError('KEEL_MEMORY_WORKERS must be 1..32')
     async def poll():
         active=set()
+        limiter=asyncio.Semaphore(concurrency)
         try:
             with use_transport(transport):
                 remote=UserMemory(agent.name,os.environ.get('KEEL_ENV'))
@@ -255,7 +258,7 @@ def start(agent,transport,tracer):
                             companion=response.get('companion')
                             if companion is not None:
                                 companion=MaintenanceJob.model_validate(companion).model_dump(by_alias=True)
-                            task=asyncio.create_task(execute_combined(agent,remote,job,companion,tracer) if companion else execute(agent,remote,job,tracer))
+                            task=asyncio.create_task(execute_combined(agent,remote,job,companion,tracer,limiter) if companion else execute(agent,remote,job,tracer,limiter))
                             # Retrieve unexpected errors as well; leased jobs recover after a crash.
                             def completed(t):
                                 if not t.cancelled() and t.exception():

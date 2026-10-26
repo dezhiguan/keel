@@ -84,3 +84,20 @@ def test_combined_facts_keep_conflicts_reject_invented_and_incomplete_sources():
 def test_combined_facts_never_accept_assistant_or_summary_as_evidence():
     a,b=jobs();p=output()['facts'];p['operations'][0]['quote']='收到'
     with pytest.raises(ValueError):validate_facts(p,b)
+
+
+def test_shared_limiter_bounds_parallel_fallback_calls():
+    async def run():
+        active=0;peak=0
+        class Client:
+            tracer=None;trace_id='test'
+            async def chat(self,*args,**kwargs):
+                nonlocal active,peak
+                active+=1;peak=max(peak,active)
+                await asyncio.sleep(.01);active-=1
+                return ChatResult('ok',(),5,1)
+        limiter=asyncio.Semaphore(1)
+        models=[worker.BoundedModel(Client(),jobs()[0],'.000002','.000005',limiter) for _ in range(4)]
+        await asyncio.gather(*(m.chat([{'role':'user','content':'test'}],max_tokens=10) for m in models))
+        assert peak==1 and sum(m.calls for m in models)==4
+    asyncio.run(run())
