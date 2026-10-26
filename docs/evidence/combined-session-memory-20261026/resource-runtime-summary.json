@@ -1,0 +1,121 @@
+{
+  "samples": 428,
+  "first": "2026-10-26T03:23:36.550414+00:00",
+  "last": "2026-10-26T03:59:08.253267+00:00",
+  "assistantMaxCpuM": 337,
+  "assistantMaxMemoryMi": 272,
+  "runtime": {
+    "deployments": {
+      "keel-assistant": {
+        "replicas": 2,
+        "ready": 2,
+        "images": [
+          "docker.io/library/keel-assistant:classifier-quality-3d7c97a"
+        ],
+        "resources": [
+          {
+            "limits": {
+              "cpu": "500m",
+              "memory": "512Mi"
+            },
+            "requests": {
+              "cpu": "100m",
+              "memory": "256Mi"
+            }
+          }
+        ]
+      },
+      "keel-server": {
+        "replicas": 2,
+        "ready": 2,
+        "images": [
+          "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-server:603a52de465c"
+        ],
+        "resources": [
+          {
+            "limits": {
+              "cpu": "1",
+              "memory": "1Gi"
+            },
+            "requests": {
+              "cpu": "500m",
+              "memory": "512Mi"
+            }
+          }
+        ]
+      }
+    },
+    "pods": [
+      {
+        "namespace": "agents",
+        "pod": "keel-assistant-7845954bf8-jqdzf",
+        "created": "2026-10-26T03:23:33Z",
+        "containers": [
+          {
+            "ready": true,
+            "restartCount": 0,
+            "lastState": {},
+            "image": "docker.io/library/keel-assistant:classifier-quality-3d7c97a",
+            "imageID": "sha256:5a9e054d18e3080e90873f937ae96b0fc871bf6cad91436efcaea09e729f220c"
+          }
+        ],
+        "runtime": {
+          "sdk": "1.0.32",
+          "app": "0.5.8",
+          "memoryMode": "async",
+          "combined": "true",
+          "workers": "8"
+        }
+      },
+      {
+        "namespace": "agents",
+        "pod": "keel-assistant-7845954bf8-qzhfp",
+        "created": "2026-10-26T03:23:21Z",
+        "containers": [
+          {
+            "ready": true,
+            "restartCount": 0,
+            "lastState": {},
+            "image": "docker.io/library/keel-assistant:classifier-quality-3d7c97a",
+            "imageID": "sha256:5a9e054d18e3080e90873f937ae96b0fc871bf6cad91436efcaea09e729f220c"
+          }
+        ],
+        "runtime": {
+          "sdk": "1.0.32",
+          "app": "0.5.8",
+          "memoryMode": "async",
+          "combined": "true",
+          "workers": "8"
+        }
+      },
+      {
+        "namespace": "keel-system",
+        "pod": "keel-server-5d8f687d58-j7m9h",
+        "created": "2026-10-26T03:33:27Z",
+        "containers": [
+          {
+            "ready": true,
+            "restartCount": 0,
+            "lastState": {},
+            "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-server:603a52de465c",
+            "imageID": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-server@sha256:32b506b94e280ed4f32c5fcecc4b04445f697500bd0a8ffb48f32ca13dfcb339"
+          }
+        ]
+      },
+      {
+        "namespace": "keel-system",
+        "pod": "keel-server-5d8f687d58-r2xff",
+        "created": "2026-10-26T03:33:51Z",
+        "containers": [
+          {
+            "ready": true,
+            "restartCount": 0,
+            "lastState": {},
+            "image": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-server:603a52de465c",
+            "imageID": "crpi-toaiinjjt6d90mg6-vpc.cn-guangzhou.personal.cr.aliyuncs.com/my_opc_image/keel-server@sha256:32b506b94e280ed4f32c5fcecc4b04445f697500bd0a8ffb48f32ca13dfcb339"
+          }
+        ]
+      }
+    ]
+  }
+}

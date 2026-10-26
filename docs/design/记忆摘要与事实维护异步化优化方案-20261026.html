@@ -14,8 +14,8 @@
 <div class="eyebrow">KEEL / MEMORY LATENCY / OPTIMIZATION PLAN</div>
 <h1>记忆摘要与事实维护<br>异步化优化方案</h1>
 <p class="lead">回答前只读记忆、组装与裁剪上下文；答案持久化后异步维护摘要和事实。把常规记忆模型调用移出主回答前的串行链路。</p>
-<div class="meta"><span class="badge">2026-10-26 · Asia/Shanghai</span><span class="badge">状态：第一阶段已实施，见验收报告</span><span class="badge">范围：summary / facts 调度</span></div>
-<div class="note"><strong>实施更新（2026-10-26）：</strong>第一阶段代码已合并main并在staging部署；时延、负载、可靠性和边界结果见<a href="记忆摘要与事实维护异步化实施验收报告-20261026.html">实施验收报告</a>。成本仅有小样本同范围观察，严格篇幅有偏差，不宣称推广门禁全部通过。第二阶段合并调用未启用。</div><nav aria-label="文档目录"><a href="#baseline">01 现状依据</a><a href="#changes">02 本次改法</a><a href="#bounds">03 一致性约束</a><a href="#delivery">04 实施顺序</a><a href="#acceptance">05 验收方案</a><a href="#cases">06 验收用例</a></nav>
+<div class="meta"><span class="badge">2026-10-26 · Asia/Shanghai</span><span class="badge">状态：两阶段已实施，staging选择性合并</span><span class="badge">范围：summary / facts 调度</span></div>
+<div class="note"><strong>实施更新（2026-10-26）：</strong>第一阶段代码已合并main并在staging部署；时延、负载、可靠性和边界结果见<a href="记忆摘要与事实维护异步化实施验收报告-20261026.html">实施验收报告</a>。成本仅有小样本同范围观察，严格篇幅有偏差，不宣称推广门禁全部通过。第二阶段已实现收益门槛和独立提交，按输入节省选择性合并，详见<a href="记忆摘要与事实合并维护实施验收报告-20261026.html">第二阶段及两阶段复测报告</a>；仍保留严格成本/质量与间歇错误的验收边界。</div><nav aria-label="文档目录"><a href="#baseline">01 现状依据</a><a href="#changes">02 本次改法</a><a href="#bounds">03 一致性约束</a><a href="#delivery">04 实施顺序</a><a href="#acceptance">05 验收方案</a><a href="#cases">06 验收用例</a></nav>
 </header>
 <main>
 <section id="baseline">
