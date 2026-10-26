@@ -14,9 +14,9 @@ def jobs():
     common=dict(env='staging',ownerUser='u',sessionId='a'*64,maxCalls=4,maxInputTokens=10000,maxOutputTokens=1600,maxCostCny=.5,
                 expectedVersion=0,leaseToken='lease-token',triggerTraceId='trigger',attempt=1,skippedIds=[],more=False)
     summary=dict(common,id=1,kind='summary',targetId='2',nextCursor='2',state={'version':0,'throughId':'0','content':''},
-                 messages=[{'id':'1','role':'user','content':'青岚预算20万元'},{'id':'2','role':'assistant','content':'收到'}])
+                 messages=[{'id':'1','role':'user','content':'青岚预算20万元'+'无新增事实的背景填充。'*100},{'id':'2','role':'assistant','content':'收到'}])
     facts=dict(common,id=2,kind='facts',targetId='3',nextCursor='3',state=empty_state(),
-               messages=[{'id':'1','role':'user','content':'青岚预算20万元'},{'id':'3','role':'user','content':'更正青岚预算为30万元'}])
+               messages=[{'id':'1','role':'user','content':'青岚预算20万元'+'无新增事实的背景填充。'*100},{'id':'3','role':'user','content':'更正青岚预算为30万元'}])
     return summary,facts
 
 
@@ -108,3 +108,10 @@ def test_bare_confirmation_cannot_become_an_asserted_fact():
     proposal={'operations':[dict(sourceId='3',entity='用户',attribute='确认',scope='',value='是',quote='是',action='assert',targetIds=[])],'ignoredSourceIds':[]}
     with pytest.raises(ValueError,match='ambiguous standalone'):validate_facts(proposal,b)
     assert validate_facts({'operations':[],'ignoredSourceIds':['3']},b)['facts']==[]
+
+
+def test_small_overlap_does_not_pay_for_an_extra_combined_schema():
+    a,b=jobs()
+    for row in a['messages']+b['messages']:
+        if row['id']=='1':row['content']='青岚预算20万元'
+    assert prepare(a,b,worker.summary_prefix) is None
