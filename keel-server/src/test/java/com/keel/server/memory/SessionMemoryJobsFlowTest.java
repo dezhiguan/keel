@@ -153,4 +153,29 @@ assertThat(recovered.path("leaseToken")).isNotEqualTo(abandoned.path("leaseToken
         assertThat(SessionSummaries.sourceIds(content+"[m:"+history.get(16).get("id")+"]")).hasSize(16);
     }
 
+    @Test void optionalPairClaimsSameSessionAndKeepsIndependentLeases() throws Exception {
+        enqueueSummary();
+        jdbc.update("UPDATE session_memory_job SET status='pending',next_attempt_at=now()-interval '1 second' WHERE agent_name='async-agent'");
+        var other=(String)sessions.create("async-agent","staging","u_2").get("id");
+        sessions.appendTurn("async-agent","u_2",other,"另一个用户预算50万","收到","fixture");
+        var response=mvc.perform(post(root+"/claim").with(identity("SERVICE","async-agent")).contentType("application/json")
+            .content("{\"env\":\"staging\",\"combine\":true,\"workerId\":\"paired-fixture\"}"))
+            .andExpect(status().isOk()).andReturn();
+        var data=json.readTree(response.getResponse().getContentAsString(StandardCharsets.UTF_8)).path("data");
+        var first=data.path("job");var second=data.path("companion");
+        assertThat(first.path("sessionId")).isEqualTo(second.path("sessionId"));
+        assertThat(first.path("ownerUser").asText()).isEqualTo("u_1");
+        assertThat(second.path("ownerUser").asText()).isEqualTo("u_1");
+        assertThat(first.path("kind")).isNotEqualTo(second.path("kind"));
+        assertThat(first.path("leaseToken")).isNotEqualTo(second.path("leaseToken"));
+        var summary=first.path("kind").asText().equals("summary")?first:second;
+        var facts=first.path("kind").asText().equals("facts")?first:second;
+        mvc.perform(post(root+"/complete").with(identity("SERVICE","async-agent")).contentType("application/json").content(completion(summary).toString()))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data.saved").value(true));
+        mvc.perform(post(root+"/fail").with(identity("SERVICE","async-agent")).contentType("application/json").content(completion(facts).put("reason","invalid_output").put("calls",0).put("costUpperBoundCny",0).toString()))
+            .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT status FROM session_memory_job WHERE id=?",String.class,summary.path("id").asLong())).isEqualTo("done");
+        assertThat(jdbc.queryForObject("SELECT status FROM session_memory_job WHERE id=?",String.class,facts.path("id").asLong())).isEqualTo("pending");
+    }
+
 }

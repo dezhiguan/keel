@@ -19,6 +19,8 @@ summary/facts 读取响应可选 `maintenanceMode:"async"`，SDK 据此确认服
 
 后台观测独立 trace，root memory.maintenance 记录触发 trace/task ID；memory.summary、memory.facts 的 status 保持 attempted/ok/failed，并记录 skipped/conflict/timeout/retry 的 reason。不得以后台结束时间延长主请求 span。
 
+第二阶段可选扩展：claim 请求 `combine:true`，响应可选 `companion`（结构与 job 相同或 null）。服务端在同一事务内只匹配同 agent/env/owner/session 的另一类型可领取任务；分别租约、版本和目标。旧请求不配对，旧服务端忽略新字段时 SDK 继续单任务。SDK `KEEL_MEMORY_COMBINED_ENABLED=true` 才请求配对；输入过大时付费前分别处理。组合只用一次 purpose=memory，返回 summary 字符串与 facts 操作对象，分别验证、分别提交/失败。共享调用的 calls/token/费用上界只归主 job，companion 为0，两者同 worker trace；实际账单按 requestId 去重。部分成功不回滚另一类型，失败部分保持有界重试。后台根 span keel.memory.combined 标记组合执行，无新增前台页面字段。
+
 兼容说明：旧 summary API 的非控制台 session ID 继续支持已有 CAS；64位哈希控制台会话必须存在并锁定原会话行，提交不得复活删除或过期会话。
 
 平台同事务记录每次领取与完成/失败/租约遗弃的元数据（session_memory_attempt），包含排队/执行时间、目标与实际游标、实例及关联trace、费用保守上界；不存原文，不把崩溃后的未知消耗记成0。该记录用于5分钟负载的收敛P95和进程退出恢复验收。删除会话同时清理该派生任务元数据，独立审计/账单/Trace保留。

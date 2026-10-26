@@ -8,6 +8,7 @@ import re
 import time
 import uuid
 from decimal import Decimal
+from contextlib import ExitStack, nullcontext
 from types import SimpleNamespace
 from opentelemetry import trace
 
@@ -19,6 +20,7 @@ from keel.memory_evidence import evidence
 from keel.prompts import TrustedMessage
 from keel.session_facts import SessionFacts
 from keel.session_history import source_ids
+from keel.memory_combined import prepare as prepare_combined, validate_summary, validate_facts
 
 log=logging.getLogger(__name__)
 
@@ -33,8 +35,9 @@ class BoundedModel:
     Bounds must cover all allowed route/fallback prices. This is explicitly not
     settled spend; actual request IDs remain on managed generation spans.
     """
-    def __init__(self,llm,job,input_price,output_price):
+    def __init__(self,llm,job,input_price,output_price,limiter=None):
         self.llm,self.job=llm,job
+        self.limiter=limiter
         self.input_price,self.output_price=Decimal(input_price),Decimal(output_price)
         if not self.input_price.is_finite() or not self.output_price.is_finite() or self.input_price<=0 or self.output_price<=0:raise ValueError('Missing memory price bounds')
         self.last_error=None
@@ -49,7 +52,8 @@ class BoundedModel:
             self.last_error=WorkLimit('budget');raise self.last_error
         self.calls+=1;self.reserved+=bound
         try:
-            result=await self.llm.chat(messages,**{**options,'max_tokens':output,'emit_tokens':False,'purpose':'memory'})
+            async with (self.limiter or nullcontext()):
+                result=await self.llm.chat(messages,**{**options,'max_tokens':output,'emit_tokens':False,'purpose':'memory'})
         except asyncio.CancelledError:
             self.usage_known=False
             raise
@@ -121,7 +125,77 @@ async def summarize(model,job):
     return {'version':job['expectedVersion'],'throughId':last,'content':content}
 
 
-async def execute(agent,remote,job,tracer):
+async def execute_combined(agent,remote,first,second,tracer,limiter=None):
+    try:
+        prepared=prepare_combined(first,second,summary_prefix)
+    except WorkLimit:
+        prepared=None
+    if prepared is None:
+        # No paid combined attempt occurred. Each lease keeps its original bounds.
+        await asyncio.gather(execute(agent,remote,first,tracer,limiter),execute(agent,remote,second,tracer,limiter))
+        return
+    messages,summary,facts,rows,through=prepared
+    with tracer.start_as_current_span('memory.maintenance',context=trace.Context(),attributes={
+        'langfuse.observation.type':'agent','keel.agent':agent.name,'keel.env':first['env'],
+        'service.instance.id':os.environ.get('HOSTNAME',''),'keel.memory.combined':True,
+        'keel.memory.task_id':str(first['id']),'keel.memory.trigger_trace_id':first['triggerTraceId'],
+        'langfuse.session.id':first['sessionId'],'keel.status':'ok',
+    }) as root, ExitStack() as stack:
+        trace_id=f'{root.get_span_context().trace_id:032x}' if root.get_span_context().is_valid else uuid.uuid4().hex
+        llm=LlmClient(agent.name,agent.manifest.spec.models.default_,trace_id,tracer,retry_status_errors=False)
+        limits={**first,'maxOutputTokens':min(first['maxOutputTokens'],second['maxOutputTokens'])}
+        model=BoundedModel(llm,limits,os.environ['KEEL_MEMORY_MAX_INPUT_CNY_PER_TOKEN'],os.environ['KEEL_MEMORY_MAX_OUTPUT_CNY_PER_TOKEN'],limiter)
+        events={}
+        for job in (first,second):
+            ev=stack.enter_context(evidence(agent.name,job['env'],job['kind'],tracer))
+            ev.update(status='attempted',taskId=str(job['id']),triggerTraceId=job['triggerTraceId'],
+                      targetId=job['targetId'],version=job['expectedVersion'],attempt=job['attempt'])
+            events[job['id']]=ev
+        def body(job):
+            # Shared generation is accounted once. Both attempts share the trace.
+            usage=model.usage() if job['id']==first['id'] else dict(calls=0,inputTokens=0,outputTokens=0,costUpperBoundCny=0)
+            return dict(id=job['id'],leaseToken=job['leaseToken'],traceId=trace_id,**usage)
+        async def fail(job,reason):
+            events[job['id']].update(status='failed',reason=reason)
+            root.set_attribute('keel.status','failed')
+            try:await remote.fail_maintenance({**body(job),'reason':reason})
+            except Exception:
+                log.warning('memory combined report failed trace_id=%s agent=%s task=%s',trace_id,agent.name,job['id'])
+        completed=set()
+        try:
+            async with asyncio.timeout(60):
+                response=await model.chat(messages,tools=[],max_tokens=1600)
+                content=getattr(response,'content',response)
+                if not isinstance(content,str) or len(content)>24000:raise ValueError('invalid_output')
+                parsed=json.loads(content)
+                if not isinstance(parsed,dict):raise ValueError('invalid_output')
+                # Independent validators and independent CAS. Never trust one result for the other.
+                for job in (first,second):
+                    try:
+                        state=(validate_summary(parsed.get('summary'),summary,rows,through) if job['kind']=='summary'
+                               else validate_facts(parsed.get('facts'),facts))
+                    except (ValueError,TypeError,KeyError):
+                        await fail(job,'invalid_output');completed.add(job['id']);continue
+                    result=await remote.complete_maintenance({**body(job),'state':state})
+                    events[job['id']].update(status='ok' if result['saved'] else 'failed',
+                        reason='committed' if result['saved'] else 'conflict',cursorId=state.get('throughId',state.get('cursorId')))
+                    if not result['saved']:root.set_attribute('keel.status','fallback')
+                    completed.add(job['id'])
+        except asyncio.CancelledError:
+            for job in (first,second):
+                if job['id'] not in completed:await asyncio.shield(fail(job,'cancelled'))
+            raise
+        except Exception as error:
+            reason='timeout' if isinstance(error,TimeoutError) else str(error) if isinstance(error,WorkLimit) else 'invalid_output' if isinstance(error,ValueError) else 'upstream'
+            for job in (first,second):
+                if job['id'] not in completed:await fail(job,reason)
+        finally:
+            for job in (first,second):
+                events[job['id']].update({k:v for k,v in body(job).items() if k not in ('id','leaseToken','traceId')})
+            await llm.aclose()
+
+
+async def execute(agent,remote,job,tracer,limiter=None):
     with tracer.start_as_current_span('memory.maintenance',context=trace.Context(),attributes={
         'langfuse.observation.type':'agent','keel.agent':agent.name,'keel.env':job['env'],
         'service.instance.id':os.environ.get('HOSTNAME',''),'keel.memory.trigger_trace_id':job['triggerTraceId'],'keel.memory.task_id':str(job['id']),
@@ -129,7 +203,7 @@ async def execute(agent,remote,job,tracer):
     }) as root:
         trace_id=f'{root.get_span_context().trace_id:032x}' if root.get_span_context().is_valid else uuid.uuid4().hex
         llm=LlmClient(agent.name,agent.manifest.spec.models.default_,trace_id,tracer,retry_status_errors=False)
-        model=BoundedModel(llm,job,os.environ['KEEL_MEMORY_MAX_INPUT_CNY_PER_TOKEN'],os.environ['KEEL_MEMORY_MAX_OUTPUT_CNY_PER_TOKEN'])
+        model=BoundedModel(llm,job,os.environ['KEEL_MEMORY_MAX_INPUT_CNY_PER_TOKEN'],os.environ['KEEL_MEMORY_MAX_OUTPUT_CNY_PER_TOKEN'],limiter)
         base={'id':job['id'],'leaseToken':job['leaseToken'],'traceId':trace_id}
         with evidence(agent.name,job['env'],job['kind'],tracer) as ev:
             ev.update(status='attempted',taskId=str(job['id']),triggerTraceId=job['triggerTraceId'],
@@ -168,6 +242,7 @@ def start(agent,transport,tracer):
     if not 1<=concurrency<=32:raise ValueError('KEEL_MEMORY_WORKERS must be 1..32')
     async def poll():
         active=set()
+        limiter=asyncio.Semaphore(concurrency)
         try:
             with use_transport(transport):
                 remote=UserMemory(agent.name,os.environ.get('KEEL_ENV'))
@@ -180,7 +255,10 @@ def start(agent,transport,tracer):
                         if job:
                             from keel.protocol.memory import MaintenanceJob
                             job=MaintenanceJob.model_validate(job).model_dump(by_alias=True)
-                            task=asyncio.create_task(execute(agent,remote,job,tracer))
+                            companion=response.get('companion')
+                            if companion is not None:
+                                companion=MaintenanceJob.model_validate(companion).model_dump(by_alias=True)
+                            task=asyncio.create_task(execute_combined(agent,remote,job,companion,tracer,limiter) if companion else execute(agent,remote,job,tracer,limiter))
                             # Retrieve unexpected errors as well; leased jobs recover after a crash.
                             def completed(t):
                                 if not t.cancelled() and t.exception():

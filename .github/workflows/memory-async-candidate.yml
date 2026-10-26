@@ -1,7 +1,7 @@
 name: Async session memory candidate
 on:
   push:
-    branches: [feat/async-session-memory-20261026]
+    branches: [feat/async-session-memory-20261026, feat/combined-memory-20261026]
   workflow_dispatch:
 permissions:
   contents: read

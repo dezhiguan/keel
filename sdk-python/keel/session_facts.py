@@ -115,6 +115,36 @@ def apply(state, operation, sources):
             old['status'] = 'pending'
 
 
+def validate_batch(parsed, batch, sources):
+    """Validate and apply historical operations using the shared fact state machine."""
+    state = batch['state']; rows = batch['messages']
+    if not isinstance(parsed, dict):
+        raise ValueError('invalid fact output object')
+    operations = parsed.get('operations')
+    if not isinstance(operations, list) or len(operations) > 24 or any(not isinstance(op, dict) for op in operations):
+        raise ValueError('invalid fact operations')
+    ignored = parsed.get('ignoredSourceIds', [])
+    if not isinstance(ignored, list) or any(not isinstance(v, str) or v not in sources for v in ignored):
+        raise ValueError('invalid ignored fact sources')
+    covered = {str(op.get('sourceId')) for op in operations}
+    if any(str(row['id']) not in covered and str(row['id']) not in ignored for row in rows):
+        raise ValueError('incomplete fact source classification')
+    # Committed rows are replayed in order regardless of model output order.
+    saved_state = copy.deepcopy(state)
+    for row in rows:
+        for op in operations:
+            if str(op.get('sourceId')) == str(row['id']):
+                apply(saved_state, op, sources)
+    for op in operations:
+        if str(op.get('sourceId')) not in sources:
+            raise ValueError('invented fact source')
+    saved_state['cursorId'] = batch['nextCursor']
+    saved_state['gaps'] = list(dict.fromkeys(state['gaps']+batch['skippedIds']))
+    if len(saved_state['gaps']) > 128:
+        raise ValueError('fact gap capacity exceeded')
+    return saved_state
+
+
 class SessionFacts:
     def __init__(self, llm, memory, external, agent, env):
         self.llm, self.memory, self.external = llm, memory, external
@@ -160,27 +190,7 @@ class SessionFacts:
                             if not isinstance(parsed, dict):
                                 raise ValueError('invalid fact output object')
                             operations = parsed.get('operations')
-                            if not isinstance(operations, list) or len(operations) > 24 or any(not isinstance(op, dict) for op in operations):
-                                raise ValueError('invalid fact operations')
-                            ignored = parsed.get('ignoredSourceIds', [])
-                            if not isinstance(ignored, list) or any(not isinstance(v, str) or v not in sources for v in ignored):
-                                raise ValueError('invalid ignored fact sources')
-                            covered = {str(op.get('sourceId')) for op in operations}
-                            if any(str(row['id']) not in covered and str(row['id']) not in ignored for row in rows):
-                                raise ValueError('incomplete fact source classification')
-                            # Committed rows are replayed in order regardless of model output order.
-                            saved_state = copy.deepcopy(state)
-                            for row in rows:
-                                for op in operations:
-                                    if str(op.get('sourceId')) == str(row['id']):
-                                        apply(saved_state, op, sources)
-                            for op in operations:
-                                if str(op.get('sourceId')) not in sources:
-                                    raise ValueError('invented fact source')
-                            saved_state['cursorId'] = batch['nextCursor']
-                            saved_state['gaps'] = list(dict.fromkeys(state['gaps']+batch['skippedIds']))
-                            if len(saved_state['gaps']) > 128:
-                                raise ValueError('fact gap capacity exceeded')
+                            saved_state = validate_batch(parsed, batch, sources)
                             # Validate current proposals before committing any part of this extraction.
                             view = copy.deepcopy(saved_state)
                             for op in operations:
