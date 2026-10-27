@@ -9,35 +9,38 @@ concurrency:
   group: assistant-gate-staging-operations
   cancel-in-progress: false
 jobs:
-  release-sdk:
+  artifact:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Download the official SDK release artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in $(seq 1 30); do
+            if gh release download sdk-v1.0.35 --repo dezhiguan/keel --pattern 'keel_sdk-1.0.35-py3-none-any.whl' --dir official-sdk; then break; fi
+            sleep 10
+          done
+          test -f official-sdk/keel_sdk-1.0.35-py3-none-any.whl
+          sha256sum official-sdk/keel_sdk-1.0.35-py3-none-any.whl
       - name: Configure existing deployment connection
         env:
           SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
           DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
           JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
         run: bash deploy/ci/configure-ssh.sh
-      - name: Tag tested SDK source for the official release workflow
+      - name: Stage the exact released wheel for checksum-pinned assistant use
         run: |
+          scp official-sdk/keel_sdk-1.0.35-py3-none-any.whl keel-app:/tmp/keel_sdk-1.0.35-py3-none-any.whl
           ssh -T keel-app 'bash -s' <<'REMOTE'
           set -euo pipefail
-          kubectl -n keel-system exec -i deploy/git-ci -- python - <<'PY'
-          import os,json,urllib.request,time
-          sha='5b48ffe2d5f9eb38c352e97adf37d9768f484068'
-          def api(path,body=None):
-              request=urllib.request.Request('https://api.github.com/repos/dezhiguan/keel'+path,data=None if body is None else json.dumps(body).encode(),headers={'Authorization':'Bearer '+os.environ['KEEL_GITHUB_TOKEN'],'User-Agent':'keel-sdk-official-release','Content-Type':'application/json'})
-              with urllib.request.urlopen(request,timeout=60) as response:return json.load(response)
-          for attempt in range(45):
-              runs=api('/actions/runs?head_sha='+sha)['workflow_runs']
-              ci=next(r for r in runs if r['name']=='Keel CI')
-              if ci['status']=='completed':break
-              time.sleep(10)
-          assert ci['conclusion']=='success','source CI must pass before tagging'
-          result=api('/git/refs',{'ref':'refs/tags/sdk-v1.0.35','sha':sha})
-          assert result['object']['sha']==sha
-          print(json.dumps({'tag':result['ref'],'sha':sha}))
-          PY
+          cat /tmp/keel_sdk-1.0.35-py3-none-any.whl | kubectl -n keel-system exec -i deploy/git-ci -- python -c '
+          import os,sys,json,urllib.request,hashlib,base64
+          raw=sys.stdin.buffer.read()
+          request=urllib.request.Request("https://api.github.com/repos/dezhiguan/keel-assistant/git/blobs",data=json.dumps({"content":base64.b64encode(raw).decode(),"encoding":"base64"}).encode(),headers={"Authorization":"Bearer "+os.environ["KEEL_GITHUB_TOKEN"],"User-Agent":"keel-official-sdk-artifact","Content-Type":"application/json"})
+          with urllib.request.urlopen(request,timeout=90) as response:blob=json.load(response)
+          assert blob["sha"]==hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
+          print(json.dumps({"officialSdk":"1.0.35","sha256":hashlib.sha256(raw).hexdigest(),"gitBlob":blob["sha"],"bytes":len(raw)}))
+          '
           REMOTE
