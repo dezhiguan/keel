@@ -193,6 +193,10 @@ class LlmClient:
                     options["tools"] = wire_definitions
                 if tool_choice is not None:
                     options["tool_choice"] = tool_choice
+                elif tools is not None and not tools:
+                    # An explicit empty list is a no-tools phase, including
+                    # requests whose history contains earlier tool messages.
+                    options["tool_choice"] = "none"
                 if not self.standalone:
                     options["extra_body"] = {"metadata": {"caller_agent": self.agent}}
                     if purpose:
