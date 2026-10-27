@@ -9,73 +9,21 @@ concurrency:
   group: assistant-gate-staging-operations
   cancel-in-progress: false
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Download checksum-pinned official SDK release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release download sdk-v1.0.34 --repo dezhiguan/keel --pattern 'keel_sdk-1.0.34-py3-none-any.whl' --dir official-sdk
-      - name: Configure existing deployment connection
-        env:
-          SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
-          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
-          JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
-        run: bash deploy/ci/configure-ssh.sh
-      - name: Build pinned assistant candidate without changing the active deployment
+      - name: Roll out verified assistant candidate after the completed baseline
         run: |
-          scp official-sdk/keel_sdk-1.0.34-py3-none-any.whl keel-app:/tmp/keel_sdk-1.0.34-py3-none-any.whl
           ssh -T keel-app 'bash -s' <<'REMOTE'
           set -euo pipefail
           revision=d3359a39773237781cc03a754d3c2710389fd9cf
           work=/tmp/keel-gate-20261028-$revision
-          mkdir -p "$work"
-          kubectl -n keel-system exec -i deploy/git-ci -- python - "$revision" <<'PY' > "$work/bundle.tar"
-          import os,sys,json,urllib.request,io,tarfile,base64,hashlib
-          from concurrent.futures import ThreadPoolExecutor
-          sha=sys.argv[1]
-          def get(path):
-              request=urllib.request.Request('https://api.github.com/repos/dezhiguan/keel-assistant'+path,headers={'Authorization':'Bearer '+os.environ['KEEL_GITHUB_TOKEN'],'User-Agent':'keel-assistant-staging-deployment'})
-              with urllib.request.urlopen(request,timeout=90) as response:return response.read()
-          commit=json.loads(get('/git/commits/'+sha));assert commit['sha']==sha
-          tree=get('/git/trees/'+commit['tree']['sha']+'?recursive=1')
-          catalogue=json.loads(tree);assert not catalogue.get('truncated')
-          roots=('assistant/','prompts/','evals/')
-          names={'.app-version','.keel-sdk-version','sdk.sha256','app.py','agent.yaml','pyproject.toml','requirements.lock','scripts/check-sdk.py','deploy/gate-candidate.py','deploy/build-runtime-overlay.py','deploy/verify-routing-runtime.py'}
-          entries=[row for row in catalogue['tree'] if row['type']=='blob' and (row['path'] in names or row['path'].startswith(roots))]
-          def blob(row):
-              assert row['mode'] in ('100644','100755')
-              raw=base64.b64decode(json.loads(get('/git/blobs/'+row['sha']))['content'])
-              assert hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()==row['sha']
-              return row['path'],raw
-          buffer=io.BytesIO()
-          with ThreadPoolExecutor(max_workers=8) as pool,tarfile.open(fileobj=buffer,mode='w:gz') as archive:
-              for path,raw in pool.map(blob,entries):
-                  item=tarfile.TarInfo('snapshot/'+path);item.size=len(raw);archive.addfile(item,io.BytesIO(raw))
-          source=buffer.getvalue()
-          with tarfile.open(fileobj=sys.stdout.buffer,mode='w|') as bundle:
-              for name,data in [('source.tar.gz',source),('tree.json',tree)]:
-                  item=tarfile.TarInfo(name);item.size=len(data);bundle.addfile(item,io.BytesIO(data))
+          test -f "$work/deployment.json"
+          python3 - "$work/deployment.json" <<'PY'
+          import sys,json
+          d=json.load(open(sys.argv[1]));assert d['revision']=='d3359a39773237781cc03a754d3c2710389fd9cf' and d['phase']=='built' and d['sdk']=='1.0.34'
           PY
-          tar -xf "$work/bundle.tar" -C "$work"
-          python3 - "$work" <<'PY'
-          from pathlib import Path
-          import tarfile,sys
-          work=Path(sys.argv[1]);source=work/'source';source.mkdir(exist_ok=True)
-          with tarfile.open(work/'source.tar.gz') as archive:
-              for item in archive:
-                  parts=Path(item.name).parts[1:]
-                  if not parts:continue
-                  assert all(p not in ('.','..') for p in parts)
-                  path=source.joinpath(*parts)
-                  if item.isdir():path.mkdir(parents=True,exist_ok=True)
-                  else:
-                      assert item.isfile()
-                      path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(archive.extractfile(item).read())
-          PY
-          wheel=$(find /tmp -type f -name 'keel_sdk-1.0.34-py3-none-any.whl' -print -quit)
-          test -n "$wheel"
-          python3 "$work/source/deploy/gate-candidate.py" --source "$work/source" --revision "$revision" --tree "$work/tree.json" --base-image docker.io/library/keel-assistant:task-cost-5acab283 --image docker.io/library/keel-assistant:gate-d3359a397732 --wheel "$wheel" --build-only
+          python3 "$work/source/deploy/gate-candidate.py" --source "$work/source" --revision "$revision" --tree "$work/tree.json" --base-image docker.io/library/keel-assistant:task-cost-5acab283 --image docker.io/library/keel-assistant:gate-d3359a397732 --wheel /tmp/keel_sdk-1.0.34-py3-none-any.whl
           REMOTE
