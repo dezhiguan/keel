@@ -1,0 +1,31 @@
+name: Assistant gate staging operations
+on:
+  push:
+    branches: [fix/assistant-gate-ops-20261028]
+    paths: ['.github/workflows/assistant-gate-ops.yml']
+permissions:
+  contents: read
+concurrency:
+  group: assistant-gate-staging-operations
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure existing deployment connection
+        env:
+          SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
+          JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+        run: bash deploy/ci/configure-ssh.sh
+      - name: Inspect staging evaluator failures and deployment
+        run: |
+          ssh -T keel-app 'bash -s' <<'REMOTE'
+          set -eu
+          kubectl -n agents get deploy keel-assistant -o wide
+          kubectl -n agents get jobs --sort-by=.metadata.creationTimestamp -o custom-columns=NAME:.metadata.name,ACTIVE:.status.active,SUCCEEDED:.status.succeeded | tail -8
+          kubectl -n keel-system logs deploy/keel-llm --since=20m --tail=350 | python3 -c 'import sys; lines=[s for s in sys.stdin if any(x in s for x in ["ERROR","WARN","denied","COST_","CONTEXT_"])]; print("".join(lines[-45:]))'
+          find /opt /root /tmp -maxdepth 3 -name .git -type d 2>/dev/null | head -20
+          REMOTE
