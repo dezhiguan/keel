@@ -21,7 +21,6 @@ public final class JdbcUsageDailyStore implements UsageDailyStore {
                 ON CONFLICT (day, env, agent) DO UPDATE SET
                   calls=EXCLUDED.calls, tokens=EXCLUDED.tokens,
                   cost_cny=EXCLUDED.cost_cny, users=EXCLUDED.users
-                WHERE NOT usage_daily.closed
                 """, Date.valueOf(day), env, slice.calls(), slice.tokens(), slice.costCny(), slice.users());
     }
 

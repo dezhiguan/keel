@@ -293,6 +293,36 @@ public class CostService {
 
     public record Ledger(List<LiteLlmClient.Spend> bills, List<LiteLlmClient.VirtualKey> keys,
                          List<LiteLlmClient.Model> models, List<LiteLlmClient.AlertRule> rules) {}
+    /** Daily and lifetime costs share the same complete ledger; budgets are not a billing source. */
+    public static List<com.keel.server.registry.model.dto.AgentSummary> applyAgentCosts(
+            List<com.keel.server.registry.model.dto.AgentSummary> agents, Ledger ledger, String env, Instant now) {
+        if (agents.isEmpty()) return agents;
+        var today = now.atZone(java.time.ZoneId.of("Asia/Shanghai")).toLocalDate().atStartOfDay(java.time.ZoneId.of("Asia/Shanghai")).toInstant();
+        var daily = new LinkedHashMap<String, BigDecimal>();
+        var total = new LinkedHashMap<String, BigDecimal>();
+        var pending = new LinkedHashMap<String, Integer>();
+        var allPending = new LinkedHashMap<String, Integer>();
+        for (var bill : ledger.bills()) {
+            if (!inEnv(bill.alias(), env)) continue;
+            var agent = agentOf(bill.alias());
+            var at = Instant.parse(bill.ts());
+            if (at.isAfter(now)) continue;
+            boolean isToday = !at.isBefore(today);
+            if ("SETTLED".equals(bill.status()) && bill.costCny() != null) {
+                var amount = BigDecimal.valueOf(bill.costCny());
+                total.merge(agent, amount, BigDecimal::add);
+                if (isToday) daily.merge(agent, amount, BigDecimal::add);
+            } else if ("PENDING".equals(bill.status())) {
+                allPending.merge(agent, 1, Integer::sum);
+                if (isToday) pending.merge(agent, 1, Integer::sum);
+            }
+        }
+        return agents.stream().map(agent -> agent.withCosts(
+                daily.getOrDefault(agent.name(), BigDecimal.ZERO).doubleValue(),
+                total.getOrDefault(agent.name(), BigDecimal.ZERO).doubleValue(),
+                pending.getOrDefault(agent.name(), 0), allPending.getOrDefault(agent.name(), 0))).toList();
+    }
+
     public Ledger ledger() { return new Ledger(gateway.spendAll(),gateway.keys(),gateway.models(),gateway.alertRules()); }
     /** Overview does not need the model page's Langfuse generation/latency sampling. */
     public Result summarize(Ledger ledger,String env,String range) {

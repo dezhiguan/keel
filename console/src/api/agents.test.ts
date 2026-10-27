@@ -5,9 +5,12 @@ const agent = { name: 'echo', dailyBudgetCny: 30, gatePassed: null, score: null 
 
 describe('mergeUsage', () => {
   it('keeps the registry budget when usage has no budget', () => {
-    const merged = mergeUsage(agent, { name: 'echo', calls24h: 2, costCny: 0.4, score: null })
+    const merged = mergeUsage(agent, { name: 'echo', calls24h: 2, costCny: 0.4, totalCostCny: 80.4, pendingBillCount: 1, totalPendingBillCount: 3, score: null })
     expect(merged.calls24h).toBe(2)
     expect(merged.costCny).toBe(0.4)
+    expect(merged.totalCostCny).toBe(80.4)
+    expect(merged.pendingBillCount).toBe(1)
+    expect(merged.totalPendingBillCount).toBe(3)
     expect(merged.dailyBudgetCny).toBe(30)
     expect(merged.gatePassed).toBeNull()
   })

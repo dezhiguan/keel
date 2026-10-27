@@ -26,11 +26,11 @@ describe('agentType', () => {
 describe('mergeEmployees', () => {
   it('lists only registered agents', () => {
     const cards = mergeEmployees([
-      { name: 'askdb', displayName: '问数', category: 'biz', status: 'REGISTERED', calls24h: 0, costCny: 0.03, ownerUser: 'amy' },
+      { name: 'askdb', displayName: '问数', category: 'biz', status: 'REGISTERED', calls24h: 0, costCny: 0.03, totalCostCny: 80.03, pendingBillCount: 1, totalPendingBillCount: 2, ownerUser: 'amy' },
       { name: 'echo', displayName: '回声', category: 'dev', template: 'echo', status: 'REGISTERED' },
     ])
     expect(cards.map((card) => card.name)).toEqual(['askdb', 'echo'])
-    expect(cards.find((card) => card.name === 'askdb')).toMatchObject({ placeholder: false, calls: 0, cost: 0.03, owner: 'amy', source: '人工编写', layer: 'biz', color: '#8fb6ff' })
+    expect(cards.find((card) => card.name === 'askdb')).toMatchObject({ placeholder: false, calls: 0, cost: 0.03, totalCost: 80.03, pendingBills: 1, totalPendingBills: 2, owner: 'amy', source: '人工编写', layer: 'biz', color: '#8fb6ff' })
     expect(cards.find((card) => card.name === 'echo')).toMatchObject({ placeholder: false, layer: 'dev', template: 'echo' })
   })
 

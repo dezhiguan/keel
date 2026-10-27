@@ -174,7 +174,7 @@ export interface paths {
         /**
          * 智能体调用、成本和评测分
          * @description 列表和抽屉先拿注册信息，再补这三项。24 小时调用来自 Langfuse 根节点，
-         *     成本来自薄网关日花费，评测分来自一份实验汇总。累计调用和环比用本机 trace 记录，
+         *     日成本和总成本来自薄网关已结算账单，待计费单独统计；评测分来自一份实验汇总。累计调用和环比用本机 trace 记录，
          *     不在这条接口里翻 Langfuse 全量历史。
          */
         get: operations["getAgentUsage"];
@@ -2833,8 +2833,20 @@ export interface components {
             callsTotal?: number;
             /** Format: float */
             p95Seconds?: number;
-            /** Format: float */
-            costCny?: number;
+            /**
+             * Format: float
+             * @description 上海时区当天零点至今的已结算账单费用（元）
+             */
+            costCny?: number | null;
+            /**
+             * Format: float
+             * @description 当前环境范围全部历史已结算账单费用（元），不随总览时间窗变化
+             */
+            totalCostCny?: number | null;
+            /** @description 上海时区当天待计费尝试数 */
+            pendingBillCount?: number | null;
+            /** @description 当前环境范围全部历史待计费尝试数 */
+            totalPendingBillCount?: number | null;
             /** Format: float */
             dailyBudgetCny?: number;
             /** Format: float */

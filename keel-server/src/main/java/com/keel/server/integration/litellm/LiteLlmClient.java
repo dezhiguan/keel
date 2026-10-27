@@ -110,28 +110,33 @@ public class LiteLlmClient {
 
     public List<Spend> spendAll() {
         var rows = new ArrayList<Spend>();
+        var cursors = new java.util.HashSet<String>();
         String cursor = null;
         for (int page = 0; page < 500; page++) {
-            var path = "/admin/v1/spend?limit=100" + (cursor == null || cursor.isBlank() ? "" : "&cursor=" + java.net.URLEncoder.encode(cursor, java.nio.charset.StandardCharsets.UTF_8));
+            var path = "/admin/v1/spend?limit=100" + (cursor == null ? "" : "&cursor=" + java.net.URLEncoder.encode(cursor, java.nio.charset.StandardCharsets.UTF_8));
             var body = get(path);
             var data = body.path("data");
-            if (!data.isArray() || data.isEmpty()) {
-                if (cursor == null && !body.has("nextCursor")) {
-                    return spendByPage();
-                }
-                break;
-            }
+            if (!data.isArray()) throw new IllegalStateException("Gateway ledger response is not an array");
+            if (cursor == null && !body.has("nextCursor")) return spendByPage();
             data.forEach(row -> rows.add(spend(row)));
             var next = body.path("nextCursor").asText("");
-            if (next.isBlank() || next.equals(cursor)) {
-                if (body.has("nextCursor") || cursor != null) {
-                    break;
-                }
-                return spendByPage();
-            }
+            if (next.isBlank()) return uniqueAttempts(rows);
+            if (data.isEmpty() || !cursors.add(next))
+                throw new IllegalStateException("Gateway ledger pagination did not advance");
             cursor = next;
         }
-        return rows;
+        throw new IllegalStateException("Gateway ledger exceeds pagination limit; refusing partial totals");
+    }
+
+    private static List<Spend> uniqueAttempts(List<Spend> rows) {
+        var identified = new java.util.LinkedHashMap<String, Spend>();
+        var anonymous = new ArrayList<Spend>();
+        for (var row : rows) {
+            if (row.attemptId() == null || row.attemptId().isBlank()) anonymous.add(row);
+            else identified.putIfAbsent(row.attemptId(), row);
+        }
+        anonymous.addAll(identified.values());
+        return anonymous;
     }
 
     /**
@@ -181,15 +186,11 @@ public class LiteLlmClient {
         var rows = new ArrayList<Spend>();
         for (int page = 1; page <= 50; page++) {
             var data = get("/admin/v1/spend?page=" + page + "&size=50").path("data");
-            if (!data.isArray() || data.isEmpty()) {
-                break;
-            }
+            if (!data.isArray()) throw new IllegalStateException("Gateway ledger response is not an array");
             data.forEach(row -> rows.add(spend(row)));
-            if (data.size() < 50) {
-                break;
-            }
+            if (data.size() < 50) return uniqueAttempts(rows);
         }
-        return rows;
+        throw new IllegalStateException("Legacy gateway ledger exceeds pagination limit; refusing partial totals");
     }
 
     private List<Spend> spendByPageSince(Instant since) {

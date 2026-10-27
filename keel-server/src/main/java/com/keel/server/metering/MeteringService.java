@@ -31,41 +31,28 @@ public class MeteringService {
     @Scheduled(cron = "0 5 * * * *", zone = "Asia/Shanghai")
     public void hourly() {
         var now = Instant.now();
+        var ledger = costs.ledger();
+        for (var env : List.of("all", "dev", "test", "staging", "prod")) {
+            reconcile(env, costs.summarize(ledger, env, "all"), now);
+        }
+    }
+
+    /** Rebuild every available day, including sealed days corrected by late settlement. */
+    public UsageMath.Slice reconcile(String env, CostService.Result history, Instant now) {
         var today = LocalDate.ofInstant(now, SHANGHAI);
-        var yesterday = today.minusDays(1);
-        for (var env : List.of("all", "dev", "test", "staging", "prod")) {
-            // Finalize the previous calendar day before sealing it. The 23:05
-            // snapshot cannot include calls made during the last 55 minutes.
-            rollupDay(env, costs.cost(env, "all"), yesterday);
+        var days = new java.util.TreeMap<LocalDate, java.util.List<com.keel.server.integration.litellm.LiteLlmClient.Spend>>();
+        for (var bill : history.bills()) {
+            var at = Instant.parse(bill.ts());
+            if (at.isAfter(now)) continue;
+            var day = LocalDate.ofInstant(at, SHANGHAI);
+            days.computeIfAbsent(day, ignored -> new java.util.ArrayList<>()).add(bill);
         }
+        days.putIfAbsent(today, List.of());
+        days.forEach((day, bills) -> store.replaceOpen(day, env, slice(bills)));
         store.closeBefore(today);
-        for (var env : List.of("all", "dev", "test", "staging", "prod")) {
-            rollup(env, costs.cost(env, "today"), now);
-        }
-    }
-
-    void rollupDay(String env, CostService.Result history, LocalDate day) {
-        var bills = history.bills().stream().filter(bill -> {
-            try {
-                return LocalDate.ofInstant(Instant.parse(bill.ts()), SHANGHAI).equals(day);
-            } catch (RuntimeException ignored) {
-                return false;
-            }
-        }).toList();
-        if (bills.isEmpty()) return;
-        store.replaceOpen(day, env, slice(bills));
-    }
-
-    public UsageMath.Slice rollup(String env, CostService.Result todayBills, Instant now) {
-        var day = LocalDate.ofInstant(now, SHANGHAI);
-        if (todayBills.models().isEmpty() && todayBills.keys().isEmpty() && todayBills.bills().isEmpty()) {
-            var open = store.open(env, day);
-            var closed = store.sumClosed(env);
-            return UsageMath.cumulative(closed, open == null ? UsageMath.Slice.unknown() : open, store.distinctUsers(env));
-        }
-        var today = slice(todayBills.bills());
-        store.replaceOpen(day, env, today);
-        return UsageMath.cumulative(store.sumClosed(env), today, store.distinctUsers(env));
+        // Return the ledger total directly: previously missing/incorrect daily rows cannot reduce it.
+        var total = slice(days.values().stream().flatMap(List::stream).toList());
+        return new UsageMath.Slice(total.calls(), total.tokens(), total.costCny(), store.distinctUsers(env));
     }
 
     private static UsageMath.Slice slice(List<com.keel.server.integration.litellm.LiteLlmClient.Spend> bills) {

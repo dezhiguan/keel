@@ -59,3 +59,8 @@ for svc in gateway audit; do
   test "${code}" != "000"
   echo "keel-${svc} 端口 ok (${code})"
 done
+
+if [[ "${SMOKE_SERVER}" == "true" ]]; then
+  # Read-only comparison of deployed APIs and the gateway's complete raw ledger.
+  remote 'python3 -' < scripts/verify-cost-ledger.py
+fi

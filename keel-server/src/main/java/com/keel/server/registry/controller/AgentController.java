@@ -97,7 +97,7 @@ public class AgentController {
                 ? agentRegistryService.detail(name) : agentRegistryService.registeredDetail(name);
         var env = detail.summary() == null ? null : detail.summary().env();
         var enriched = usage.apply(detail.summary(), env == null ? "all" : env);
-        return R.ok(evaluations.withGate(detail.withGatewayBudget(enriched.dailyBudgetCny(), enriched.costCny())));
+        return R.ok(evaluations.withGate(detail.withSummary(enriched).withGatewayBudget(enriched.dailyBudgetCny(), enriched.costCny())));
     }
 
     @GetMapping("/{name}/elements")

@@ -41,6 +41,7 @@ public class AgentUsageService {
     private final EvalQueryService evaluations;
     private final SavedTraces saved;
     @Autowired(required=false) private com.keel.server.readmodel.TraceIndexStore traceIndex;
+    @Autowired(required=false) private OverviewLedger overviewLedger;
     private final Clock clock;
     private final ExecutorService parallel;
     private final Executor refresh;
@@ -79,14 +80,21 @@ public class AgentUsageService {
     }
 
     public List<AgentSummary> apply(List<AgentSummary> items, String env) {
-        var snap = snapshot(env == null || env.isBlank() ? "all" : env, "24h");
-        return items.stream().map(item -> item.withUsage(
+        var scope = env == null || env.isBlank() ? "all" : env;
+        var ledger = overviewLedger == null ? null : overviewLedger.get();
+        return apply(items, scope, ledger);
+    }
+
+    public List<AgentSummary> apply(List<AgentSummary> items, String env, CostService.Ledger ledger) {
+        var snap = snapshot(env, "24h");
+        var enriched = items.stream().map(item -> item.withUsage(
                 snap.callsKnown ? snap.calls.getOrDefault(item.name(), 0L) : null,
                 snap.totalsKnown ? snap.totals.getOrDefault(item.name(), 0L) : null,
                 snap.p95.get(item.name()),
                 snap.costKnown ? snap.cost.getOrDefault(item.name(), 0.0) : null,
                 snap.budgets.get(item.name()),
                 snap.scores.get(item.name()))).toList();
+        return ledger == null ? enriched : CostService.applyAgentCosts(enriched, ledger, env, clock.instant());
     }
 
     public Snapshot snapshotOf(String env) {

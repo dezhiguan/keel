@@ -90,29 +90,28 @@ public class OverviewService {
                 .filter(agent -> agent.status() != AgentStatus.RETIRED)
                 .filter(agent -> "all".equals(scope) || scope.equals(agent.env()))
                 .toList();
-        var agents = usage.apply(listed, scope);
+        var sharedLedger = overviewLedger == null ? costs.ledger() : overviewLedger.get();
+        var agents = usage.apply(listed, scope, sharedLedger);
         var window = "today".equals(range) || "all".equals(range) ? "24h" : range;
         var snap = usage.snapshotOf(scope, window);
         var daily = "24h".equals(range) ? snap : usage.snapshotOf(scope);
-        var sharedLedger=overviewLedger==null?null:overviewLedger.get();
-        var bills = sharedLedger==null?costs.cost(scope, range):costs.summarize(sharedLedger,scope,range);
+        var bills = costs.summarize(sharedLedger, scope, range);
+        var history = costs.summarize(sharedLedger, scope, "all");
         UsageMath.Slice ledger = null;
         UsageMath.Slice todayLedger = null;
         if (metering != null) {
-            ledger = metering.rollup(scope, (sharedLedger==null?costs.cost(scope,"today"):costs.summarize(sharedLedger,scope,"today")), Instant.now());
+            ledger = metering.reconcile(scope, history, Instant.now());
             todayLedger = metering.today(scope, Instant.now());
         }
         var online = (int) agents.stream().filter(agent -> agent.status() == AgentStatus.ONLINE).count();
         var biz = (int) agents.stream().filter(agent -> "biz".equals(agent.category())).count();
         var dev = (int) agents.stream().filter(agent -> "dev".equals(agent.category())).count();
         Long calls = snap.callsKnown() ? snap.callTotal() : null;
-        Double cost = daily.costKnown() ? bills.totalCny() : null;
+        Double cost = bills.totalCny();
         if ("today".equals(range) && todayLedger != null) {
             calls = todayLedger.calls();
-            cost = todayLedger.costCny() == null ? null : todayLedger.costCny().doubleValue();
         } else if ("all".equals(range) && ledger != null) {
             calls = ledger.calls();
-            cost = ledger.costCny() == null ? null : ledger.costCny().doubleValue();
         }
         var scored = agents.stream().map(AgentSummary::score).filter(score -> score != null).toList();
         Double avg;
@@ -126,18 +125,16 @@ public class OverviewService {
         var kpi = new Kpi(online, agents.size(), biz, dev, calls, snap.trendPct(), cost, avg, GATE,
                 pendingApprovals.apply(scope), bills.pendingCount());
         var costByAgent = new ArrayList<Map<String, Object>>();
-        if (daily.costKnown()) {
-            bills.byAgent().forEach((agent, amount) -> {
+        bills.byAgent().forEach((agent, amount) -> {
                 var row = new LinkedHashMap<String, Object>();
                 row.put("agent", agent);
                 row.put("costCny", amount);
-                var budget = "24h".equals(range) ? daily.budgets().get(agent) : null;
+                var budget = "today".equals(range) ? daily.budgets().get(agent) : null;
                 if (budget != null) {
                     row.put("dailyBudgetCny", budget);
                 }
                 costByAgent.add(row);
             });
-        }
         var registered = (int) agentRegistryService.listAll().stream()
                 .filter(agent -> "all".equals(scope) || scope.equals(agent.env()))
                 .count();
@@ -145,7 +142,7 @@ public class OverviewService {
         var cumulative = new Cumulative(registered,
                 ledger == null ? null : ledger.calls(),
                 ledger == null ? null : ledger.tokens(),
-                ledger == null || ledger.costCny() == null ? null : ledger.costCny().doubleValue(),
+                history.totalCny(),
                 ledger == null ? null : ledger.users(),
                 since);
         var metrics = List.of(
@@ -153,7 +150,7 @@ public class OverviewService {
                 new Metric("modelCost", "已结算的 costCny 之和", cost == null ? "未接入" : "keel_llm 账单", cost != null),
                 new Metric("cumulativeCalls", "已封账各天之和 + 今天实时", cumulative.calls() == null ? "未接入" : "usage_daily", cumulative.calls() != null),
                 new Metric("cumulativeTokens", "已结算账单的输入 token 加输出 token", cumulative.tokens() == null ? "未接入" : "keel_llm 账单", cumulative.tokens() != null),
-                new Metric("cumulativeCost", "已封账花费 + 今天已结算花费", cumulative.costCny() == null ? "未接入" : "keel_llm 账单", cumulative.costCny() != null),
+                new Metric("cumulativeCost", "全部历史已结算账单费用，含晚结算修正", cumulative.costCny() == null ? "未接入" : "keel_llm 账单", cumulative.costCny() != null),
                 new Metric("cumulativeUsers", "agent_run 中去重的 actor_user", cumulative.users() == null ? "未接入" : "agent_run", cumulative.users() != null),
                 new Metric("agents", "注册中心中的智能体，含已下线，不含已删除", "registry", true));
         var layers = layerValue == null ? LayerValue.empty() : layerValue.compute(scope, names(agents, true), names(agents, false));

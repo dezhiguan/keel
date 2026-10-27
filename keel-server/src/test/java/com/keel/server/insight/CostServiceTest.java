@@ -55,6 +55,7 @@ class CostServiceTest {
                 var result = overview.overview("dev", (String) expected[0]);
                 assertThat(result.kpi().modelCostCny()).isEqualTo((Double) expected[1]);
                 assertThat(result.kpi().pendingModelBills()).isEqualTo(1);
+                assertThat(result.cumulative().costCny()).isEqualTo(6.0);
                 assertThat(result.costByAgent()).singleElement().satisfies(row ->
                         assertThat(row.get("costCny")).isEqualTo(expected[1]));
             }

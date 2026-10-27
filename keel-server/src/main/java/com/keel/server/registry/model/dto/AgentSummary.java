@@ -35,7 +35,10 @@ public record AgentSummary(
         Boolean multiAgent,
         Integer delegateCount,
         @JsonInclude(JsonInclude.Include.NON_NULL) String layer,
-        @JsonInclude(JsonInclude.Include.NON_NULL) String devflowJobId) {
+        @JsonInclude(JsonInclude.Include.NON_NULL) String devflowJobId,
+        Double totalCostCny,
+        Integer pendingBillCount,
+        Integer totalPendingBillCount) {
 
     public static AgentSummary of(Agent agent) {
         return of(agent, null, null, null);
@@ -56,7 +59,7 @@ public record AgentSummary(
                 agent.getOwnerOrg(), agent.getOwnerUser(),
                 null, null, null, null, budget(manifest), null, instances,
                 delegates.isEmpty() ? null : Boolean.TRUE, delegates.isEmpty() ? null : delegates.size(),
-                agent.getLayer(), agent.getDevflowJobId());
+                agent.getLayer(), agent.getDevflowJobId(), null, null, null);
     }
 
     public AgentSummary withUsage(Long calls24h, Long callsTotal, Double p95Seconds, Double costCny,
@@ -65,7 +68,15 @@ public record AgentSummary(
         Boolean gate = score == null ? gatePassed : Boolean.valueOf(score >= 0.85);
         return new AgentSummary(name, displayName, category, language, runtime, template, env, version, status,
                 statusNote, gate, ownerOrg, ownerUser, calls24h, callsTotal, p95Seconds, costCny,
-                budget, score, instances, multiAgent, delegateCount, layer, devflowJobId);
+                budget, score, instances, multiAgent, delegateCount, layer, devflowJobId,
+                totalCostCny, pendingBillCount, totalPendingBillCount);
+    }
+
+    public AgentSummary withCosts(Double daily, Double total, Integer pending, Integer totalPending) {
+        return new AgentSummary(name, displayName, category, language, runtime, template, env, version, status,
+                statusNote, gatePassed, ownerOrg, ownerUser, calls24h, callsTotal, p95Seconds, daily,
+                dailyBudgetCny, score, instances, multiAgent, delegateCount, layer, devflowJobId,
+                total, pending, totalPending);
     }
 
     private static String statusNote(AgentStatus status, String instances) {

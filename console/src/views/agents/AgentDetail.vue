@@ -530,7 +530,8 @@ onUnmounted(() => {
               <span>预算</span>
               <div class="chips">
                 <span class="chip">{{ yuan(detail.dailyBudgetCny, 0) ? `${yuan(detail.dailyBudgetCny, 0)} / 天` : '—' }}</span>
-                <span class="chip">今日 {{ fmtCny(detail.costCny, 6) }}</span>
+                <span class="chip">日成本 {{ fmtCny(detail.costCny, 6) }}<template v-if="detail.pendingBillCount"> · 待计费 {{ detail.pendingBillCount }} 条</template></span>
+                <span class="chip">总成本 {{ fmtCny(detail.totalCostCny, 6) }}<template v-if="detail.totalPendingBillCount"> · 待计费 {{ detail.totalPendingBillCount }} 条</template></span>
               </div>
             </div>
             <h4>运行方式</h4>

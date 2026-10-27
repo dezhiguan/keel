@@ -197,7 +197,7 @@ watch([() => envStore.env, range], () => {
       <div class="kpi" :title="tip('cumulativeCost')">
         <div class="l">累计模型花费</div>
         <div class="v">{{ shown('cumulativeCost', fmtMoney(cumulative?.costCny)) }}</div>
-        <div class="d">已结算 costCny</div>
+        <div class="d">全部历史已结算</div>
       </div>
       <div class="kpi" :title="tip('cumulativeUsers')">
         <div class="l">累计服务用户</div>
@@ -250,11 +250,11 @@ watch([() => envStore.env, range], () => {
         <thead>
           <tr>
             <th>智能体</th><th>类型</th><th>技术</th><th>环境</th><th>版本</th>
-            <th>24h 调用</th><th>总调用</th><th>P95</th><th>成本</th><th>评测分</th><th>状态</th>
+            <th>24h 调用</th><th>总调用</th><th>P95</th><th title="北京时间当天 00:00 至今的已结算费用">日成本</th><th title="全部历史已结算费用，不随时间筛选变化">总成本</th><th>评测分</th><th>状态</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-if="!rows.length"><td colspan="11" class="empty">当前环境没有智能体</td></tr>
+          <tr v-if="!rows.length"><td colspan="12" class="empty">当前环境没有智能体</td></tr>
           <tr v-for="agent in rows" :key="agent.name" class="click" @click="open(agent.name)">
             <td><AgentName :id="agent.name" :display-name="agent.displayName" /></td>
             <td>
@@ -269,7 +269,8 @@ watch([() => envStore.env, range], () => {
             <td class="mono">{{ fmtN(agent.calls24h) }}</td>
             <td class="mono">{{ fmtN(agent.callsTotal) }}</td>
             <td class="mono">{{ fmtSeconds(agent.p95Seconds) }}</td>
-            <td class="mono">{{ fmtMoney(agent.costCny) }}</td>
+            <td class="mono">{{ fmtMoney(agent.costCny) }}<small v-if="agent.pendingBillCount" class="mut"> · 待计费 {{ agent.pendingBillCount }} 条</small></td>
+            <td class="mono">{{ fmtMoney(agent.totalCostCny) }}<small v-if="agent.totalPendingBillCount" class="mut"> · 待计费 {{ agent.totalPendingBillCount }} 条</small></td>
             <td class="mono" :style="belowGate(agent.score) ? { color: 'var(--bad)' } : undefined">{{ fmtScore(agent.score) }}</td>
             <td>
               <StatusPill v-bind="agentStatus(agent.status)" />
@@ -293,7 +294,7 @@ watch([() => envStore.env, range], () => {
         </ul>
     </section>
     <section v-else-if="panel === 'cost'" class="card">
-        <h3>{{ overviewRangeLabel(range) }}成本<small>按智能体<template v-if="range === '24h' || range === 'today'"> / 日预算</template></small></h3>
+        <h3>{{ overviewRangeLabel(range) }}成本<small>按智能体<template v-if="range === 'today'"> / 日预算</template></small></h3>
         <p v-if="!bars.length" class="empty">{{ overviewRangeLabel(range) }}还没有模型花费</p>
         <div v-else class="bars">
           <div v-for="row in bars" :key="row.agent">

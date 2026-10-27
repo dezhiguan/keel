@@ -28,6 +28,18 @@ class InsightReadModelPersistenceTest {
         snapshots=new InsightSnapshots(jdbc,json);index=new TraceIndexStore(jdbc,json,snapshots,new DataSourceTransactionManager(source));
     }
     @BeforeEach void clear() {jdbc.update("DELETE FROM insight_observation");jdbc.update("DELETE FROM insight_trace");jdbc.update("DELETE FROM insight_trace_bill");jdbc.update("DELETE FROM insight_snapshot");jdbc.update("DELETE FROM agent_run");jdbc.update("DELETE FROM invoke_trace");}
+    @Test void lateSettlementCanCorrectAClosedDailySummary() {
+        jdbc.update("DELETE FROM usage_daily");
+        var store = new com.keel.server.metering.JdbcUsageDailyStore(jdbc);
+        var day = java.time.LocalDate.of(2026, 10, 24);
+        store.replaceOpen(day, "staging", new com.keel.server.metering.UsageMath.Slice(1L, 5L, new java.math.BigDecimal("3"), null));
+        store.closeBefore(day.plusDays(1));
+        store.replaceOpen(day, "staging", new com.keel.server.metering.UsageMath.Slice(2L, 10L, new java.math.BigDecimal("5"), null));
+        assertThat(store.sumClosed("staging").costCny()).isEqualByComparingTo("5");
+        assertThat(store.sumClosed("staging").calls()).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT closed FROM usage_daily WHERE day=? AND env='staging'", Boolean.class, java.sql.Date.valueOf(day))).isTrue();
+    }
+
     @Test void leasesAreSharedAndExpiredWritersCannotOverwriteANewerProcess() throws Exception {
         var pool=Executors.newFixedThreadPool(2);
         try {

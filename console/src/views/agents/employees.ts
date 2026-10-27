@@ -14,6 +14,9 @@ export type EmployeeCard = {
   score: number | null
   budget: number | null
   cost: number | null
+  totalCost?: number | null
+  pendingBills?: number | null
+  totalPendingBills?: number | null
   status?: string
   placeholder: boolean
 }
@@ -32,6 +35,9 @@ export type RegistryAgent = {
   ownerOrg?: string | null
   calls24h?: number | null
   costCny?: number | null
+  totalCostCny?: number | null
+  pendingBillCount?: number | null
+  totalPendingBillCount?: number | null
   dailyBudgetCny?: number | null
   score?: number | null
   devflowJobId?: string | null
@@ -105,6 +111,9 @@ function fromRegistry(agent: RegistryAgent): EmployeeCard {
     score: agent.score ?? null,
     budget: agent.dailyBudgetCny ?? null,
     cost: agent.costCny ?? null,
+    totalCost: agent.totalCostCny ?? null,
+    pendingBills: agent.pendingBillCount ?? null,
+    totalPendingBills: agent.totalPendingBillCount ?? null,
     status: agent.status,
     placeholder: false,
   }
