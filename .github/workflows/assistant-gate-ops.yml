@@ -14,6 +14,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Configure existing deployment connection
+        env:
+          SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
+          JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+        run: bash deploy/ci/configure-ssh.sh
       - name: Roll out verified assistant candidate after the completed baseline
         run: |
           ssh -T keel-app 'bash -s' <<'REMOTE'
