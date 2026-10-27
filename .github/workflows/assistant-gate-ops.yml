@@ -24,11 +24,11 @@ jobs:
         run: |
           ssh -T keel-app 'bash -s' <<'REMOTE'
           set -euo pipefail
-          revision=29d5976b753b976c399e3a4def146cc04d974934
+          revision=d3359a39773237781cc03a754d3c2710389fd9cf
           work=/tmp/keel-gate-20261028-$revision
           mkdir -p "$work"
           kubectl -n keel-system exec -i deploy/git-ci -- python - "$revision" <<'PY' > "$work/bundle.tar"
-          import os,sys,json,urllib.request,io,tarfile
+          import os,sys,json,urllib.request,io,tarfile,base64,hashlib\n          from concurrent.futures import ThreadPoolExecutor
           sha=sys.argv[1]
           def get(path):
               request=urllib.request.Request('https://api.github.com/repos/dezhiguan/keel-assistant'+path,headers={'Authorization':'Bearer '+os.environ['KEEL_GITHUB_TOKEN'],'User-Agent':'keel-assistant-staging-deployment'})
@@ -58,5 +58,5 @@ jobs:
           PY
           wheel=$(find /tmp -type f -name 'keel_sdk-1.0.34-py3-none-any.whl' -print -quit)
           test -n "$wheel"
-          python3 "$work/source/deploy/gate-candidate.py" --source "$work/source" --revision "$revision" --tree "$work/tree.json" --base-image docker.io/library/keel-assistant:task-cost-5acab283 --image docker.io/library/keel-assistant:gate-29d5976b753b --wheel "$wheel" --build-only
+          python3 "$work/source/deploy/gate-candidate.py" --source "$work/source" --revision "$revision" --tree "$work/tree.json" --base-image docker.io/library/keel-assistant:task-cost-5acab283 --image docker.io/library/keel-assistant:gate-d3359a397732 --wheel "$wheel" --build-only
           REMOTE
