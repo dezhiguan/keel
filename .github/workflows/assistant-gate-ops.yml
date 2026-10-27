@@ -37,10 +37,11 @@ jobs:
           set -euo pipefail
           cat /tmp/keel_sdk-1.0.35-py3-none-any.whl | kubectl -n keel-system exec -i deploy/git-ci -- python -c '
           import os,sys,json,urllib.request,hashlib,base64
-          raw=sys.stdin.buffer.read()
+          wheel=sys.stdin.buffer.read()
+          raw=base64.b64encode(wheel)
           request=urllib.request.Request("https://api.github.com/repos/dezhiguan/keel-assistant/git/blobs",data=json.dumps({"content":base64.b64encode(raw).decode(),"encoding":"base64"}).encode(),headers={"Authorization":"Bearer "+os.environ["KEEL_GITHUB_TOKEN"],"User-Agent":"keel-official-sdk-artifact","Content-Type":"application/json"})
           with urllib.request.urlopen(request,timeout=90) as response:blob=json.load(response)
           assert blob["sha"]==hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
-          print(json.dumps({"officialSdk":"1.0.35","sha256":hashlib.sha256(raw).hexdigest(),"gitBlob":blob["sha"],"bytes":len(raw)}))
+          print(json.dumps({"officialSdk":"1.0.35","sha256":hashlib.sha256(wheel).hexdigest(),"gitBlob":blob["sha"],"bytes":len(wheel)}))
           '
           REMOTE
