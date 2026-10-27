@@ -9,9 +9,9 @@ concurrency:
   group: assistant-gate-staging-operations
   cancel-in-progress: false
 jobs:
-  inspect:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Configure existing deployment connection
@@ -20,28 +20,43 @@ jobs:
           DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
           JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
         run: bash deploy/ci/configure-ssh.sh
-      - name: Inspect staging evaluator failures and deployment
+      - name: Build pinned assistant candidate without changing the active deployment
         run: |
           ssh -T keel-app 'bash -s' <<'REMOTE'
-          set -eu
-          pod=$(kubectl -n agents get pod -l app=keel-assistant -o jsonpath='{.items[0].metadata.name}')
-          kubectl -n agents exec -i "$pod" -- python - <<'PY'
-          import asyncio,json,uuid
-          from keel.context import Context
-          from keel.manifest import load_manifest
-          from keel.protocol.errors import KeelError
-          async def main():
-              ctx=Context('keel-assistant','diagnostic_'+uuid.uuid4().hex,uuid.uuid4().hex,asyncio.Queue(),manifest=load_manifest('agent.yaml'),env='staging',session_id='diagnostic_'+uuid.uuid4().hex,eval_run_id='gate-diagnostic-20261028',session_messages=[])
-              try:
-                  prompt=await ctx.prompt('evaluate')
-                  result=await ctx.loop(prompt.compile(review_data=json.dumps({'question':{'text':'2+2等于多少？'},'rubric':'正确回答4。','turns':[{'final':{'answer':'4'}}]})),tools=[],max_steps=1,prompt=prompt)
-                  print(json.dumps({'diagnostic':'evaluator','result':'completed','versions':result.meta.get('prompt_versions')}))
-              except KeelError as error:
-                  cause=error.__cause__
-                  print(json.dumps({'diagnostic':'evaluator','code':error.code.value,'causeType':type(cause).__name__,'http':getattr(cause,'status_code',None),'gatewayCode':(getattr(cause,'body',{}) or {}).get('code') if isinstance(getattr(cause,'body',{}),dict) else None}))
-              finally:await ctx.aclose()
-          asyncio.run(main())
+          set -euo pipefail
+          revision=29d5976b753b976c399e3a4def146cc04d974934
+          work=/tmp/keel-gate-20261028-$revision
+          mkdir -p "$work"
+          kubectl -n keel-system exec -i deploy/git-ci -- python - "$revision" <<'PY' > "$work/bundle.tar"
+          import os,sys,json,urllib.request,io,tarfile
+          sha=sys.argv[1]
+          def get(path):
+              request=urllib.request.Request('https://api.github.com/repos/dezhiguan/keel-assistant'+path,headers={'Authorization':'Bearer '+os.environ['KEEL_GITHUB_TOKEN'],'User-Agent':'keel-assistant-staging-deployment'})
+              with urllib.request.urlopen(request,timeout=90) as response:return response.read()
+          commit=json.loads(get('/git/commits/'+sha));assert commit['sha']==sha
+          tree=get('/git/trees/'+commit['tree']['sha']+'?recursive=1')
+          source=get('/tarball/'+sha)
+          with tarfile.open(fileobj=sys.stdout.buffer,mode='w|') as bundle:
+              for name,data in [('source.tar.gz',source),('tree.json',tree)]:
+                  item=tarfile.TarInfo(name);item.size=len(data);bundle.addfile(item,io.BytesIO(data))
           PY
-          kubectl -n keel-system get deploy -o custom-columns=NAME:.metadata.name
-          kubectl -n keel-system exec deploy/git-ci -- python -c 'import os,urllib.request; req=urllib.request.Request("https://api.github.com/repos/dezhiguan/keel-assistant",headers={"Authorization":"Bearer "+os.environ["KEEL_GITHUB_TOKEN"],"User-Agent":"keel-assistant-staging-deployment"}); r=urllib.request.urlopen(req,timeout=30); print("assistant_source_access",r.status)'
+          tar -xf "$work/bundle.tar" -C "$work"
+          python3 - "$work" <<'PY'
+          from pathlib import Path
+          import tarfile,sys
+          work=Path(sys.argv[1]);source=work/'source';source.mkdir(exist_ok=True)
+          with tarfile.open(work/'source.tar.gz') as archive:
+              for item in archive:
+                  parts=Path(item.name).parts[1:]
+                  if not parts:continue
+                  assert all(p not in ('.','..') for p in parts)
+                  path=source.joinpath(*parts)
+                  if item.isdir():path.mkdir(parents=True,exist_ok=True)
+                  else:
+                      assert item.isfile()
+                      path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(archive.extractfile(item).read())
+          PY
+          wheel=$(find /tmp -type f -name 'keel_sdk-1.0.34-py3-none-any.whl' -print -quit)
+          test -n "$wheel"
+          python3 "$work/source/deploy/gate-candidate.py" --source "$work/source" --revision "$revision" --tree "$work/tree.json" --base-image docker.io/library/keel-assistant:task-cost-5acab283 --image docker.io/library/keel-assistant:gate-29d5976b753b --wheel "$wheel" --build-only
           REMOTE
