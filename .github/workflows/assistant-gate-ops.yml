@@ -28,14 +28,28 @@ jobs:
           work=/tmp/keel-gate-20261028-$revision
           mkdir -p "$work"
           kubectl -n keel-system exec -i deploy/git-ci -- python - "$revision" <<'PY' > "$work/bundle.tar"
-          import os,sys,json,urllib.request,io,tarfile,base64,hashlib\n          from concurrent.futures import ThreadPoolExecutor
+          import os,sys,json,urllib.request,io,tarfile,base64,hashlib
+          from concurrent.futures import ThreadPoolExecutor
           sha=sys.argv[1]
           def get(path):
               request=urllib.request.Request('https://api.github.com/repos/dezhiguan/keel-assistant'+path,headers={'Authorization':'Bearer '+os.environ['KEEL_GITHUB_TOKEN'],'User-Agent':'keel-assistant-staging-deployment'})
               with urllib.request.urlopen(request,timeout=90) as response:return response.read()
           commit=json.loads(get('/git/commits/'+sha));assert commit['sha']==sha
           tree=get('/git/trees/'+commit['tree']['sha']+'?recursive=1')
-          source=get('/tarball/'+sha)
+          catalogue=json.loads(tree);assert not catalogue.get('truncated')
+          roots=('assistant/','prompts/','evals/')
+          names={'.app-version','.keel-sdk-version','sdk.sha256','app.py','agent.yaml','pyproject.toml','requirements.lock','scripts/check-sdk.py','deploy/gate-candidate.py','deploy/build-runtime-overlay.py','deploy/verify-routing-runtime.py'}
+          entries=[row for row in catalogue['tree'] if row['type']=='blob' and (row['path'] in names or row['path'].startswith(roots))]
+          def blob(row):
+              assert row['mode'] in ('100644','100755')
+              raw=base64.b64decode(json.loads(get('/git/blobs/'+row['sha']))['content'])
+              assert hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()==row['sha']
+              return row['path'],raw
+          buffer=io.BytesIO()
+          with ThreadPoolExecutor(max_workers=8) as pool,tarfile.open(fileobj=buffer,mode='w:gz') as archive:
+              for path,raw in pool.map(blob,entries):
+                  item=tarfile.TarInfo('snapshot/'+path);item.size=len(raw);archive.addfile(item,io.BytesIO(raw))
+          source=buffer.getvalue()
           with tarfile.open(fileobj=sys.stdout.buffer,mode='w|') as bundle:
               for name,data in [('source.tar.gz',source),('tree.json',tree)]:
                   item=tarfile.TarInfo(name);item.size=len(data);bundle.addfile(item,io.BytesIO(data))
