@@ -106,6 +106,32 @@ public final class TaskCosts {
         tx.executeWithoutResult(s->{db.queryForList("SELECT id FROM llm_cost_task WHERE id=? FOR UPDATE",ids.getFirst());db.update("UPDATE llm_cost_request SET finished=true WHERE request_id=?",requestId);reconcile(ids.getFirst());});
     }
 
+    /** Recheck the actual frozen route immediately before any vendor attempt. */
+    public void confirm(String alias,String ticket,String requestId,BigDecimal reserve,int attempts) {
+        boolean accepted=Boolean.TRUE.equals(tx.execute(status->{
+            var found=db.queryForList("SELECT r.task_id FROM llm_cost_request r JOIN llm_cost_task t ON t.id=r.task_id WHERE r.request_id=? AND t.alias=? AND t.ticket_hash=?",requestId,alias,hash(ticket));
+            if(found.isEmpty())throw denied();String id=found.getFirst().get("task_id").toString();
+            var locked=db.queryForList("SELECT * FROM llm_cost_task WHERE id=? OR id IN(SELECT target_task_id FROM llm_cost_task_share WHERE source_task_id=?) ORDER BY id FOR UPDATE",id,id);
+            var row=db.queryForMap("SELECT * FROM llm_cost_request WHERE request_id=?",requestId);
+            if(!"pending".equals(row.get("state"))||Boolean.TRUE.equals(row.get("finished"))||db.queryForObject("SELECT count(*) FROM llm_spend WHERE request_id=?",Integer.class,requestId)>0)throw denied();
+            db.update("UPDATE llm_cost_request SET reserved_cny=0,reserved_calls=0 WHERE request_id=?",requestId);
+            boolean violation=Boolean.TRUE.equals(row.get("violation"));
+            for(var target:locked) {
+                String targetId=target.get("id").toString();reconcile(targetId);var totals=totals(targetId);
+                BigDecimal weight=targetId.equals(id)?BigDecimal.ONE:db.queryForObject("SELECT weight FROM llm_cost_task_share WHERE source_task_id=? AND target_task_id=?",BigDecimal.class,id,targetId);
+                BigDecimal exposure=money(totals.get("settledCny")).add(money(totals.get("reservedCny"))).add(reserve.multiply(weight));
+                int used=((Number)totals.get("attempts")).intValue()+((Number)totals.get("reservedCalls")).intValue()+attempts;
+                BigDecimal bound=money(target.get("budget_cny"));int callBound=((Number)target.get("max_calls")).intValue();boolean force="enforce".equals(target.get("mode"));
+                var live=db.queryForList("SELECT * FROM llm_cost_required_alias WHERE alias=? AND required=true",target.get("alias"));
+                if(!live.isEmpty()){var limits=live.getFirst();force=true;if(limits.get("max_cost_cny")!=null)bound=bound.min(money(limits.get("max_cost_cny")));if(limits.get("max_calls")!=null)callBound=Math.min(callBound,((Number)limits.get("max_calls")).intValue());}
+                boolean over=exposure.compareTo(bound)>0||used>callBound;violation|=over;
+                if(over&&force){db.update("UPDATE llm_cost_request SET state='rejected',finished=true,violation=true WHERE request_id=?",requestId);return false;}
+            }
+            db.update("UPDATE llm_cost_request SET reserved_cny=?,reserved_calls=?,violation=? WHERE request_id=?",reserve,attempts,violation,requestId);return true;
+        }));
+        if(!accepted)throw new Gateway.GatewayException(ErrorCode.COST_BUDGET_EXCEEDED,ErrorCode.COST_BUDGET_EXCEEDED.message());
+    }
+
     private void reconcile(String id) {
         db.update("""
             UPDATE llm_cost_request r SET state='settled',reserved_cny=0,reserved_calls=0

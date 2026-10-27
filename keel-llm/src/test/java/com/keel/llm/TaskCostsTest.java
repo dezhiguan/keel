@@ -91,4 +91,15 @@ class TaskCostsTest {
         assertThatThrownBy(()->costs.admit("test-agent-staging",ticket,"ninth","interactive",new BigDecimal("0.001"),1)).isInstanceOf(Gateway.GatewayException.class);
         assertThat(db.queryForObject("SELECT count(*) FROM llm_cost_request",Integer.class)).isEqualTo(8);
     }
+    @Test void routeChangesAreRecheckedWithoutDoubleReservationOrAnyPaidAttempt(){
+        var root=root("u","enforce","0.03");String ticket=root.get("ticket").toString(),id=root.get("taskId").toString();
+        costs.admit("test-agent-staging",ticket,"changed-route","interactive",new BigDecimal("0.01"),1);
+        assertThatThrownBy(()->costs.confirm("test-agent-staging",ticket,"changed-route",new BigDecimal("0.04"),2)).isInstanceOf(Gateway.GatewayException.class);
+        assertThat(new BigDecimal(costs.inspect(id).get("reservedCny").toString())).isZero();
+        assertThat(db.queryForObject("SELECT state FROM llm_cost_request WHERE request_id='changed-route'",String.class)).isEqualTo("rejected");
+        assertThat(db.queryForObject("SELECT count(*) FROM llm_spend",Integer.class)).isZero();
+        costs.admit("test-agent-staging",ticket,"stable-route","interactive",new BigDecimal("0.02"),2);
+        costs.confirm("test-agent-staging",ticket,"stable-route",new BigDecimal("0.02"),2);
+        assertThat(new BigDecimal(costs.inspect(id).get("reservedCny").toString())).isEqualByComparingTo("0.02");
+    }
 }

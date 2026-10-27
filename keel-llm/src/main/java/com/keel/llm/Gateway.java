@@ -310,6 +310,7 @@ public final class Gateway {
         if(row!=null) routes.journal.record(requestId,key.alias(),named,inputEstimate(request));
         var forwarding = costSafeRequest(request);
         var maxCost = request.path("metadata").has("keel_cost_ticket") ? requestCost(attempts,path,request) : reservationCost(attempts, path);
+        if(request.path("metadata").has("keel_cost_ticket")){if(taskCosts==null)throw new GatewayException(ErrorCode.COST_SCOPE_DENIED,ErrorCode.COST_SCOPE_DENIED.message());taskCosts.confirm(key.alias(),request.path("metadata").path("keel_cost_ticket").asText(),requestId,maxCost,attempts.size());}
         try {
             admission.enter(key);
         } catch (GatewayException denied) {
@@ -412,6 +413,7 @@ public final class Gateway {
                 : forwarding.putObject("stream_options");
         options.put("include_usage", true);
         var maxCost = request.path("metadata").has("keel_cost_ticket") ? requestCost(attempts,path,request) : reservationCost(attempts, path);
+        if(request.path("metadata").has("keel_cost_ticket")){if(taskCosts==null)throw new GatewayException(ErrorCode.COST_SCOPE_DENIED,ErrorCode.COST_SCOPE_DENIED.message());taskCosts.confirm(key.alias(),request.path("metadata").path("keel_cost_ticket").asText(),requestId,maxCost,attempts.size());}
         try {
             admission.enter(key);
         } catch (GatewayException denied) {
