@@ -88,11 +88,16 @@ public class AgentChatService {
         }
         AgentEndpointClient.Answer answer;
         long started = System.nanoTime();
+        var principal=ConsolePrincipal.current();
+        var costContext=taskCosts!=null&&principal!=null&&"python".equalsIgnoreCase(detail.summary().language())&&taskCosts.supported(name)
+                ?taskCosts.open(name,env,principal.userId(),"user",text.length()):null;
         try {
             var userId = "askdb".equals(name) ? callerUsername(ConsolePrincipal.current()) : callerLabel();
             var rag = secrets == null ? null : secrets.knowledgeCredential(name);
             var bridge = bridgeToken(name);
-            if (sessionId != null) {
+            if(costContext!=null) {
+                answer=endpoints.invokeWithCost(endpoint,text,bridge,name,env,userId,rag==null?null:rag.token(),rag==null?null:rag.kbIds(),sessionId==null?null:scopedSessionId(sessionId),costContext);
+            } else if (sessionId != null) {
                 answer = endpoints.invoke(endpoint, text, bridge, name, env, userId,
                         rag == null ? null : rag.token(), rag == null ? null : rag.kbIds(), scopedSessionId(sessionId));
             } else {
@@ -101,6 +106,7 @@ public class AgentChatService {
                         : endpoints.invoke(endpoint, text, bridge, name, env, userId, rag.token(), rag.kbIds());
             }
         } catch (RuntimeException e) {
+            if(e instanceof KeelException keel)throw keel;
             throw new KeelException(ErrorCode.SERVER_INTERNAL_ERROR,
                     e.getMessage() == null ? ErrorCode.SERVER_INTERNAL_ERROR.message() : e.getMessage());
         }
@@ -111,6 +117,7 @@ public class AgentChatService {
         var body = new LinkedHashMap<String, Object>();
         body.put("text", answer.text());
         body.put("traceId", answer.traceId());
+        if(costContext!=null)body.put("taskCost",Map.of("taskId",costContext.path("taskId").asText(),"policyVersion",costContext.path("policyVersion").asText(),"mode",costContext.path("mode").asText(),"coverage","managed-v1"));
         return body;
     }
 
@@ -166,7 +173,7 @@ public class AgentChatService {
         }
         long started = System.nanoTime();
         var costContext=taskCosts!=null && structured && taskCosts.supported(name) ? taskCosts.open(name,env,owner,
-                evaluationRun==null||evaluationRun.isBlank()?"user":"eval",text.length()+history.stream().mapToInt(m->m.getOrDefault("content","").length()).sum()) : null;
+                evaluationRun==null||evaluationRun.isBlank()?"user":evaluationRun.startsWith("load-")?"load":"eval",text.length()+history.stream().mapToInt(m->m.getOrDefault("content","").length()).sum()) : null;
         try (var input = costContext==null ? endpoints.openStream(endpoint,inputText,bridge,name,env,userId,
                 rag==null?null:rag.token(),rag==null?null:rag.kbIds(),scopedSessionId(owner,sessionId),structured?history:null,readContext,evaluationRun,taskContext) : endpoints.openStream(endpoint, inputText, bridge, name, env, userId,
                 rag == null ? null : rag.token(), rag == null ? null : rag.kbIds(),

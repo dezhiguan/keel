@@ -17,7 +17,7 @@ class AgentEndpointClientTest {
             if (!"test-bridge".equals(exchange.getRequestHeaders().getFirst("X-Keel-Bridge"))) {
                 exchange.sendResponseHeaders(401, -1);
             } else {
-                var body = "{\"manifest\":{\"metadata\":{\"name\":\"meta-agent\"}}}".getBytes(StandardCharsets.UTF_8);
+                var body = "{\"manifest\":{\"metadata\":{\"name\":\"meta-agent\"}},\"costControl\":{\"version\":1}}".getBytes(StandardCharsets.UTF_8);
                 exchange.sendResponseHeaders(200, body.length);
                 exchange.getResponseBody().write(body);
             }
@@ -27,6 +27,7 @@ class AgentEndpointClientTest {
         try {
             var endpoint = "http://127.0.0.1:" + server.getAddress().getPort();
             assertThat(new AgentEndpointClient().manifest(endpoint, "test-bridge").path("metadata").path("name").asText()).isEqualTo("meta-agent");
+            assertThat(new AgentEndpointClient().runtimeDocument(endpoint,"test-bridge").path("costControl").path("version").asInt()).isEqualTo(1);
             assertThatThrownBy(() -> new AgentEndpointClient().manifest(endpoint, null)).isInstanceOf(IllegalStateException.class);
         } finally { server.stop(0); }
     }
@@ -99,6 +100,12 @@ class AgentEndpointClientTest {
             assertThat(headers.get().getFirst("X-Keel-Agent")).isEqualTo("prompt-lab");
             assertThat(headers.get().getFirst("X-Keel-Env")).isEqualTo("dev");
             assertThat(seen.get()).contains("\"user_id\":\"官德志\"");
+            var json=new com.fasterxml.jackson.databind.ObjectMapper();
+            var cost=json.createObjectNode().put("taskId","ct_"+"a".repeat(32)).put("ticket","tc_"+"b".repeat(64)).put("mode","enforce").put("policyVersion","fixture@1");
+            new AgentEndpointClient().invokeWithCost("http://127.0.0.1:"+server.getAddress().getPort(),"原始问题",null,"prompt-lab","dev","owner",null,null,null,cost);
+            var costPayload=json.readTree(seen.get());
+            assertThat(costPayload.path("context").path("task_cost").path("ticket").asText()).isEqualTo(cost.path("ticket").asText());
+            assertThat(costPayload.path("input").toString()).doesNotContain(cost.path("ticket").asText());
             try (var stream = new AgentEndpointClient().openStream(
                     "http://127.0.0.1:" + server.getAddress().getPort(), "咨询口径", null,
                     "prompt-lab", "dev", "官德志", null, null, "scoped-session",
@@ -120,5 +127,9 @@ class AgentEndpointClientTest {
         assertThatThrownBy(() -> AgentEndpointClient.parseFinal("event: error\ndata: {\"code\":\"SERVER_INTERNAL_ERROR\"}\n"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("SERVER_INTERNAL_ERROR");
+    }
+    @Test void costErrorsRetainTheirRegisteredNonRetryableCode() {
+        assertThatThrownBy(()->AgentEndpointClient.parseFinal("event: error\ndata: {\"code\":\"COST_BUDGET_EXCEEDED\",\"message\":\"budget\",\"trace_id\":\"trace\",\"run_id\":\"run\",\"retryable\":false}\n"))
+            .isInstanceOfSatisfying(com.keel.server.common.KeelException.class,e->assertThat(e.code()).isEqualTo(com.keel.common.error.ErrorCode.COST_BUDGET_EXCEEDED));
     }
 }

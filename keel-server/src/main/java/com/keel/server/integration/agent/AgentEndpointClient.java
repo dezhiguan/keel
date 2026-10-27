@@ -50,6 +50,10 @@ public class AgentEndpointClient {
                          String ragToken, String ragKbIds, String sessionId) {
         return invokeRequest(endpoint, text, bridgeToken, agent, env, userId, null, Duration.ofMinutes(3), ragToken, ragKbIds, sessionId);
     }
+    public Answer invokeWithCost(String endpoint,String text,String bridgeToken,String agent,String env,String userId,
+                                 String ragToken,String ragKbIds,String sessionId,com.fasterxml.jackson.databind.JsonNode costContext) {
+        return invokeRequest(endpoint,text,bridgeToken,agent,env,userId,null,Duration.ofMinutes(3),ragToken,ragKbIds,sessionId,costContext);
+    }
 
     public Answer probe(String endpoint, String agent, String env) {
         return probe(endpoint, agent, env, null);
@@ -178,6 +182,11 @@ public class AgentEndpointClient {
     private Answer invokeRequest(String endpoint, String text, String bridgeToken, String agent, String env,
                                  String userId, String evalRun, Duration timeout, String ragToken, String ragKbIds,
                                  String sessionId) {
+        return invokeRequest(endpoint,text,bridgeToken,agent,env,userId,evalRun,timeout,ragToken,ragKbIds,sessionId,null);
+    }
+    private Answer invokeRequest(String endpoint, String text, String bridgeToken, String agent, String env,
+                                 String userId, String evalRun, Duration timeout, String ragToken, String ragKbIds,
+                                 String sessionId,com.fasterxml.jackson.databind.JsonNode costContext) {
         var base = trim(endpoint);
         try {
             var payload = json.createObjectNode();
@@ -186,6 +195,7 @@ public class AgentEndpointClient {
             if (userId != null && !userId.isBlank()) {
                 payload.putObject("context").put("user_id", userId);
             }
+            if(costContext!=null)payload.withObject("context").set("task_cost",costContext);
             var builder = HttpRequest.newBuilder(URI.create(base + "/v1/invoke"))
                     .timeout(timeout)
                     .header("Content-Type", "application/json");
@@ -215,6 +225,8 @@ public class AgentEndpointClient {
                 throw new IllegalStateException("智能体返回 HTTP " + response.statusCode());
             }
             return parseFinal(response.body());
+        } catch (com.keel.server.common.KeelException e) {
+            throw e;
         } catch (IllegalStateException e) {
             throw e;
         } catch (Exception e) {
@@ -238,6 +250,11 @@ public class AgentEndpointClient {
                     throw new IllegalStateException("智能体的 final 事件无法解析");
                 }
             } else if (line.startsWith("data:") && "error".equals(event)) {
+                try {
+                    var code=com.keel.common.error.ErrorCode.valueOf(new ObjectMapper().readTree(line.substring("data:".length()).trim()).path("code").asText());
+                    if(java.util.Set.of(com.keel.common.error.ErrorCode.COST_BUDGET_EXCEEDED,com.keel.common.error.ErrorCode.COST_SCOPE_DENIED,com.keel.common.error.ErrorCode.COST_POLICY_CONFLICT).contains(code))
+                        throw new com.keel.server.common.KeelException(code,code.message());
+                } catch (IllegalArgumentException | com.fasterxml.jackson.core.JsonProcessingException ignored) { /* Preserve legacy error handling for other frames. */ }
                 throw new IllegalStateException("智能体返回错误 " + line.substring("data:".length()).trim());
             }
         }
@@ -297,6 +314,9 @@ public class AgentEndpointClient {
     }
 
     public com.fasterxml.jackson.databind.JsonNode manifest(String endpoint, String bridgeToken) {
+        return runtimeDocument(endpoint,bridgeToken).path("manifest");
+    }
+    public com.fasterxml.jackson.databind.JsonNode runtimeDocument(String endpoint,String bridgeToken) {
         try {
             var request = HttpRequest.newBuilder(URI.create(trim(endpoint) + "/v1/manifest"))
                     .timeout(Duration.ofSeconds(5));
@@ -305,10 +325,11 @@ public class AgentEndpointClient {
             if (response.statusCode() == 401 || response.statusCode() == 403)
                 throw new IllegalStateException("运行清单认证失败（HTTP " + response.statusCode() + "），请检查服务身份配置");
             if (response.statusCode() != 200) throw new IllegalStateException("运行清单读取失败（HTTP " + response.statusCode() + "）");
-            var manifest = json.readTree(response.body()).path("manifest");
+            var document=json.readTree(response.body());
+            var manifest = document.path("manifest");
             if (!manifest.isObject() || manifest.path("metadata").path("name").asText("").isBlank())
                 throw new IllegalStateException("运行实例返回的 manifest 格式不完整");
-            return manifest;
+            return document;
         } catch (IllegalStateException error) {
             throw error;
         } catch (Exception error) {

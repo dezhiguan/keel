@@ -10,16 +10,14 @@ import com.keel.server.registry.service.AgentRegistryService;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
-import java.net.URI;
-import java.net.http.*;
-import java.time.Duration;
 import java.util.*;
 
 @Service
 public class TaskCostService {
     private final JdbcTemplate db;private final ObjectMapper json;private final LiteLlmClient gateway;
     private final CostPolicies policies;private final AgentRegistryService registry;
-    private final HttpClient http=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
+    @org.springframework.beans.factory.annotation.Autowired private com.keel.server.integration.agent.AgentEndpointClient endpoints;
+    @org.springframework.beans.factory.annotation.Autowired private com.keel.server.registry.service.AgentBridgeCredentials bridges;
     public TaskCostService(JdbcTemplate db,ObjectMapper json,LiteLlmClient gateway,CostPolicies policies,AgentRegistryService registry){
         this.db=db;this.json=json;this.gateway=gateway;this.policies=policies;this.registry=registry;
     }
@@ -35,10 +33,8 @@ public class TaskCostService {
     }
     public boolean supported(String agent) {
         try {
-            var endpoint=registry.invokeEndpoint(agent).replaceAll("/$","")+"/v1/manifest";
-            var r=http.send(HttpRequest.newBuilder(URI.create(endpoint)).timeout(Duration.ofSeconds(3)).GET().build(),HttpResponse.BodyHandlers.ofString());
-            if(r.statusCode()!=200)return false;
-            var document=json.readTree(r.body());var capability=document.path("costControl");
+            var document=endpoints.runtimeDocument(registry.invokeEndpoint(agent),bridges.token(agent));var capability=document.path("costControl");
+            if(!agent.equals(document.path("manifest").path("metadata").path("name").asText()))return false;
             if(capability.path("version").asInt()!=1)return false;
             for(var tool:document.path("manifest").path("spec").path("tools"))
                 if("required".equals(tool.path("approval").asText())&&!capability.path("resumePropagation").asBoolean())return false;
@@ -54,7 +50,7 @@ public class TaskCostService {
         return context;
     }
     public ObjectNode serviceOpen(String agent,String env,int inputChars,String evaluation) {
-        service(agent);if(!supported(agent))throw denied();return open(agent,env,"service:"+agent,evaluation.isBlank()?"service":"eval",inputChars);
+        service(agent);if(!supported(agent))throw denied();return open(agent,env,"service:"+agent,evaluation.isBlank()?"service":evaluation.startsWith("load-")?"load":"eval",inputChars);
     }
     public void finish(String id,String state,String trace) {
         if(id==null || id.isBlank())return;
