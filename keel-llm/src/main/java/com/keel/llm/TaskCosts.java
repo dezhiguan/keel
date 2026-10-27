@@ -141,7 +141,7 @@ public final class TaskCosts {
             try {view.put("policy",json.readTree(task.get("policy").toString()));}catch(Exception error){throw new IllegalStateException(error);}
             view.put("bills",db.queryForList("SELECT s.*,r.purpose FROM llm_spend s JOIN llm_cost_request r USING(request_id) WHERE r.task_id=? ORDER BY s.created_at",id));
             view.put("sharedAllocations",db.queryForList("SELECT s.attempt_id,s.request_id,s.cost_cny,s.status,a.weight,s.cost_cny*a.weight AS allocated_cny,r.purpose,r.task_id AS maintenance_task_id FROM llm_cost_task_share a JOIN llm_cost_request r ON r.task_id=a.source_task_id JOIN llm_spend s USING(request_id) WHERE a.target_task_id=? ORDER BY s.created_at",id));
-            view.put("costState",((Number)view.get("pendingRequests")).intValue()>0?"pending":((Number)view.get("attempts")).intValue()==0?"unobserved":"settled");return view;
+            view.put("costState",((Number)view.get("pendingRequests")).intValue()>0?"pending":((Number)view.get("attempts")).intValue()==0?("running".equals(task.get("state"))?"unobserved":"no_model_calls"):"settled");return view;
         });
     }
 

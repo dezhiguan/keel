@@ -83,6 +83,7 @@ public class TaskCostService {
         if(roots.isEmpty()&&!"enforce".equals(memoryPolicy(agent,env).path("mode").asText()))return null;
         var policy=policy(agent,env);
         var body=json.createObjectNode().put("alias",agent+"-"+env).put("owner",owner).put("group","memory").put("budgetCny",policy.path("maxCostCny").decimalValue());
+        policy.put("allocationRule","covered-user-turns-equal/v1");policy.set("coveredUserMessageIds",json.valueToTree(ids));
         body.set("policy",policy);var shares=body.putArray("shares");
         BigDecimal weight=roots.isEmpty()?BigDecimal.ZERO:BigDecimal.ONE.divide(BigDecimal.valueOf(roots.size()),15,java.math.RoundingMode.DOWN),remaining=BigDecimal.ONE;
         for(int i=0;i<roots.size();i++){var part=i==roots.size()-1?remaining:weight;shares.addObject().put("taskId",roots.get(i).get("task_id").toString()).put("weight",part);remaining=remaining.subtract(part);}

@@ -173,7 +173,7 @@ public class AgentChatService {
                 scopedSessionId(owner, sessionId), structured ? history : null, readContext, evaluationRun, taskContext,costContext)) {
             var fin = DebugSseRelay.copy(input, output);
             var traceId = fin == null ? null : fin.traceId();
-            if(costContext!=null)taskCosts.finish(costContext.path("taskId").asText(),fin!=null&&fin.rememberable()?"succeeded":"failed",traceId==null?"":traceId);
+            // The SDK reports execution completion; rememberable only governs safe session storage.
             audits.append(name, env, "invoke", "low", fin == null ? "error" : "allowed", name, traceId);
             if (fin != null && fin.rememberable() && remember) {
                 sessions.appendTurn(name, owner, sessionId, text, fin.answer(), traceId,fin.summaryThroughId());

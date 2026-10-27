@@ -50,10 +50,10 @@ public class SessionMemoryJobs {
             String text=jdbc.queryForObject("SELECT content FROM session_message WHERE id=? AND session_id=? AND owner_user=?",String.class,userId,rawSession,owner);
             if(text!=null&&text.strip().matches("(?i)(谢谢|多谢|感谢|好的|收到|嗯|ok|thanks|thank you)[。！!,.，\\s]*"))return;
         }
-        put(agent,env,owner,rawSession,"facts",userId,trace);
+        put(agent,env,owner,rawSession,"facts",userId,trace,userId);
         if(summaryThrough>0) {
             var valid=jdbc.queryForObject("SELECT count(*) FROM session_message WHERE id=? AND session_id=? AND agent_name=? AND owner_user=? AND role='assistant' AND expires_at>now()",Integer.class,summaryThrough,rawSession,agent,owner);
-            if(valid!=null && valid==1)put(agent,env,owner,rawSession,"summary",summaryThrough,trace);
+            if(valid!=null && valid==1)put(agent,env,owner,rawSession,"summary",summaryThrough,trace,userId);
         }
         if(batch>1) {
             int wait=costPolicy.path("memoryMaxWaitSeconds").asInt(30);
@@ -65,7 +65,7 @@ public class SessionMemoryJobs {
                 """,batch,wait,wait,agent,env,owner,rawSession);
         }
     }
-    private void put(String agent,String env,String owner,String session,String kind,long target,String trace) {
+    private void put(String agent,String env,String owner,String session,String kind,long target,String trace,long batchStart) {
         jdbc.update("""
             INSERT INTO session_memory_job(agent_name,env,owner_user,session_id,kind,desired_id,trigger_trace_id,batch_start_id)
             VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(agent_name,env,owner_user,session_id,kind) DO UPDATE
@@ -76,7 +76,7 @@ public class SessionMemoryJobs {
                 created_at=CASE WHEN session_memory_job.status='done' THEN now() ELSE session_memory_job.created_at END,
                 batch_start_id=CASE WHEN session_memory_job.status='done' THEN EXCLUDED.batch_start_id ELSE session_memory_job.batch_start_id END,
                 trigger_trace_id=EXCLUDED.trigger_trace_id,updated_at=now()
-            """,agent,env,owner,session,kind,target,trace,target);
+            """,agent,env,owner,session,kind,target,trace,batchStart);
     }
     private String lockSession(Map<String,Object> job) {
         var rows=jdbc.query("SELECT id FROM agent_session WHERE id=? AND agent_name=? AND env=? AND owner_user=? FOR UPDATE",
