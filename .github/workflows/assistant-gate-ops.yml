@@ -24,7 +24,7 @@ jobs:
         run: |
           ssh -T keel-app 'bash -s' <<'REMOTE'
           set -euo pipefail
-          kubectl -n agents run keel-gate-70a4e298-probe --image=docker.io/library/keel-assistant:gate-70a4e2983d3f --image-pull-policy=Never --restart=Never --overrides='{"spec":{"containers":[{"name":"keel-gate-70a4e298-probe","image":"docker.io/library/keel-assistant:gate-70a4e2983d3f","envFrom":[{"secretRef":{"name":"keel-keel-assistant"}}],"command":["python","-c","import time; time.sleep(600)"]}]}}'
+          kubectl -n agents get deploy keel-assistant -o json | python3 -c 'import sys,json; x=json.load(sys.stdin); spec=x["spec"]["template"]["spec"]; c=spec["containers"][0]; c.update(name="probe",image="docker.io/library/keel-assistant:gate-70a4e2983d3f",command=["python","-c","import time; time.sleep(600)"]); [c.pop(k,None) for k in ("readinessProbe","livenessProbe","startupProbe")]; spec["containers"]=[c]; spec["restartPolicy"]="Never"; print(json.dumps({"apiVersion":"v1","kind":"Pod","metadata":{"name":"keel-gate-70a4e298-probe","namespace":"agents","labels":{"app":"keel-gate-probe"}},"spec":spec}))' | kubectl create -f -
           trap 'kubectl -n agents delete pod keel-gate-70a4e298-probe --wait=false' EXIT
           kubectl -n agents wait --for=condition=Ready pod/keel-gate-70a4e298-probe --timeout=90s
           kubectl -n agents exec -i keel-gate-70a4e298-probe -- python - <<'PY'
@@ -43,6 +43,7 @@ jobs:
                   if case['id'] not in selected:continue
                   run='gate-residual-preflight-20261028'
                   record=await execute(case,{'sessionId':uuid.uuid4().hex*2,'readContext':''},run)
+                  print(json.dumps({'caseId':case['id'],'fixtureConsumed':record['fixtureConsumed'],'toolAuditComplete':record['toolAuditComplete'],'errors':[e['data'].get('code') for e in record['events'] if e['event']=='error']}),flush=True)
                   assert record['fixtureConsumed'] and record['toolAuditComplete']
                   assert record['toolAttempts']==[]
                   judged=await review(case,[record],run)
