@@ -65,4 +65,13 @@ class TaskCostsTest {
         assertThatThrownBy(()->costs.checkContext("test-agent-staging","")).isInstanceOf(Gateway.GatewayException.class);
         costs.required("test-agent-staging",false);costs.checkContext("test-agent-staging","");
     }
+    @Test void tighterLiveConstraintsApplyWithoutMutatingTheTaskSnapshot(){
+        var root=root("u","observe","0.1");
+        costs.constraints("test-agent-staging",true,new BigDecimal("0.01"),2);
+        assertThatThrownBy(()->costs.admit("test-agent-staging",root.get("ticket").toString(),"blocked","interactive",new BigDecimal("0.02"),1)).isInstanceOf(Gateway.GatewayException.class);
+        assertThat(costs.inspect(root.get("taskId").toString()).get("mode")).isEqualTo("observe");
+        assertThat(db.queryForObject("SELECT count(*) FROM llm_cost_request",Integer.class)).isZero();
+        costs.constraints("test-agent-staging",false,new BigDecimal("0.01"),2);
+        costs.admit("test-agent-staging",root.get("ticket").toString(),"observed","interactive",new BigDecimal("0.02"),1);
+    }
 }

@@ -58,6 +58,10 @@ public final class TaskCosts {
         if(!Gateway.ALIAS.matcher(alias).matches())throw denied();
         db.update("INSERT INTO llm_cost_required_alias(alias,required) VALUES(?,?) ON CONFLICT(alias) DO UPDATE SET required=EXCLUDED.required",alias,required);
     }
+    public void constraints(String alias,boolean required,BigDecimal cap,int calls) {
+        if(!Gateway.ALIAS.matcher(alias).matches()||cap.signum()<=0||calls<1||calls>1000)throw denied();
+        db.update("INSERT INTO llm_cost_required_alias(alias,required,max_cost_cny,max_calls) VALUES(?,?,?,?) ON CONFLICT(alias) DO UPDATE SET required=EXCLUDED.required,max_cost_cny=EXCLUDED.max_cost_cny,max_calls=EXCLUDED.max_calls",alias,required,cap,calls);
+    }
     public void checkContext(String alias,String ticket) {
         if(ticket==null||ticket.isBlank()) {
             if(Boolean.TRUE.equals(db.query("SELECT required FROM llm_cost_required_alias WHERE alias=?",rs->rs.next()?rs.getBoolean(1):false,alias)))throw denied();
@@ -82,8 +86,11 @@ public final class TaskCosts {
                 BigDecimal weight=targetId.equals(id)?BigDecimal.ONE:db.queryForObject("SELECT weight FROM llm_cost_task_share WHERE source_task_id=? AND target_task_id=?",BigDecimal.class,id,targetId);
                 BigDecimal exposure=money(totals.get("settledCny")).add(money(totals.get("reservedCny"))).add(reserve.multiply(weight));
                 int used=((Number)totals.get("attempts")).intValue()+((Number)totals.get("reservedCalls")).intValue()+attempts;
-                boolean over=exposure.compareTo(money(target.get("budget_cny")))>0 || used>((Number)target.get("max_calls")).intValue();
-                if(over&&"enforce".equals(target.get("mode")))return false;
+                BigDecimal bound=money(target.get("budget_cny"));int callBound=((Number)target.get("max_calls")).intValue();boolean force="enforce".equals(target.get("mode"));
+                var live=db.queryForList("SELECT * FROM llm_cost_required_alias WHERE alias=? AND required=true",target.get("alias"));
+                if(!live.isEmpty()) {var limits=live.getFirst();force=true;if(limits.get("max_cost_cny")!=null)bound=bound.min(money(limits.get("max_cost_cny")));if(limits.get("max_calls")!=null)callBound=Math.min(callBound,((Number)limits.get("max_calls")).intValue());}
+                boolean over=exposure.compareTo(bound)>0 || used>callBound;
+                if(over&&force)return false;
                 violation|=over;
             }
             db.update("INSERT INTO llm_cost_request(request_id,task_id,purpose,reserved_cny,reserved_calls,violation) VALUES(?,?,?,?,?,?)",

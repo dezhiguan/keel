@@ -10,8 +10,10 @@ POST /api/v1/cost-control/policies 仅平台ADMIN，body {scope:platform|org|env
 
 网关管理接口 /admin/v1/task-costs/{open,finish,inspect} 只允许内部管理员凭据。open绑定alias、owner、group、snapshot及预算并返回随机ticket；SDK不能自行放宽。模型请求按网关生成requestId绑定持久任务；准入通过PostgreSQL根行锁原子完成，预留按请求输入及输出上限与允许降级路径估算。finish/inspect只读取真实llm_spend计算费用，不接受客户端申报结算。
 
-memory claim的job可选costContext，绑定本租约及原文覆盖根任务；SDK维护调用继承。共享维护账单只归一次且按新覆盖用户轮次等额分摊；保留分摊规则与处理范围。失败/未知付费和日结恢复不能当零或制造逐次费用。
+memory claim的job可选costControl，worker选好实际新增范围后通过 /maintenance/cost 获取绑定租约及覆盖根任务的costContext；SDK维护调用继承。共享维护账单只归一次且按新覆盖用户轮次等额分摊；保留分摊规则与处理范围。失败/未知付费和日结恢复不能当零或制造逐次费用。
 
 FinalEvent.meta.taskCost仅含taskId、mode、policyVersion、coverage，不含ticket。预算错误COST_BUDGET_EXCEEDED为429且不可自动重试；身份COST_SCOPE_DENIED为403；策略CAS/继承冲突COST_POLICY_CONFLICT为409。旧版没有上下文的运行明确标为未覆盖，不伪造费用0。
 
 Service-only POST `/api/v1/agents/{name}/cost-control/tasks/{id}/bind` accepts env, taskId and traceId. The SDK binds the first trace before executing tools so background work resolves the original root without a completion race. Later child traces cannot overwrite it. Maintenance claim advertises `costControl`; `/memories/maintenance/cost` issues its private context after the worker selects the actual new prefix, not the broad claimed range.
+
+Publishing enforce constraints updates the gateway alias live money/call ceilings. Existing task snapshots remain immutable, while each admission also applies tighter current emergency ceilings. Rollback never erases existing reservations or bills.

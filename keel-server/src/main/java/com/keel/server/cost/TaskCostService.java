@@ -113,7 +113,7 @@ public class TaskCostService {
         if("SERVICE".equals(p.mode()))service(agent);org(agent,env);
         return db.queryForList("SELECT task_id,traffic_group,trace_id,created_at FROM task_cost_scope WHERE agent_name=? AND env=? AND (?::text IS NULL OR owner_user=?) AND NOT allocated_memory ORDER BY created_at DESC LIMIT 100",agent,env,owner,owner);
     }
-    public void requireContext(String alias,boolean required){gateway.taskCost("required",Map.of("alias",alias,"required",required));}
+    public void requireContext(String alias,JsonNode policy){gateway.taskCost("required",Map.of("alias",alias,"required","enforce".equals(policy.path("mode").asText()),"maxCostCny",policy.path("maxCostCny").decimalValue(),"maxCalls",policy.path("maxCalls").asInt()));}
     public List<Map<String,Object>> affected(JsonNode body) {
         String scope=body.path("scope").asText(),key=body.path("key").asText();
         return db.queryForList("SELECT DISTINCT a.name,r.env FROM agent a JOIN agent_resource r ON r.agent_name=a.name WHERE a.status<>'RETIRED' AND r.status='ACTIVE' AND (?='platform' OR (?='org' AND a.owner_org=?) OR (?='env' AND r.env=?) OR (?='agent' AND a.name||':'||r.env=?))",scope,scope,key,scope,key,scope,key);

@@ -166,7 +166,7 @@ public class AgentChatService {
         }
         long started = System.nanoTime();
         var costContext=taskCosts!=null && structured && taskCosts.supported(name) ? taskCosts.open(name,env,owner,
-                evaluationRun==null||evaluationRun.isBlank()?"user":"eval",text.length()) : null;
+                evaluationRun==null||evaluationRun.isBlank()?"user":"eval",text.length()+history.stream().mapToInt(m->m.getOrDefault("content","").length()).sum()) : null;
         try (var input = costContext==null ? endpoints.openStream(endpoint,inputText,bridge,name,env,userId,
                 rag==null?null:rag.token(),rag==null?null:rag.kbIds(),scopedSessionId(owner,sessionId),structured?history:null,readContext,evaluationRun,taskContext) : endpoints.openStream(endpoint, inputText, bridge, name, env, userId,
                 rag == null ? null : rag.token(), rag == null ? null : rag.kbIds(),

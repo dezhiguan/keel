@@ -44,7 +44,7 @@ public class LlmController {
             case "open" -> gateway.taskCosts.open(body);
             case "inspect" -> gateway.taskCosts.inspect(body.path("taskId").asText());
             case "finish" -> {gateway.taskCosts.finish(body.path("taskId").asText(),body.path("state").asText(),body.path("traceId").asText(""));yield Map.of("accepted",true);}
-            case "required" -> {gateway.taskCosts.required(body.path("alias").asText(),body.path("required").asBoolean());yield Map.of("accepted",true);}
+            case "required" -> {if(body.has("maxCostCny"))gateway.taskCosts.constraints(body.path("alias").asText(),body.path("required").asBoolean(),body.path("maxCostCny").decimalValue(),body.path("maxCalls").asInt());else gateway.taskCosts.required(body.path("alias").asText(),body.path("required").asBoolean());yield Map.of("accepted",true);}
             default -> throw new Gateway.GatewayException(ErrorCode.SERVER_INVALID_PARAM,"未知任务成本操作");
         };
     }

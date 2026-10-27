@@ -43,7 +43,7 @@ public class TaskCostController {
         var result=policies.publish(b,p.username());
         for(var target:targets) {
             String name=target.get("name").toString(),env=target.get("env").toString();
-            costs.requireContext(name+"-"+env,"enforce".equals(costs.policy(name,env).path("mode").asText()));
+            costs.requireContext(name+"-"+env,costs.policy(name,env));
         }
         return R.ok(result);
     }
