@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Keel 个人智能助理成本优化试点：接入底座通用成本控制能力，验证业务上下文、检索、记忆与重试策略的真实收益。">
+  <title>个人智能助理成本优化试点方案 · Keel · 2026-10-27</title>
+  <style>
+    :root{--paper:#f4f0e7;--surface:#fffdf8;--ink:#22313a;--muted:#586972;--line:#cfcfc2;--accent:#ac3e23;--teal:#2d665d;--soft:#e9e5da;--serif:"Songti SC","STSong","Noto Serif SC",serif;--sans:"PingFang SC","Microsoft YaHei",sans-serif;--mono:"SFMono-Regular",Menlo,Consolas,monospace}
+    *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.85 var(--sans)}a{color:var(--teal);text-underline-offset:4px;overflow-wrap:anywhere}a:hover{text-decoration-thickness:2px}button,input{font:inherit}button{cursor:pointer}a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:4px}::selection{background:#e8c4ad;color:var(--ink)}
+    .wrap{max-width:1160px;margin:auto;padding:0 48px}.masthead{display:flex;justify-content:space-between;gap:20px;align-items:center;padding:23px 0;border-bottom:1px solid var(--ink);font:12px/1.5 var(--mono);letter-spacing:.08em}.print{border:1px solid var(--ink);background:transparent;color:var(--ink);padding:8px 13px;letter-spacing:0}.print:hover{background:var(--ink);color:var(--paper)}
+    header{padding:56px 0 28px}.eyebrow{font:12px/1.6 var(--mono);letter-spacing:.18em;color:var(--accent)}h1{font:700 clamp(34px,5.5vw,61px)/1.25 var(--serif);letter-spacing:-.025em;margin:16px 0 21px}h1 span{color:var(--accent)}.lead{font-size:20px;max-width:840px;margin-bottom:25px}.meta{display:flex;flex-wrap:wrap;gap:9px}.tag{font:12px/1.6 var(--sans);border:1px solid var(--line);padding:4px 10px}.tag.draft{border-color:var(--accent);color:var(--accent)}
+    .principle{border-top:2px solid var(--ink);border-bottom:1px solid var(--line);padding:22px 0;margin-top:30px;display:grid;grid-template-columns:150px 1fr;gap:20px}.principle b{font:700 23px/1.5 var(--serif)}.principle p{margin:0}.principle strong{color:var(--accent)}nav{display:flex;flex-wrap:wrap;gap:7px 23px;padding:22px 0;border-bottom:1px solid var(--line);font-size:13px}nav a{text-decoration:none}
+    section{padding:48px 0;border-bottom:1px solid var(--line)}.section-head{display:grid;grid-template-columns:66px 1fr;gap:18px;align-items:baseline;margin-bottom:22px}.number{font:30px/1 var(--mono);color:var(--accent)}h2{font:700 30px/1.4 var(--serif);margin:0}h3{font:700 20px/1.6 var(--serif);margin:26px 0 8px}p{margin:10px 0 16px}li{margin:7px 0}ul,ol{padding-left:24px}.small{font-size:13px;color:var(--muted)}.note{border-left:3px solid var(--accent);background:var(--soft);padding:16px 20px;margin:22px 0}.note p{margin:0}.note.green{border-color:var(--teal)}.table-wrap{overflow-x:auto;margin:20px 0}table{border-collapse:collapse;width:100%;font-size:14px;background:var(--surface)}caption{text-align:left;padding-bottom:9px;font-size:13px;color:var(--muted)}th,td{text-align:left;vertical-align:top;padding:13px 15px;border-bottom:1px solid var(--line)}th{background:#e5e7de;font-weight:600}td:first-child{font-weight:600}code{font:12px/1.7 var(--mono);overflow-wrap:anywhere;background:#e5e6dd;padding:2px 5px}.formula{background:var(--ink);color:var(--paper);padding:23px 25px;font:16px/1.9 var(--sans);margin:20px 0}.formula small{display:block;color:#d0d9d5;font-size:13px;margin-top:8px}
+    .facts{display:grid;grid-template-columns:repeat(3,1fr);border-top:2px solid var(--ink);border-bottom:1px solid var(--line);margin:27px 0}.fact{padding:22px 18px;border-right:1px solid var(--line)}.fact:first-child{padding-left:0}.fact:last-child{border:0}.fact b{display:block;font:36px/1.25 var(--serif);font-variant-numeric:tabular-nums}.fact span{font-size:12px;color:var(--muted)}.bar{display:flex;height:30px;margin-top:22px;background:var(--soft)}.bar .known{width:17.1155%;background:var(--teal)}.bar .recovered{width:82.8845%;background:#bba68d}.legend{display:flex;gap:10px 24px;flex-wrap:wrap;margin:9px 0 20px;font-size:13px}.dot{width:10px;height:10px;display:inline-block;margin-right:7px}.known-dot{background:var(--teal)}.recovered-dot{background:#bba68d}
+    .steps{counter-reset:phase;margin-top:25px}.phase{display:grid;grid-template-columns:115px 1fr;gap:20px;padding:24px 0;border-top:1px solid var(--line)}.phase-label{color:var(--teal);font:13px/1.8 var(--mono)}.phase h3{margin:0 0 7px}.phase p{margin:0 0 9px}.phase .deliverable{font-size:13px;color:var(--muted)}
+    .calculator{border:1px solid var(--line);background:var(--surface);padding:25px;margin:24px 0}.controls{display:grid;grid-template-columns:1fr 1fr;gap:26px}.control label{display:block;font-size:14px;font-weight:600;margin-bottom:9px}.control input[type=number]{width:100%;max-width:260px;background:var(--paper);border:1px solid #a7afa5;color:var(--ink);padding:9px 12px;font-variant-numeric:tabular-nums}.range-line{display:flex;gap:14px;align-items:center;min-height:48px}.range-line input{width:100%;accent-color:var(--teal)}.range-line output{min-width:42px;font:16px var(--mono)}.result{display:flex;gap:30px;justify-content:space-between;align-items:end;margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}.result b{display:block;color:var(--teal);font:42px/1.2 var(--serif);font-variant-numeric:tabular-nums}.result span{font-size:13px;color:var(--muted)}.error{color:var(--accent);font-size:13px;min-height:24px;margin:8px 0 0}.refs li{font-size:14px;margin-bottom:13px}footer{padding:30px 0 50px;display:flex;justify-content:space-between;gap:25px;font-size:12px;color:var(--muted)}
+    @media(max-width:740px){.wrap{padding:0 20px}.masthead{font-size:10px}header{padding-top:35px}.lead{font-size:18px}.principle{grid-template-columns:1fr;gap:8px}.facts{grid-template-columns:1fr}.fact,.fact:first-child{padding:16px 0;border-right:0;border-bottom:1px solid var(--line)}.fact:last-child{border:0}.fact b{font-size:31px}section{padding:34px 0}.section-head{grid-template-columns:42px 1fr;gap:10px}h2{font-size:26px}.number{font-size:23px}.phase{grid-template-columns:1fr;gap:7px}.controls{grid-template-columns:1fr}.calculator{padding:18px}.result{align-items:start;flex-direction:column;gap:15px}.table-wrap table{min-width:640px}footer{flex-direction:column;gap:8px}.print{white-space:nowrap}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+    @media print{body{background:white;font-size:11px}.wrap{max-width:none;padding:0}.masthead{padding-top:0}.print,nav,.calculator{display:none}header{padding-top:25px}h1{font-size:34px}.lead{font-size:15px}h2{font-size:23px}h3{font-size:16px}section{padding:25px 0}.facts{grid-template-columns:repeat(3,1fr)}.fact{padding:12px!important;border-bottom:0}.fact b{font-size:26px}table{font-size:10px}.table-wrap{overflow:visible}.table-wrap table{min-width:0}th,td{padding:8px}thead{display:table-header-group}tr,.note,.phase,.principle{break-inside:avoid}h2,h3{break-after:avoid}a{color:inherit}.bar,.dot,th,.formula{-webkit-print-color-adjust:exact;print-color-adjust:exact}footer{padding-bottom:0}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="masthead"><span>KEEL / DESIGN NOTE 2026.10.27</span><button class="print" type="button" onclick="window.print()">打印 / 保存 PDF</button></div>
+  <header>
+    <div class="eyebrow">PERSONAL ASSISTANT · FIRST PILOT</div>
+    <h1>个人智能助理<br><span>成本优化试点方案</span></h1>
+    <p class="lead">以个人智能助理作为底座成本控制能力的首个试点。在完整交付的前提下，验证业务上下文、知识检索、记忆维护和调用策略的真实收益。</p>
+    <div class="meta"><span class="tag draft">待确认试点设计 · 新增措施尚未实施</span><span class="tag">2026-10-27 · Asia/Shanghai</span><span class="tag">试点：keel-assistant / staging</span></div>
+    <div class="note green"><p><strong>配套设计：</strong><a href="Keel-智能体单任务成本控制能力方案-20261027.html">Keel 智能体单任务成本控制能力方案</a>定义通用归因、预算、重试协调和新建智能体自动接入。本文定义个人助理的账单基线、业务策略、试点参数和验收，不在助理内另建一套成本基础设施。原《个人助理单任务成本控制方案》已拆分为这两份文档。</p></div>
+    <div class="principle"><b>设计前提</b><p><strong>本轮不引入缓存。</strong>当前 <strong>10,000 token 输入硬上限仅为临时测试配置</strong>，后续独立调整到正常容量；不把该数值、缩小上下文窗口或统一的低输入额度作为优化目标。此前按普通任务设置 2,000–3,000 token 等固定窗口的建议在本方案中撤回。</p></div>
+  </header>
+  <nav aria-label="文档目录">
+    <a href="#baseline">01 账单依据</a><a href="#accounting">02 任务口径</a><a href="#measures">03 控制措施</a><a href="#budget">04 动态预算</a><a href="#delivery">05 实施顺序</a><a href="#acceptance">06 验收标准</a><a href="#estimate">07 费用测算</a><a href="#references">08 参考依据</a>
+  </nav>
+  <main>
+    <section id="baseline">
+      <div class="section-head"><span class="number">01</span><h2>已确认金额，保留明细缺口</h2></div>
+      <p>2026-10-27 通过 Playwright 请求接口读取线上控制台账单；分析对象为 <code>keel-assistant / staging</code>。昨日窗口为上海时区 2026-10-26 00:00 至 2026-10-27 00:00，即 UTC 的 2026-10-25 16:00 至 2026-10-26 16:00。</p>
+      <div class="facts"><div class="fact"><b>¥80.601330</b><span>昨日已结算总额 · 另有 2 笔待结算</span></div><div class="fact"><b>¥13.795352</b><span>可逐笔分析部分 · 4,977 个模型请求</span></div><div class="fact"><b>93.7% ≈</b><span>可分析明细的输入费用占比</span></div></div>
+      <div class="bar" role="img" aria-label="昨日费用中约17.1%保留逐笔明细，约82.9%仅有历史日结恢复金额"><span class="known"></span><span class="recovered"></span></div>
+      <div class="legend"><span><i class="dot known-dot"></i>逐笔明细 ¥13.795352 · 约 17.1%</span><span><i class="dot recovered-dot"></i>历史日结恢复 ¥66.805978 · 约 82.9%</span></div>
+      <div class="table-wrap"><table><caption>证据范围与能够支持的判断</caption><thead><tr><th scope="col">项目</th><th scope="col">已核实情况</th><th scope="col">使用边界</th></tr></thead><tbody>
+        <tr><td>可分析模型明细</td><td>4,977 个已结算请求；模型为 qwen3.8-flash；输入 16,200,046 token，输出 323,900 token。</td><td>模型请求数不能当作成功业务任务数；输入 / 输出费用占比按配置单价近似拆算，存在逐笔金额舍入。</td></tr>
+        <tr><td>输入费用集中度</td><td>输入达到 4,000 token 的请求贡献可分析部分约 81% 的费用。</td><td>较长输入是调查线索，不代表必要材料应该被裁掉；应检查其中的重复和无关内容。</td></tr>
+        <tr><td>历史日结恢复</td><td>¥66.805978 已确认，记录明确标注 daily-recovery，无模型、token 或 trace 明细。</td><td>计入昨日总额，不伪造调用数、不推断各模型或记忆维护的费用占比。</td></tr>
+        <tr><td>业务流量构成</td><td>昨日包括真实模型评测、负载测试及普通使用。</td><td>“18,000 多次”的范围及任务结构尚未核实，不能据此计算已验证的单任务费用。</td></tr>
+      </tbody></table></div>
+      <div class="note"><p><strong>方向判断：</strong>优先检查重复输入、记忆维护和重试。93.7% 只描述保留逐笔明细的部分，不能外推到全天 ¥80.601330。补齐未来任务归因后再确定各项优化的实际贡献。</p></div>
+    </section>
+
+    <section id="accounting">
+      <div class="section-head"><span class="number">02</span><h2>接入通用任务账，补齐助理的业务归因</h2></div>
+      <p>继承<a href="Keel-智能体单任务成本控制能力方案-20261027.html#accounting">底座的完整任务费用口径</a>。个人助理将普通交互、知识检索、跨会话回查和后台文字分析分别分组；后台分析通过根任务关联触发请求和实际执行，工具步骤与维护子任务不重复计作独立交付。</p>
+      <div class="formula">完整任务成本 ＝ 意图分类 ＋ 回答 / 分析 ＋ 工具后的模型处理 ＋ 后台记忆维护 ＋ 重试与降级尝试 ＋ 其他可归属的直接服务费用<small>主要观测对象是网关模型账单；若存在单独收费的检索等服务，另列费用与来源，不隐去、不与模型费用重复累计。</small></div>
+      <ul>
+        <li>通过正式 SDK 传递可信根任务关联，底座与网关负责实际结算去重。助理补充任务类型、材料范围和业务完成状态，不自行维护第二份权威费用账。</li>
+        <li>试点对一批维护新覆盖的用户轮次采用等额分摊，由底座保存范围与规则版本。共享摘要 / facts 调用只计一次；该分摊规则不作为所有智能体的强制默认。</li>
+        <li>未结算或无法归属的费用单列。任务主回答完成、后台维护待结算时，费用状态仍为“待完整结算”；不能把它记成零成本。</li>
+        <li>日常使用、评测、压测分组统计。失败任务费用保留；同时报告总支出、成功率，以及“全部同组支出 ÷ 成功完整任务数”，防止只统计成功样本造成费用虚低。</li>
+      </ul>
+      <p class="small">任务归因应形成可复核的守恒关系：已分摊费用＋独立后台费用＋未归属费用＝同范围账单金额。对历史恢复金额保留日精度，不强行分配到具体任务。</p>
+    </section>
+
+    <section id="measures">
+      <div class="section-head"><span class="number">03</span><h2>六项控制措施，优先消除重复工作</h2></div>
+      <h3>3.1 上下文按任务需要组织</h3>
+      <p>模型能力、必要材料和任务复杂度决定上下文容量。固定提示词、当前指令、最新更正、相关原文及完整工具协议组优先保留；仅清理重复片段、无关字段、重复规则与已被替代的信息。新旧事实的替代关系和来源仍可回查。</p>
+      <ul>
+        <li>避免旧摘要、事实账本、历史原文和工具结果重复注入同一内容；不同来源提供的独有证据不能因主题相同就删除。</li>
+        <li>当前材料本身是分析对象时，先明确需要的完整范围。分段处理必须覆盖全部范围，并保留跨段依赖，不用关键词截取代替完整分析。</li>
+        <li>不为每次短问答额外付费生成压缩摘要。真正超过模型能力或任务预算时，采用可追溯的分段、回查或澄清，并统计其全部费用。</li>
+      </ul>
+      <h3>3.2 记忆按变化维护，合并连续待处理范围</h3>
+      <p>沿用已实现的异步维护和选择性摘要 / facts 合并；进一步减少同一历史范围被反复处理。异步改善等待时间，只有减少实际 token、调用或重试才算降本。</p>
+      <ul>
+        <li>摘要按新增内容量、现有摘要覆盖范围和任务实际需要触发，不为每轮对话机械重写。</li>
+        <li>普通维护可试验累计 4–6 轮或约 1,500–2,500 个新增 token 后处理，配合最长等待时间。这些数值只是<strong>维护批次的待调参数</strong>，不是主回答输入限制；必须通过质量和费用对照后确定。</li>
+        <li>对独立致谢等明确无新增事实的输入，可跳过事实抽取；不确定时保持正常处理，不额外为每轮新增一次“是否值得维护”的模型判断。</li>
+        <li>同会话积压按连续未处理区间合并，领取前重读游标，减少重叠付费。CAS 防止重复提交，租约与领取互斥负责减少重复执行。</li>
+        <li>更正、撤回立即作用于当前回答，后台尚未完成不能让旧账本覆盖新原话。后台最长收敛时间可先以 60 秒为验收候选，按负载验证。</li>
+        <li>维持摘要 / facts 各自校验、版本与进度；仅重试失败侧。当前 512 token 预计输入收益门槛是已有实现细节，不是未来上下文容量目标。</li>
+      </ul>
+      <div class="table-wrap"><table><caption>已有专项结果：只代表相同处理范围的维护样本，不代表完整任务或全天流量</caption><thead><tr><th scope="col">样本</th><th scope="col">分开维护均费</th><th scope="col">选择性合并均费</th><th scope="col">解释</th></tr></thead><tbody><tr><td>短历史 · 每臂 30 个</td><td>¥0.00139047</td><td>¥0.00150430</td><td>点估计增加约 8.19%；两组均使用分开路径，包含输出与重试波动，未证明所有场景费用不增加。</td></tr><tr><td>长历史 · 每臂 30 个</td><td>¥0.00324897</td><td>¥0.00256343</td><td>下降约 21.10%；不能直接当作完整任务降幅。</td></tr></tbody></table></div>
+      <h3>3.3 检索以证据充分性决定范围</h3>
+      <p>当前知识检索一次取 8 条、单条最多保留 5,000 字符，可作为检查输入膨胀的入口。改为按问题范围选择必要片段与字段、去重并按需补查；不统一强制为固定条数或固定 token 数。</p>
+      <ul><li>返回实际问题需要的正文、来源、版本与必要元数据；删除无关包装字段。</li><li>相同文档和片段去重；证据不足时有界补查，不能把被裁掉的材料当作不存在。</li><li>保留截断和未覆盖标记。清单、审计或完整材料分析任务必须满足覆盖要求，不用少取数据制造费用下降。</li></ul>
+      <h3>3.4 调用按职责执行，减少无用分类与自评</h3>
+      <p>现有普通聊天已采用单次回答路径，规则识别成功时不调用慢分类。继续保留这些能力，增量工作是覆盖高频明确表达和消除重复环节。模糊请求不能为了省分类费而被强行执行。</p>
+      <p>普通问答不默认增加模型自评；复杂分析按交付要求执行必要步骤，质量评审优先放在离线对照。评测中付费调用全部计入评测费用。</p>
+      <h3>3.5 全链路统一重试与追加调用额度</h3>
+      <p>由任务级预算协调应用、SDK、网关的重试与降级，避免各层叠加放大。错误按可恢复性处理；仅重跑失败部分，不把已经成功的材料分析或维护重新执行。</p>
+      <p>付费请求状态不明、客户端断流时先核对已发生的执行和结算，不能无条件重放。CAS 冲突后重读当前状态；失败预算不因新用户轮次被重置。保留失败、待结算和不确定尝试。</p>
+      <h3>3.6 输出按交付内容控制</h3>
+      <p>依据用户要求、任务类型、材料规模和输出结构估算长度，减少重复转述、套话及无必要的中间输出。详细方案、长材料分析和明确要求完整输出的任务按需放宽，不统一套用短回答上限。</p>
+      <p class="small">本轮不新增精确答案、语义、多级、工具结果或向量缓存，也不把提高厂商前缀缓存命中作为降本措施。现有能力保持实际配置；后续若引入缓存，另立方案评估。</p>
+    </section>
+
+    <section id="budget">
+      <div class="section-head"><span class="number">04</span><h2>助理提供任务需要，底座执行动态预算</h2></div>
+      <p>接入<a href="Keel-智能体单任务成本控制能力方案-20261027.html#budget">底座预算生命周期</a>，不在助理进程中另建可绕过的预算执行器。撤回此前的固定输入额度及统一费用控制线；先建立真实任务分布，再按材料规模、必要步骤、历史使用需求和交付要求给出任务级预估依据。</p>
+      <div class="table-wrap"><table><thead><tr><th scope="col">控制时点</th><th scope="col">动作</th><th scope="col">结果要求</th></tr></thead><tbody>
+        <tr><td>任务开始</td><td>助理识别任务类型、材料范围与交付要求，不为估算默认新增模型调用；底座按策略与实际路由价格完成预算预估。</td><td>形成任务级费用预估、允许的追加步骤及独立维护额度。</td></tr>
+        <tr><td>每次模型调用前</td><td>SDK 传递用途与任务关联；底座 / 网关统一校验已结算、未决预留与本次调用额度。</td><td>预算是费用约束；模型上下文容量是能力约束，两者分别判断。</td></tr>
+        <tr><td>接近预算</td><td>优先停止可选自评和重复补查；普通维护可有界延后，但费用继续归属原任务且遵守收敛要求。</td><td>不删除关键输入、不降低完整性、不以延迟结算制造降本。</td></tr>
+        <tr><td>必要工作超过预算</td><td>提供可解释的分段或范围选择；确需增加额度时按任务授权策略处理，明确尚未完成的部分。</td><td>不无声截断、不伪报成功，也不无限重试。</td></tr>
+        <tr><td>任务结束与后台结算</td><td>回填全部实际账单及分摊，标记成功、失败、部分完成或费用未确认。</td><td>预估值、预算上限和实际费用分别呈现。</td></tr>
+      </tbody></table></div>
+      <div class="note green"><p><strong>上下文配置独立推进：</strong>后续扩大正常窗口时，基线和候选使用相同可用材料及相同容量条件重新对照。窗口容量变化不计为本方案的处理效果；必要的长上下文任务应单独分组观察。</p></div>
+    </section>
+
+    <section id="delivery">
+      <div class="section-head"><span class="number">05</span><h2>先接入公共机制，再验证助理策略</h2></div>
+      <div class="steps">
+        <article class="phase"><div class="phase-label">准备阶段<br>接入与基线</div><div><h3>接入底座完整任务账与策略版本</h3><p>以正式 SDK 接入根任务、后台维护与网关账单关联，先观察再启用新的执行控制；区分日常 / 评测 / 压测，记录业务分组、材料范围和结算状态。</p><p class="deliverable">交付：公共能力接入证明、费用守恒与助理分组基线；公共机制尚未落地时不得宣称本阶段完成。</p></div></article>
+        <article class="phase"><div class="phase-label">第一阶段<br>内容与证据</div><div><h3>清理重复输入与工具包装</h3><p>在相同材料可用范围内，优化提示规则组织、历史 / 摘要 / facts 重叠和工具字段；检索以充分证据为准。不同时改模型路由和上下文容量。</p><p class="deliverable">交付：费用、重复输入量、完整性和答案质量的配对对照。</p></div></article>
+        <article class="phase"><div class="phase-label">第二阶段<br>维护调度</div><div><h3>验证维护触发与批次合并</h3><p>调整普通维护触发、连续范围合并与无事实跳过；沿用现有异步、独立校验和选择性合并。先验证更正、撤回与收敛，再验证费用。</p><p class="deliverable">交付：每批新处理量、重复覆盖、实际 token、重试、均费及后台收敛。</p></div></article>
+        <article class="phase"><div class="phase-label">第三阶段<br>费用与重试</div><div><h3>验证底座控制在助理中的行为</h3><p>按实测分布配置助理的预算预估与可选步骤，使用公共追加调用和重试协调；在 staging 分组灰度，保留策略版本、回退和失败记录。</p><p class="deliverable">交付：完整任务费用分布、长尾控制和助理推广 / 回退结论；验证通过的通用部分再交其他类型智能体复验。</p></div></article>
+      </div>
+      <p class="small">依赖边界：助理负责业务路由、证据充分性、必要步骤和输出要求；公共机制、协议及新建项目自动接入统一由配套平台方案负责。只通过正式 SDK 使用底座能力。记忆批次和 30% 降幅仅为助理试点参数 / 目标，不自动继承给其他智能体。</p>
+    </section>
+
+    <section id="acceptance">
+      <div class="section-head"><span class="number">06</span><h2>同样的材料，交付同样完整的结果</h2></div>
+      <p>基线与候选使用等价独立会话、相同真实模型路由、提示词基线、可用材料、上下文容量和交付要求；单独记录本次有意调整的策略版本。短问答、检索、长材料、多轮记忆分别报告，不以混合均值掩盖退化。</p>
+      <div class="table-wrap"><table><thead><tr><th scope="col">验收项</th><th scope="col">方法</th><th scope="col">通过要求</th></tr></thead><tbody>
+        <tr><td>实际成本</td><td>覆盖前台、后台、失败、重试与降级；等待维护和账单结算，比较完整任务均费及 P95，报告样本量和波动。</td><td>个人助理完整试点首要目标为同口径均费下降 30%；40%–50% 为进一步目标，均需实测。这不是所有智能体的统一指标；单步收益只按其覆盖范围声明。</td></tr>
+        <tr><td>材料完整性</td><td>长文、清单、跨段约束、早期关键原文、工具调用完整组；对扩大后的正常窗口单独复测。</td><td>不丢关键材料与协议依赖；原文来源可回查，未覆盖明确标记；不靠缩小窗口达标。</td></tr>
+        <tr><td>事实与回答质量</td><td>普通问答、证据不足补查、个人历史、更正、撤回、冲突和含糊表达逐项对照。</td><td>关键事实、来源、纠正和撤回用例全部通过；任务完成率及正式业务门禁不降低。</td></tr>
+        <tr><td>后台收敛</td><td>连续快问、维护延迟、积压合并和长会话，观察实际覆盖游标与完成时间。</td><td>不遗漏新增内容；普通维护最长收敛候选 60 秒须在约定负载下验证，不以少处理事实换取低费用。</td></tr>
+        <tr><td>重复付费与恢复</td><td>租约冲突、并发副本、重复投递、部分输出失败、状态不明的付费请求及进程中断。</td><td>不重复推进、不重复记账；所有真实付费保留，重试受统一额度约束，失败部分可定位。</td></tr>
+        <tr><td>速度与可靠性</td><td>比较首字和完整交付 P95、错误率、后台排队，保留全部失败与重跑。</td><td>建议 P95 相对对照恶化不超过 10%；既有可靠性门槛保持，未达标不扩大灰度。</td></tr>
+        <tr><td>删除与权限隔离</td><td>不同 owner / agent / env / session，相同内容及排队 / 执行中删除。</td><td>授权边界不变；不串会话、不复活删除记忆；成本控制不能绕过权限、审计或来源校验。</td></tr>
+      </tbody></table></div>
+      <p class="small">以上是待执行标准，没有新增验收通过声明。不为本文档创建付费测试；实施阶段的真实模型评测和负载费用应单独计入测试预算。</p>
+    </section>
+
+    <section id="estimate">
+      <div class="section-head"><span class="number">07</span><h2>预算测算是目标，不是收益承诺</h2></div>
+      <p>以下用昨日 ¥80.601330 作金额参考，假设业务量、任务结构和质量要求保持一致。昨日含测试且大部分金额没有逐笔明细，因此只能用于情景预算，不能作为已经验证的日常单任务基线。</p>
+      <div class="table-wrap"><table><thead><tr><th scope="col">目标降幅</th><th scope="col">同业务量预计费用</th><th scope="col">节省金额</th><th scope="col">状态</th></tr></thead><tbody><tr><td>30%</td><td>约 ¥56.42</td><td>约 ¥24.18</td><td>优先验证目标</td></tr><tr><td>40%</td><td>约 ¥48.36</td><td>约 ¥32.24</td><td>进一步目标</td></tr><tr><td>50%</td><td>约 ¥40.30</td><td>约 ¥40.30</td><td>争取目标，未经验证</td></tr></tbody></table></div>
+      <div class="calculator" aria-labelledby="calculator-title">
+        <h3 id="calculator-title" style="margin-top:0">同业务量费用计算器</h3>
+        <p class="small">仅做金额乘法，不预测降幅。没有使用“18,000 次”作为已核实的任务分母。</p>
+        <div class="controls"><div class="control"><label for="baseline-cost">基线费用 / 元</label><input id="baseline-cost" type="number" min="0" max="1000000000" step="any" value="80.601330" inputmode="decimal" aria-describedby="calculator-error"></div><div class="control"><label for="reduction">假设降幅</label><div class="range-line"><input id="reduction" type="range" min="0" max="60" step="1" value="30"><output id="reduction-value" for="reduction">30%</output></div></div></div>
+        <p id="calculator-error" class="error" role="status"></p>
+        <div class="result" aria-live="polite"><div><b id="remaining-cost">¥56.42</b><span>相同业务量下的费用</span></div><div><b id="saved-cost">¥24.18</b><span>假设节省 · 完整结算后验证</span></div></div>
+        <noscript><p>未启用 JavaScript，请参考上方静态测算表。公式：基线费用 ×（1 − 假设降幅）。</p></noscript>
+      </div>
+      <div class="note"><p><strong>成本原则：</strong>优先为实际交付减少重复工作，不为费用数字牺牲必要上下文、事实正确性、引用或任务完成。各项收益存在重叠，只以整条任务账单净下降作为最终结果。</p></div>
+    </section>
+
+    <section id="references">
+      <div class="section-head"><span class="number">08</span><h2>参考依据与后续待办</h2></div>
+      <ol class="refs">
+        <li><a href="Keel-智能体单任务成本控制能力方案-20261027.html">Keel 智能体单任务成本控制能力方案</a>：配套的通用机制、策略继承、新建项目接入、既有项目升级与跨类型验收。</li>
+        <li><a href="../specs/r1027/daily-total-cost.md">日成本、总成本与历史账单对账</a>：线上恢复方式、日结算凭据、历史明细缺口和费用口径。</li>
+        <li><a href="记忆摘要与事实合并维护实施验收报告-20261026.html">记忆摘要与事实合并维护实施验收报告</a>及<a href="../evidence/combined-session-memory-20261026/quality-cost-summary.json">实际费用对照 JSON</a>：短 / 长历史费用、重试和推广边界。</li>
+        <li><a href="记忆摘要与事实维护异步化优化方案-20261026.html">既有记忆异步化设计</a>、<a href="../specs/p1/P1-combined-session-memory-20261026.md">合并维护实现 spec</a>：沿用的可靠投递、租约、CAS、独立进度与实际结算要求。本文不继承旧方案对临时窗口的优化假设。</li>
+        <li><a href="Keel-意图识别与任务路由方案-20261025.html">意图识别与任务路由方案</a>：规则识别、慢分类和执行路径的现有职责边界。</li>
+        <li><a href="../../keel-llm/src/main/resources/application.yaml">网关模型计价配置</a>：样本费用拆算依据；实际账单优先，实施前重新核对适用路由与单价。</li>
+      </ol>
+      <p><strong>待确认与实施：</strong>核实调用次数口径与任务结构；建立完整任务归因；确定正常上下文容量配置；用真实同范围样本校准维护批次、动态预算与重试额度。缺少逐笔信息的历史金额不人工补造明细。</p>
+      <p class="small">原始控制台账单在本机以受限权限保存；本文仅记录必要汇总，不嵌入凭据、访问票据、用户原文或私有服务密钥。文档来源为本轮用户确认的范围、线上只读账单与仓库已有设计 / 实现证据。</p>
+    </section>
+  </main>
+  <footer><span>Keel · 个人智能助理成本优化试点 · 2026-10-27</span><span>设计稿供确认；仅文档拆分，未修改运行配置。</span></footer>
+</div>
+<script>
+  (() => {
+    const baseline = document.getElementById('baseline-cost');
+    const reduction = document.getElementById('reduction');
+    const reductionValue = document.getElementById('reduction-value');
+    const remaining = document.getElementById('remaining-cost');
+    const saved = document.getElementById('saved-cost');
+    const error = document.getElementById('calculator-error');
+    const format = new Intl.NumberFormat('zh-CN', {style:'currency', currency:'CNY', minimumFractionDigits:2, maximumFractionDigits:2});
+    function update() {
+      const amount = baseline.valueAsNumber;
+      const rate = Number(reduction.value) / 100;
+      reductionValue.value = `${reduction.value}%`;
+      const valid = baseline.value.trim() !== '' && Number.isFinite(amount) && baseline.checkValidity();
+      baseline.setAttribute('aria-invalid', String(!valid));
+      error.textContent = valid ? '' : '请输入 0 至 1,000,000,000 之间的有效基线费用。';
+      remaining.textContent = valid ? format.format(amount * (1 - rate)) : '—';
+      saved.textContent = valid ? format.format(amount * rate) : '—';
+    }
+    baseline.addEventListener('input', update);
+    reduction.addEventListener('input', update);
+    update();
+  })();
+</script>
+</body>
+</html>

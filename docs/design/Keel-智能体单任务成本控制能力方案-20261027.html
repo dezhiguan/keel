@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Keel 底座通用成本控制能力设计：统一任务费用归因、动态预算与重试协调；新建智能体自动接入，业务策略按类型启用。">
+  <title>Keel 智能体单任务成本控制能力方案 · 2026-10-27</title>
+  <style>
+    :root{--paper:#f4f0e7;--surface:#fffdf8;--ink:#22313a;--muted:#586972;--line:#cfcfc2;--accent:#ac3e23;--teal:#2d665d;--soft:#e9e5da;--serif:"Songti SC","STSong","Noto Serif SC",serif;--sans:"PingFang SC","Microsoft YaHei",sans-serif;--mono:"SFMono-Regular",Menlo,Consolas,monospace}
+    *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.85 var(--sans)}a{color:var(--teal);text-underline-offset:4px;overflow-wrap:anywhere}a:hover{text-decoration-thickness:2px}button,input{font:inherit}button{cursor:pointer}a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:4px}::selection{background:#e8c4ad;color:var(--ink)}
+    .wrap{max-width:1160px;margin:auto;padding:0 48px}.masthead{display:flex;justify-content:space-between;gap:20px;align-items:center;padding:23px 0;border-bottom:1px solid var(--ink);font:12px/1.5 var(--mono);letter-spacing:.08em}.print{border:1px solid var(--ink);background:transparent;color:var(--ink);padding:8px 13px;letter-spacing:0}.print:hover{background:var(--ink);color:var(--paper)}
+    header{padding:56px 0 28px}.eyebrow{font:12px/1.6 var(--mono);letter-spacing:.18em;color:var(--accent)}h1{font:700 clamp(34px,5.5vw,61px)/1.25 var(--serif);letter-spacing:-.025em;margin:16px 0 21px}h1 span{color:var(--accent)}.lead{font-size:20px;max-width:840px;margin-bottom:25px}.meta{display:flex;flex-wrap:wrap;gap:9px}.tag{font:12px/1.6 var(--sans);border:1px solid var(--line);padding:4px 10px}.tag.draft{border-color:var(--accent);color:var(--accent)}
+    .principle{border-top:2px solid var(--ink);border-bottom:1px solid var(--line);padding:22px 0;margin-top:30px;display:grid;grid-template-columns:150px 1fr;gap:20px}.principle b{font:700 23px/1.5 var(--serif)}.principle p{margin:0}.principle strong{color:var(--accent)}nav{display:flex;flex-wrap:wrap;gap:7px 23px;padding:22px 0;border-bottom:1px solid var(--line);font-size:13px}nav a{text-decoration:none}
+    section{padding:48px 0;border-bottom:1px solid var(--line)}.section-head{display:grid;grid-template-columns:66px 1fr;gap:18px;align-items:baseline;margin-bottom:22px}.number{font:30px/1 var(--mono);color:var(--accent)}h2{font:700 30px/1.4 var(--serif);margin:0}h3{font:700 20px/1.6 var(--serif);margin:26px 0 8px}p{margin:10px 0 16px}li{margin:7px 0}ul,ol{padding-left:24px}.small{font-size:13px;color:var(--muted)}.note{border-left:3px solid var(--accent);background:var(--soft);padding:16px 20px;margin:22px 0}.note p{margin:0}.note.green{border-color:var(--teal)}.table-wrap{overflow-x:auto;margin:20px 0}table{border-collapse:collapse;width:100%;font-size:14px;background:var(--surface)}caption{text-align:left;padding-bottom:9px;font-size:13px;color:var(--muted)}th,td{text-align:left;vertical-align:top;padding:13px 15px;border-bottom:1px solid var(--line)}th{background:#e5e7de;font-weight:600}td:first-child{font-weight:600}code{font:12px/1.7 var(--mono);overflow-wrap:anywhere;background:#e5e6dd;padding:2px 5px}.formula{background:var(--ink);color:var(--paper);padding:23px 25px;font:16px/1.9 var(--sans);margin:20px 0}.formula small{display:block;color:#d0d9d5;font-size:13px;margin-top:8px}
+    .facts{display:grid;grid-template-columns:repeat(3,1fr);border-top:2px solid var(--ink);border-bottom:1px solid var(--line);margin:27px 0}.fact{padding:22px 18px;border-right:1px solid var(--line)}.fact:first-child{padding-left:0}.fact:last-child{border:0}.fact b{display:block;font:36px/1.25 var(--serif);font-variant-numeric:tabular-nums}.fact span{font-size:12px;color:var(--muted)}.bar{display:flex;height:30px;margin-top:22px;background:var(--soft)}.bar .known{width:17.1155%;background:var(--teal)}.bar .recovered{width:82.8845%;background:#bba68d}.legend{display:flex;gap:10px 24px;flex-wrap:wrap;margin:9px 0 20px;font-size:13px}.dot{width:10px;height:10px;display:inline-block;margin-right:7px}.known-dot{background:var(--teal)}.recovered-dot{background:#bba68d}
+    .steps{counter-reset:phase;margin-top:25px}.phase{display:grid;grid-template-columns:115px 1fr;gap:20px;padding:24px 0;border-top:1px solid var(--line)}.phase-label{color:var(--teal);font:13px/1.8 var(--mono)}.phase h3{margin:0 0 7px}.phase p{margin:0 0 9px}.phase .deliverable{font-size:13px;color:var(--muted)}
+    .calculator{border:1px solid var(--line);background:var(--surface);padding:25px;margin:24px 0}.controls{display:grid;grid-template-columns:1fr 1fr;gap:26px}.control label{display:block;font-size:14px;font-weight:600;margin-bottom:9px}.control input[type=number]{width:100%;max-width:260px;background:var(--paper);border:1px solid #a7afa5;color:var(--ink);padding:9px 12px;font-variant-numeric:tabular-nums}.range-line{display:flex;gap:14px;align-items:center;min-height:48px}.range-line input{width:100%;accent-color:var(--teal)}.range-line output{min-width:42px;font:16px var(--mono)}.result{display:flex;gap:30px;justify-content:space-between;align-items:end;margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}.result b{display:block;color:var(--teal);font:42px/1.2 var(--serif);font-variant-numeric:tabular-nums}.result span{font-size:13px;color:var(--muted)}.error{color:var(--accent);font-size:13px;min-height:24px;margin:8px 0 0}.refs li{font-size:14px;margin-bottom:13px}footer{padding:30px 0 50px;display:flex;justify-content:space-between;gap:25px;font-size:12px;color:var(--muted)}
+    @media(max-width:740px){.wrap{padding:0 20px}.masthead{font-size:10px}header{padding-top:35px}.lead{font-size:18px}.principle{grid-template-columns:1fr;gap:8px}.facts{grid-template-columns:1fr}.fact,.fact:first-child{padding:16px 0;border-right:0;border-bottom:1px solid var(--line)}.fact:last-child{border:0}.fact b{font-size:31px}section{padding:34px 0}.section-head{grid-template-columns:42px 1fr;gap:10px}h2{font-size:26px}.number{font-size:23px}.phase{grid-template-columns:1fr;gap:7px}.controls{grid-template-columns:1fr}.calculator{padding:18px}.result{align-items:start;flex-direction:column;gap:15px}.table-wrap table{min-width:640px}footer{flex-direction:column;gap:8px}.print{white-space:nowrap}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+    @media print{body{background:white;font-size:11px}.wrap{max-width:none;padding:0}.masthead{padding-top:0}.print,nav,.calculator{display:none}header{padding-top:25px}h1{font-size:34px}.lead{font-size:15px}h2{font-size:23px}h3{font-size:16px}section{padding:25px 0}.facts{grid-template-columns:repeat(3,1fr)}.fact{padding:12px!important;border-bottom:0}.fact b{font-size:26px}table{font-size:10px}.table-wrap{overflow:visible}.table-wrap table{min-width:0}th,td{padding:8px}thead{display:table-header-group}tr,.note,.phase,.principle{break-inside:avoid}h2,h3{break-after:avoid}a{color:inherit}.bar,.dot,th,.formula{-webkit-print-color-adjust:exact;print-color-adjust:exact}footer{padding-bottom:0}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="masthead"><span>KEEL / PLATFORM DESIGN 2026.10.27</span><button class="print" type="button" onclick="window.print()">打印 / 保存 PDF</button></div>
+  <header>
+    <div class="eyebrow">SHARED CAPABILITIES · BUSINESS-SPECIFIC POLICIES</div>
+    <h1>Keel 智能体<br><span>单任务成本控制能力</span></h1>
+    <p class="lead">把费用归因、预算执行和重试协调做成底座能力。新建智能体默认接入公共机制，按业务类型启用适用策略；以个人智能助理为首个试点。</p>
+    <div class="meta"><span class="tag draft">待确认架构设计 · 新增能力尚未实施</span><span class="tag">2026-10-27 · Asia/Shanghai</span><span class="tag">范围：底座 / 网关 / SDK / 生成模板</span></div>
+    <div class="principle"><b>平台原则</b><p><strong>统一成本机制，业务策略分别验证。</strong>不新增“成本优化智能体”或为每轮请求额外调用模型；不引入缓存。临时 <strong>10,000 token</strong> 输入上限不作为平台优化目标，也不固化为所有智能体的默认窗口。</p></div>
+    <div class="note green"><p><strong>配套试点：</strong><a href="个人智能助理成本优化试点方案-20261027.html">个人智能助理成本优化试点方案</a>负责真实账单、助理业务调整、试验参数和降本目标。本文负责公共机制及后续新智能体自动接入，不将助理参数推广为全平台默认值。两份文档共同替代原单份成本方案。</p></div>
+  </header>
+  <nav aria-label="文档目录"><a href="#scope">01 能力范围</a><a href="#accounting">02 任务费用</a><a href="#layers">03 分层职责</a><a href="#policy">04 策略继承</a><a href="#budget">05 执行与预算</a><a href="#onboarding">06 自动接入</a><a href="#rollout">07 实施路线</a><a href="#acceptance">08 平台验收</a><a href="#references">09 依据与待办</a></nav>
+  <main>
+    <section id="scope">
+      <div class="section-head"><span class="number">01</span><h2>默认具备机制，按能力启用策略</h2></div>
+      <div class="facts"><div class="fact"><b>默认接入</b><span>任务归因、费用观测、基础预算与重试协调</span></div><div class="fact"><b>按需启用</b><span>记忆调度、检索证据和业务执行策略</span></div><div class="fact"><b>分型验收</b><span>质量、完整性、费用、可靠性分别验证</span></div></div>
+      <p>“新建智能体自动具备”指：平台发布相应能力、正式 SDK 和生成模板后，新项目通过标准入口自动携带可信任务关联、继承适用策略，并能查询真实费用和控制结果。不是承诺所有智能体采用相同窗口、步骤、维护频率或降本比例。</p>
+      <div class="table-wrap"><table><caption>现状与新增设计必须区分</caption><thead><tr><th scope="col">能力</th><th scope="col">当前可确认基础</th><th scope="col">本方案需要补齐</th></tr></thead><tbody>
+        <tr><td>网关与费用</td><td>已有实际模型结算、按尝试计费、日费用 / 历史恢复，以及部分调用用途配置。</td><td>业务根任务归因、跨子任务与后台分摊、统一任务级预算执行和控制事件。</td></tr>
+        <tr><td>记忆维护</td><td>Python SDK 已有维护任务执行、局部费用上界与选择性合并；底座有持久任务、租约及版本校验。</td><td>与根任务预算打通，形成按能力启用、可版本化的策略和接入检查；不能将维护局部上界当完整任务费用。</td></tr>
+        <tr><td>业务路由</td><td>个人助理已有规则识别、慢分类和本地执行路径。</td><td>公共运行约束与业务步骤解耦；助理的规则和语义判断不直接固化进全平台。</td></tr>
+        <tr><td>新项目接入</td><td>工程使用已发布且锁定的 SDK；各项目现有接入程度不同。</td><td>同步生成模板、正式 SDK、登记校验与接入验收。Java 等路径须核验能力覆盖，不默认与 Python 等价。</td></tr>
+      </tbody></table></div>
+      <p class="small">本文是目标设计，不是自动接入已完成的声明。默认开启的内容处理策略必须有独立证据，不能仅因公共代码已存在就认定所有项目已启用。</p>
+    </section>
+
+    <section id="accounting">
+      <div class="section-head"><span class="number">02</span><h2>一份权威费用账，覆盖完整任务链</h2></div>
+      <p>业务根任务由受信入口建立；交互回复、后台分析、工具步骤、维护任务和允许的子任务可形成关联。根任务、执行记录、模型请求和付费尝试是不同统计对象，不能相互替代。</p>
+      <div class="formula">完整任务成本 ＝ 分类 ＋ 回答 / 分析 ＋ 工具后的模型处理 ＋ 归属该任务的记忆维护 ＋ 重试 / 降级尝试 ＋ 其他可归属直接服务费用<small>模型费用以网关 SETTLED 且金额非空的实际尝试为准；预估、预留、预算上限与结算分别记录。</small></div>
+      <ul>
+        <li>跨前台、后台和允许的子任务传递可信根任务关联、用途与策略版本。任务归属、owner、agent、env 等由平台校验，不能采信用户正文中的自报值。</li>
+        <li>同一付费尝试按 attemptId 去重；不同重试与降级尝试分别计费。父节点汇总与子节点费用不重复相加；模型 requestId 去重调用数与业务任务数分别呈现。</li>
+        <li>共享维护只计一笔真实费用。按显式且版本化的分摊规则分给覆盖的任务，保留范围和依据；不同业务可选择适用规则，不强制使用助理的等额分摊。</li>
+        <li>执行状态与费用状态分别管理。主回答完成不等于维护已完成或账单已结算；待结算、状态不明、未归属费用均单列，不默认为零。</li>
+        <li>日常、评测、压测使用可信入口标记分组；失败成本保留。报告总支出、成功率、完整任务均费及 P95，并计算含失败支出的单位成功成本。</li>
+      </ul>
+      <div class="note"><p><strong>对账不变式：</strong>同范围已分摊费用＋独立后台费用＋未归属费用＝权威账单费用。历史 daily-recovery 只恢复有证据的日金额，不制造 task、模型、token 或小时明细；业务任务归因缺失时明确显示不可拆分。</p></div>
+    </section>
+
+    <section id="layers">
+      <div class="section-head"><span class="number">03</span><h2>机制下沉，语义判断留在业务</h2></div>
+      <div class="table-wrap"><table><thead><tr><th scope="col">层级</th><th scope="col">公共职责</th><th scope="col">职责边界</th></tr></thead><tbody>
+        <tr><td>底座</td><td>可信任务生命周期、费用归因与分摊、策略解析 / 快照、权威任务预算、持久后台任务、租约与版本。</td><td>不替所有业务判断材料是否充分，不通过删除输入来保证低价。</td></tr>
+        <tr><td>模型网关</td><td>实际模型与路由定价、尝试结算、预算准入与预留协调、重试 / 降级尝试记录。</td><td>不能只靠某个 SDK 进程的本地计数执行全局预算，也不能静默切换不符合任务质量要求的模型。</td></tr>
+        <tr><td>公共 SDK</td><td>任务关联和调用用途传递、token / 费用预估辅助、完整协议组处理、上下文组装扩展点、公共维护执行及追踪。</td><td>保证调用协议与来源信息；哪些资料相关、如何分段的业务判断由智能体提供。客户端预估不是结算或授权依据。</td></tr>
+        <tr><td>生成模板 / 登记</td><td>锁定兼容 SDK、接入标准入口和生命周期、选择能力组合、绑定策略版本，校验覆盖情况。</td><td>创建时接入不等于业务质量验证通过；不得将不具备的能力标为已启用。</td></tr>
+        <tr><td>智能体</td><td>业务任务类型、材料范围、必要步骤、检索充分性、输出要求、工具副作用及恢复方式。</td><td>只通过正式 SDK 使用公共能力，不复制权威账本、租约算法或另建可绕过的预算执行器。</td></tr>
+      </tbody></table></div>
+      <p>公共能力优先沿用已有模块；确有新增职责时在实施 spec 中明确边界。此处不预定新增微服务，也不把个人助理改造成平台的全局成本调度器。</p>
+    </section>
+
+    <section id="policy">
+      <div class="section-head"><span class="number">04</span><h2>继承有边界，策略可追溯</h2></div>
+      <p>策略按“平台基线 → 组织 / 环境约束 → 智能体配置 → 任务要求”解析。任务可在授权范围内细化策略；高层硬约束不能被低层放宽，冲突在执行前明确返回。业务参数通过平台受管理配置注入，不在应用中写无依据的默认兜底。</p>
+      <div class="table-wrap"><table><thead><tr><th scope="col">策略类别</th><th scope="col">新建智能体目标行为</th><th scope="col">变更规则</th></tr></thead><tbody>
+        <tr><td>任务归因与真实账单</td><td>标准入口默认接入，后台继承可信关联；缺失或不支持时明确标记。</td><td>不因选择更保守的内容策略而关闭记账，不伪报已完整接入。</td></tr>
+        <tr><td>基础预算与重试协调</td><td>继承已发布的有效平台策略，不固化统一低费用或统一步骤数。</td><td>额度按业务类型与材料规模确定；动态调整须在授权约束内并记录版本。</td></tr>
+        <tr><td>记忆调度</td><td>声明并实际使用会话记忆时接入；无记忆业务不产生维护开销。</td><td>维护批次、收敛要求、合并条件按业务验证，不能自动照搬助理试验值。</td></tr>
+        <tr><td>检索与上下文处理</td><td>获得统计、完整协议组支持与处理扩展点。</td><td>删减内容、缩减检索或改变工作步骤先观察 / 对照，再按业务启用；不设全平台固定输入窗口。</td></tr>
+        <tr><td>业务能力组合</td><td>可组合基础、记忆、知识检索、长材料分析、执行任务等适用策略。</td><td>组合时保留各能力的必要条件；名称是设计分类，不是已经存在的配置接口。</td></tr>
+      </tbody></table></div>
+      <ul><li>每个根任务固定有效策略版本并记录 SDK / 模型 / 提示词版本；后台任务沿用其业务策略快照，紧急权限撤销和平台强制约束仍需实时校验。</li><li>平台更新策略不让已有任务静默换行为；变更按版本灰度、可回退。现有未知付费预留与真实账单不因回退而清零。</li><li>涉及内容和质量的策略先提供观察模式，再显式启用；“自动接入机制”与“自动改变业务回答”分别验收。</li></ul>
+    </section>
+
+    <section id="budget">
+      <div class="section-head"><span class="number">05</span><h2>控制实际任务费用，协调并发与重试</h2></div>
+      <div class="table-wrap"><table><thead><tr><th scope="col">时点</th><th scope="col">目标机制</th><th scope="col">边界</th></tr></thead><tbody>
+        <tr><td>创建任务</td><td>由业务声明材料规模、必要工作与交付要求；平台按策略及适用路由价格估算，建立任务预算和维护额度。</td><td>不为预算估算默认新增一次模型调用；没有足够依据时明确预估不确定。</td></tr>
+        <tr><td>调用前准入</td><td>按本次输入、允许输出及可用路由上界估算，原子检查已结算费用与未决调用预留；与现有网关准入协调。</td><td>前台、后台和并发子步骤共享约束，不能各自读取余额后同时超支；路由变化必须重新检查。不能把模型最大窗口一律当作实际输入。</td></tr>
+        <tr><td>追加调用 / 重试</td><td>统一计算应用、SDK、网关的尝试额度，保留尝试原因；仅对可恢复失败重试，成功部分不无条件重跑。</td><td>不能让各层分别加倍重试。副作用操作使用业务幂等和执行核对，不能当纯模型调用重放。</td></tr>
+        <tr><td>结算与不确定状态</td><td>实际账单到达后幂等核销对应预留，晚结算修正任务费用；中断或未知尝试进入待核对状态。</td><td>同一尝试不同时重复计入已结算和未决预留；不能因超时直接释放未知付费占用。</td></tr>
+        <tr><td>接近或超过预算</td><td>向业务返回可解释的控制结果，优先暂停可选工作；必要工作调整范围或额度按任务授权处理。</td><td>不静默删除必要材料、不伪报完成、不绕过权限审计；延期维护仍归属原任务并遵守收敛约定。</td></tr>
+      </tbody></table></div>
+      <p>预算、模型上下文能力和业务质量要求分别配置。正常上下文容量未来调整时，平台策略不应依赖临时测试上限；对照实验保持容量与可用材料一致，单独衡量处理策略的效果。</p>
+      <p class="small">新增任务预算、关联或控制结果若涉及跨语言通信，先定义兼容的可选契约并登记错误码，再同步服务端与各 SDK。本文描述职责和语义，不将尚未实现的字段或端点当作现有 API。</p>
+    </section>
+
+    <section id="onboarding">
+      <div class="section-head"><span class="number">06</span><h2>让“自动具备”成为创建流程的一部分</h2></div>
+      <h3>新建项目：创建、登记、运行、验收四步接通</h3>
+      <ol>
+        <li><strong>生成：</strong>模板锁定已发布的兼容 SDK，生成标准任务入口、受管理配置与成本用途传递；按智能体声明的能力选择适用策略。</li>
+        <li><strong>登记：</strong>校验 SDK / 运行时能力及有效策略；不支持的语言或自定义运行时显示具体缺口，不能标为完整覆盖。需执行控制但缺乏支持时阻止该模式启用。</li>
+        <li><strong>运行：</strong>从受信入口建立任务关联，后台和子执行继承；模型调用经标准 SDK 与网关，记录有效策略和费用状态。</li>
+        <li><strong>验收：</strong>自动验证单请求、重试、后台关联、并发预算、待结算及策略回退；业务内容优化仍需对应业务质量门禁。</li>
+      </ol>
+      <h3>已有项目：按版本升级，不静默改业务</h3>
+      <p>建立现有接入清单，升级并锁定正式 SDK；先完成观察和费用对账，再灰度执行控制，最后验证并启用适用业务策略。旧版本继续标注已覆盖 / 未覆盖范围；不能把“网关已有总费用”误认为“完整任务归因已接通”。</p>
+      <div class="note green"><p><strong>适用边界：</strong>自动接入只对通过受支持标准入口、SDK / 运行时和网关的项目成立。自定义流程、第三方服务及尚未支持的语言需要适配证明；不能仅凭生成模板就声称覆盖任意后续调用。</p></div>
+    </section>
+
+    <section id="rollout">
+      <div class="section-head"><span class="number">07</span><h2>公共机制先行，跨类型验证后进入模板</h2></div>
+      <div class="steps">
+        <article class="phase"><div class="phase-label">阶段一<br>平台基础</div><div><h3>明确契约与权威执行位置</h3><p>建立根任务、实际费用和共享维护归因；实现统一预算与重试协调，避免重复权威账。验证策略版本、并发准入、未知结算及回退。</p><p class="deliverable">出口：公共机制可对账，范围与不支持项有明确记录；不声明所有内容策略已完成。</p></div></article>
+        <article class="phase"><div class="phase-label">阶段二<br>个人助理</div><div><h3>首个项目接入并验证业务策略</h3><p>按配套试点完成观察、费用基线、上下文去重、检索证据组织和记忆调度对照；优先保持模型路由和容量不变。</p><p class="deliverable">出口：助理自身的真实质量、费用、可靠性和回退证据；试点参数不自动升级为平台默认。</p></div></article>
+        <article class="phase"><div class="phase-label">阶段三<br>跨类型复验</div><div><h3>选择查询型与长材料型代表</h3><p>分别验证低记忆需求的工具查询、需要完整材料的长分析，校准能力组合和预算预估；必要时补充执行型的副作用与幂等边界。</p><p class="deliverable">出口：每类适用 / 不适用清单、质量与费用结果；不要求各类获得相同降幅。</p></div></article>
+        <article class="phase"><div class="phase-label">阶段四<br>默认接入</div><div><h3>发布 SDK、策略与生成模板</h3><p>能力稳定后更新正式版本、模板和登记校验；新建项目默认接入公共机制，按能力继承策略，既有项目按升级计划推进。</p><p class="deliverable">出口：从创建到真实运行的自动接入证据、版本回退方案及覆盖清单。</p></div></article>
+      </div>
+      <p class="small">本轮仅拆分设计文档。具体代码改动前另写对应实现 spec，并核对跨语言契约与既有架构；如实现涉及控制台展示，再执行项目的原型和 UI 对齐要求。</p>
+    </section>
+
+    <section id="acceptance">
+      <div class="section-head"><span class="number">08</span><h2>平台验收能力，业务验收效果</h2></div>
+      <div class="table-wrap"><table><thead><tr><th scope="col">验收范围</th><th scope="col">关键场景</th><th scope="col">通过标准</th></tr></thead><tbody>
+        <tr><td>真实费用归因</td><td>前台、后台、共享维护、子任务、失败、重试、晚结算及历史恢复。</td><td>费用守恒且可追溯；不重复、不把缺失当零，不制造历史任务明细。</td></tr>
+        <tr><td>并发预算</td><td>多副本、同时调用、路由降级、客户端中断和未知付费状态。</td><td>执行位置权威、预留幂等且结算核销正确；不能通过并发或重试绕过任务额度。</td></tr>
+        <tr><td>策略继承</td><td>平台 / 组织 / 环境 / 智能体 / 任务冲突，版本发布、回退及权限撤销。</td><td>高层约束不可绕过；有效版本可追溯；已有任务行为不静默变化，撤销实时生效。</td></tr>
+        <tr><td>自动接入</td><td>用新模板创建最小项目，执行标准请求、重试与后台任务；同时检查既有项目升级。</td><td>无需复制成本基础代码即可获得已承诺能力；SDK / 语言覆盖与未接入路径如实报告。</td></tr>
+        <tr><td>能力按需启用</td><td>无记忆业务、记忆业务、检索业务、长分析及允许的执行任务。</td><td>不产生无用维护；必要材料、步骤和副作用校验保留，不强制同一窗口 / 输出长度。</td></tr>
+        <tr><td>业务质量与费用</td><td>每类相同问题、可用材料、容量、交付要求和等价会话；全部后台结算后对照。</td><td>业务门禁不降低，各类费用 / 完成率 / P95 分报；平台无统一“下降 30%”承诺，助理目标只在试点验收。</td></tr>
+        <tr><td>隔离与维护可靠性</td><td>跨 owner / agent / env / session、删除、租约冲突、CAS 与部分成功恢复。</td><td>不串账、不串数据、不复活删除记忆；有效部分不重复执行，失败仍可定位。</td></tr>
+      </tbody></table></div>
+      <p>验收证据记录代码 / SDK / 模型 / 提示词 / 策略版本、任务范围、实际账单和全部失败。费用预估、测试模型或调用数量减少不能替代真实完整费用；本文未执行新的付费评测。</p>
+    </section>
+
+    <section id="references">
+      <div class="section-head"><span class="number">09</span><h2>已有依据与实施前待办</h2></div>
+      <ol class="refs">
+        <li><a href="个人智能助理成本优化试点方案-20261027.html">个人智能助理成本优化试点方案</a>：首个试点的账单、业务策略、试验参数、验收与费用情景。</li>
+        <li><a href="../specs/r1027/daily-total-cost.md">日成本、总成本与历史账单对账</a>：权威费用来源、历史恢复精度与缺失明细边界。</li>
+        <li><a href="../specs/p1/P1-combined-session-memory-20261026.md">记忆合并维护 spec</a>、<a href="记忆摘要与事实合并维护实施验收报告-20261026.html">实施验收报告</a>：已有公共维护机制、实际试验及其未通过项。</li>
+        <li><a href="../../sdk-python/keel/memory_maintenance.py">Python SDK 维护执行</a>：局部预算上界、任务执行与选择性合并的现有实现，不代表完整任务成本治理已完成。</li>
+        <li><a href="../../keel-llm/src/main/java/com/keel/llm/RequestDefaults.java">网关调用用途配置实现</a>：已有用途区分基础；动态任务预算、策略继承和自动接入仍需单独设计与落地。</li>
+      </ol>
+      <p><strong>实施前待办：</strong>盘点各语言 / 运行时与模板覆盖；确定根任务生命周期和可信传播；确定费用归因、共享分摊与预算权威模型；定义策略兼容及发布方式；逐项编写实现 spec 和验收矩阵。不新增缓存，不以临时窗口或某一业务试点参数作为平台默认。</p>
+      <p class="small">本设计不嵌入凭据、用户原文或服务密钥。既有能力与待实施能力分别陈述；未把其他专项的成功当作本方案已经完成。</p>
+    </section>
+  </main>
+  <footer><span>Keel · 智能体单任务成本控制能力 · 2026-10-27</span><span>配套个人助理试点；仅设计文档，未修改运行配置。</span></footer>
+</div>
+</body>
+</html>
