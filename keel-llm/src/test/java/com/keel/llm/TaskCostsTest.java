@@ -85,4 +85,10 @@ class TaskCostsTest {
         costs.reconcileRequest("in-flight");
         costs.admit("test-agent-staging",ticket,"after-completion","interactive",new BigDecimal("0.01"),1);
     }
+    @Test void callCeilingIsIndependentOfRemainingMoney(){
+        var root=root("u","enforce","0.3");String ticket=root.get("ticket").toString();
+        for(int i=0;i<8;i++)costs.admit("test-agent-staging",ticket,"call-"+i,"interactive",new BigDecimal("0.001"),1);
+        assertThatThrownBy(()->costs.admit("test-agent-staging",ticket,"ninth","interactive",new BigDecimal("0.001"),1)).isInstanceOf(Gateway.GatewayException.class);
+        assertThat(db.queryForObject("SELECT count(*) FROM llm_cost_request",Integer.class)).isEqualTo(8);
+    }
 }
