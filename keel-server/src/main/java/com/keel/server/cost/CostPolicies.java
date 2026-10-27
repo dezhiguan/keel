@@ -52,7 +52,13 @@ public class CostPolicies {
             effective(target.get("name").toString(),target.get("env").toString(),Objects.toString(target.get("owner_org"),""));
         return Map.of("scope",scope,"key",key,"revision",revision+1);
     }
-    public List<Map<String,Object>> history(){return db.queryForList("SELECT scope,scope_key,revision,config,created_by,created_at FROM task_cost_policy ORDER BY created_at DESC LIMIT 100");}
+    public List<Map<String,Object>> history(){
+        var result=new ArrayList<Map<String,Object>>();
+        for(var row:db.queryForList("SELECT scope,scope_key,revision,config,created_by,created_at FROM task_cost_policy ORDER BY created_at DESC LIMIT 100")) {
+            var item=new LinkedHashMap<String,Object>(row);item.put("config",parse(row.get("config")));result.add(item);
+        }
+        return result;
+    }
     private JsonNode parse(Object value){try{return json.readTree(value.toString());}catch(Exception e){throw conflict();}}
     private static void validate(JsonNode config) {
         var names=config.fieldNames();while(names.hasNext())if(!FIELDS.contains(names.next()))throw conflict();

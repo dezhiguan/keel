@@ -26,6 +26,7 @@ class TaskCostsTest {
     }
     void bill(String request,String status,String cost,boolean timeout){
         bills.append(new Gateway.Spend("test-agent-staging","qwen-plus",20,10,cost==null?null:new BigDecimal(cost),request,Instant.now(),2,timeout,status,BigDecimal.ZERO,UUID.randomUUID().toString(),"trace","v1","primary",0));
+        costs.reconcileRequest(request);
     }
     @Test void concurrentRequestsShareOneAtomicBudget() throws Exception {
         var root=root("u","enforce","0.02");var start=new CountDownLatch(1);var results=new ArrayList<Future<Boolean>>();
@@ -73,5 +74,15 @@ class TaskCostsTest {
         assertThat(db.queryForObject("SELECT count(*) FROM llm_cost_request",Integer.class)).isZero();
         costs.constraints("test-agent-staging",false,new BigDecimal("0.01"),2);
         costs.admit("test-agent-staging",root.get("ticket").toString(),"observed","interactive",new BigDecimal("0.02"),1);
+    }
+    @Test void aSettledAttemptCannotReleaseTheRemainingBoundBeforeRequestCompletion(){
+        var root=root("u","enforce","0.03");String id=root.get("taskId").toString(),ticket=root.get("ticket").toString();
+        costs.admit("test-agent-staging",ticket,"in-flight","interactive",new BigDecimal("0.025"),2);
+        bills.append(new Gateway.Spend("test-agent-staging","qwen-plus",20,10,new BigDecimal("0.005"),"in-flight",Instant.now(),2,false,"SETTLED",BigDecimal.ZERO,"partial-attempt","trace","v1","primary",0));
+        var view=costs.inspect(id);assertThat(view.get("costState")).isEqualTo("pending");
+        assertThat(new BigDecimal(view.get("reservedCny").toString())).isEqualByComparingTo("0.02");
+        assertThatThrownBy(()->costs.admit("test-agent-staging",ticket,"too-early","interactive",new BigDecimal("0.01"),1)).isInstanceOf(Gateway.GatewayException.class);
+        costs.reconcileRequest("in-flight");
+        costs.admit("test-agent-staging",ticket,"after-completion","interactive",new BigDecimal("0.01"),1);
     }
 }

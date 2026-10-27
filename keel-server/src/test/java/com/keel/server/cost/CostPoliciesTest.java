@@ -29,4 +29,11 @@ class CostPoliciesTest {
         db.layers.put("env:staging","{\"mode\":\"observe\"}");
         assertThatThrownBy(()->new CostPolicies(db,new ObjectMapper()).effective("a","staging","org")).isInstanceOf(com.keel.server.common.KeelException.class);
     }
+    @Test void historicalConfigIsReturnedAsJsonReadyForRollback(){
+        var db=new JdbcTemplate(){
+            @Override public List<Map<String,Object>> queryForList(String sql){return List.of(Map.of("config","{\"mode\":\"observe\",\"maxCalls\":8}"));}
+        };
+        var config=(com.fasterxml.jackson.databind.JsonNode)new CostPolicies(db,new ObjectMapper()).history().getFirst().get("config");
+        assertThat(config.path("mode").asText()).isEqualTo("observe");assertThat(config.has("value")).isFalse();
+    }
 }

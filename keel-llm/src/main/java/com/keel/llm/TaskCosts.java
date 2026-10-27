@@ -103,14 +103,14 @@ public final class TaskCosts {
     public void reconcileRequest(String requestId) {
         var ids=db.query("SELECT task_id FROM llm_cost_request WHERE request_id=?",(rs,n)->rs.getString(1),requestId);
         if(ids.isEmpty())return;
-        tx.executeWithoutResult(s->{db.queryForList("SELECT id FROM llm_cost_task WHERE id=? FOR UPDATE",ids.getFirst());reconcile(ids.getFirst());});
+        tx.executeWithoutResult(s->{db.queryForList("SELECT id FROM llm_cost_task WHERE id=? FOR UPDATE",ids.getFirst());db.update("UPDATE llm_cost_request SET finished=true WHERE request_id=?",requestId);reconcile(ids.getFirst());});
     }
 
     private void reconcile(String id) {
         db.update("""
             UPDATE llm_cost_request r SET state='settled',reserved_cny=0,reserved_calls=0
             WHERE (task_id=? OR task_id IN(SELECT source_task_id FROM llm_cost_task_share WHERE target_task_id=?))
-            AND EXISTS(SELECT 1 FROM llm_spend s WHERE s.request_id=r.request_id)
+            AND r.finished AND EXISTS(SELECT 1 FROM llm_spend s WHERE s.request_id=r.request_id)
             AND NOT EXISTS(SELECT 1 FROM llm_spend s WHERE s.request_id=r.request_id
                 AND (s.status='PENDING' OR s.cost_cny IS NULL OR s.timed_out))
             """,id,id);
