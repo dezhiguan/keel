@@ -86,6 +86,13 @@ public class AgentEndpointClient {
     public InputStream openStream(String endpoint,String text,String bridgeToken,String agent,String env,
                                   String userId,String ragToken,String ragKbIds,String sessionId,
                                   java.util.List<java.util.Map<String,String>> history,String readContext,String evaluationRun,String taskContext) {
+        return openStream(endpoint,text,bridgeToken,agent,env,userId,ragToken,ragKbIds,sessionId,history,readContext,evaluationRun,taskContext,null);
+    }
+
+    public InputStream openStream(String endpoint,String text,String bridgeToken,String agent,String env,
+                                  String userId,String ragToken,String ragKbIds,String sessionId,
+                                  java.util.List<java.util.Map<String,String>> history,String readContext,String evaluationRun,String taskContext,
+                                  com.fasterxml.jackson.databind.JsonNode costContext) {
         long started=System.nanoTime();
         try {
             var payload = json.createObjectNode();
@@ -94,6 +101,7 @@ public class AgentEndpointClient {
             if (taskContext != null) input.put("_keel_task_context",taskContext);
             if (sessionId != null && !sessionId.isBlank()) payload.put("session_id", sessionId);
             var context = payload.putObject("context");
+            if(costContext!=null)context.set("task_cost",costContext);
             if (userId != null && !userId.isBlank()) context.put("user_id", userId);
             if (history != null) context.set("session_messages", json.valueToTree(history));
             var builder = HttpRequest.newBuilder(URI.create(trim(endpoint) + "/v1/invoke"))

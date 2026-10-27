@@ -21,6 +21,8 @@ import java.io.OutputStream;
 /** Forwards one user turn to the registered agent process and records the invoke. */
 @Service
 public class AgentChatService {
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private com.keel.server.cost.TaskCostService taskCosts;
     @org.springframework.beans.factory.annotation.Autowired
     private AgentBridgeCredentials bridgeCredentials;
     private final AgentRegistryService registry;
@@ -163,11 +165,15 @@ public class AgentChatService {
             inputText = prior.append("本轮：").append(text).toString();
         }
         long started = System.nanoTime();
-        try (var input = endpoints.openStream(endpoint, inputText, bridge, name, env, userId,
+        var costContext=taskCosts!=null && structured && taskCosts.supported(name) ? taskCosts.open(name,env,owner,
+                evaluationRun==null||evaluationRun.isBlank()?"user":"eval",text.length()) : null;
+        try (var input = costContext==null ? endpoints.openStream(endpoint,inputText,bridge,name,env,userId,
+                rag==null?null:rag.token(),rag==null?null:rag.kbIds(),scopedSessionId(owner,sessionId),structured?history:null,readContext,evaluationRun,taskContext) : endpoints.openStream(endpoint, inputText, bridge, name, env, userId,
                 rag == null ? null : rag.token(), rag == null ? null : rag.kbIds(),
-                scopedSessionId(owner, sessionId), structured ? history : null, readContext, evaluationRun, taskContext)) {
+                scopedSessionId(owner, sessionId), structured ? history : null, readContext, evaluationRun, taskContext,costContext)) {
             var fin = DebugSseRelay.copy(input, output);
             var traceId = fin == null ? null : fin.traceId();
+            if(costContext!=null)taskCosts.finish(costContext.path("taskId").asText(),fin!=null&&fin.rememberable()?"succeeded":"failed",traceId==null?"":traceId);
             audits.append(name, env, "invoke", "low", fin == null ? "error" : "allowed", name, traceId);
             if (fin != null && fin.rememberable() && remember) {
                 sessions.appendTurn(name, owner, sessionId, text, fin.answer(), traceId,fin.summaryThroughId());

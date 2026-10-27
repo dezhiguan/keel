@@ -25,6 +25,8 @@ public class DebugSessionService {
     private final JdbcTemplate jdbc;
     @org.springframework.beans.factory.annotation.Autowired(required=false)
     private com.keel.server.memory.SessionMemoryJobs memoryJobs;
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private com.keel.server.cost.TaskCostService taskCosts;
 
     public DebugSessionService(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
@@ -181,6 +183,7 @@ public class DebugSessionService {
                 SET title = CASE WHEN title = '' THEN ? ELSE title END, updated_at = now()
                 WHERE id = ? AND owner_user = ? AND agent_name = ?
                 """, title(user), id, owner, agent);
+        if(taskCosts!=null)taskCosts.attachMessage(agent,(String)scope.getFirst().get("env"),owner,traceId,userId);
         if(memoryJobs!=null)memoryJobs.enqueue(agent,(String)scope.getFirst().get("env"),owner,id,userId,summaryThrough,traceId);
     }
 

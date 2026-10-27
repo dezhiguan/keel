@@ -5,11 +5,13 @@ public final class CatalogAccess {
     private CatalogAccess() {}
 
     public static boolean serviceAccessible(String method, String uri) {
+        if(uri!=null && uri.matches("/api/v1/agents/[a-z][a-z0-9-]*/cost-control(?:/tasks(?:/ct_[a-f0-9]{32}(?:/(?:finish|bind))?)?)?")
+                && java.util.Set.of("GET","POST").contains(method))return true;
         if (uri != null && (("GET".equals(method) && uri.matches("/api/v1/devflow/holdout/DF-[0-9]+"))
                 || ("POST".equals(method) && (uri.equals("/api/v1/devflow/holdout-results")
                     || uri.matches("/api/v1/devflow/ci/jobs/DF-[0-9]+/(context|prepare|ready|complete|status)")))))
             return true;
-        if(uri!=null && (("POST".equals(method) && uri.matches("/api/v1/agents/[a-z][a-z0-9-]*/memories/maintenance/(claim|complete|fail)"))
+        if(uri!=null && (("POST".equals(method) && uri.matches("/api/v1/agents/[a-z][a-z0-9-]*/memories/maintenance/(claim|complete|fail|cost)"))
                 || ("GET".equals(method) && uri.matches("/api/v1/agents/[a-z][a-z0-9-]*/memories/maintenance/status"))))return true;
         return (uri != null && (("POST".equals(method) && uri.matches("/api/v1/agents/[a-z][a-z0-9-]*/memories/session-history/search"))
                     || ("GET".equals(method) && uri.matches("/api/v1/agents/[a-z][a-z0-9-]*/memories/session-history/messages/[0-9]+"))))

@@ -12,6 +12,8 @@ import java.util.List;
 public final class JdbcSpendLedger implements SpendLedger {
     private final javax.sql.DataSource dataSource;
 
+    javax.sql.DataSource dataSource() { return dataSource; }
+
     public JdbcSpendLedger(String url, String username, String password) {
         var dataSource = new org.springframework.jdbc.datasource.DriverManagerDataSource();
         dataSource.setUrl(url);

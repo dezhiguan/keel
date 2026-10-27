@@ -158,7 +158,12 @@ jobs:
 
 def _finish_project(target: Path, name: str, template: str) -> None:
     """Add the files that make a generated directory a standalone project."""
-    (target / ".keel-sdk-version").write_text("1.0.0\n", encoding="utf-8")
+    (target / ".keel-sdk-version").write_text("1.0.33\n" if template != 'java-spring' else "1.0.0\n", encoding="utf-8")
+    (target / "COST-CONTROL.md").write_text(
+        "# 成本控制接入\n\nPython 标准 SDK 自动传递根任务与后台费用上下文，策略由平台管理；"
+        "必须通过平台身份、正式网关和兼容运行时部署后才具备权威预算控制。"
+        "无服务身份时显示 not-connected，不把未覆盖费用当零。Java/第三方运行时需独立适配验收，不能宣称已覆盖。"
+        "记忆与检索优化按业务验证，不继承其他助理的固定窗口、费用或维护批次。\n", encoding='utf-8')
     if template == "java-spring":
         setup = (
             "Maven 从 GitHub Packages 获取 `keel-spring-boot-starter`。设置 GitHub Packages 凭证后"

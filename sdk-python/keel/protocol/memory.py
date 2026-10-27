@@ -23,3 +23,5 @@ class MaintenanceJob(BaseModel):
     skipped_ids: list[str] = Field(alias='skippedIds',max_length=128)
     next_cursor: str = Field(alias='nextCursor',pattern=r'^[0-9]{1,18}$')
     more: bool
+    cost_context: dict | None = Field(default=None,alias='costContext')
+    cost_control: bool = Field(default=False,alias='costControl')

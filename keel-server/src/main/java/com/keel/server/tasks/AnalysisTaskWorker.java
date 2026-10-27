@@ -16,6 +16,8 @@ import org.slf4j.LoggerFactory;
 /** Durable queue dispatcher. All analysis/model business runs in the same assistant's SDK entry. */
 @Component
 public class AnalysisTaskWorker {
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private com.keel.server.cost.TaskCostService taskCosts;
     private final AnalysisTasks tasks;private final TaskContext contexts;private final AgentRegistryService registry;
     private final ObjectMapper json;private final AtomicBoolean busy=new AtomicBoolean();
     private final String worker=UUID.randomUUID().toString();
@@ -37,8 +39,13 @@ public class AnalysisTaskWorker {
             heartbeat=timer.scheduleAtFixedRate(()->{try{if(!tasks.renew(active))valid.set(false);}catch(Exception unavailable){valid.set(false);}},5,5,TimeUnit.SECONDS);
             String endpoint=registry.invokeEndpoint("keel-assistant");
             if(endpoint.contains("//echo-agent."))throw new IllegalStateException("independent assistant endpoint required");
-            var payload=Map.of("input",Map.of("text","执行已授权的文字分析任务","_keel_task_execution",contexts.issueExecution(task)),
-                "context",Map.of("user_id",task.get("owner_user")));
+            var invokeContext=new LinkedHashMap<String,Object>();invokeContext.put("user_id",task.get("owner_user"));
+            if(taskCosts!=null) {
+                var cost=taskCosts.byTrace("keel-assistant","staging",Objects.toString(task.get("parent_trace_id"),""));
+                if(cost==null)cost=taskCosts.open("keel-assistant","staging",task.get("owner_user").toString(),String.valueOf(task.get("namespace")).startsWith("acceptance:")?"eval":"user",Objects.toString(task.get("material"),"").length());
+                invokeContext.put("task_cost",cost);
+            }
+            var payload=Map.of("input",Map.of("text","执行已授权的文字分析任务","_keel_task_execution",contexts.issueExecution(task)),"context",invokeContext);
             var builder=HttpRequest.newBuilder(URI.create(endpoint.replaceAll("/$","")+"/v1/invoke"))
                 .timeout(Duration.ofSeconds(120)).header("Content-Type","application/json")
                 .header("X-Keel-Agent","keel-assistant").header("X-Keel-Env","staging");

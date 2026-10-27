@@ -10,6 +10,21 @@
 version: keel/v1
 
 codes:
+  COST_BUDGET_EXCEEDED:
+    message: 任务费用或调用额度已达到上限
+    retryable: false
+    http: 429
+
+  COST_SCOPE_DENIED:
+    message: 任务费用上下文无效或作用域不匹配
+    retryable: false
+    http: 403
+
+  COST_POLICY_CONFLICT:
+    message: 成本策略版本或继承约束冲突
+    retryable: false
+    http: 409
+
   # ── keel-server 通用 ────────────────────────────────────────────
   SERVER_INVALID_PARAM:
     message: 请求参数不合法

@@ -37,6 +37,7 @@ public final class Gateway {
     private final RequestDefaults requestDefaults;
     private final ChannelBoard channels;
     final LogicalRouting logicalRouting;
+    final TaskCosts taskCosts;
 
     public Gateway(ModelCatalog catalog, BudgetCounter budget, Upstream upstream) {
         this(catalog, budget, upstream, new KeyDirectory());
@@ -86,6 +87,7 @@ public final class Gateway {
         this.keys = keys;
         this.spendLog = spendLog;
         this.history = history;
+        this.taskCosts = history instanceof JdbcSpendLedger jdbc ? new TaskCosts(jdbc.dataSource()) : null;
         this.admission = admission == null ? new Admission(null) : admission;
         this.probed = probed == null ? new ProbeMarks(null) : probed;
         this.routes = routes;
@@ -306,8 +308,8 @@ public final class Gateway {
         }
         var attempts = namedAttempts(key,row,requested,"/v1/embeddings".equals(path),request);
         if(row!=null) routes.journal.record(requestId,key.alias(),named,inputEstimate(request));
-        var forwarding = (ObjectNode) request.deepCopy();
-        var maxCost = reservationCost(attempts, path);
+        var forwarding = costSafeRequest(request);
+        var maxCost = request.path("metadata").has("keel_cost_ticket") ? requestCost(attempts,path,request) : reservationCost(attempts, path);
         try {
             admission.enter(key);
         } catch (GatewayException denied) {
@@ -404,12 +406,12 @@ public final class Gateway {
         }
         var attempts = namedAttempts(key,row,requested,"/v1/embeddings".equals(path),request);
         if(row!=null) routes.journal.record(requestId,key.alias(),named,inputEstimate(request));
-        var forwarding = (ObjectNode) request.deepCopy();
+        var forwarding = costSafeRequest(request);
         var options = forwarding.path("stream_options").isObject()
                 ? (ObjectNode) forwarding.path("stream_options")
                 : forwarding.putObject("stream_options");
         options.put("include_usage", true);
-        var maxCost = reservationCost(attempts, path);
+        var maxCost = request.path("metadata").has("keel_cost_ticket") ? requestCost(attempts,path,request) : reservationCost(attempts, path);
         try {
             admission.enter(key);
         } catch (GatewayException denied) {
@@ -520,6 +522,38 @@ public final class Gateway {
             if (!billableResponse) budget.release(key.alias, requestId);
             admission.leave(key, tokensUsed);
         }
+    }
+
+    public Map<String,Object> taskQuote(String bearer,String body,String path) {
+        var key=virtualKey(bearer);var request=read(body);
+        var plan=preview(key.alias(),request.path("model").asText()).models();
+        return Map.of("alias",key.alias(),"reservedCny",requestCost(plan,path,request),"attempts",plan.size());
+    }
+
+    public String costAlias(String bearer) { return virtualKey(bearer).alias(); }
+
+    private BigDecimal requestCost(List<String> attempts,String path,JsonNode request) {
+        BigDecimal total=BigDecimal.ZERO;
+        for(var name:attempts) {
+            var model=catalog.require(name);
+            var wire=read(requestDefaults.apply((ObjectNode)request.deepCopy(),"",name,path));
+            long bytes=(request.path("messages").toString()+request.path("tools")+request.path("response_format")+request.path("input")).getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            long input=Math.min(model.maxInputTokens(),bytes+256L+64L*request.path("messages").size());
+            int output=wire.path("max_tokens").asInt(wire.path("max_completion_tokens").asInt(model.maxOutputTokens()));
+            if(output<1 || output>model.maxOutputTokens())throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM,"输出额度超出模型能力");
+            BigDecimal bound=model.inputCnyPerToken().multiply(BigDecimal.valueOf(input));
+            if(!"/v1/embeddings".equals(path))bound=bound.add(model.outputCnyPerToken().multiply(BigDecimal.valueOf(output)));
+            total=total.add(bound);
+        }
+        return total.setScale(9,RoundingMode.CEILING);
+    }
+
+    private static ObjectNode costSafeRequest(JsonNode request) {
+        var safe=(ObjectNode)request.deepCopy();
+        if(safe.path("metadata").isObject()) {
+            var meta=(ObjectNode)safe.path("metadata");meta.remove("keel_cost_ticket");meta.remove("keel_cost_purpose");
+        }
+        return safe;
     }
 
     private BigDecimal reservationCost(List<String> attempts, String path) {

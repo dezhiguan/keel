@@ -43,6 +43,11 @@ public class LiteLlmClient {
         }
     }
 
+    public JsonNode taskCost(String operation,Object body) {
+        if(!java.util.Set.of("open","inspect","finish","required").contains(operation))throw new IllegalArgumentException("task cost operation");
+        return send("/admin/v1/task-costs/"+operation,body);
+    }
+
     public String generate(String alias, List<String> models, List<String> fallback, BigDecimal dailyBudgetCny, boolean allowFallback) {
         var body = Map.of(
                 "alias", alias,

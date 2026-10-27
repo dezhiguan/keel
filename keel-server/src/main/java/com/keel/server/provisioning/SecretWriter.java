@@ -199,6 +199,8 @@ public class SecretWriter implements ProvisionStep {
         data.put("LANGFUSE_SECRET_KEY", encode(langfuseSecretKey));
         data.put("LANGFUSE_HOST", encode(langfuseHost));
         data.put("KEEL_ENV", encode(env));
+        if("python".equals(manifest.path("spec").path("runtime").path("language").asText()))
+            data.put("KEEL_TASK_COST_AUTOCONNECT",encode("true"));
         data.put("KEEL_AUDIT_URL", encode(auditUrl));
         var auditToken = new byte[32];
         new SecureRandom().nextBytes(auditToken);

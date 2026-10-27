@@ -2,6 +2,8 @@
 
 兼容旧 SDK：默认同步，现有 summary/facts 路径保持；新字段均可选。仅个人助理 staging 显式启用。
 
+成本控制可选扩展：claim 的 job.costControl=true 表示支持付费前分摊。SDK 先选择实际处理的完整前缀，再 POST `/cost` `{env,id,leaseToken,throughId,companion?:{id,leaseToken,throughId}}`；底座验证租约、同会话/owner和来源上界，按该前缀的新覆盖轮次签发共享成本上下文。不能把领取的全部积压范围当作实际处理范围。票据不进入模型或日志；旧SDK不声明成本控制覆盖。job.costContext为可选兼容字段，实际票据以付费前的/cost返回为准。
+
 ## 原子登记
 
 final.meta.memoryMaintenance 可选对象：`{mode:"async", summaryThroughId:"非负十进制消息id"}`。非评测、可记忆 final 落盘后，底座在同一事务内合并 facts 任务至新用户消息；summary 只合并到已存在且完整结束的旧轮次上界，不能信任任意跨会话 ID。服务端 `KEEL_MEMORY_ASYNC_AGENTS=agent:env,...` 与 SDK `KEEL_MEMORY_MAINTENANCE_MODE=async` 同时启用；否则走同步兼容路径。可由操作者为 agent_session.memory_maintenance_mode 设置 sync 做单会话回滚或同版本配对验收；null沿用agent/env配置，不新增用户界面。同步会话不投递、不领取异步任务。

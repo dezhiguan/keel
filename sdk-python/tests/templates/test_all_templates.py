@@ -57,7 +57,8 @@ def _assert_private_python_install(project: Path):
     assert (project / "README.md").is_file()
     assert (project / "AGENTS.md").is_file()
     assert (project / "pyproject.toml").is_file()
-    assert (project / ".keel-sdk-version").read_text().strip() == "1.0.0"
+    assert (project / ".keel-sdk-version").read_text().strip() == "1.0.33"
+    assert (project / "COST-CONTROL.md").is_file()
     assert "requirements.lock" in dockerfile
     assert "KEEL_GITHUB_TOKEN" not in dockerfile
     assert "pypi.org" not in dockerfile

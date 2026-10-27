@@ -258,6 +258,16 @@ components:
             user_id: { type: string }
             org_id: { type: string }
             channel: { type: string }
+            task_cost:
+              type: object
+              description: 平台签发的成本上下文。ticket 不进入模型、日志、报告。旧 SDK 可忽略，强制策略须检查运行时支持。
+              required: [taskId, ticket, policyVersion, mode]
+              properties:
+                taskId: { type: string, pattern: '^ct_[a-f0-9]{32}$' }
+                ticket: { type: string, pattern: '^tc_[a-f0-9]{64}$' }
+                policyVersion: { type: string }
+                mode: { type: string, enum: [observe, enforce] }
+                features: { type: object }
             session_messages:
               type: array
               maxItems: 128

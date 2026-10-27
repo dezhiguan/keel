@@ -68,6 +68,12 @@ class UserMemory:
     async def fail_maintenance(self, body):
         return await self._send('POST','/maintenance/fail',{'env':self.env,**body})
 
+    async def maintenance_cost(self,job,through,companion=None):
+        body={'id':job['id'],'leaseToken':job['leaseToken'],'throughId':str(through)}
+        if companion:body['companion']={'id':companion['id'],'leaseToken':companion['leaseToken'],'throughId':companion['nextCursor']}
+        result=await self._send('POST','/maintenance/cost',{'env':self.env,**body})
+        return result or None
+
     async def _send(self, method: str, suffix: str, payload: dict | None) -> dict:
         base = os.environ.get("KEEL_SERVER_URL", "").rstrip("/")
         if not base:

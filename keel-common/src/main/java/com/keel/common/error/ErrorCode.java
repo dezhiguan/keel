@@ -2,6 +2,9 @@
 package com.keel.common.error;
 
 public enum ErrorCode {
+    COST_BUDGET_EXCEEDED("任务费用或调用额度已达到上限", false, 429),
+    COST_SCOPE_DENIED("任务费用上下文无效或作用域不匹配", false, 403),
+    COST_POLICY_CONFLICT("成本策略版本或继承约束冲突", false, 409),
     SERVER_INVALID_PARAM("请求参数不合法", false, 400),
     SERVER_NOT_FOUND("资源不存在", false, 404),
     SERVER_INTERNAL_ERROR("服务内部错误", true, 500),

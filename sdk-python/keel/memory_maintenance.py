@@ -53,7 +53,9 @@ class BoundedModel:
         self.calls+=1;self.reserved+=bound
         try:
             async with (self.limiter or nullcontext()):
-                result=await self.llm.chat(messages,**{**options,'max_tokens':output,'emit_tokens':False,'purpose':'memory'})
+                from keel.cost_control import bind
+                with bind(self.job.get('costContext')):
+                    result=await self.llm.chat(messages,**{**options,'max_tokens':output,'emit_tokens':False,'purpose':'memory'})
         except asyncio.CancelledError:
             self.usage_known=False
             raise
@@ -135,6 +137,8 @@ async def execute_combined(agent,remote,first,second,tracer,limiter=None):
         await asyncio.gather(execute(agent,remote,first,tracer,limiter),execute(agent,remote,second,tracer,limiter))
         return
     messages,summary,facts,rows,through=prepared
+    if first.get('costControl'):
+        first['costContext']=await remote.maintenance_cost(summary,through,facts)
     with tracer.start_as_current_span('memory.maintenance',context=trace.Context(),attributes={
         'langfuse.observation.type':'agent','keel.agent':agent.name,'keel.env':first['env'],
         'service.instance.id':os.environ.get('HOSTNAME',''),'keel.memory.combined':True,
@@ -192,6 +196,10 @@ async def execute_combined(agent,remote,first,second,tracer,limiter=None):
         finally:
             for job in (first,second):
                 events[job['id']].update({k:v for k,v in body(job).items() if k not in ('id','leaseToken','traceId')})
+            if first.get('costContext'):
+                from keel.cost_control import finish
+                try:await finish(agent.name,first['env'],first['costContext'],'succeeded' if len(completed)==2 else 'failed',trace_id)
+                except Exception:log.warning('memory cost completion pending trace_id=%s agent=%s',trace_id,agent.name)
             await llm.aclose()
 
 
@@ -210,6 +218,9 @@ async def execute(agent,remote,job,tracer,limiter=None):
                       targetId=job['targetId'],version=job['expectedVersion'],attempt=job['attempt'])
             try:
                 async with asyncio.timeout(60):
+                    if job.get('costControl'):
+                        through=summary_prefix(job,job['maxInputTokens'])[1] if job['kind']=='summary' else job['nextCursor']
+                        job['costContext']=await remote.maintenance_cost(job,through)
                     state=await (summarize(model,job) if job['kind']=='summary' else extract_facts(model,job))
                     result=await remote.complete_maintenance({**base,'state':state,**model.usage()})
                     ev.update(status='ok' if result['saved'] else 'failed',reason='committed' if result['saved'] else 'conflict',
@@ -228,6 +239,10 @@ async def execute(agent,remote,job,tracer,limiter=None):
                 except Exception:log.warning('memory job report failed trace_id=%s agent=%s task=%s',trace_id,agent.name,job['id'])
                 log.warning('memory job failed trace_id=%s agent=%s task=%s reason=%s',trace_id,agent.name,job['id'],reason)
             finally:
+                if job.get('costContext'):
+                    from keel.cost_control import finish
+                    try:await finish(agent.name,job['env'],job['costContext'],'succeeded' if ev.get('status')=='ok' else 'failed',trace_id)
+                    except Exception:log.warning('memory cost completion pending trace_id=%s agent=%s',trace_id,agent.name)
                 await llm.aclose()
 
 

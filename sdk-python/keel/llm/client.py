@@ -132,9 +132,12 @@ class LlmClient:
             jsonschema.Draft202012Validator.check_schema(response_schema)
             # Classification is internal even when the caller forgets this flag.
             emit_tokens = False
-        if purpose not in (None, "memory", "interactive"):
+        if purpose not in (None, "memory", "interactive", "classify", "analysis"):
             raise ValueError("Unsupported model call purpose")
         chosen = model or self.default_model
+        from keel import cost_control
+        cost_context=cost_control.current.get()
+        messages=cost_control.prepare(messages)
         if not chosen:
             raise KeelError(ErrorCode.SERVER_INVALID_PARAM, "No LiteLLM model alias configured")
         if self.guard is not None:
@@ -184,7 +187,12 @@ class LlmClient:
                 if not self.standalone:
                     options["extra_body"] = {"metadata": {"caller_agent": self.agent}}
                     if purpose:
-                        options["extra_body"]["metadata"]["keel_task"] = purpose
+                        options["extra_body"]["metadata"]["keel_task"] = purpose if purpose in ('interactive','memory') else 'interactive'
+                    if cost_context:
+                        options['extra_body']['metadata'].update(keel_cost_ticket=cost_context['ticket'],keel_cost_purpose=purpose or 'interactive')
+                        if 'max_tokens' not in options:
+                            # Estimate delivery allowance from this material, preserving explicit prompt/caller requirements.
+                            options['max_tokens']=max(1024,min(8192,estimate_context_tokens(wire_messages)*2+512))
                 if self.on_token is not None and emit_tokens:
                     reply, calls, usage = await self._stream(chosen, wire_messages, options, span, original_names)
                     self._record_usage(span, usage)
@@ -200,7 +208,7 @@ class LlmClient:
                     response = await self.client.chat.completions.create(
                         model=chosen, messages=wire_messages, **options)
                 except openai.APIStatusError as first:
-                    if not self.retry_status_errors or first.status_code not in (500, 502, 503, 504):
+                    if cost_context or not self.retry_status_errors or first.status_code not in (500, 502, 503, 504):
                         raise
                     await asyncio.sleep(0.2)
                     response = await self.client.chat.completions.create(
@@ -297,7 +305,8 @@ class LlmClient:
             stream = await self.client.chat.completions.create(
                 model=model, messages=messages, **stream_options)
         except openai.APIStatusError as first:
-            if not self.retry_status_errors or first.status_code not in (500, 502, 503, 504):
+            from keel.cost_control import current
+            if current.get() or not self.retry_status_errors or first.status_code not in (500, 502, 503, 504):
                 raise
             await asyncio.sleep(0.2)
             stream = await self.client.chat.completions.create(

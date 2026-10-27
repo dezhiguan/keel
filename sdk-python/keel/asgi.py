@@ -119,7 +119,16 @@ def create_app(agent) -> Starlette:
         entry_request = SimpleNamespace(**data)
 
         async def execute_inner():
+            from keel import cost_control
+            cost_context=None
+            cost_binding=None
+            outcome='failed'
             try:
+                cost_context=await cost_control.establish(agent.name,context.env,(data.get('context') or {}).get('task_cost'),data['input'].get('text',''),eval_run_id)
+                context._cost_context=cost_context
+                await cost_control.bind_trace(agent.name,context.env,cost_context,trace_id)
+                cost_binding=cost_control.bind(cost_context)
+                cost_binding.__enter__()
                 with trace.use_span(root, end_on_exit=False):
                     context.guard.inspect("user", json.dumps(data["input"], ensure_ascii=False))
                     result = agent._entry(entry_request, context)
@@ -138,6 +147,7 @@ def create_app(agent) -> Starlette:
                                 if isinstance(event, ErrorEvent):
                                     root.set_attribute(attrs.STATUS, "failed")
                                 terminal = True
+                                outcome='succeeded' if isinstance(event,FinalEvent) else 'failed'
                                 break
                         if not terminal:
                             raise ValueError("entry stream ended without a terminal event")
@@ -153,8 +163,10 @@ def create_app(agent) -> Starlette:
                         if isinstance(result, ErrorEvent):
                             root.set_attribute(attrs.STATUS, "failed")
                         events.put_nowait(result)
+                        outcome='succeeded' if isinstance(result,FinalEvent) else 'failed'
                     elif result is not None:
                         events.put_nowait(context.final(str(result)))
+                        outcome='succeeded'
                     else:
                         raise ValueError("entry returned no final or suspend event")
             except asyncio.CancelledError:
@@ -174,6 +186,13 @@ def create_app(agent) -> Starlette:
                 code = ErrorCode.SERVER_INTERNAL_ERROR
                 events.put_nowait(ErrorEvent(**_error(code, trace_id, run_id)))
             finally:
+                if cost_binding is not None:
+                    cost_binding.__exit__(None,None,None)
+                if cost_context is not None:
+                    try:
+                        await asyncio.shield(cost_control.finish(agent.name,context.env,cost_context,outcome,trace_id))
+                    except Exception:
+                        logger.warning('task cost completion pending trace_id=%s agent=%s',trace_id,agent.name)
                 try:
                     await context.aclose()
                 finally:
@@ -224,7 +243,8 @@ def create_app(agent) -> Starlette:
 
     async def manifest(request: Request):
         return JSONResponse({"manifest": agent.manifest.model_dump(mode="json"),
-                             "version": agent.manifest.apiVersion.value, "sdkVersion": distribution_version("keel-sdk")})
+                             "version": agent.manifest.apiVersion.value, "sdkVersion": distribution_version("keel-sdk"),
+                             "costControl":{"version":1,"taskPropagation":True,"gatewayAdmission":True}})
 
     async def feedback(request: Request):
         try:

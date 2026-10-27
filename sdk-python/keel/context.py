@@ -95,6 +95,11 @@ class _ToolClient:
 
 
 class Context:
+    @property
+    def cost_policy(self):
+        """Public strategy snapshot; never expose the private admission ticket."""
+        return dict((getattr(self,'_cost_context',None) or {}).get('features') or {})
+
     def __init__(self, agent: str, run_id: str, trace_id: str, events: asyncio.Queue, tracer=None,
                  *, manifest=None, tool_functions=None, children=None, budget=None,
                  env: str | None = None, llm_client=None, knowledge_client=None,
@@ -214,6 +219,8 @@ class Context:
             self._events.put_nowait(TokenEvent(text=tail))
         evidence = {**(meta or {}), "prompt_versions": dict(self._prompt_versions),
                     "prompt_fallback": self._prompt_fallback}
+        from keel.cost_control import public
+        if getattr(self,'_cost_context',None):evidence['taskCost']=public(self._cost_context)
         if getattr(self,'_memory_window',None) is not None and getattr(self._memory_window,'async_readonly',False):
             evidence['memoryMaintenance']={'mode':'async','summaryThroughId':getattr(self,'_memory_summary_through','0')}
         return FinalEvent(answer=answer, citations=citations or [], meta=evidence,

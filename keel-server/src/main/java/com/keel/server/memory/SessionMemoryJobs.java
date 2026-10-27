@@ -15,6 +15,8 @@ import java.util.*;
 /** Transactional coalescing outbox, leased only to the owning agent's managed SDK. */
 @Service
 public class SessionMemoryJobs {
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private com.keel.server.cost.TaskCostService taskCosts;
     private static final org.slf4j.Logger log=org.slf4j.LoggerFactory.getLogger(SessionMemoryJobs.class);
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
@@ -42,23 +44,39 @@ public class SessionMemoryJobs {
     /** Caller holds the session row lock inside appendTurn's transaction. */
     public void enqueue(String agent,String env,String owner,String rawSession,long userId,long summaryThrough,String trace) {
         if(!policy.enabledSession(agent,env,hash(owner,rawSession)))return;
+        var costPolicy=taskCosts==null?null:taskCosts.memoryPolicy(agent,env);
+        int batch=costPolicy==null?1:costPolicy.path("memoryBatchTurns").asInt(1);
+        if(batch>1) {
+            String text=jdbc.queryForObject("SELECT content FROM session_message WHERE id=? AND session_id=? AND owner_user=?",String.class,userId,rawSession,owner);
+            if(text!=null&&text.strip().matches("(?i)(谢谢|多谢|感谢|好的|收到|嗯|ok|thanks|thank you)[。！!,.，\\s]*"))return;
+        }
         put(agent,env,owner,rawSession,"facts",userId,trace);
         if(summaryThrough>0) {
             var valid=jdbc.queryForObject("SELECT count(*) FROM session_message WHERE id=? AND session_id=? AND agent_name=? AND owner_user=? AND role='assistant' AND expires_at>now()",Integer.class,summaryThrough,rawSession,agent,owner);
             if(valid!=null && valid==1)put(agent,env,owner,rawSession,"summary",summaryThrough,trace);
         }
+        if(batch>1) {
+            int wait=costPolicy.path("memoryMaxWaitSeconds").asInt(30);
+            jdbc.update("""
+                UPDATE session_memory_job j SET next_attempt_at=CASE
+                WHEN (SELECT count(*) FROM session_message m WHERE m.session_id=j.session_id AND m.agent_name=j.agent_name AND m.owner_user=j.owner_user AND m.role='user' AND m.id>=COALESCE(j.batch_start_id,j.desired_id) AND m.id<=j.desired_id)>=?
+                THEN now() ELSE LEAST(j.created_at+(?*interval '1 second'),now()+(?*interval '1 second')) END
+                WHERE agent_name=? AND env=? AND owner_user=? AND session_id=? AND status='pending'
+                """,batch,wait,wait,agent,env,owner,rawSession);
+        }
     }
     private void put(String agent,String env,String owner,String session,String kind,long target,String trace) {
         jdbc.update("""
-            INSERT INTO session_memory_job(agent_name,env,owner_user,session_id,kind,desired_id,trigger_trace_id)
-            VALUES(?,?,?,?,?,?,?) ON CONFLICT(agent_name,env,owner_user,session_id,kind) DO UPDATE
+            INSERT INTO session_memory_job(agent_name,env,owner_user,session_id,kind,desired_id,trigger_trace_id,batch_start_id)
+            VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(agent_name,env,owner_user,session_id,kind) DO UPDATE
             SET desired_id=GREATEST(session_memory_job.desired_id,EXCLUDED.desired_id),
                 status=CASE WHEN session_memory_job.status='done' THEN 'pending' ELSE session_memory_job.status END,
                 attempts=CASE WHEN session_memory_job.status='done' THEN 0 ELSE session_memory_job.attempts END,
                 reserved_cny=CASE WHEN session_memory_job.status='done' THEN 0 ELSE session_memory_job.reserved_cny END,
                 created_at=CASE WHEN session_memory_job.status='done' THEN now() ELSE session_memory_job.created_at END,
+                batch_start_id=CASE WHEN session_memory_job.status='done' THEN EXCLUDED.batch_start_id ELSE session_memory_job.batch_start_id END,
                 trigger_trace_id=EXCLUDED.trigger_trace_id,updated_at=now()
-            """,agent,env,owner,session,kind,target,trace);
+            """,agent,env,owner,session,kind,target,trace,target);
     }
     private String lockSession(Map<String,Object> job) {
         var rows=jdbc.query("SELECT id FROM agent_session WHERE id=? AND agent_name=? AND env=? AND owner_user=? FOR UPDATE",
@@ -138,6 +156,7 @@ public class SessionMemoryJobs {
         result.put("attempt",((Number)job.get("attempts")).intValue()+1);result.put("maxCalls",4);result.put("maxCostCny",0.5);
         result.put("maxInputTokens",10000);result.put("maxOutputTokens",1600);
         result.put("state",state);result.put("messages",messages);result.put("skippedIds",skipped);result.put("nextCursor",next);result.put("more",more);
+        if(taskCosts!=null)result.put("costControl",true);
         return Map.of("job",result);
     }
     private Map<String,Object> leased(String agent,String env,JsonNode body) {
@@ -152,6 +171,31 @@ public class SessionMemoryJobs {
         if(body.path("calls").asInt(-1)<0 || body.path("calls").asInt()>4 || !body.path("costUpperBoundCny").isNumber()
                 || body.path("costUpperBoundCny").decimalValue().signum()<0 || body.path("costUpperBoundCny").decimalValue().compareTo(new BigDecimal("0.5"))>0)
             throw denied();
+    }
+    @Transactional
+    public Map<String,Object> costContext(String agent,String env,JsonNode body) {
+        var job=leased(agent,env,body);
+        var selected=costSources(agent,env,job,body.path("throughId").asLong(-1));
+        if(body.path("companion").isObject()) {
+            var other=leased(agent,env,body.path("companion"));
+            if(!Objects.equals(job.get("session_id"),other.get("session_id"))||!Objects.equals(job.get("owner_user"),other.get("owner_user"))||Objects.equals(job.get("kind"),other.get("kind")))throw denied();
+            var unique=new LinkedHashMap<String,Map<String,Object>>();
+            java.util.stream.Stream.concat(selected.stream(),costSources(agent,env,other,body.path("companion").path("throughId").asLong(-1)).stream()).forEach(m->unique.put(m.get("id").toString(),m));
+            selected=new ArrayList<>(unique.values());
+        }
+        var context=taskCosts.memory(agent,env,job.get("owner_user").toString(),selected);
+        return context==null?Map.of():json.convertValue(context,new com.fasterxml.jackson.core.type.TypeReference<Map<String,Object>>(){});
+    }
+    private List<Map<String,Object>> costSources(String agent,String env,Map<String,Object> job,long through) {
+        if(through<1||through>((Number)job.get("target_id")).longValue())throw denied();
+        String scope=hash(job.get("owner_user").toString(),job.get("session_id").toString());
+        String table="summary".equals(job.get("kind"))?"session_summary":"session_fact_state";
+        String cursor="summary".equals(job.get("kind"))?"through_id":"cursor_id";
+        var before=jdbc.query("SELECT "+cursor+" FROM "+table+" WHERE agent_name=? AND env=? AND owner_user=? AND session_id=?",(rs,n)->rs.getLong(1),agent,env,job.get("owner_user"),scope);
+        long first=before.isEmpty()?0:before.getFirst();
+        if(through<=first)throw denied();
+        return jdbc.query("SELECT id,role FROM session_message WHERE agent_name=? AND owner_user=? AND session_id=? AND id>? AND id<=? AND expires_at>now() ORDER BY id",
+                (rs,n)->Map.<String,Object>of("id",rs.getString(1),"role",rs.getString(2)),agent,job.get("owner_user"),job.get("session_id"),first,through);
     }
     @Transactional
     public Map<String,Object> complete(String agent,String env,JsonNode body) {

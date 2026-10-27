@@ -35,6 +35,20 @@ public class LlmController {
         return Map.of("status", "up");
     }
 
+    @PostMapping("/admin/v1/task-costs/{operation}")
+    Map<String,Object> taskCosts(@RequestHeader(value="Authorization",required=false) String authorization,
+                                @PathVariable String operation,@RequestBody com.fasterxml.jackson.databind.JsonNode body) {
+        admin(authorization);
+        if(gateway.taskCosts==null)throw new IllegalStateException("Task costs require the persistent gateway ledger");
+        return switch(operation) {
+            case "open" -> gateway.taskCosts.open(body);
+            case "inspect" -> gateway.taskCosts.inspect(body.path("taskId").asText());
+            case "finish" -> {gateway.taskCosts.finish(body.path("taskId").asText(),body.path("state").asText(),body.path("traceId").asText(""));yield Map.of("accepted",true);}
+            case "required" -> {gateway.taskCosts.required(body.path("alias").asText(),body.path("required").asBoolean());yield Map.of("accepted",true);}
+            default -> throw new Gateway.GatewayException(ErrorCode.SERVER_INVALID_PARAM,"未知任务成本操作");
+        };
+    }
+
     @PostMapping("/admin/v1/keys")
     ResponseEntity<Map<String, Object>> create(@RequestHeader(value = "Authorization", required = false) String authorization,
                                                @RequestBody Map<String, Object> body) {
@@ -306,6 +320,19 @@ public class LlmController {
                   @RequestBody String body) throws java.io.IOException {
         var requestId = Gateway.newRequestId();
         response.setHeader("X-Request-Id", requestId);
+        String ticket="";
+        try {ticket=new com.fasterxml.jackson.databind.ObjectMapper().readTree(body).path("metadata").path("keel_cost_ticket").asText("");}
+        catch(Exception invalid){throw new Gateway.GatewayException(ErrorCode.SERVER_INVALID_PARAM,"无效模型请求");}
+        if(gateway.taskCosts!=null)gateway.taskCosts.checkContext(gateway.costAlias(authorization),ticket);
+        if(!ticket.isBlank()) {
+            if(gateway.taskCosts==null)throw new IllegalStateException("Task costs require persistence");
+            var quote=gateway.taskQuote(authorization,body,request.getRequestURI());
+            var node=new com.fasterxml.jackson.databind.ObjectMapper().readTree(body);
+            gateway.taskCosts.admit(quote.get("alias").toString(),ticket,requestId,
+                    node.path("metadata").path("keel_cost_purpose").asText("interactive"),
+                    (BigDecimal)quote.get("reservedCny"),((Number)quote.get("attempts")).intValue());
+        }
+        try {
         if (streamRequested(body)) {
             response.setStatus(200);
             response.setContentType("text/event-stream");
@@ -323,6 +350,9 @@ public class LlmController {
         response.setCharacterEncoding("UTF-8");
         if (completion.body() != null) {
             response.getWriter().write(completion.body());
+        }
+        } finally {
+            if(!ticket.isBlank())gateway.taskCosts.reconcileRequest(requestId);
         }
     }
 

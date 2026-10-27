@@ -2,6 +2,9 @@
 from enum import Enum
 
 class ErrorCode(str, Enum):
+    COST_BUDGET_EXCEEDED = 'COST_BUDGET_EXCEEDED'
+    COST_SCOPE_DENIED = 'COST_SCOPE_DENIED'
+    COST_POLICY_CONFLICT = 'COST_POLICY_CONFLICT'
     SERVER_INVALID_PARAM = 'SERVER_INVALID_PARAM'
     SERVER_NOT_FOUND = 'SERVER_NOT_FOUND'
     SERVER_INTERNAL_ERROR = 'SERVER_INTERNAL_ERROR'
@@ -72,6 +75,9 @@ class ErrorCode(str, Enum):
         return _DETAILS[self][0]
 
 _DETAILS = {
+    ErrorCode.COST_BUDGET_EXCEEDED: ('任务费用或调用额度已达到上限', False, 429),
+    ErrorCode.COST_SCOPE_DENIED: ('任务费用上下文无效或作用域不匹配', False, 403),
+    ErrorCode.COST_POLICY_CONFLICT: ('成本策略版本或继承约束冲突', False, 409),
     ErrorCode.SERVER_INVALID_PARAM: ('请求参数不合法', False, 400),
     ErrorCode.SERVER_NOT_FOUND: ('资源不存在', False, 404),
     ErrorCode.SERVER_INTERNAL_ERROR: ('服务内部错误', True, 500),
