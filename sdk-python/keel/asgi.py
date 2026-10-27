@@ -244,7 +244,7 @@ def create_app(agent) -> Starlette:
     async def manifest(request: Request):
         return JSONResponse({"manifest": agent.manifest.model_dump(mode="json"),
                              "version": agent.manifest.apiVersion.value, "sdkVersion": distribution_version("keel-sdk"),
-                             "costControl":{"version":1,"taskPropagation":True,"gatewayAdmission":True}})
+                             "costControl":{"version":1,"taskPropagation":True,"gatewayAdmission":True,"directContext":True,"resumePropagation":False}})
 
     async def feedback(request: Request):
         try:

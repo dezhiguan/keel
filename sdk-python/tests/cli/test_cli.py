@@ -69,7 +69,7 @@ def test_new_project_matches_schema_and_ignores_local_state(tmp_path):
     assert (project / "README.md").is_file()
     assert (project / "AGENTS.md").is_file()
     assert (project / "pyproject.toml").is_file()
-    assert (project / ".keel-sdk-version").read_text().strip() == "1.0.33"
+    assert (project / ".keel-sdk-version").read_text().strip() == "1.0.34"
     assert (project / "COST-CONTROL.md").is_file()
     lock = (project / "requirements.lock").read_text()
     assert "httpx==0.28.1" in lock and "pytest==9.1.1" in lock

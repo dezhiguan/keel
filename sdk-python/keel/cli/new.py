@@ -158,7 +158,7 @@ jobs:
 
 def _finish_project(target: Path, name: str, template: str) -> None:
     """Add the files that make a generated directory a standalone project."""
-    (target / ".keel-sdk-version").write_text("1.0.33\n" if template != 'java-spring' else "1.0.0\n", encoding="utf-8")
+    (target / ".keel-sdk-version").write_text("1.0.34\n" if template != 'java-spring' else "1.0.0\n", encoding="utf-8")
     (target / "COST-CONTROL.md").write_text(
         "# 成本控制接入\n\nPython 标准 SDK 自动传递根任务与后台费用上下文，策略由平台管理；"
         "必须通过平台身份、正式网关和兼容运行时部署后才具备权威预算控制。"

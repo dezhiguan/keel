@@ -113,6 +113,10 @@ class Context:
         self.session_id = session_id
         self.eval_run_id = eval_run_id
         self.user_id = user_id
+        self._cost_context=None
+        self._cost_owned=False
+        self._cost_outcome='failed'
+        self._cost_lock=asyncio.Lock()
         if session_messages is not None and (not isinstance(session_messages, list)
                 or len(session_messages) > 128 or any(not isinstance(row, dict)
                 or row.get("role") not in ("user", "assistant")
@@ -138,8 +142,10 @@ class Context:
         tool_specs = manifest.spec.tools if manifest else None
         audit_spec = manifest.spec.audit if manifest else None
         self.llm = llm_client or (LlmClient(agent, models.default_ if models else None,
-                                            trace_id, self._tracer, on_token=self.token, guard=self.guard)
+                                            trace_id, self._tracer, on_token=self.token, guard=self.guard,
+                                            task_cost_provider=self._ensure_task_cost)
                                   if models else _UnimplementedClient("llm"))
+        if isinstance(self.llm,LlmClient):self.llm.task_cost_provider=self._ensure_task_cost
         self.knowledge = knowledge_client or (KnowledgeClient(agent, self._tracer, guard=self.guard)
                                               if knowledge else _UnimplementedClient("knowledge"))
         from keel.audit.lite_reporter import LiteAuditReporter
@@ -162,6 +168,20 @@ class Context:
         self.memory = LiteMemory(LiteStore(".") if session_id else None, agent, session_id, eval_run_id, guard=self.guard)
         from keel.memory_remote import UserMemory
         self.memory.bind_user(UserMemory(agent, env, eval_run_id))
+
+    async def _ensure_task_cost(self,messages):
+        from keel import cost_control
+        incoming=cost_control.current.get()
+        if incoming is not None:
+            if self._cost_context is None:self._cost_context=incoming
+            return incoming
+        async with self._cost_lock:
+            if self._cost_context is None:
+                value=await cost_control.establish(self.agent,self.env,None,json.dumps(messages,ensure_ascii=False,default=str),self.eval_run_id)
+                if value is not None:
+                    await cost_control.bind_trace(self.agent,self.env,value,self.trace_id)
+                    self._cost_context=value;self._cost_owned=True
+            return self._cost_context
 
     async def prompt(self, name: str):
         if self._prompts is None:
@@ -223,6 +243,7 @@ class Context:
         if getattr(self,'_cost_context',None):evidence['taskCost']=public(self._cost_context)
         if getattr(self,'_memory_window',None) is not None and getattr(self._memory_window,'async_readonly',False):
             evidence['memoryMaintenance']={'mode':'async','summaryThroughId':getattr(self,'_memory_summary_through','0')}
+        self._cost_outcome='succeeded'
         return FinalEvent(answer=answer, citations=citations or [], meta=evidence,
                           trace_id=self.trace_id, run_id=self.run_id)
 
@@ -261,6 +282,18 @@ class Context:
         return event
 
     async def loop(self, messages: list[dict], tools: list[dict], *,
+                   max_steps: int | None = None, max_tool_rounds: int | None = None,
+                   prompt=None, model_purpose: str | None = None) -> FinalEvent | SuspendEvent:
+        from keel import cost_control
+        self._cost_outcome='failed'
+        try:
+            with cost_control.bind(await self._ensure_task_cost(messages)):
+                return await self._loop(messages,tools,max_steps=max_steps,max_tool_rounds=max_tool_rounds,prompt=prompt,model_purpose=model_purpose)
+        except BaseException:
+            self._cost_outcome='failed'
+            raise
+
+    async def _loop(self, messages: list[dict], tools: list[dict], *,
                    max_steps: int | None = None, max_tool_rounds: int | None = None,
                    prompt=None, model_purpose: str | None = None) -> FinalEvent | SuspendEvent:
         if model_purpose not in (None, "interactive"):
@@ -432,6 +465,13 @@ class Context:
         raise NotImplementedError("ctx.gather is implemented after P0-6")
 
     async def aclose(self):
+        if self._cost_owned:
+            from keel import cost_control
+            self._cost_owned=False
+            try:await asyncio.shield(cost_control.finish(self.agent,self.env,self._cost_context,self._cost_outcome,self.trace_id))
+            except Exception:
+                import logging
+                logging.getLogger(__name__).warning('task cost completion pending trace_id=%s agent=%s',self.trace_id,self.agent)
         for client in (self.llm, self.knowledge, self.audit):
             if client is not None and hasattr(client, "aclose"):
                 await client.aclose()

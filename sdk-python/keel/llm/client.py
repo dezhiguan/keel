@@ -101,7 +101,8 @@ def _observation_input(messages: list[dict]) -> str:
 
 class LlmClient:
     def __init__(self, agent: str, default_model: str | None, trace_id: str,
-                 tracer=None, http_client: httpx.AsyncClient | None = None, on_token=None, guard=None, retry_status_errors=True):
+                 tracer=None, http_client: httpx.AsyncClient | None = None, on_token=None, guard=None, retry_status_errors=True,
+                 task_cost_provider=None):
         from keel.runtime import standalone
 
         base_url = _openai_base(os.environ.get("KEEL_LLM_BASE_URL"))
@@ -112,6 +113,7 @@ class LlmClient:
         if not base_url or not api_key:
             raise RuntimeError("KEEL_LLM_BASE_URL and KEEL_LLM_KEY are required")
         self.retry_status_errors = retry_status_errors
+        self.task_cost_provider=task_cost_provider
         self.agent = agent
         self.default_model = default_model
         self.trace_id = trace_id
@@ -126,6 +128,13 @@ class LlmClient:
                    tools: list[dict] | None = None, tool_choice: str | dict | None = None,
                    emit_tokens: bool = True, max_tokens: int | None = None,
                    purpose: str | None = None, response_schema: dict | None = None) -> str | ChatResult:
+        if self.task_cost_provider is not None:
+            from keel.cost_control import bind
+            with bind(await self.task_cost_provider(messages)):
+                return await self._chat(messages,model,prompt,tools,tool_choice,emit_tokens,max_tokens,purpose,response_schema)
+        return await self._chat(messages,model,prompt,tools,tool_choice,emit_tokens,max_tokens,purpose,response_schema)
+
+    async def _chat(self, messages, model, prompt, tools, tool_choice, emit_tokens, max_tokens, purpose, response_schema):
         if response_schema is not None:
             if tools is not None or tool_choice is not None:
                 raise ValueError("Structured classification cannot use business tools")
@@ -232,6 +241,10 @@ class LlmClient:
                 raise KeelError(code) from exc
             except openai.APIStatusError as exc:
                 span.set_attribute(attrs.STATUS, "failed")
+                payload=exc.body if isinstance(exc.body,dict) else {}
+                registered=ErrorCode.__members__.get(str(payload.get('code')))
+                if not self.standalone and registered in (ErrorCode.COST_SCOPE_DENIED,ErrorCode.COST_POLICY_CONFLICT,ErrorCode.LLM_KEY_BLOCKED,ErrorCode.GW_AGENT_OFFLINE) and registered.http==exc.status_code:
+                    raise KeelError(registered) from exc
                 target = "模型服务" if self.standalone else "薄网关"
                 detail = _error_detail(exc)
                 message = f"{target} HTTP {exc.status_code}"

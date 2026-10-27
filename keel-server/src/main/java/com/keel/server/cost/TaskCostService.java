@@ -37,7 +37,12 @@ public class TaskCostService {
         try {
             var endpoint=registry.invokeEndpoint(agent).replaceAll("/$","")+"/v1/manifest";
             var r=http.send(HttpRequest.newBuilder(URI.create(endpoint)).timeout(Duration.ofSeconds(3)).GET().build(),HttpResponse.BodyHandlers.ofString());
-            return r.statusCode()==200 && json.readTree(r.body()).path("costControl").path("version").asInt()==1;
+            if(r.statusCode()!=200)return false;
+            var document=json.readTree(r.body());var capability=document.path("costControl");
+            if(capability.path("version").asInt()!=1)return false;
+            for(var tool:document.path("manifest").path("spec").path("tools"))
+                if("required".equals(tool.path("approval").asText())&&!capability.path("resumePropagation").asBoolean())return false;
+            return true;
         }catch(Exception unavailable){return false;}
     }
     public ObjectNode open(String agent,String env,String owner,String group,int inputChars) {
