@@ -159,7 +159,6 @@ watch(() => route.query.drawer, (drawer, previous) => {
             <div>质量<b>{{ scoreText(card.score) }}</b></div>
             <div>日预算<b>{{ yuan(card.budget) }}</b></div>
             <div title="北京时间当天 00:00 至今的已结算费用">日成本<b>{{ cardCost(card.cost) }}</b><small v-if="card.pendingBills" class="mut">待计费 {{ card.pendingBills }} 条</small></div>
-            <div title="全部历史已结算费用">总成本<b>{{ cardCost(card.totalCost ?? null) }}</b><small v-if="card.totalPendingBills" class="mut">待计费 {{ card.totalPendingBills }} 条</small></div>
           </div>
         </div>
         <div v-if="showCreate" class="acard new" @click="router.push('/agents/new')">
@@ -171,7 +170,3 @@ watch(() => route.query.drawer, (drawer, previous) => {
     </template>
   </div>
 </template>
-
-<style scoped>
-.acard .st3 { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 12px; }
-</style>
