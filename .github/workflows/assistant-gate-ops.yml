@@ -9,7 +9,7 @@ concurrency:
   group: assistant-gate-staging-operations
   cancel-in-progress: false
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -24,12 +24,12 @@ jobs:
           DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
           JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
         run: bash deploy/ci/configure-ssh.sh
-      - name: Deploy verified candidate and verify both running replicas
+      - name: Build pinned assistant candidate without changing the active deployment
         run: |
           scp official-sdk/keel_sdk-1.0.35-py3-none-any.whl keel-app:/tmp/keel_sdk-1.0.35-py3-none-any.whl
           ssh -T keel-app 'bash -s' <<'REMOTE'
           set -euo pipefail
-          revision=bebf25b0514421940eae15401d3dcc1a24c33df5
+          revision=bf22b199036a5f0bf549f9280c393d4b152ad801
           work=/tmp/keel-gate-20261028-$revision
           mkdir -p "$work"
           kubectl -n keel-system exec -i deploy/git-ci -- python - "$revision" <<'PY' > "$work/bundle.tar"
@@ -77,27 +77,40 @@ jobs:
           PY
           wheel=$(find /tmp -type f -name 'keel_sdk-1.0.35-py3-none-any.whl' -print -quit)
           test -n "$wheel"
-          python3 "$work/source/deploy/gate-candidate.py" --source "$work/source" --revision "$revision" --tree "$work/tree.json" --base-image docker.io/library/keel-assistant:gate-f7f62726c7f5 --base-sdk 1.0.34 --image docker.io/library/keel-assistant:gate-bebf25b05144 --wheel "$wheel"
-          python3 - "$wheel" <<'PY'
-          import zipfile,hashlib,json,subprocess,sys
-          with zipfile.ZipFile(sys.argv[1]) as archive:
-              hashes={n:hashlib.sha256(archive.read(n)).hexdigest() for n in archive.namelist() if not n.endswith('/')}
-          pods=json.loads(subprocess.check_output(['kubectl','-n','agents','get','pods','-l','app=keel-assistant','-o','json']))['items']
-          pods=[p for p in pods if not p['metadata'].get('deletionTimestamp')]
-          assert len(pods)==2
-          code="""import sys,json,pathlib,hashlib,keel
-          from keel.llm.client import context_token_budget
-          root=pathlib.Path(keel.__file__).resolve().parent.parent
-          hashes=json.load(sys.stdin)
-          mismatches=[n for n,d in hashes.items() if not (root/n).is_file() or hashlib.sha256((root/n).read_bytes()).hexdigest()!=d]
-          budget=context_token_budget()
-          assert not mismatches and budget==10000,(mismatches,budget)
-          print(json.dumps({'sdkFiles':len(hashes),'mismatches':mismatches,'inputWindowTokens':budget}))"""
-          rows=[]
-          for pod in pods:
-              name=pod['metadata']['name']
-              result=subprocess.run(['kubectl','-n','agents','exec','-i',name,'--','python','-c',code],input=json.dumps(hashes),capture_output=True,text=True,check=True)
-              rows.append({'pod':name,**json.loads(result.stdout)})
-          print(json.dumps({'runtimeSDKChecks':rows}))
+          python3 "$work/source/deploy/gate-candidate.py" --source "$work/source" --revision "$revision" --tree "$work/tree.json" --base-image docker.io/library/keel-assistant:gate-bebf25b05144 --base-sdk 1.0.35 --image docker.io/library/keel-assistant:gate-bf22b199036a --wheel "$wheel" --build-only
+          REMOTE
+      - name: Verify registration semantics using the existing labelled in-process fixture and real model
+        run: |
+          ssh -T keel-app 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          kubectl -n agents get deploy keel-assistant -o json | python3 -c 'import sys,json; x=json.load(sys.stdin); spec=x["spec"]["template"]["spec"]; c=spec["containers"][0]; c.update(name="probe",image="docker.io/library/keel-assistant:gate-bf22b199036a",command=["python","-c","import time; time.sleep(600)"]); [c.pop(k,None) for k in ("readinessProbe","livenessProbe","startupProbe")]; spec["containers"]=[c]; spec["restartPolicy"]="Never"; print(json.dumps({"apiVersion":"v1","kind":"Pod","metadata":{"name":"keel-gate-bf22b199-probe","namespace":"agents","labels":{"app":"keel-gate-probe"}},"spec":spec}))' | kubectl create -f -
+          trap 'kubectl -n agents delete pod keel-gate-bf22b199-probe --wait=false' EXIT
+          kubectl -n agents wait --for=condition=Ready pod/keel-gate-bf22b199-probe --timeout=90s
+          kubectl -n agents exec -i keel-gate-bf22b199-probe -- python - <<'PY'
+          import asyncio,json,uuid
+          from keel.tracing.otel import configure_from_env
+          from opentelemetry import trace
+          from evals.representative import load_cases
+          from evals.acceptance_fixtures import execute
+          from evals.acceptance_judge import review
+          provider=configure_from_env()
+          if provider:trace.set_tracer_provider(provider)
+          async def main():
+              rows=[]
+              selected={'v02x-employees-partial-page'}
+              for case in [c for c in load_cases() if c['id'] in selected]:
+                  if case['id'] not in selected:continue
+                  run='gate-pagination-preflight-20261028'
+                  record=await execute(case,{'sessionId':uuid.uuid4().hex*2,'readContext':'TEST_FIXTURE_ONLY_IN_PROCESS_NO_PLATFORM_AUTH'},run)
+                  print(json.dumps({'caseId':case['id'],'fixtureConsumed':record['fixtureConsumed'],'toolAuditComplete':record['toolAuditComplete'],'errors':[e['data'].get('code') for e in record['events'] if e['event']=='error']}),flush=True)
+                  assert record['fixtureConsumed'] and record['toolAuditComplete']
+                  assert {a['tool'] for a in record['toolAttempts']} <= {'assistant.employees.list','keel.employees.list'}
+                  judged=await review(case,[record],run)
+                  row={'caseId':case['id'],'answer':record['final']['answer'],'verdict':judged['status'],'reason':judged['reason'],'judgeTraceId':judged['traceId'],'versions':record['final']['meta'].get('prompt_versions')}
+                  rows.append(row);print(json.dumps(row,ensure_ascii=False),flush=True)
+              assert len(rows)==1 and all(row['verdict']=='PASS' for row in rows)
+          try:asyncio.run(main())
+          finally:
+              if provider:provider.force_flush();provider.shutdown()
           PY
           REMOTE
