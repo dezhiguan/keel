@@ -82,7 +82,14 @@ def verify(server, gateway, headers):
         assert abs(money(data['cumulative']['costCny']) - sum(amounts.values())) <= EPSILON, 'Cumulative cost differs from raw ledger'
         since = today if window == 'today' else now - timedelta(hours=24) if window == '24h' else now - timedelta(days=int(window[:-1])) if window != 'all' else datetime(2020, 1, 1, tzinfo=timezone.utc)
         expected = sum((cost for at, cost in settled if at >= since), Decimal(0))
-        assert abs(money(data['kpi']['modelCostCny']) - expected) <= EPSILON, 'Window cost differs from raw ledger: ' + window
+        partial = any(row.get('routeVersion') == 'daily-recovery' and
+                      datetime.fromisoformat(row['ts'].replace('Z', '+00:00')) < since <
+                      datetime.fromisoformat(row['ts'].replace('Z', '+00:00')) + timedelta(days=1)
+                      for row in rows.values())
+        if partial:
+            assert data['kpi']['modelCostCny'] is None, 'Daily-only recovery must not pretend to have hourly precision'
+        else:
+            assert abs(money(data['kpi']['modelCostCny']) - expected) <= EPSILON, 'Window cost differs from raw ledger: ' + window
         assert data['kpi']['pendingModelBills'] == sum(1 for row in rows.values() if row['status'] == 'PENDING' and datetime.fromisoformat(row['ts'].replace('Z', '+00:00')) >= since), 'Window pending count differs: ' + window
         for agent in data['agents']:
             name = agent['name']
@@ -91,7 +98,7 @@ def verify(server, gateway, headers):
             assert agent['pendingBillCount'] == daily_pending[name], 'Daily pending count differs: ' + name
             assert agent['totalPendingBillCount'] == pending[name], 'Lifetime pending count differs: ' + name
 
-    print(json.dumps({'result': 'PASS', 'attempts': len(rows), 'totalCostCny': str(sum(amounts.values())),
+    print(json.dumps({'result': 'PASS', 'ledgerRecords': len(rows), 'dailyRecoveryRecords': sum(1 for row in rows.values() if row.get('routeVersion') == 'daily-recovery'), 'totalCostCny': str(sum(amounts.values())),
                       'assistantDailyCostCny': str(daily['keel-assistant']),
                       'assistantTotalCostCny': str(amounts['keel-assistant']),
                       'assistantCostByDay': {day: str(value) for day, value in sorted(dated.items())}}, ensure_ascii=False))
@@ -101,6 +108,7 @@ def main():
     server_ip = cluster('get', 'svc', 'keel-server', '-o', 'jsonpath={.spec.clusterIP}').decode()
     gateway_ip = cluster('get', 'svc', 'keel-llm', '-o', 'jsonpath={.spec.clusterIP}').decode()
     secret = json.loads(cluster('get', 'secret', 'keel-llm', '-o', 'json'))
+    assert all(secret['data'].get(key) for key in ['jdbc-url', 'jdbc-username', 'jdbc-password']), 'Persistent gateway database is not configured'
     headers = {'Authorization': 'Bearer ' + base64.b64decode(secret['data']['admin-key']).decode()}
     del secret
     for window in ['today', '24h', '7d', '30d', 'all']:

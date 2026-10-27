@@ -42,11 +42,14 @@ public class LlmConfiguration {
     @Bean
     Gateway gateway(ModelCatalog catalog, BudgetCounter budget, LlmProperties properties) {
         var redis = properties.getRedis();
+        var recent = new SpendLog(redis);
         SpendLedger history = null;
         if (properties.getJdbcUrl() != null && !properties.getJdbcUrl().isBlank()) {
-            history = new JdbcSpendLedger(properties.getJdbcUrl(), properties.getJdbcUsername(), properties.getJdbcPassword());
+            var persistent = new JdbcSpendLedger(properties.getJdbcUrl(), properties.getJdbcUsername(), properties.getJdbcPassword());
+            persistent.importRecent(recent.all());
+            history = persistent;
         }
-        return new Gateway(catalog, budget, new Upstream(), new KeyDirectory(redis), new SpendLog(redis), history,
+        return new Gateway(catalog, budget, new Upstream(), new KeyDirectory(redis), recent, history,
                 new Admission(redis), new ProbeMarks(redis), new RoutePolicy(redis), new AlertRules(redis),
                 new RequestDefaults(properties.getRequestDefaults()), new ChannelBoard(redis));
     }

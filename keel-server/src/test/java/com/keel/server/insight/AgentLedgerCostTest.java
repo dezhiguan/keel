@@ -41,5 +41,16 @@ class AgentLedgerCostTest {
         assertThat(tomorrow.totalCostCny()).isEqualTo(all.totalCostCny());
         assertThat(tomorrow.pendingBillCount()).isZero();
         assertThat(tomorrow.totalPendingBillCount()).isEqualTo(2);
+    }    @Test void dailyRecoveryDoesNotClaimHourlyPrecision() {
+        var bill = new LiteLlmClient.Spend("keel-assistant-staging", "", 80.0,
+                "2026-10-25T16:00:00Z", 0L, false, "", null, null, 0.0, "SETTLED",
+                "recovered-day", "", "recovered-daily-settlement", "daily-recovery", null);
+        var ledger = new CostService.Ledger(List.of(bill), List.of(), List.of(), List.of());
+        var now = Instant.parse("2026-10-27T06:00:00Z");
+        assertThat(CostService.windowComplete(ledger,"staging","24h",now)).isFalse();
+        assertThat(CostService.windowComplete(ledger,"staging","today",now)).isTrue();
+        assertThat(CostService.windowComplete(ledger,"staging","all",now)).isTrue();
+        assertThat(CostService.windowComplete(ledger,"prod","24h",now)).isTrue();
     }
+
 }

@@ -107,7 +107,8 @@ public class OverviewService {
         var biz = (int) agents.stream().filter(agent -> "biz".equals(agent.category())).count();
         var dev = (int) agents.stream().filter(agent -> "dev".equals(agent.category())).count();
         Long calls = snap.callsKnown() ? snap.callTotal() : null;
-        Double cost = bills.totalCny();
+        boolean completeCostWindow = CostService.windowComplete(sharedLedger, scope, range, Instant.now());
+        Double cost = completeCostWindow ? bills.totalCny() : null;
         if ("today".equals(range) && todayLedger != null) {
             calls = todayLedger.calls();
         } else if ("all".equals(range) && ledger != null) {
@@ -147,7 +148,7 @@ public class OverviewService {
                 since);
         var metrics = List.of(
                 new Metric("calls", "所选时间窗内已结算模型请求数，按 requestId 去重", calls == null ? "未接入" : "usage_daily", calls != null),
-                new Metric("modelCost", "已结算的 costCny 之和", cost == null ? "未接入" : "keel_llm 账单", cost != null),
+                new Metric("modelCost", completeCostWindow ? "已结算费用，含已确认历史日结算恢复额" : "部分历史仅有日结算额，无法精确拆分这个小时窗口", "keel_llm 账单", completeCostWindow),
                 new Metric("cumulativeCalls", "已封账各天之和 + 今天实时", cumulative.calls() == null ? "未接入" : "usage_daily", cumulative.calls() != null),
                 new Metric("cumulativeTokens", "已结算账单的输入 token 加输出 token", cumulative.tokens() == null ? "未接入" : "keel_llm 账单", cumulative.tokens() != null),
                 new Metric("cumulativeCost", "全部历史已结算账单费用，含晚结算修正", cumulative.costCny() == null ? "未接入" : "keel_llm 账单", cumulative.costCny() != null),

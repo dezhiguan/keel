@@ -3355,7 +3355,7 @@ export interface components {
                 /** Format: float */
                 costCny?: number | null;
                 priceVersion?: string;
-                /** @description primary/fallback 或 rejected:已登记错误码；rejected 表示模型未调用的零费用拒绝 */
+                /** @description primary/fallback 或 rejected:已登记错误码；daily-recovery 为已确认历史日结算恢复，非模型调用且不具备小时精度；rejected 表示模型未调用的零费用拒绝 */
                 routeVersion?: string;
             }[];
             /** @description 白名单keel.memory.*证据，仅版本/ID/哈希/计数/状态，不含用户原文；used区别于仅检索命中 */
@@ -3772,7 +3772,7 @@ export interface components {
                 attemptId?: string;
                 traceId?: string | null;
                 priceVersion?: string;
-                /** @description primary/fallback 或 rejected:已登记错误码；rejected 表示模型未调用的零费用拒绝 */
+                /** @description primary/fallback 或 rejected:已登记错误码；daily-recovery 为已确认历史日结算恢复，非模型调用且不具备小时精度；rejected 表示模型未调用的零费用拒绝 */
                 routeVersion?: string;
                 cacheTokens?: number | null;
             }[];

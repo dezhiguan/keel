@@ -50,19 +50,16 @@ spec:
                 secretKeyRef:
                   name: keel-llm
                   key: jdbc-url
-                  optional: true
             - name: KEEL_LLM_JDBC_USERNAME
               valueFrom:
                 secretKeyRef:
                   name: keel-llm
                   key: jdbc-username
-                  optional: true
             - name: KEEL_LLM_JDBC_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: keel-llm
                   key: jdbc-password
-                  optional: true
           envFrom:
             - secretRef:
                 name: keel-llm-vendors

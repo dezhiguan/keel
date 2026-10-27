@@ -54,3 +54,7 @@ describe('model bill labels', () => {
     expect(groupLabel('alias')).toBe('智能体')
   })
 })
+
+it('labels daily recovery without presenting it as a model attempt', () => {
+  expect(routeReason('daily-recovery')).toBe('历史日结算恢复（非调用明细）')
+})

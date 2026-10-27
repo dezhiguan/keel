@@ -163,8 +163,8 @@ watch([() => envStore.env, range], () => {
       </div>
       <div class="kpi" :title="tip('modelCost')">
         <div class="l">模型成本</div>
-        <div class="v">{{ shown('modelCost', fmtMoney(kpi?.modelCostCny)) }}</div>
-        <div class="d">待计费 {{ kpi?.pendingModelBills ?? 0 }} 条 · 已结算金额</div>
+        <div class="v">{{ kpi?.modelCostCny == null && tip('modelCost')?.includes('无法精确') ? '不可拆分' : shown('modelCost', fmtMoney(kpi?.modelCostCny)) }}</div>
+        <div class="d"><template v-if="kpi?.modelCostCny == null">{{ metricByKey(overview?.metrics, 'modelCost')?.definition || '费用暂不可用' }}</template><template v-else>待计费 {{ kpi?.pendingModelBills ?? 0 }} 条 · 已结算金额</template></div>
       </div>
       <div class="kpi">
         <div class="l">平均评测分</div>
@@ -197,7 +197,7 @@ watch([() => envStore.env, range], () => {
       <div class="kpi" :title="tip('cumulativeCost')">
         <div class="l">累计模型花费</div>
         <div class="v">{{ shown('cumulativeCost', fmtMoney(cumulative?.costCny)) }}</div>
-        <div class="d">全部历史已结算</div>
+        <div class="d">全部历史已结算（含日账恢复）</div>
       </div>
       <div class="kpi" :title="tip('cumulativeUsers')">
         <div class="l">累计服务用户</div>
@@ -298,7 +298,7 @@ watch([() => envStore.env, range], () => {
         <p v-if="!bars.length" class="empty">{{ overviewRangeLabel(range) }}还没有模型花费</p>
         <div v-else class="bars">
           <div v-for="row in bars" :key="row.agent">
-            <div class="h"><AgentName :id="row.agent" /><span class="mono">{{ fmtMoney(row.costCny) }}<template v-if="row.dailyBudgetCny != null"> / {{ fmtMoney(row.dailyBudgetCny) }}</template></span></div>
+            <div class="h"><AgentName :id="row.agent" :display-name="row.agent?.startsWith('historical') ? '历史未分配费用' : undefined" /><span class="mono">{{ fmtMoney(row.costCny) }}<template v-if="row.dailyBudgetCny != null"> / {{ fmtMoney(row.dailyBudgetCny) }}</template></span></div>
             <div class="bar"><i :style="{ width: `${barWidth(row.costCny, row.dailyBudgetCny)}%`, background: barColor(row.costCny, row.dailyBudgetCny) }" /></div>
           </div>
         </div>

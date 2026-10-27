@@ -323,6 +323,16 @@ public class CostService {
                 pending.getOrDefault(agent.name(), 0), allPending.getOrDefault(agent.name(), 0))).toList();
     }
 
+    /** A daily recovery has no hourly precision. Do not report a partial day as an exact window. */
+    public static boolean windowComplete(Ledger ledger, String env, String range, Instant now) {
+        var cutoff = since(range, now);
+        return ledger.bills().stream().noneMatch(bill -> {
+            if (!"daily-recovery".equals(bill.routeVersion()) || !inEnv(bill.alias(),env)) return false;
+            var day = Instant.parse(bill.ts());
+            return day.isBefore(cutoff) && day.plus(Duration.ofDays(1)).isAfter(cutoff);
+        });
+    }
+
     public Ledger ledger() { return new Ledger(gateway.spendAll(),gateway.keys(),gateway.models(),gateway.alertRules()); }
     /** Overview does not need the model page's Langfuse generation/latency sampling. */
     public Result summarize(Ledger ledger,String env,String range) {
