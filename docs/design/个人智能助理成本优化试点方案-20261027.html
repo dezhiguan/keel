@@ -27,10 +27,11 @@
     <div class="eyebrow">PERSONAL ASSISTANT · FIRST PILOT</div>
     <h1>个人智能助理<br><span>成本优化试点方案</span></h1>
     <p class="lead">以个人智能助理作为底座成本控制能力的首个试点。在完整交付的前提下，验证业务上下文、知识检索、记忆维护和调用策略的真实收益。</p>
-    <div class="meta"><span class="tag draft">待确认试点设计 · 新增措施尚未实施</span><span class="tag">2026-10-27 · Asia/Shanghai</span><span class="tag">试点：keel-assistant / staging</span></div>
+    <div class="meta"><span class="tag draft">核心机制已实施 · 整体验收未通过</span><span class="tag">2026-10-27 · Asia/Shanghai</span><span class="tag">试点：keel-assistant / staging</span></div>
     <div class="note green"><p><strong>配套设计：</strong><a href="Keel-智能体单任务成本控制能力方案-20261027.html">Keel 智能体单任务成本控制能力方案</a>定义通用归因、预算、重试协调和新建智能体自动接入。本文定义个人助理的账单基线、业务策略、试点参数和验收，不在助理内另建一套成本基础设施。原《个人助理单任务成本控制方案》已拆分为这两份文档。</p></div>
     <div class="principle"><b>设计前提</b><p><strong>本轮不引入缓存。</strong>当前 <strong>10,000 token 输入硬上限仅为临时测试配置</strong>，后续独立调整到正常容量；不把该数值、缩小上下文窗口或统一的低输入额度作为优化目标。此前按普通任务设置 2,000–3,000 token 等固定窗口的建议在本方案中撤回。</p></div>
   </header>
+  <div class="note"><p><strong>2026-10-28 实施状态：</strong>核心成本机制与个人助理 staging 候选已部署，完整设计验收未通过。下文保留 2026-10-27 设计基线；实际费用、正式评测失败及未完成项以<a href="../qa/2026-10-28-task-cost-control.md">实施验收报告</a>为准，不把设计目标视为已完成。</p></div>
   <nav aria-label="文档目录">
     <a href="#baseline">01 账单依据</a><a href="#accounting">02 任务口径</a><a href="#measures">03 控制措施</a><a href="#budget">04 动态预算</a><a href="#delivery">05 实施顺序</a><a href="#acceptance">06 验收标准</a><a href="#estimate">07 费用测算</a><a href="#references">08 参考依据</a>
   </nav>
@@ -165,7 +166,7 @@
       <p class="small">原始控制台账单在本机以受限权限保存；本文仅记录必要汇总，不嵌入凭据、访问票据、用户原文或私有服务密钥。文档来源为本轮用户确认的范围、线上只读账单与仓库已有设计 / 实现证据。</p>
     </section>
   </main>
-  <footer><span>Keel · 个人智能助理成本优化试点 · 2026-10-27</span><span>设计稿供确认；仅文档拆分，未修改运行配置。</span></footer>
+  <footer><span>Keel · 个人智能助理成本优化试点 · 2026-10-27</span><span>设计基线；2026-10-28 实施结果及缺口见验收报告。</span></footer>
 </div>
 <script>
   (() => {

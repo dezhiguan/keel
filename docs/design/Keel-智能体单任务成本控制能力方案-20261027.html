@@ -27,10 +27,11 @@
     <div class="eyebrow">SHARED CAPABILITIES · BUSINESS-SPECIFIC POLICIES</div>
     <h1>Keel 智能体<br><span>单任务成本控制能力</span></h1>
     <p class="lead">把费用归因、预算执行和重试协调做成底座能力。新建智能体默认接入公共机制，按业务类型启用适用策略；以个人智能助理为首个试点。</p>
-    <div class="meta"><span class="tag draft">待确认架构设计 · 新增能力尚未实施</span><span class="tag">2026-10-27 · Asia/Shanghai</span><span class="tag">范围：底座 / 网关 / SDK / 生成模板</span></div>
+    <div class="meta"><span class="tag draft">核心机制已实施 · 整体验收未通过</span><span class="tag">2026-10-27 · Asia/Shanghai</span><span class="tag">范围：底座 / 网关 / SDK / 生成模板</span></div>
     <div class="principle"><b>平台原则</b><p><strong>统一成本机制，业务策略分别验证。</strong>不新增“成本优化智能体”或为每轮请求额外调用模型；不引入缓存。临时 <strong>10,000 token</strong> 输入上限不作为平台优化目标，也不固化为所有智能体的默认窗口。</p></div>
     <div class="note green"><p><strong>配套试点：</strong><a href="个人智能助理成本优化试点方案-20261027.html">个人智能助理成本优化试点方案</a>负责真实账单、助理业务调整、试验参数和降本目标。本文负责公共机制及后续新智能体自动接入，不将助理参数推广为全平台默认值。两份文档共同替代原单份成本方案。</p></div>
   </header>
+  <div class="note"><p><strong>2026-10-28 实施状态：</strong>核心成本机制与个人助理 staging 候选已部署，完整设计验收未通过。下文保留 2026-10-27 设计基线；实际费用、正式评测失败及未完成项以<a href="../qa/2026-10-28-task-cost-control.md">实施验收报告</a>为准，不把设计目标视为已完成。</p></div>
   <nav aria-label="文档目录"><a href="#scope">01 能力范围</a><a href="#accounting">02 任务费用</a><a href="#layers">03 分层职责</a><a href="#policy">04 策略继承</a><a href="#budget">05 执行与预算</a><a href="#onboarding">06 自动接入</a><a href="#rollout">07 实施路线</a><a href="#acceptance">08 平台验收</a><a href="#references">09 依据与待办</a></nav>
   <main>
     <section id="scope">
@@ -120,7 +121,7 @@
         <article class="phase"><div class="phase-label">阶段三<br>跨类型复验</div><div><h3>选择查询型与长材料型代表</h3><p>分别验证低记忆需求的工具查询、需要完整材料的长分析，校准能力组合和预算预估；必要时补充执行型的副作用与幂等边界。</p><p class="deliverable">出口：每类适用 / 不适用清单、质量与费用结果；不要求各类获得相同降幅。</p></div></article>
         <article class="phase"><div class="phase-label">阶段四<br>默认接入</div><div><h3>发布 SDK、策略与生成模板</h3><p>能力稳定后更新正式版本、模板和登记校验；新建项目默认接入公共机制，按能力继承策略，既有项目按升级计划推进。</p><p class="deliverable">出口：从创建到真实运行的自动接入证据、版本回退方案及覆盖清单。</p></div></article>
       </div>
-      <p class="small">本轮仅拆分设计文档。具体代码改动前另写对应实现 spec，并核对跨语言契约与既有架构；如实现涉及控制台展示，再执行项目的原型和 UI 对齐要求。</p>
+      <p class="small">本文保留设计基线；后续代码、契约与覆盖验收状态见页首实施报告。涉及控制台展示时仍须执行项目原型和 UI 对齐要求。</p>
     </section>
 
     <section id="acceptance">
@@ -150,7 +151,7 @@
       <p class="small">本设计不嵌入凭据、用户原文或服务密钥。既有能力与待实施能力分别陈述；未把其他专项的成功当作本方案已经完成。</p>
     </section>
   </main>
-  <footer><span>Keel · 智能体单任务成本控制能力 · 2026-10-27</span><span>配套个人助理试点；仅设计文档，未修改运行配置。</span></footer>
+  <footer><span>Keel · 智能体单任务成本控制能力 · 2026-10-27</span><span>设计基线；2026-10-28 实施结果及缺口见验收报告。</span></footer>
 </div>
 </body>
 </html>

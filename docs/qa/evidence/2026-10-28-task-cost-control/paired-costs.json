@@ -1,0 +1,616 @@
+{
+  "scope": "same runtime 0.5.12 / official SDK 1.0.34; gateway settled model fees, no new cache, same input capacity and delivery requirements",
+  "samples": {
+    "final-baseline": {
+      "cases": [
+        {
+          "id": "short",
+          "taskId": "ct_269a0de96a59476589ba9d9218af28d3",
+          "status": 200,
+          "elapsedMs": 3611,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "settled",
+          "maintenancePending": 0,
+          "settledCny": "0.002493",
+          "reservedCny": "0",
+          "modelAttempts": 2,
+          "directInputTokens": 2880,
+          "directOutputTokens": 70,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0",
+          "priceVersions": [
+            "2026-10-18"
+          ],
+          "models": [
+            "qwen3.8-flash"
+          ],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@7",
+          "businessVerdict": "PASS",
+          "promptVersions": {
+            "classify": 3,
+            "answer": 13
+          }
+        },
+        {
+          "id": "explain",
+          "taskId": "ct_a6f1e0ae88bf4495856b31af0b292f73",
+          "status": 200,
+          "elapsedMs": 4343,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "settled",
+          "maintenancePending": 0,
+          "settledCny": "0.002616",
+          "reservedCny": "0",
+          "modelAttempts": 2,
+          "directInputTokens": 2902,
+          "directOutputTokens": 109,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0",
+          "priceVersions": [
+            "2026-10-18"
+          ],
+          "models": [
+            "qwen3.8-flash"
+          ],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@7",
+          "businessVerdict": "PASS",
+          "promptVersions": {
+            "classify": 3,
+            "answer": 13
+          }
+        },
+        {
+          "id": "material",
+          "taskId": "ct_db6548db371046e88f22d870081aadd1",
+          "status": 200,
+          "elapsedMs": 3983,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "settled",
+          "maintenancePending": 0,
+          "settledCny": "0.002005",
+          "reservedCny": "0",
+          "modelAttempts": 1,
+          "directInputTokens": 2449,
+          "directOutputTokens": 17,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0",
+          "priceVersions": [
+            "2026-10-18"
+          ],
+          "models": [
+            "qwen3.8-flash"
+          ],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@7",
+          "businessVerdict": "PASS",
+          "promptVersions": {
+            "answer": 13
+          }
+        },
+        {
+          "id": "knowledge",
+          "taskId": "ct_e0c22b93d20d4af396ee38d2ba71bdd7",
+          "status": 200,
+          "elapsedMs": 7063,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "settled",
+          "maintenancePending": 0,
+          "settledCny": "0.006121",
+          "reservedCny": "0",
+          "modelAttempts": 1,
+          "directInputTokens": 6497,
+          "directOutputTokens": 342,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0",
+          "priceVersions": [
+            "2026-10-18"
+          ],
+          "models": [
+            "qwen3.8-flash"
+          ],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@7",
+          "businessVerdict": "PASS",
+          "promptVersions": {
+            "answer": 13
+          }
+        },
+        {
+          "id": "employees",
+          "taskId": "ct_74958e8be84d4b9f822e16601ee90757",
+          "status": 200,
+          "elapsedMs": 8196,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "settled",
+          "maintenancePending": 0,
+          "settledCny": "0.003859",
+          "reservedCny": "0",
+          "modelAttempts": 2,
+          "directInputTokens": 3373,
+          "directOutputTokens": 430,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0",
+          "priceVersions": [
+            "2026-10-18"
+          ],
+          "models": [
+            "qwen3.8-flash"
+          ],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@7",
+          "businessVerdict": "PASS",
+          "promptVersions": {
+            "classify": 3,
+            "answer": 13
+          }
+        },
+        {
+          "id": "deny",
+          "taskId": "ct_5228ceb9e31343e0af4293caf9719850",
+          "status": 200,
+          "elapsedMs": 184,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "no_model_calls",
+          "maintenancePending": 0,
+          "settledCny": "0",
+          "reservedCny": "0",
+          "modelAttempts": 0,
+          "directInputTokens": 0,
+          "directOutputTokens": 0,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0",
+          "priceVersions": [],
+          "models": [],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@7",
+          "businessVerdict": "PASS",
+          "promptVersions": {}
+        }
+      ],
+      "caseCount": 6,
+      "businessPassed": 6,
+      "settledCny": "0.017094",
+      "meanPerCaseCny": "0.002849",
+      "costPerPassedCaseIncludingFailuresCny": "0.002849",
+      "p95Ms": 8196,
+      "sharedMaintenanceCny": "0",
+      "allSettled": true
+    },
+    "final-optimized": {
+      "cases": [
+        {
+          "id": "short",
+          "taskId": "ct_a3f15d9a69cd492a904f94f59c538a8c",
+          "status": 200,
+          "elapsedMs": 3228,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "settled",
+          "maintenancePending": 0,
+          "settledCny": "0.002212",
+          "reservedCny": "0",
+          "modelAttempts": 2,
+          "directInputTokens": 2538,
+          "directOutputTokens": 67,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0",
+          "priceVersions": [
+            "2026-10-18"
+          ],
+          "models": [
+            "qwen3.8-flash"
+          ],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@8",
+          "businessVerdict": "PASS",
+          "promptVersions": {
+            "classify": 3,
+            "answer": 13
+          }
+        },
+        {
+          "id": "explain",
+          "taskId": "ct_fe759dec351049ee99d477123d6c5c73",
+          "status": 200,
+          "elapsedMs": 4466,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "settled",
+          "maintenancePending": 0,
+          "settledCny": "0.002382",
+          "reservedCny": "0",
+          "modelAttempts": 2,
+          "directInputTokens": 2566,
+          "directOutputTokens": 122,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0",
+          "priceVersions": [
+            "2026-10-18"
+          ],
+          "models": [
+            "qwen3.8-flash"
+          ],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@8",
+          "businessVerdict": "PASS",
+          "promptVersions": {
+            "classify": 3,
+            "answer": 13
+          }
+        },
+        {
+          "id": "material",
+          "taskId": "ct_e5f3c9fde0dc46d0a35240f906e70762",
+          "status": 200,
+          "elapsedMs": 1545,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "settled",
+          "maintenancePending": 0,
+          "settledCny": "0.00174",
+          "reservedCny": "0",
+          "modelAttempts": 1,
+          "directInputTokens": 2114,
+          "directOutputTokens": 18,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0",
+          "priceVersions": [
+            "2026-10-18"
+          ],
+          "models": [
+            "qwen3.8-flash"
+          ],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@8",
+          "businessVerdict": "PASS",
+          "promptVersions": {
+            "answer": 13
+          }
+        },
+        {
+          "id": "knowledge",
+          "taskId": "ct_a704be271fdf4638b8b7af7800ea8a40",
+          "status": 200,
+          "elapsedMs": 6456,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "settled",
+          "maintenancePending": 0,
+          "settledCny": "0.003667",
+          "reservedCny": "0",
+          "modelAttempts": 1,
+          "directInputTokens": 3358,
+          "directOutputTokens": 363,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0",
+          "priceVersions": [
+            "2026-10-18"
+          ],
+          "models": [
+            "qwen3.8-flash"
+          ],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@8",
+          "businessVerdict": "PASS",
+          "promptVersions": {
+            "answer": 13
+          }
+        },
+        {
+          "id": "employees",
+          "taskId": "ct_d58c9ec1a5cc4d3694b3ddba19568b34",
+          "status": 200,
+          "elapsedMs": 7547,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "settled",
+          "maintenancePending": 0,
+          "settledCny": "0.00362",
+          "reservedCny": "0",
+          "modelAttempts": 2,
+          "directInputTokens": 3039,
+          "directOutputTokens": 440,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0",
+          "priceVersions": [
+            "2026-10-18"
+          ],
+          "models": [
+            "qwen3.8-flash"
+          ],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@8",
+          "businessVerdict": "PASS",
+          "promptVersions": {
+            "classify": 3,
+            "answer": 13
+          }
+        },
+        {
+          "id": "deny",
+          "taskId": "ct_f7881b8ddf8d48528e4d5db7059d3530",
+          "status": 200,
+          "elapsedMs": 179,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "no_model_calls",
+          "maintenancePending": 0,
+          "settledCny": "0",
+          "reservedCny": "0",
+          "modelAttempts": 0,
+          "directInputTokens": 0,
+          "directOutputTokens": 0,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0",
+          "priceVersions": [],
+          "models": [],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@8",
+          "businessVerdict": "PASS",
+          "promptVersions": {}
+        }
+      ],
+      "caseCount": 6,
+      "businessPassed": 6,
+      "settledCny": "0.013621",
+      "meanPerCaseCny": "0.002270166666666666666666666667",
+      "costPerPassedCaseIncludingFailuresCny": "0.002270166666666666666666666667",
+      "p95Ms": 7547,
+      "sharedMaintenanceCny": "0",
+      "allSettled": true
+    },
+    "final-memory-baseline": {
+      "cases": [
+        {
+          "id": "fact",
+          "taskId": "ct_f995afdc531e486dade88305bf6d3dfa",
+          "status": 200,
+          "elapsedMs": 2964,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "settled",
+          "maintenancePending": 0,
+          "settledCny": "0.003331",
+          "reservedCny": "0",
+          "modelAttempts": 3,
+          "directInputTokens": 2898,
+          "directOutputTokens": 60,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0.00085",
+          "priceVersions": [
+            "2026-10-18"
+          ],
+          "models": [
+            "qwen3.8-flash"
+          ],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@7",
+          "businessVerdict": "PASS",
+          "promptVersions": {
+            "classify": 3,
+            "answer": 13
+          }
+        },
+        {
+          "id": "correct",
+          "taskId": "ct_dc17e73deabb4640a08c45f8b9714f7b",
+          "status": 200,
+          "elapsedMs": 2929,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "settled",
+          "maintenancePending": 0,
+          "settledCny": "0.003793",
+          "reservedCny": "0",
+          "modelAttempts": 3,
+          "directInputTokens": 3164,
+          "directOutputTokens": 65,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0.001086",
+          "priceVersions": [
+            "2026-10-18"
+          ],
+          "models": [
+            "qwen3.8-flash"
+          ],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@7",
+          "businessVerdict": "PASS",
+          "promptVersions": {
+            "classify": 3,
+            "answer": 13
+          }
+        },
+        {
+          "id": "retract",
+          "taskId": "ct_c33df9c033c84d6c95f838a49219c5c3",
+          "status": 200,
+          "elapsedMs": 3422,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "settled",
+          "maintenancePending": 0,
+          "settledCny": "0.004046",
+          "reservedCny": "0",
+          "modelAttempts": 3,
+          "directInputTokens": 3365,
+          "directOutputTokens": 65,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0.001179",
+          "priceVersions": [
+            "2026-10-18"
+          ],
+          "models": [
+            "qwen3.8-flash"
+          ],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@7",
+          "businessVerdict": "PASS",
+          "promptVersions": {
+            "classify": 3,
+            "answer": 13
+          }
+        },
+        {
+          "id": "recall",
+          "taskId": "ct_76bbdc0001394186ac2c2fb9be32eadf",
+          "status": 200,
+          "elapsedMs": 2292,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "settled",
+          "maintenancePending": 0,
+          "settledCny": "0.001509",
+          "reservedCny": "0",
+          "modelAttempts": 2,
+          "directInputTokens": 467,
+          "directOutputTokens": 48,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0.001006",
+          "priceVersions": [
+            "2026-10-18"
+          ],
+          "models": [
+            "qwen3.8-flash"
+          ],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@7",
+          "businessVerdict": "FAIL",
+          "promptVersions": {
+            "classify": 3
+          }
+        }
+      ],
+      "caseCount": 4,
+      "businessPassed": 3,
+      "settledCny": "0.012679",
+      "meanPerCaseCny": "0.00316975",
+      "costPerPassedCaseIncludingFailuresCny": "0.004226333333333333333333333333",
+      "p95Ms": 3422,
+      "sharedMaintenanceCny": "0.004121",
+      "allSettled": true
+    },
+    "final-memory-optimized": {
+      "cases": [
+        {
+          "id": "fact",
+          "taskId": "ct_cccef96133a64e6990a2d66df217ebd0",
+          "status": 200,
+          "elapsedMs": 3103,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "settled",
+          "maintenancePending": 0,
+          "settledCny": "0.00264825",
+          "reservedCny": "0",
+          "modelAttempts": 3,
+          "directInputTokens": 2564,
+          "directOutputTokens": 60,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0.00043425",
+          "priceVersions": [
+            "2026-10-18"
+          ],
+          "models": [
+            "qwen3.8-flash"
+          ],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@8",
+          "businessVerdict": "PASS",
+          "promptVersions": {
+            "classify": 3,
+            "answer": 13
+          }
+        },
+        {
+          "id": "correct",
+          "taskId": "ct_624eeabb425648b79c9df47e00f47bda",
+          "status": 200,
+          "elapsedMs": 2972,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "settled",
+          "maintenancePending": 0,
+          "settledCny": "0.00286925",
+          "reservedCny": "0",
+          "modelAttempts": 3,
+          "directInputTokens": 2824,
+          "directOutputTokens": 65,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0.00043425",
+          "priceVersions": [
+            "2026-10-18"
+          ],
+          "models": [
+            "qwen3.8-flash"
+          ],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@8",
+          "businessVerdict": "PASS",
+          "promptVersions": {
+            "classify": 3,
+            "answer": 13
+          }
+        },
+        {
+          "id": "retract",
+          "taskId": "ct_938614dfbb084de09e58f19614a06ee8",
+          "status": 200,
+          "elapsedMs": 2622,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "settled",
+          "maintenancePending": 0,
+          "settledCny": "0.00288525",
+          "reservedCny": "0",
+          "modelAttempts": 3,
+          "directInputTokens": 2877,
+          "directOutputTokens": 55,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0.00043425",
+          "priceVersions": [
+            "2026-10-18"
+          ],
+          "models": [
+            "qwen3.8-flash"
+          ],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@8",
+          "businessVerdict": "PASS",
+          "promptVersions": {
+            "classify": 3,
+            "answer": 13
+          }
+        },
+        {
+          "id": "recall",
+          "taskId": "ct_01fd9bd4abbc4c9e8f84ca81a33087a8",
+          "status": 200,
+          "elapsedMs": 2338,
+          "executionState": "succeeded",
+          "deliveryState": "succeeded",
+          "costState": "settled",
+          "maintenancePending": 0,
+          "settledCny": "0.00093025",
+          "reservedCny": "0",
+          "modelAttempts": 2,
+          "directInputTokens": 465,
+          "directOutputTokens": 46,
+          "cacheTokens": 0,
+          "sharedMaintenanceCny": "0.00043425",
+          "priceVersions": [
+            "2026-10-18"
+          ],
+          "models": [
+            "qwen3.8-flash"
+          ],
+          "policyVersion": "platform:*@1/agent:keel-assistant:staging@8",
+          "businessVerdict": "FAIL",
+          "promptVersions": {
+            "classify": 3
+          }
+        }
+      ],
+      "caseCount": 4,
+      "businessPassed": 3,
+      "settledCny": "0.00933300",
+      "meanPerCaseCny": "0.00233325",
+      "costPerPassedCaseIncludingFailuresCny": "0.00311100",
+      "p95Ms": 3103,
+      "sharedMaintenanceCny": "0.00173700",
+      "allSettled": true
+    }
+  },
+  "final-savingPct": "20.31707031707031707031707032",
+  "final-memory-savingPct": "26.39009385598233299156084865",
+  "final-memory-maintenanceSavingPct": "57.85003639893229798592574618"
+}

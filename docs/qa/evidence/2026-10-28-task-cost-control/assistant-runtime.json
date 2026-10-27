@@ -1,0 +1,35 @@
+{
+  "runtime": [
+    {
+      "pod": "keel-assistant-7544d89747-2vwhb",
+      "imageID": "sha256:6ed66a17f7c4f4d3a8ee8dc3bfef0299896c61ca92ded77a17556b355dc571c1",
+      "version": "0.5.12",
+      "sdk": "1.0.34",
+      "files": 74,
+      "mismatches": []
+    },
+    {
+      "pod": "keel-assistant-7544d89747-cpxhb",
+      "imageID": "sha256:6ed66a17f7c4f4d3a8ee8dc3bfef0299896c61ca92ded77a17556b355dc571c1",
+      "version": "0.5.12",
+      "sdk": "1.0.34",
+      "files": 74,
+      "mismatches": []
+    }
+  ],
+  "officialSdkFiles": [
+    {
+      "pod": "keel-assistant-7544d89747-2vwhb",
+      "sdkFiles": 174,
+      "mismatches": []
+    },
+    {
+      "pod": "keel-assistant-7544d89747-cpxhb",
+      "sdkFiles": 174,
+      "mismatches": []
+    }
+  ],
+  "appCodeCommit": "5acab2836dfbd7ce1d8bea9db80b3f7fa6743442",
+  "sdkVersion": "1.0.34",
+  "wheelSha256": "06b974f446d6228a4b4c3c4900c0763d5507e12c02373e3582ab75a50a1070e8"
+}

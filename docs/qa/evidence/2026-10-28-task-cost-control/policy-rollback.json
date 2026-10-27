@@ -1,0 +1,73 @@
+{
+  "startedAt": "2026-10-27T16:18:54.486Z",
+  "checks": [
+    {
+      "kind": "publish",
+      "status": 409,
+      "code": "COST_POLICY_CONFLICT",
+      "fromRevision": 8
+    },
+    {
+      "kind": "publish",
+      "status": 409,
+      "code": "COST_POLICY_CONFLICT",
+      "fromRevision": 0
+    },
+    {
+      "kind": "publish",
+      "status": 200,
+      "code": "OK",
+      "fromRevision": 8
+    },
+    {
+      "kind": "rollback",
+      "passed": true
+    },
+    {
+      "kind": "publish",
+      "status": 200,
+      "code": "OK",
+      "fromRevision": 9
+    },
+    {
+      "kind": "publish",
+      "status": 200,
+      "code": "OK",
+      "fromRevision": 10
+    },
+    {
+      "kind": "nonstream-budget",
+      "status": 429,
+      "code": "COST_BUDGET_EXCEEDED",
+      "retryable": false
+    },
+    {
+      "kind": "publish",
+      "status": 200,
+      "code": "OK",
+      "fromRevision": 11
+    },
+    {
+      "kind": "old-snapshot",
+      "policyVersion": "platform:*@1/agent:keel-assistant:staging@7",
+      "settledCny": 0.002493
+    }
+  ],
+  "finalRevision": 12,
+  "finalPolicy": {
+    "policy": {
+      "mode": "enforce",
+      "maxCalls": 24,
+      "maxCostCny": 0.3,
+      "baseCostCny": 0.06,
+      "perKInputCny": 0.008,
+      "contextDedupe": true,
+      "evidenceDedupe": true,
+      "memoryBatchTurns": 4,
+      "memoryMaxWaitSeconds": 30,
+      "version": "platform:*@1/agent:keel-assistant:staging@12"
+    },
+    "version": 1,
+    "coverage": "supported-runtime"
+  }
+}

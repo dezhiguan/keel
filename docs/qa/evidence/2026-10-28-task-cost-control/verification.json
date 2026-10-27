@@ -1,0 +1,79 @@
+{
+  "status": "implementation deployed; full acceptance failed",
+  "timezone": "Asia/Shanghai",
+  "platformCodeCommit": "1f062b3618640bb26a20f15c13cadd02e4d0ac86",
+  "assistantCodeCommit": "5acab2836dfbd7ce1d8bea9db80b3f7fa6743442",
+  "assistantDocsCommit": "f212666",
+  "sdkRelease": "https://github.com/dezhiguan/keel/releases/tag/sdk-v1.0.34",
+  "ci": {
+    "platform": "https://github.com/dezhiguan/keel/actions/runs/40539063103",
+    "deployment": "https://github.com/dezhiguan/keel/actions/runs/40539063086",
+    "assistant": "https://github.com/dezhiguan/keel-assistant/actions/runs/40525877203",
+    "sdkTests": 412,
+    "gatewayTests": {
+      "total": 90,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "taskCostPg": 9,
+      "gatewayUnit": 41
+    },
+    "assistantTests": {
+      "passed": 367,
+      "skippedPgDependent": 18
+    },
+    "sseNodeTestsPassed": 3,
+    "contractCheck": "passed",
+    "platformConclusion": "success",
+    "deploymentConclusion": "success",
+    "assistantConclusion": "success",
+    "smokeConclusion": "success"
+  },
+  "isolatedRealPostgresSmoke": "atomic/shared/unknown/privacy/cross-owner/request-completion/migrations PASS; actual-route confirmation additionally tested in final CI",
+  "finalPilotRevision": 12,
+  "noNewCache": true,
+  "noInputCapacityChange": true,
+  "formalRelease": false,
+  "otherAgentsRollout": false,
+  "deployments": {
+    "keel-server": {
+      "generation": 256,
+      "observedGeneration": 256,
+      "ready": 2,
+      "desired": 2,
+      "updated": 2,
+      "images": [
+        "keel-server:1f062b361864"
+      ]
+    },
+    "keel-llm": {
+      "generation": 165,
+      "observedGeneration": 165,
+      "ready": 2,
+      "desired": 2,
+      "updated": 2,
+      "images": [
+        "keel-llm:1f062b361864"
+      ]
+    },
+    "keel-assistant": {
+      "generation": 79,
+      "observedGeneration": 79,
+      "ready": 2,
+      "desired": 2,
+      "updated": 2,
+      "images": [
+        "keel-assistant:task-cost-5acab283"
+      ]
+    }
+  },
+  "verifiedAtLocal": "2026-10-28T00:23:50.698005+08:00",
+  "postDeploymentTask": {
+    "taskId": "ct_fafc046ce9724ce9ae9a3ed0aa45e094",
+    "group": "eval",
+    "state": "succeeded",
+    "settledCny": "0.002216",
+    "attempts": 2,
+    "reservedCny": 0
+  }
+}
