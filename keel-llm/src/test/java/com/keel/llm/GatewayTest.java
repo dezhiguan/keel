@@ -829,6 +829,25 @@ class GatewayTest {
         }
     }
 
+    @Test void taskQuoteUsesActualScopedThinkingDefaultsAndAccountsForAllPaidOutput() {
+        var models=new ModelCatalog(Map.of("qwen-plus",new ModelCatalog.Model("qwen-plus",new BigDecimal("0.001"),new BigDecimal("0.01"),"http://127.0.0.1:9","",10000,1000)));
+        var gateway=new Gateway(models,new BudgetCounter(),new Upstream(),new KeyDirectory(),new SpendLog(null),null,
+                new Admission(null),new ProbeMarks(null),new RoutePolicy(),new AlertRules(null),
+                new RequestDefaults("{\"quote-dev\":{\"qwen-plus\":{\"enable_thinking\":false,\"memory\":{\"enable_thinking\":true}}}}"));
+        var key=gateway.create("quote-dev",List.of("qwen-plus"),List.of(),new BigDecimal("100"),false);
+        var request=new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode().put("model","qwen-plus").put("max_tokens",20);
+        java.util.function.Function<com.fasterxml.jackson.databind.node.ObjectNode,BigDecimal> quote=body->(BigDecimal)gateway.taskQuote("Bearer "+key.key(),body.toString(),"/v1/chat/completions").get("reservedCny");
+        var normal=quote.apply(request);
+        var thinking=request.deepCopy();thinking.putObject("metadata").put("keel_task","memory");
+        assertThat(quote.apply(thinking).subtract(normal)).isEqualByComparingTo("10");
+        var unknown=request.deepCopy().put("enable_thinking",true);
+        assertThat(quote.apply(unknown).subtract(normal)).isEqualByComparingTo("10");
+        unknown.remove("max_tokens");unknown.put("max_completion_tokens",20);
+        assertThat(quote.apply(unknown)).isEqualByComparingTo(normal);
+        assertThat(quote.apply(request.deepCopy().put("n",3)).subtract(normal)).isEqualByComparingTo("0.6");
+        assertThat(request.has("enable_thinking")).isFalse();
+    }
+
     private static HttpServer echoServer() {
         return server((model, exchange) -> write(exchange, 200, usage(model, 1, 1)));
     }

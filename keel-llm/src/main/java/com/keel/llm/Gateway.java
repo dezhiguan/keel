@@ -309,7 +309,7 @@ public final class Gateway {
         var attempts = namedAttempts(key,row,requested,"/v1/embeddings".equals(path),request);
         if(row!=null) routes.journal.record(requestId,key.alias(),named,inputEstimate(request));
         var forwarding = costSafeRequest(request);
-        var maxCost = request.path("metadata").has("keel_cost_ticket") ? requestCost(attempts,path,request) : reservationCost(attempts, path);
+        var maxCost = request.path("metadata").has("keel_cost_ticket") ? requestCost(attempts,path,request,key.alias()) : reservationCost(attempts, path);
         if(request.path("metadata").has("keel_cost_ticket")){if(taskCosts==null)throw new GatewayException(ErrorCode.COST_SCOPE_DENIED,ErrorCode.COST_SCOPE_DENIED.message());taskCosts.confirm(key.alias(),request.path("metadata").path("keel_cost_ticket").asText(),requestId,maxCost,attempts.size());}
         try {
             admission.enter(key);
@@ -412,7 +412,7 @@ public final class Gateway {
                 ? (ObjectNode) forwarding.path("stream_options")
                 : forwarding.putObject("stream_options");
         options.put("include_usage", true);
-        var maxCost = request.path("metadata").has("keel_cost_ticket") ? requestCost(attempts,path,request) : reservationCost(attempts, path);
+        var maxCost = request.path("metadata").has("keel_cost_ticket") ? requestCost(attempts,path,request,key.alias()) : reservationCost(attempts, path);
         if(request.path("metadata").has("keel_cost_ticket")){if(taskCosts==null)throw new GatewayException(ErrorCode.COST_SCOPE_DENIED,ErrorCode.COST_SCOPE_DENIED.message());taskCosts.confirm(key.alias(),request.path("metadata").path("keel_cost_ticket").asText(),requestId,maxCost,attempts.size());}
         try {
             admission.enter(key);
@@ -529,22 +529,35 @@ public final class Gateway {
     public Map<String,Object> taskQuote(String bearer,String body,String path) {
         var key=virtualKey(bearer);var request=read(body);
         var plan=preview(key.alias(),request.path("model").asText()).models();
-        return Map.of("alias",key.alias(),"reservedCny",requestCost(plan,path,request),"attempts",plan.size());
+        return Map.of("alias",key.alias(),"reservedCny",requestCost(plan,path,request,key.alias()),"attempts",plan.size());
     }
 
     public String costAlias(String bearer) { return virtualKey(bearer).alias(); }
 
-    private BigDecimal requestCost(List<String> attempts,String path,JsonNode request) {
+    private BigDecimal requestCost(List<String> attempts,String path,JsonNode request,String alias) {
         BigDecimal total=BigDecimal.ZERO;
         for(var name:attempts) {
             var model=catalog.require(name);
-            var wire=read(requestDefaults.apply((ObjectNode)request.deepCopy(),"",name,path));
+            var wire=read(requestDefaults.apply((ObjectNode)request.deepCopy(),alias,name,path));
             long bytes=(request.path("messages").toString()+request.path("tools")+request.path("response_format")+request.path("input")).getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
             long input=Math.min(model.maxInputTokens(),bytes+256L+64L*request.path("messages").size());
-            int output=wire.path("max_tokens").asInt(wire.path("max_completion_tokens").asInt(model.maxOutputTokens()));
+            int output=wire.path("max_completion_tokens").asInt(wire.path("max_tokens").asInt(model.maxOutputTokens()));
             if(output<1 || output>model.maxOutputTokens())throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM,"输出额度超出模型能力");
             BigDecimal bound=model.inputCnyPerToken().multiply(BigDecimal.valueOf(input));
-            if(!"/v1/embeddings".equals(path))bound=bound.add(model.outputCnyPerToken().multiply(BigDecimal.valueOf(output)));
+            if(!"/v1/embeddings".equals(path)){
+                // max_tokens may exclude paid reasoning. Apply the SAME alias/purpose
+                // defaults as forwarding; never disable reasoning to make a quote cheaper.
+                boolean noThinking=wire.has("enable_thinking")&&!wire.path("enable_thinking").asBoolean()
+                        || "disabled".equals(wire.path("thinking").path("type").asText());
+                long paidOutput=output;
+                if(!wire.has("max_completion_tokens")&&!noThinking)
+                    paidOutput+=Math.max(model.maxOutputTokens(),wire.path("thinking_budget").asLong(0));
+                // Vendor completion limits can overshoot by a few tokens; all choices pay.
+                int choices=wire.path("n").asInt(1);
+                if(choices<1||choices>100)throw new GatewayException(ErrorCode.SERVER_INVALID_PARAM,"无效的候选输出数量");
+                paidOutput=(paidOutput+10L)*choices;
+                bound=bound.add(model.outputCnyPerToken().multiply(BigDecimal.valueOf(paidOutput)));
+            }
             total=total.add(bound);
         }
         return total.setScale(9,RoundingMode.CEILING);
