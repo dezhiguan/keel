@@ -106,6 +106,13 @@ public class TaskCostService {
             WHERE t.task_id=? AND j.status IN ('pending','running') AND j.desired_id>=m.id AND COALESCE(j.batch_start_id,0)<=m.id
             """,Integer.class,id);
         view.put("maintenancePending",pending);
+        Integer failed=db.queryForObject("""
+            SELECT count(*) FROM session_memory_job j JOIN session_message m ON m.session_id=j.session_id
+            AND m.owner_user=j.owner_user AND m.agent_name=j.agent_name JOIN task_cost_scope t ON t.user_message_id=m.id
+            WHERE t.task_id=? AND j.status='failed' AND j.desired_id>=m.id AND COALESCE(j.batch_start_id,0)<=m.id
+            """,Integer.class,id);
+        view.put("maintenanceFailed",failed);
+        view.put("maintenanceState",failed!=null&&failed>0?"failed":pending!=null&&pending>0?"running":"complete");
         if((pending!=null&&pending>0 || "running".equals(view.get("deliveryState"))) && "settled".equals(view.get("costState")))view.put("costState","pending_work");
         return view;
     }
