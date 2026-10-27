@@ -37,6 +37,9 @@ class InsightReadModelPersistenceTest {
         store.replaceOpen(day, "staging", new com.keel.server.metering.UsageMath.Slice(2L, 10L, new java.math.BigDecimal("5"), null));
         assertThat(store.sumClosed("staging").costCny()).isEqualByComparingTo("5");
         assertThat(store.sumClosed("staging").calls()).isEqualTo(2);
+        store.replaceOpen(day, "staging", new com.keel.server.metering.UsageMath.Slice(0L, 0L, new java.math.BigDecimal("5"), null));
+        assertThat(store.sumClosed("staging").calls()).isEqualTo(2);
+        assertThat(store.sumClosed("staging").tokens()).isEqualTo(10);
         assertThat(jdbc.queryForObject("SELECT closed FROM usage_daily WHERE day=? AND env='staging'", Boolean.class, java.sql.Date.valueOf(day))).isTrue();
     }
 

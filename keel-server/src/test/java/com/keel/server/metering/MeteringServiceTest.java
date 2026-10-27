@@ -61,8 +61,11 @@ class MeteringServiceTest {
         UsageMath.Slice slice;
         final Map<LocalDate, UsageMath.Slice> days = new HashMap<>();
         public void replaceOpen(LocalDate day, String env, UsageMath.Slice value) { slice = value; days.put(day, value); }
-        public void closeBefore(LocalDate day) {}
-        public UsageMath.Slice sumClosed(String env) { return UsageMath.Slice.closed(List.of()); }
+        LocalDate closedBefore;
+        public void closeBefore(LocalDate day) { closedBefore = day; }
+        public UsageMath.Slice sumClosed(String env) {
+            return UsageMath.Slice.closed(days.entrySet().stream().filter(e -> e.getKey().isBefore(closedBefore)).map(Map.Entry::getValue).toList());
+        }
         public UsageMath.Slice open(String env, LocalDate day) { return days.get(day); }
         public Long distinctUsers(String env) { return null; }
         public LocalDate earliest(String env) { return null; }

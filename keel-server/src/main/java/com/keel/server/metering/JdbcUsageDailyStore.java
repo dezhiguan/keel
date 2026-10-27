@@ -19,7 +19,8 @@ public final class JdbcUsageDailyStore implements UsageDailyStore {
                 INSERT INTO usage_daily(day, env, agent, calls, tokens, cost_cny, users, closed)
                 VALUES (?,?,'*',?,?,?,?,FALSE)
                 ON CONFLICT (day, env, agent) DO UPDATE SET
-                  calls=EXCLUDED.calls, tokens=EXCLUDED.tokens,
+                  calls=CASE WHEN usage_daily.closed THEN GREATEST(usage_daily.calls,EXCLUDED.calls) ELSE EXCLUDED.calls END,
+                  tokens=CASE WHEN usage_daily.closed THEN GREATEST(usage_daily.tokens,EXCLUDED.tokens) ELSE EXCLUDED.tokens END,
                   cost_cny=EXCLUDED.cost_cny, users=EXCLUDED.users
                 """, Date.valueOf(day), env, slice.calls(), slice.tokens(), slice.costCny(), slice.users());
     }

@@ -52,7 +52,9 @@ public class MeteringService {
         store.closeBefore(today);
         // Return the ledger total directly: previously missing/incorrect daily rows cannot reduce it.
         var total = slice(days.values().stream().flatMap(List::stream).toList());
-        return new UsageMath.Slice(total.calls(), total.tokens(), total.costCny(), store.distinctUsers(env));
+        // A recovered day amount has no per-call/token details. Preserve already observed historical usage.
+        var knownUsage = UsageMath.cumulative(store.sumClosed(env), store.open(env, today), store.distinctUsers(env));
+        return new UsageMath.Slice(knownUsage.calls(), knownUsage.tokens(), total.costCny(), knownUsage.users());
     }
 
     private static UsageMath.Slice slice(List<com.keel.server.integration.litellm.LiteLlmClient.Spend> bills) {

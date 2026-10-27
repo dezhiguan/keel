@@ -47,6 +47,11 @@ def main():
     llm = secret('keel-llm')
     cache = redis.Redis.from_url(llm['redis-url'], decode_responses=True, socket_timeout=30)
     with connect(config) as db:
+        usage_file = ROOT / 'usage-full-before.json'
+        if not usage_file.exists():
+            observed = db.execute("SELECT day,env,agent,calls,tokens FROM usage_daily").fetchall()
+            usage_file.write_text(json.dumps([{'day':str(day),'env':env,'agent':agent,'calls':calls,'tokens':tokens}
+                                               for day,env,agent,calls,tokens in observed]))
         daily_file = ROOT / 'usage-daily-before.json'
         if not daily_file.exists():
             days = db.execute("SELECT day,env,cost_cny FROM usage_daily WHERE agent='*'").fetchall()
@@ -73,6 +78,14 @@ def main():
                        input=json.dumps(patch).encode(), check=True, stdout=subprocess.DEVNULL)
         print('Private evidence backups saved; gateway JDBC configuration prepared.')
         return
+
+    # Restore known usage facts independently of recovered money; recovery rows have no usage details.
+    with connect(config) as db:
+        with db.cursor() as cursor:
+            cursor.executemany('''UPDATE usage_daily SET calls=GREATEST(calls,%s),tokens=GREATEST(tokens,%s)
+                                  WHERE day=%s AND env=%s AND agent=%s AND closed''',
+                               [(row['calls'],row['tokens'],row['day'],row['env'],row['agent'])
+                                for row in json.loads(usage_file.read_text())])
 
     backup = json.loads(backup_file.read_text())
     evidence = hashlib.sha256(backup_file.read_bytes()).hexdigest()
