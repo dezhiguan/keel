@@ -75,3 +75,15 @@
 管理 API 可从历史读取完整 config，以当前 revision CAS 发布旧 config；业务参数和执行模式分别可回退。不得删除账单 / 根任务 / 失败证据或释放未知预留。此次仅清理自动验收创建的普通会话，保留费用与正式评测记录，未触碰用户既有会话及未跟踪的用户 trace 文件。
 
 下一出口应先修复并复验正式质量失败，补第二真实用户、TTFT / 负载收敛、独立新项目及跨类型接入验收；再在同容量、同模型和同材料条件扩充配对样本及校准任务类型预算。达到质量和费用门槛后才能扩大业务策略灰度。此报告记录尚未完成与未执行项，不作为完整发布通过证明。
+
+## 后续原100条质量门禁已通过（双真实用户）
+
+用户明确授权创建并长期保留第二真实Keel账号后，已创建真实USER55，仅Keel VIEWER权限，凭据在本机私有全局文件保存、Codex全局AGENTS登记长期复用规则；密码、Cookie和读取票据不入仓库或评测Job。两个账号正常登录并分别独立授权每个运行，服务端保存不同owner/PG会话/授权，跨用户读取均被拒绝。
+
+质量基线后续已补齐：同原100条、同数据哈希，关闭优化有效基线ev_8fa7473bc1e6472198c7ed51864dd95a为49 PASS / 46 FAIL / 4 REVIEW / 1 BLOCKED；前轮修复ev_f7bd8731b9084273b027a39c10c4ca2b为99 PASS / 1 BLOCKED。双账号首轮ev_c742dd18d6204050863b1fac16f69051为98 PASS / 1 FAIL / 1 REVIEW / 0 BLOCKED，保留全部失败，实际双用户已PASS。另修复普通说明边界术语不稳定与模型步骤70秒早于原90秒总截止的问题，未改题库、裁判、阈值、允许错误或付费重试策略。
+
+最终0.5.19 / SDK1.0.35 / answer17，源码3f350c6a4cc584a8136ee986aa7307b1e54feeca经CI和双副本部署后完整重跑ev_111784cc3e094ef59fc205c0c0c8003b：**100 PASS、0 FAIL、0 REVIEW、0 BLOCKED，100条执行，passed=true / complete=true**。仍为数据哈希9073717d88f81bab482126215748d6e65e0f519d15cb806de7a06f0d2bcf35aa、classify3/evaluate4及原门槛。原54个PASS、有效基线49个PASS和前轮99个PASS均保留，零PASS回退。第二个真实账号、独立授权、各2条PG消息、不同副本、B零工具澄清及互读拒绝均有实际证据。见[完整报告与逐项原始证据](https://github.com/dezhiguan/keel-assistant/blob/main/docs/acceptance-two-real-users-20261028.md)。
+
+仅完整评测期间按有效基线同口径使用0.5/0.5额度，最终CAS恢复业务修订27：0.3/0.06、enforce、maxCalls24、perKInput0.008、contextDedupe/evidenceDedupe、memoryBatch4/Wait30全部保留。输入容量仍10000、日预算110，没有新增缓存；两个未跟踪用户trace未改动且哈希一致。
+
+本节仅更新原100条正式质量门禁及真实双用户验证。上文成本小样本20.3%/26.4%、30%完整任务成本未达标、自然召回配对失败及TTFT/负载/跨类型等未覆盖边界仍按原记录保留，未补测的项不改判。未自动扩大prod灰度或创建业务发布。

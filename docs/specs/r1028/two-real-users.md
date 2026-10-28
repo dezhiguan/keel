@@ -23,3 +23,9 @@ Keel ConsoleUsers保持主账号兼容，增加显式配置的额外账号名单
 真实登录隔离测试通过：B可用自身授权完成员工查询并保存自己的PG消息；A/B互读普通及正式PG会话均SERVER_NOT_FOUND；B的成本策略、发起正式评测和其他agent写入均AUTH_CONSOLE_FORBIDDEN。正式运行ev_c742dd18d6204050863b1fac16f69051的双用户用例PASS，两个PG会话/owner/授权不同，每人保存2条消息，B初始历史为空、澄清且零工具，实际命中不同副本；关闭运行后B不能再次同意。该完整运行98 PASS / 1 FAIL / 1 REVIEW / 0 BLOCKED，仍不冒充门禁通过；余下为普通措辞断言和模型步骤70秒提前取消，助理另行修复并继续完整复验。
 
 经完整CI验证的源树通过文档记录提交收敛至main，使用[skip ci]避免contracts/common共享变更触发无关服务的整批CD；实际服务端源树仍为上述已验证ac2b538，选择性部署与双副本哈希核验均已完成，未略过代码CI或正式评测。
+
+## 最终完整验收
+
+助理0.5.19 / 官方SDK1.0.35 / answer17，源码3f350c6a4cc584a8136ee986aa7307b1e54feeca通过[CI](https://github.com/dezhiguan/keel-assistant/actions/runs/40620688723)后部署双副本，82个业务文件和178个SDK文件逐一匹配。原100条运行ev_111784cc3e094ef59fc205c0c0c8003b已DONE：100 PASS、0 FAIL、0 REVIEW、0 BLOCKED，passed=true / complete=true。数据哈希9073717d88f81bab482126215748d6e65e0f519d15cb806de7a06f0d2bcf35aa、classify3/evaluate4、原门槛不变；原54个PASS、有效基线49个PASS、前轮99个PASS全部保留。
+
+两个真实用户分别独立同意，最终PG每人实际2条消息，B空历史并澄清且零工具，命中两个不同实例，原裁判PASS；双方互读PG与关闭后的同意均被拒绝。最终CAS恢复修订27，0.3/0.06、enforce/maxCalls24及原去重、4轮/30秒维护策略保留，输入10000、日预算110、不新增缓存。用户两个未跟踪trace哈希不变。只更新质量门禁项，不将历史小样本成本目标或其他未覆盖项冒充通过。详见[助理完整报告](https://github.com/dezhiguan/keel-assistant/blob/main/docs/acceptance-two-real-users-20261028.md)。
