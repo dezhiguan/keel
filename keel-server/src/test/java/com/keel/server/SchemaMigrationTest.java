@@ -22,7 +22,7 @@ class SchemaMigrationTest {
     @Test
     @Transactional
     void migratesAllPlatformTablesAndRunConstraints() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("42");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("43");
 
         List<String> tables = jdbc.queryForList("""
             SELECT tablename FROM pg_tables
@@ -34,7 +34,7 @@ class SchemaMigrationTest {
             "agent_employee_read_scope", "assistant_analysis_scope", "assistant_analysis_task", "assistant_analysis_attempt", "assistant_analysis_command", "reconcile_finding", "tool", "tool_version", "agent_tool_grant",
             "approval_policy", "approval_request", "agent_run", "release_record",
             "route_snapshot", "console_audit_event", "invoke_trace", "prompt_promotion",
-            "prompt_code_version", "prompt_label_snapshot", "agent_self_check", "eval_run", "eval_turn",
+            "prompt_code_version", "prompt_label_snapshot", "agent_self_check", "eval_run", "eval_turn", "eval_run_participant",
             "service_assertion_jti", "devflow_job", "devflow_batch", "devflow_stage_run",
             "devflow_execution", "devflow_artifact", "devflow_holdout", "devflow_holdout_result", "devflow_setting", "devflow_sandbox_run",
             "devflow_tool_grant",
@@ -42,6 +42,10 @@ class SchemaMigrationTest {
             "user_memory", "channel", "channel_credential", "channel_usage", "channel_feedback",
             "agent_history_policy", "agent_session", "session_message", "session_summary", "session_fact_state", "session_memory_job", "session_memory_attempt", "debug_chat_request", "insight_snapshot", "insight_observation", "insight_trace", "insight_trace_bill");
 
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM eval_run_participant", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_constraint WHERE conrelid='eval_run_participant'::regclass AND contype='f'", Integer.class)).isZero();
+        assertThat(jdbc.queryForList("SELECT conname FROM pg_constraint WHERE conrelid='eval_run_participant'::regclass",String.class))
+            .contains("eval_run_participant_pkey", "eval_run_participant_run_id_user_id_key", "eval_run_participant_session_id_key", "eval_run_participant_authorization_id_key");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_constraint WHERE conrelid IN ('session_memory_job'::regclass,'session_memory_attempt'::regclass) AND contype='f'", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_name='agent_session' AND column_name='memory_maintenance_mode'", Integer.class)).isEqualTo(1);
 
