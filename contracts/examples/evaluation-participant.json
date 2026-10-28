@@ -1,0 +1,22 @@
+{
+  "schema_version": "keel/v1",
+  "source": "Keel independently authenticated evaluation participant",
+  "authenticationSource": "auth-gateway",
+  "ownerFingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "authorizationId": "00000000-0000-4000-8000-000000000001",
+  "participantIndex": 1,
+  "sessionId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "sessionPersisted": true,
+  "agent": "keel-assistant",
+  "env": "staging",
+  "runId": "ev_00000000000000000000000000000001",
+  "authorizationExpiresAt": "2099-01-01T00:00:00Z",
+  "storage": {
+    "source": "Keel owner-bound PG evaluation session",
+    "ownerFingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "authorizationId": "00000000-0000-4000-8000-000000000001",
+    "sessionId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "messageCount": 2,
+    "turnIndex": 1
+  }
+}

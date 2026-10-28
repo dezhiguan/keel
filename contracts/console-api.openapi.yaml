@@ -1146,6 +1146,25 @@ paths:
                             allOf:
                               - $ref: "#/components/schemas/EvalResult"
 
+  /eval/runs/{runId}/participants:
+    parameters:
+      - { name: runId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: authorizeEvaluationParticipant
+      tags: [eval]
+      summary: 第二真实USER以自己的登录Cookie授权本次个人助理staging读取，不能由SERVICE或主账号代替
+      responses:
+        "200":
+          description: 独立授权及owner绑定PG会话已持久化；不返回密码、Cookie或readContext
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "./evaluation-participant.schema.json" }
+
   /eval/runs/{runId}/context:
     parameters:
       - { name: runId, in: path, required: true, schema: { type: string } }
@@ -1174,6 +1193,9 @@ paths:
                         type: object
                         additionalProperties: true
                         properties:
+                          participantEvidence:
+                            description: 可选，仅真实双用户计划返回，由服务器认证与独立同意产生，不采信模型meta
+                            $ref: "./evaluation-participant.schema.json"
                           policyEvidence:
                             type: object
                             description: 服务端当前只读授权及环境策略的脱敏快照，不是模型自报权限
@@ -1208,7 +1230,13 @@ paths:
                   - $ref: "#/components/schemas/Envelope"
                   - type: object
                     properties:
-                      data: { type: object, additionalProperties: true }
+                      data:
+                        type: object
+                        additionalProperties: true
+                        properties:
+                          participantEvidence:
+                            description: 可选，双用户轮次持久化后由服务器追加storage证明，不能由模型自报
+                            $ref: "./evaluation-participant.schema.json"
 
   /eval/runs/{runId}/progress:
     parameters:

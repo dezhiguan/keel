@@ -19,7 +19,8 @@ public class UserReadContext {
     public UserReadContext(ConsoleSigningKey key, ConsoleUsers users) {this.key=key;this.users=users;}
     public String issue(ConsolePrincipal user,String agent,String env,String session) {
         if(user==null || user.readOnly() || !"USER".equals(user.mode()) || user.userId()==null || user.userId().isBlank()
-                || !"ADMIN".equals(user.platformRole()) || !java.util.Set.of("dev","staging").contains(env)) return null;
+                || !java.util.Set.of("ADMIN","VIEWER").contains(user.platformRole()) || !java.util.Set.of("dev","staging").contains(env)
+                || ("VIEWER".equals(user.platformRole()) && (!"staging".equals(env) || !"keel-assistant".equals(agent)))) return null;
         try {
             var now=Instant.now();
             var claims=new JWTClaimsSet.Builder().issuer(ISSUER).audience(AUDIENCE).subject(user.userId())
@@ -45,7 +46,8 @@ public class UserReadContext {
                 || !agent.equals(c.getStringClaim("agent")) || !env.equals(c.getStringClaim("env"))
                 || c.getSubject()==null || c.getSubject().isBlank())throw denied();
             var account=users.find(c.getStringClaim("username")).orElseThrow(UserReadContext::denied);
-            if(!"ADMIN".equals(account.platformRole()))throw denied();
+            if(!java.util.Set.of("ADMIN","VIEWER").contains(account.platformRole())
+                    || ("VIEWER".equals(account.platformRole()) && (!"staging".equals(env) || !"keel-assistant".equals(agent))))throw denied();
             return new Actor(c.getSubject(),account.username(),account.org(),c.getStringClaim("session"));
         }catch(Exception error){throw denied();}
     }

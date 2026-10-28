@@ -282,7 +282,7 @@ def main():
     python_model("audit.py", "AuditEvent", schema("audit-event.schema.json"))
     java_model("IntentRouting", schema("intent-routing.schema.json"))
     python_model("routing.py", "IntentRouting", schema("intent-routing.schema.json"))
-    for filename, model in (("intent-packet", "IntentPacket"), ("routing-context", "RoutingContext"), ("route-plan", "RoutePlan")):
+    for filename, model in (("intent-packet", "IntentPacket"), ("routing-context", "RoutingContext"), ("route-plan", "RoutePlan"), ("evaluation-participant", "EvaluationParticipant")):
         java_model(model, schema(filename + ".schema.json"))
         python_model(filename.replace("-", "_") + ".py", model, schema(filename + ".schema.json"))
     error_codes()

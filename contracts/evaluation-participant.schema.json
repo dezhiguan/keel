@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keel.local/contracts/evaluation-participant.schema.json",
+  "title": "EvaluationParticipant",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "source", "authenticationSource", "ownerFingerprint", "authorizationId", "participantIndex", "sessionId", "sessionPersisted", "agent", "env", "runId", "authorizationExpiresAt"],
+  "properties": {
+    "schema_version": {"const": "keel/v1", "type": "string"},
+    "source": {"const": "Keel independently authenticated evaluation participant", "type": "string"},
+    "authenticationSource": {"const": "auth-gateway", "type": "string"},
+    "ownerFingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "authorizationId": {"type": "string", "format": "uuid"},
+    "participantIndex": {"type": "integer", "minimum": 0, "maximum": 1},
+    "sessionId": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "sessionPersisted": {"type": "boolean", "description": "false表示PG证据不完整，不得通过门禁"},
+    "agent": {"type": "string"},
+    "env": {"type": "string", "const": "staging"},
+    "runId": {"type": "string", "pattern": "^ev_[0-9a-f]{32}$"},
+    "authorizationExpiresAt": {"type": "string", "format": "date-time"},
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "ownerFingerprint", "authorizationId", "sessionId", "messageCount", "turnIndex"],
+      "properties": {
+        "source": {"type": "string", "const": "Keel owner-bound PG evaluation session"},
+        "ownerFingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "authorizationId": {"type": "string", "format": "uuid"},
+        "sessionId": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "messageCount": {"type": "integer", "minimum": 2},
+        "turnIndex": {"type": "integer", "minimum": 0, "maximum": 1}
+      }
+    }
+  }
+}

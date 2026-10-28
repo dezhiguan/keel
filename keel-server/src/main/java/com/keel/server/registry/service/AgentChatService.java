@@ -127,6 +127,10 @@ public class AgentChatService {
             throw new KeelException(ErrorCode.SERVER_INVALID_PARAM, "sessionId 格式不正确");
         }
         var detail = ready(name, text);
+        var principal=ConsolePrincipal.current();
+        if(principal!=null && "VIEWER".equals(principal.platformRole())
+                && (!"keel-assistant".equals(name) || !"staging".equals(detail.summary().env())))
+            throw new KeelException(ErrorCode.AUTH_CONSOLE_FORBIDDEN,"只读账号仅允许个人助理staging验证");
         if (remember) sessions.require(name, detail.summary().env(), owner, sessionId);
         return detail;
     }

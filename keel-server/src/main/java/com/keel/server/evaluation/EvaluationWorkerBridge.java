@@ -22,6 +22,8 @@ import java.util.*;
 /** Run-scoped delegation; an agent service assertion alone never grants user access. */
 @Service
 public class EvaluationWorkerBridge {
+    @org.springframework.beans.factory.annotation.Autowired
+    private EvaluationParticipants participants;
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
     private final KubernetesClient cluster;
@@ -40,7 +42,9 @@ public class EvaluationWorkerBridge {
                 .withName(secretName(id)).addToLabels("keel.io/eval-run",id).endMetadata()
                 .addToStringData("capability",capability).build()).create();
         try {jdbc.update("UPDATE eval_run SET runner='acceptance-v1',context_user=?::jsonb,capability_hash=? WHERE run_id=?",
-                encode(user),hash(capability),id);}
+                encode(user),hash(capability),id);
+            var target=jdbc.queryForMap("SELECT agent_name,env FROM eval_run WHERE run_id=?",id);
+            participants.initialize(id,(String)target.get("agent_name"),(String)target.get("env"),user);}
         catch(RuntimeException failure){cluster.secrets().inNamespace(namespace).withName(secretName(id)).delete();throw failure;}
     }
     public static String secretName(String id){return "keel-eval-auth-"+id.replace('_','-');}
@@ -69,22 +73,34 @@ public class EvaluationWorkerBridge {
         var snapshot=snapshot(id,run.dataset);
         if(body.path("bootstrap").asBoolean())return Map.of("dataset",run.dataset,"datasetHash",hash(encode(snapshot)),"items",snapshot);
         var caseId=caseId(body);var turn=turn(body);
-        if(snapshot.stream().noneMatch(r->caseId.equals(r.path("metadata").path("caseId").asText())))throw denied();
+        var definition=snapshot.stream().filter(r->caseId.equals(r.path("metadata").path("caseId").asText())).findFirst().orElseThrow(EvaluationWorkerBridge::denied);
+        boolean twoUsers="two-real-users".equals(definition.path("metadata").path("sessionPlan").asText());
         var group=group(body);var rawSession=id+":"+caseId+":"+group;
-        var ticket=contexts.issue(run.user,run.agent,run.env,rawSession);
+        var actor=run.user;
+        EvaluationParticipants.Context participant=null;
+        if(twoUsers) {
+            participant=participants.context(id,turn);
+            if(participant==null)return Map.of("blocked","缺少第二个真实认证用户及独立授权，禁止伪造身份");
+            actor=participant.user();rawSession=participant.pgSession();
+        }
+        var ticket=contexts.issue(actor,run.agent,run.env,rawSession);
         if(ticket==null)throw denied();
         var history=new ArrayList<Map<String,String>>();
-        var previous=jdbc.query("SELECT question,answer FROM eval_turn WHERE run_id=? AND case_id=? AND session_group=? AND turn_index<? AND answer IS NOT NULL ORDER BY turn_index DESC LIMIT 3",
-                (rs,n)->List.of(Map.of("role","user","content",clip(rs.getString(1))),Map.of("role","assistant","content",clip(rs.getString(2)))),id,caseId,group,turn);
-        Collections.reverse(previous);previous.forEach(history::addAll);
+        if(twoUsers)history.addAll(participant.history());
+        else {
+            var previous=jdbc.query("SELECT question,answer FROM eval_turn WHERE run_id=? AND case_id=? AND session_group=? AND turn_index<? AND answer IS NOT NULL ORDER BY turn_index DESC LIMIT 3",
+                    (rs,n)->List.of(Map.of("role","user","content",clip(rs.getString(1))),Map.of("role","assistant","content",clip(rs.getString(2)))),id,caseId,group,turn);
+            Collections.reverse(previous);previous.forEach(history::addAll);
+        }
         var output=new LinkedHashMap<String,Object>();output.put("readContext",ticket);
-        output.put("sessionId",UserReadContext.sessionHash(run.user.userId(),rawSession));output.put("history",history);output.put("endpoint",run.endpoint);
-        var approved=Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM agent_employee_read_scope WHERE agent_name=? AND environment=? AND target_org=? AND enabled)",Boolean.class,run.agent,run.env,run.user.org()));
-        output.put("policyEvidence",Map.of("source","Keel current read authorization and environment policy", "scopeOrg",run.user.org(),
+        output.put("sessionId",UserReadContext.sessionHash(actor.userId(),rawSession));output.put("history",history);output.put("endpoint",run.endpoint);
+        if(twoUsers)output.put("participantEvidence",participant.evidence());
+        var approved=Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM agent_employee_read_scope WHERE agent_name=? AND environment=? AND target_org=? AND enabled)",Boolean.class,run.agent,run.env,actor.org()));
+        output.put("policyEvidence",Map.of("source","Keel current read authorization and environment policy", "scopeOrg",actor.org(),
                 "employeeEnvironments",approved ? EmployeeReadService.READ_ENVIRONMENTS.stream().sorted().toList() : List.of(),
                 "retiredEnvironments",EmployeeReadService.RETIRED_ENVIRONMENTS.stream().sorted().toList(),
                 "businessEnvironments",EmployeeReadService.BUSINESS_ENVIRONMENTS.stream().sorted().toList()));
-        if(body.path("alternateInstance").asBoolean()) {
+        if(body.path("alternateInstance").asBoolean() || twoUsers) {
             var pods=cluster.pods().inNamespace(run.namespace).withLabel("keel.io/agent",run.agent).list().getItems().stream()
                     .filter(p->run.env.equals(p.getMetadata().getLabels().get("keel.io/env")))
                     .filter(p->EvalJobs.ready(p) && run.image.equals(p.getSpec().getContainers().getFirst().getImage()))
@@ -95,19 +111,32 @@ public class EvaluationWorkerBridge {
         }
         return output;
     }
-    public void saveTurn(String id,String cap,JsonNode body) {
+    @org.springframework.transaction.annotation.Transactional
+    public Map<String,Object> saveTurn(String id,String cap,JsonNode body) {
         var run=authorize(id,cap);var caseId=caseId(body);var turn=turn(body);
-        if(snapshot(id,run.dataset).stream().noneMatch(r->caseId.equals(r.path("metadata").path("caseId").asText())))throw denied();
+        var definition=snapshot(id,run.dataset).stream().filter(r->caseId.equals(r.path("metadata").path("caseId").asText())).findFirst().orElseThrow(EvaluationWorkerBridge::denied);
         var question=body.path("question").asText();var answer=body.path("answer").isTextual()?body.path("answer").asText():null;
         if(question.length()>10000 || (answer!=null && answer.length()>40000) || encode(body).length()>1000000)throw denied();
+        var evidence=body.path("evidence").deepCopy();
+        var receipt=new LinkedHashMap<String,Object>();
+        if("two-real-users".equals(definition.path("metadata").path("sessionPlan").asText()) && turn<2 && answer!=null) {
+            var proof=participants.store(id,caseId,turn,question,answer,body.path("evidence").path("final").path("trace_id").asText());
+            if(!(evidence instanceof com.fasterxml.jackson.databind.node.ObjectNode object))throw denied();
+            object.withObject("sessionEvidence").set("participant",json.valueToTree(proof));receipt.put("participantEvidence",proof);
+        }
         jdbc.update("INSERT INTO eval_turn(run_id,case_id,turn_index,session_group,question,answer,evidence) VALUES (?,?,?,?,?,?,?::jsonb) ON CONFLICT DO NOTHING",
-                id,caseId,turn,group(body),question,answer,encode(body.path("evidence")));
+                id,caseId,turn,group(body),question,answer,encode(evidence));
+        return receipt;
     }
     public void progress(String id,String cap,JsonNode result) {
         var run=authorize(id,cap);
         var frozen=snapshot(id,run.dataset);
         validateProgress(result,id,run.agent,run.dataset,frozen);
         if(!hash(encode(frozen)).equals(result.path("datasetHash").asText()))throw denied();
+        for(var row:result.path("cases"))if("PASS".equals(row.path("status").asText())) {
+            var definition=frozen.stream().filter(c->row.path("caseId").asText().equals(c.path("metadata").path("caseId").asText())).findFirst().orElseThrow(EvaluationWorkerBridge::denied);
+            if("two-real-users".equals(definition.path("metadata").path("sessionPlan").asText()))participants.requireComplete(id,row.path("caseId").asText());
+        }
         jdbc.update("UPDATE eval_run SET state='RUNNING',progress_result=?::jsonb,updated_at=now() WHERE run_id=? AND state IN ('QUEUED','RUNNING')",encode(result),id);
     }
     static void validateProgress(JsonNode result,String id,String agent,String dataset,List<JsonNode> frozen) {

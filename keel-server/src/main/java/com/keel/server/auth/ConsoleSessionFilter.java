@@ -103,6 +103,10 @@ public class ConsoleSessionFilter extends OncePerRequestFilter {
                         return;
                     }
                     var account = user.get();
+                    if ("VIEWER".equals(account.platformRole()) && !viewerAllowed(request.getMethod(),path)) {
+                        AuthResponses.write(response,new KeelException(ErrorCode.AUTH_CONSOLE_FORBIDDEN,"只读账号不允许执行此管理操作"));
+                        return;
+                    }
                     ConsolePrincipal.set(request, new ConsolePrincipal("USER", verified.userId(), account.username(),
                             account.displayName(), account.org(), account.platformRole(), verified.roles(), false));
                     if (!read(request) && !"1".equals(request.getHeader("X-Keel-Console"))) {
@@ -115,6 +119,16 @@ public class ConsoleSessionFilter extends OncePerRequestFilter {
         } finally {
             MDC.remove("agent");
         }
+    }
+
+    static boolean viewerAllowed(String method,String path) {
+        if("GET".equals(method) || "HEAD".equals(method))return path.equals("/api/v1/me")
+                || path.equals("/api/v1/agents/keel-assistant")
+                || path.matches("/api/v1/agents/keel-assistant/(elements|sessions|sessions/[A-Za-z0-9_-]+/messages)");
+        return "POST".equals(method) && (path.equals("/api/v1/auth/logout")
+                || path.equals("/api/v1/agents/keel-assistant/sessions")
+                || path.equals("/api/v1/agents/keel-assistant/chat/stream")
+                || path.matches("/api/v1/eval/runs/ev_[0-9a-f]{32}/participants"));
     }
 
     private static boolean read(HttpServletRequest request) {
