@@ -10,4 +10,16 @@ Keel ConsoleUsers保持主账号兼容，增加显式配置的额外账号名单
 
 契约先增加可选participantEvidence及独立授权端点；证据来自服务端真实principal/PG/同意，公开身份只用哈希，绝不采信模型meta中的自报身份。评分保留全部原要求，增加严格双身份、双会话、双授权、空B历史、同run/agent/env证明，然后继续原语义裁判检查A实际读、B澄清、不泄露、不越权。不能仅删BLOCKED分支或硬编码PASS。
 
-验证真实登录/刷新与名单关闭、VIEWER管理拒绝、独立同意重放/同人/跨run/撤销/过期、A/B会话跨读拒绝、票据跨session拒绝、PG隔离、模型伪造证据拒绝。提交推送、选择性部署keel-server及助理，确认双副本后重跑相同100条并保留所有失败。评测临时使用已验证0.5额度，结束恢复原0.3/0.06及优化开启。门禁通过后只记录真实passed/complete，不自动推广prod。
+验证真实登录/刷新与名单关闭、VIEWER管理拒绝、独立同意重放/同人/跨run/名单或读取scope撤销/过期、A/B会话跨读拒绝、票据跨session拒绝、PG隔离、模型伪造证据拒绝。提交推送、选择性部署keel-server及助理，确认双副本后重跑相同100条并保留所有失败。评测临时使用已验证0.5额度，结束恢复原0.3/0.06及优化开启。门禁通过后只记录真实passed/complete，不自动推广prod。
+
+## 平台实施验证
+
+第二账号keel_assistant_qa2已创建为auth-gateway持久用户55，仅Keel VIEWER membership；正常密码登录和刷新均为USER 55，主账号保持USER 54 / ADMIN。凭据保存在本机私有全局文件，Codex全局AGENTS记录复用规则；仓库不含密码、Cookie或readContext。
+
+服务端源码ac2b538b707b86698bf61ba5ee29ffedc55b55b0通过完整[Keel CI](https://github.com/dezhiguan/keel/actions/runs/40617366302)，SDK 422、契约62、devflow 9项通过，Java包含实际PG迁移与独立参与者测试。初轮CI因旧迁移测试仍断言42失败，已同步43并增加新表唯一约束检查，未跳过失败检查。
+
+仅选择性更新keel-server与个人助理staging，服务端两个Ready副本JAR SHA256均为99bf42b3fbed155c0a039def2eb31aa26405539a6f95cb13e55e5c6291d40a89；V43已经实际迁移。额外账号名单只更新keel-system/keel-server Secret的KEEL_CONSOLE_ADDITIONAL_USERS单项，保留主账号、签名密钥及其余配置。
+
+真实登录隔离测试通过：B可用自身授权完成员工查询并保存自己的PG消息；A/B互读普通及正式PG会话均SERVER_NOT_FOUND；B的成本策略、发起正式评测和其他agent写入均AUTH_CONSOLE_FORBIDDEN。正式运行ev_c742dd18d6204050863b1fac16f69051的双用户用例PASS，两个PG会话/owner/授权不同，每人保存2条消息，B初始历史为空、澄清且零工具，实际命中不同副本；关闭运行后B不能再次同意。该完整运行98 PASS / 1 FAIL / 1 REVIEW / 0 BLOCKED，仍不冒充门禁通过；余下为普通措辞断言和模型步骤70秒提前取消，助理另行修复并继续完整复验。
+
+经完整CI验证的源树通过文档记录提交收敛至main，使用[skip ci]避免contracts/common共享变更触发无关服务的整批CD；实际服务端源树仍为上述已验证ac2b538，选择性部署与双副本哈希核验均已完成，未略过代码CI或正式评测。
